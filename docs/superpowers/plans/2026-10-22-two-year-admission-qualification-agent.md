@@ -62,10 +62,10 @@
 - 證照比對只讀取 `confirmation_status == "confirmed"` 的 `CredentialRecord`；競賽比對只讀取目前登入學生且 `status == "confirmed"` 的 `Portfolio`。
 - 證照級別正規化使用明確且有順序的對照表；未知證照名稱或級別一律標示未能判斷，不可猜測。
 
-- [ ] 定義並驗證支援的 `value_json` 格式及比較運算子。
-- [ ] 實作同組條件 AND、不同組條件 OR 的判斷，回傳逐條條件說明，而非只有布林值。
-- [ ] 依設計規格的優先順序回傳 `eligible`、`not_eligible`、`insufficient_data` 或 `needs_review`，並附上適用條件及來源網址、位置。
-- [ ] 遇到未知證照級別、競賽名次／類別或不支援的資料欄位時，保留未判定狀態，不從自由文字推測是否符合。
+- [x] 定義並驗證支援的 `value_json` 格式及比較運算子。
+- [x] 實作同組條件 AND、不同組條件 OR 的判斷，回傳逐條條件說明，而非只有布林值。
+- [x] 依設計規格的優先順序回傳 `eligible`、`not_eligible`、`insufficient_data` 或 `needs_review`，並附上適用條件及來源網址、位置。
+- [x] 遇到未知證照級別、競賽名次／類別或不支援的資料欄位時，保留未判定狀態，不從自由文字推測是否符合。
 
 ### 任務 3：從官方來源擷取候選資格規則
 
