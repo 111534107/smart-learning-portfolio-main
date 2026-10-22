@@ -5,7 +5,7 @@ import pytest
 
 from app import create_app
 from app.extensions import db
-from app.models import AdmissionProgram, AgentTask, PublicSource, PublicSourceChange, User
+from app.models import AdmissionEligibilityRule, AdmissionProgram, AgentTask, PublicSource, PublicSourceChange, User
 from app.services import admission_agent_service as agent
 from app.services.admission_service import import_seed_programs
 
@@ -14,6 +14,10 @@ EXTRACTED = {"programs": [
      "admission_category": "管理類四", "items": [
          {"name": "歷年成績", "weight": 30, "categories": ["grades"]},
          {"name": "專題實作", "weight": 70, "categories": ["project", "不存在的類別"]},
+     ], "eligibility_rules": [
+         {"rule_group": 1, "condition_type": "credential", "operator": "has_credential",
+          "value_json": {"name": "電腦軟體應用", "min_level": "乙級"},
+          "description": "取得電腦軟體應用乙級以上技術士證", "source_location": "第 3 頁、報名資格"},
      ]},
     {"program_code": "301001", "admission_year": 116, "school_name": "某科大", "department_name": "機械工程系",
      "admission_category": "工程類", "items": [{"name": "歷年成績", "weight": 100, "categories": ["grades"]}]},
@@ -114,7 +118,59 @@ def test_extract_creates_candidates_for_keyword_programs_only(app):
         assert program.status == "candidate" and program.admission_year == 116
         assert program.items[1].category_keys == ["project"]
         assert all(item.mapping_status == "pending" for item in program.items)
+        assert len(program.eligibility_rules) == 1
+        eligibility = program.eligibility_rules[0]
+        assert eligibility.condition_type == "credential"
+        assert eligibility.operator == "has_credential"
+        assert eligibility.value_json == {"name": "電腦軟體應用", "min_level": "乙級"}
+        assert eligibility.mapping_status == "pending"
+        assert eligibility.source_url == source.url
+        assert eligibility.source_location == "第 3 頁、報名資格"
         assert change.status == "extracted"
+
+
+def test_extract_keeps_ambiguous_eligibility_as_unresolved_candidate(app):
+    source_id = make_source(app)
+    ambiguous = {"programs": [dict(EXTRACTED["programs"][0], eligibility_rules=[
+        {"condition_type": "unknown", "operator": "guess", "value_json": {"maybe": True},
+         "description": "資格文字不清楚，需回原文確認", "source_location": "第 4 頁"},
+    ])]}
+    with app.app_context():
+        source = db.session.get(PublicSource, source_id)
+        agent.check_source(source, admin(app), fetch=fake_fetch(b"%PDF v1"))
+        change = PublicSourceChange.query.one()
+        agent.extract_programs(change, admin(app), generate=lambda prompt, schema, files: ambiguous)
+
+        rule = AdmissionEligibilityRule.query.one()
+        assert rule.condition_type == "unresolved"
+        assert rule.operator == "unresolved"
+        assert rule.value_json is None
+        assert rule.mapping_status == "pending"
+        assert "需回原文確認" in rule.description
+        assert rule.source_location == "第 4 頁"
+
+
+def test_extract_schema_requests_explicit_eligibility_source_location():
+    rules = agent.EXTRACT_SCHEMA["properties"]["programs"]["items"]["properties"]["eligibility_rules"]
+
+    assert "description" in rules["items"]["required"]
+    assert "source_location" in rules["items"]["required"]
+
+
+def test_extract_records_review_note_when_eligibility_rules_are_missing(app):
+    source_id = make_source(app)
+    program_data = dict(EXTRACTED["programs"][0])
+    program_data.pop("eligibility_rules")
+    result = {"programs": [program_data]}
+    with app.app_context():
+        agent.check_source(db.session.get(PublicSource, source_id), admin(app), fetch=fake_fetch(b"%PDF v1"))
+        agent.extract_programs(PublicSourceChange.query.one(), admin(app), generate=lambda prompt, schema, files: result)
+
+        rule = AdmissionEligibilityRule.query.one()
+        assert rule.condition_type == "unresolved"
+        assert rule.mapping_status == "pending"
+        assert "未能擷取" in rule.description
+        assert rule.source_location is None
 
 
 def test_extract_twice_does_not_duplicate(app):

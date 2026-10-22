@@ -20,6 +20,7 @@ from flask import current_app
 
 from app.extensions import db
 from app.models import (
+    AdmissionEligibilityRule,
     AdmissionProgram,
     AdmissionRequirementItem,
     AgentTask,
@@ -154,6 +155,22 @@ EXTRACT_SCHEMA = {
                     "school_name": {"type": "STRING"},
                     "department_name": {"type": "STRING"},
                     "admission_category": {"type": "STRING"},
+                    "eligibility_rules": {
+                        "type": "ARRAY",
+                        "items": {
+                            "type": "OBJECT",
+                            "properties": {
+                                "rule_group": {"type": "INTEGER"},
+                                "condition_type": {"type": "STRING"},
+                                "operator": {"type": "STRING"},
+                                "value_json": {"type": "OBJECT"},
+                                "description": {"type": "STRING"},
+                                "source_location": {"type": "STRING"},
+                                "is_required": {"type": "BOOLEAN"},
+                            },
+                            "required": ["description", "source_location"],
+                        },
+                    },
                     "items": {
                         "type": "ARRAY",
                         "items": {
@@ -167,7 +184,8 @@ EXTRACT_SCHEMA = {
                         },
                     },
                 },
-                "required": ["program_code", "admission_year", "school_name", "department_name", "items"],
+                "required": ["program_code", "admission_year", "school_name", "department_name", "items",
+                             "eligibility_rules"],
             },
         },
     },
@@ -183,8 +201,10 @@ def _extract_prompt(keywords, page_text=None):
 - school_name、department_name、admission_category（招生類別，例如「管理類四」）
 - items：備審資料（第二階段）的每個評分項目名稱與加權百分比（整數，照原文）
 - categories：建議這個項目對應的資料類別，只能從這些代碼選：{categories}
+- eligibility_rules：只擷取簡章明確寫出的第一階段報名資格；每筆包含 rule_group（同組條件必須同時符合，不同組是替代資格）、condition_type（student_status、credential、competition）、operator、value_json、description（保留簡章原意）及 source_location（頁碼／章節）。
+- value_json 只使用可直接對照學生結構化資料的欄位：學籍可用 field（class_name 或 admission_year）及 values；證照可用 name、min_level、issuer、issue_date_from、issue_date_to；競賽只可表達是否有已確認競賽經歷。
 
-規則：只擷取文件裡真的有寫的內容，看不清楚或沒有寫的不要猜；不符合關鍵字的科系不要列出。"""
+規則：只擷取文件裡真的有寫的內容，看不清楚或沒有寫的不要猜；獎項、名次或日期等目前沒有對應學生欄位的條件，不要轉成可自動判斷的 value_json，只保留 description 並讓 condition_type、operator 或 value_json 留空；保留該條原文和頁碼／章節供管理者核對。不符合關鍵字的科系不要列出。"""
     if page_text:
         prompt += "\n\n文件內容：\n" + page_text[:200000]
     return prompt
@@ -194,6 +214,42 @@ def _html_to_text(content):
     text = content.decode("utf-8", errors="ignore")
     text = re.sub(r"(?is)<(script|style).*?</\1>", " ", text)
     return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", text))
+
+
+def _eligibility_candidate(raw, source_url, sort_order):
+    """只將結構明確的擷取結果留下可比對欄位；其他內容退為待核對原文。"""
+    raw = raw if isinstance(raw, dict) else {"description": raw if isinstance(raw, str) else ""}
+    description = str(raw.get("description") or "").strip()
+    location = str(raw.get("source_location") or "").strip() or None
+    condition_type = str(raw.get("condition_type") or "").strip()
+    operator = str(raw.get("operator") or "").strip()
+    value = raw.get("value_json")
+    group_value = raw.get("rule_group")
+    group = group_value if isinstance(group_value, int) and not isinstance(group_value, bool) else 0
+    supported = {
+        ("student_status", "in"),
+        ("credential", "has_credential"),
+        ("competition", "has_competition"),
+    }
+    structured = (condition_type, operator) in supported and isinstance(value, dict) and group >= 1
+    if not description:
+        description = "擷取到資格區塊，但未能可靠整理條件；請管理者回到官方簡章核對。"
+    if not structured:
+        condition_type = operator = "unresolved"
+        value = None
+        group = max(group, 1)
+    return {
+        "rule_group": group,
+        "condition_type": condition_type,
+        "operator": operator,
+        "value_json": value,
+        "description": description[:2000],
+        "source_url": source_url,
+        "source_location": location,
+        "mapping_status": "pending",
+        "is_required": raw.get("is_required") if isinstance(raw.get("is_required"), bool) else True,
+        "sort_order": sort_order,
+    }
 
 
 def extract_programs(change, requester, generate=None):
@@ -247,6 +303,18 @@ def extract_programs(change, requester, generate=None):
             db.session.add(AdmissionRequirementItem(
                 rule_version_id=program.id, source_item_name=str(item.get("name", "")).strip()[:100] or "（未命名）",
                 weight_percent=weight, mapped_categories=",".join(keys), mapping_status="pending", sort_order=order,
+            ))
+        official_url = None if source.url.startswith("upload://") else source.url
+        raw_rules = raw.get("eligibility_rules")
+        if not isinstance(raw_rules, list) or not raw_rules:
+            raw_rules = [{
+                "description": "未能擷取到可核對的報名資格條件；請管理者回到官方簡章確認。",
+                "source_location": None,
+            }]
+        for order, raw_rule in enumerate(raw_rules, start=1):
+            db.session.add(AdmissionEligibilityRule(
+                rule_version_id=program.id,
+                **_eligibility_candidate(raw_rule, official_url, order),
             ))
         created.append(code)
     change.status = "extracted"

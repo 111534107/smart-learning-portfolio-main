@@ -19,7 +19,7 @@ Base commit: `c51461f` (`chore: save extracted project baseline`)
 - Baseline full suite: first run produced 316 fixture-setup errors because pytest's default temp root under Windows `AppData\\Local\\Temp` was not writable in this environment. A representative `tmp_path` test passed when `--basetemp=tmp/pytest-baseline-debug` was used. Full rerun with `--basetemp=tmp/pytest-baseline-full`: 679 passed, 9 skipped in 277.26s. No product files were changed during diagnosis.
 - Task 1: complete. Migration test was first observed failing because the table was absent, then passed after adding the model and reversible migration. Related migration and admission-service suite: 12 passed. Changes are ready for the Task 1 commit.
 - Task 2: complete. Added deterministic rule evaluation for student class/admission year, confirmed credential records, and confirmed competition presence. RED→GREEN covered missing certificate dates. Eligibility service and existing admission-service tests: 17 passed. Ruling: existing `Portfolio` has no structured competition award/rank or exact date fields, so rules requiring these details remain `needs_review`; only confirmed competition presence can be auto-matched. Cost if wrong: some real competition qualifications require manual review instead of automated matching.
-- Task 3: pending.
+- Task 3: complete. Extended the extraction schema and prompt; valid rules remain pending and carry source URL/location. Unknown or missing eligibility structure is retained as an unresolved candidate instead of being guessed. Agent and eligibility service tests: 26 passed.
 - Task 4: pending.
 - Task 5: pending.
 - Task 6: pending.
