@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% from "partials/files.html" import upload_field with context %}
+{% set page_name = "award-upload" %}
+
+{% block title %}匯入獎懲記錄｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "活動與經歷") }}{% endblock %}
+
+{% block content %}
+{{ page_band("匯入獎懲記錄", [("活動與經歷", url_for('student.portfolio_list'))]) }}
+<div class="page narrow page--banded">
+  <section class="sheet mb-1">
+    <ol class="muted small">
+      <li>到學校系統的「查歷年獎懲」，學年期選最早到最晚，存成 PDF 或截圖。</li>
+      <li>上傳後，AI 會一列一列讀出來，並建議放在活動、競賽、服務學習或幹部經歷。</li>
+      <li>你逐列檢查、勾選要匯入的，按確認才會存進「活動與經歷」。警告、小過等懲處不會匯入。</li>
+    </ol>
+    <form method="post" action="{{ url_for('award.award_upload') }}" enctype="multipart/form-data" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {{ upload_field(hint="獎懲記錄的 PDF 或截圖", accept="image/png,image/jpeg,.pdf") }}
+      <div class="record-card__actions">
+        <button class="button" type="submit">上傳並讀取</button>
+        <a class="button button--line" href="{{ url_for('student.portfolio_list') }}">取消</a>
+      </div>
+      <p class="muted small">系統不會登入學校系統，也不會保存你的學校帳號密碼。</p>
+    </form>
+  </section>
+
+  {% if documents %}
+  <section class="sheet">
+    <h2>上傳過的獎懲記錄</h2>
+    <ul class="plain-list">
+      {% for document in documents %}
+      <li><a href="{{ url_for('award.award_review', document_id=document.id) }}">{{ document.display_name }}</a>
+        <span class="tag {{ 'tag--ok' if document.status == 'confirmed' else 'tag--warn' }}">{{ "已匯入" if document.status == "confirmed" else "待確認" }}</span></li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "work-dashboard" %}
+{% set nav_active = "工作台" if user.role == "teacher" else "待處理送件" %}
+
+{% block title %}{{ title }}｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, nav_active) }}{% endblock %}
+
+{% block content %}
+{% if user.role == "teacher" %}
+<section class="work-shell work-shell--wide" data-work-role="teacher">
+  <header class="work-heading" data-tour="先看本班有哪些學生與待確認件數。" data-tour-order="1">
+    <div><h1>{{ user.display_name }} 老師</h1><p>{% if classes %}負責班級：{{ classes|join("、") }}。{% endif %}點學生姓名查看資料，確認備審內容或留下修改建議。</p></div>
+  </header>
+  {% set pending_total = class_rows|sum(attribute="pending") %}
+  <div class="work-metrics" data-tour="這裡整理班級人數、待確認送審和目標校系。" data-tour-order="2">
+    <article class="work-metric"><span>本班學生</span><strong>{{ class_rows|length }}</strong><small>人</small></article>
+    <article class="work-metric"><span>等待你確認</span><strong>{{ pending_total }}</strong><small>份備審資料</small></article>
+    <article class="work-metric"><span>已選目標校系</span><strong>{{ class_rows|selectattr("targets")|list|length }}</strong><small>人</small></article>
+  </div>
+  <section class="work-panel" data-class-roster data-tour="只會列出分派給你的班級學生；點姓名查看。" data-tour-order="3">
+    <div class="work-panel__head"><div><h2>本班學生</h2><p>數字是各類資料筆數，空格代表還沒有資料。</p></div></div>
+    {% if class_rows %}
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>學號</th><th>姓名</th>{% for key in category_keys %}<th>{{ category_labels[key] }}</th>{% endfor %}<th>目標校系</th><th>待確認</th></tr></thead>
+        <tbody>
+          {% for row in class_rows %}
+          <tr>
+            <td class="mono">{{ row.student.student_profile.student_no }}</td>
+            <td><a href="{{ url_for('teacher.student_detail', student_id=row.student.id) }}"><b>{{ row.student.display_name }}</b></a></td>
+            {% for key in category_keys %}<td>{% if row.totals[key] %}{{ row.totals[key] }}{% else %}<span class="muted">—</span>{% endif %}</td>{% endfor %}
+            <td class="small">{% for program in row.targets %}{{ program.school_name|replace("國立", "") }}{{ program.department_name }}{% if not loop.last %}<br>{% endif %}{% else %}<span class="muted">未選</span>{% endfor %}</td>
+            <td>{% if row.pending %}<span class="tag tag--warn">{{ row.pending }} 份</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="work-empty"><strong>還沒有負責的班級。</strong><span>請系統管理者在「導師班級」設定。</span></p>
+    {% endif %}
+  </section>
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>專題審查指派</h2><p>專題共同審查流程（後續擴充）。</p></div><a href="{{ url_for('review.teacher_reviews') }}">前往完整清單</a></div>
+    <ul class="work-list">
+      {% for assignment in teacher_assignments[:4] %}
+      <li><span class="work-list__index">{{ loop.index }}</span><div><strong>{{ assignment.submission.portfolio.title }}</strong><span>版本 {{ assignment.submission.version_no }} · {{ assignment.submission.portfolio.category }}</span></div><span class="queue-badge">待閱讀</span></li>
+      <li class="work-feedback-form"><form method="post" action="{{ url_for('review.teacher_feedback', submission_id=assignment.submission_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>給科辦參考的意見<textarea name="comment" required placeholder="例如：作品架構完整，建議補上資料模型圖與操作畫面。"></textarea></label><button class="button" type="submit">送出意見</button></form></li>
+      {% else %}
+      <li class="work-empty"><strong>目前沒有新的審查項目。</strong><span>有指派進來時，會在這裡提醒你。</span></li>
+      {% endfor %}
+    </ul>
+  </section>
+</section>
+{% elif user.role == "staff" %}
+<section class="work-shell work-shell--wide" data-work-role="staff" data-work-queue>
+  <header class="work-heading" data-tour="科辦先從送件佇列處理已送審的成果。" data-tour-order="1">
+    <div><h1>待處理送件</h1><p>已送審的成果會列在這裡。登錄共同結論時，請寫下學生看得懂的補正說明。</p></div>
+    <span class="queue-badge queue-badge--strong">{{ staff_pending_submissions|length }} 件待處理</span>
+  </header>
+  <div class="work-metrics" data-tour="查看待處理送件與電子獎狀數量。" data-tour-order="2">
+    <article class="work-metric"><span>待核准電子獎狀</span><strong>{{ staff_pending_certificates }}</strong><small><a href="{{ url_for('certificate.staff_list') }}">前往電子獎狀 →</a></small></article>
+    <article class="work-metric"><span>待登錄結論</span><strong>{{ staff_pending_submissions|length }}</strong><small>目前狀態為已送審</small></article>
+    
+  </div>
+  <section class="work-panel" data-tour="逐件查看資料、教師意見，再登錄共同結論。" data-tour-order="3">
+    <div class="work-panel__head"><div><h2>已送審成果</h2><p>提交共同結論後，系統會同步更新該筆送件狀態。</p></div></div>
+    <div class="work-queue">
+      {% for submission in staff_pending_submissions %}
+      <article class="queue-row">
+        <div class="queue-row__summary"><span class="work-list__index">{{ loop.index }}</span><div><strong>{{ submission.portfolio.title }}</strong><span>{{ submission.portfolio.student.display_name }} · {{ submission.portfolio.category }} · 第 {{ submission.version_no }} 版</span></div></div>
+        {% set feedback_items = staff_feedback_by_submission.get(submission.id, []) %}
+        <div class="teacher-feedback" data-teacher-feedback><strong>教師意見</strong>{% for feedback in feedback_items %}<p><b>{{ feedback.teacher.display_name }}</b>：{{ feedback.comment }}</p>{% else %}<p class="muted">目前還沒有教師意見，可先依送件內容處理。</p>{% endfor %}</div>
+        <form class="queue-row__form" method="post" action="{{ url_for('staff.staff_review_result', submission_id=submission.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <label>共同結論<select name="decision"><option value="approved">核可</option><option value="needs_revision" selected>需要補正</option><option value="rejected">退件</option></select></label>
+          <label>說明（選填）<input name="comment" placeholder="例如：請補上操作畫面與分工說明"></label>
+          <button class="button" type="submit">登錄結果</button>
+        </form>
+      </article>
+      {% else %}
+      <div class="work-empty"><strong>目前沒有待處理送件。</strong><span>新的學生送件會自動排到這裡。</span></div>
+      {% endfor %}
+    </div>
+  </section>
+</section>
+{% else %}
+<section class="work-shell"><div class="surface"><h1>{{ title }}</h1><p class="muted">目前沒有可顯示的工作內容。</p></div></section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "admin-rules" %}
+
+{% block title %}規則管理｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "專題規則") }}{% endblock %}
+
+{% block content %}
+<section class="work-shell work-shell--wide" data-work-role="admin">
+  <header class="work-heading"><div><h1>專題規則</h1><p>依序新增專題類型、成果模板與要求項目。未確認的校規請先維持停用，不要直接指派給學生。</p></div></header>
+  <section class="work-panel"><div class="work-panel__head"><div><h2>新增專題類型</h2><p>代碼建立後不建議任意更換，方便後續資料追蹤。</p></div></div><form class="admin-inline-form" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>代碼<input name="code" placeholder="例如 software" required></label><label>名稱<input name="name" placeholder="例如 軟體專題" required></label><label>學年度<input name="school_year" type="number" min="1" placeholder="例如 115" required></label><button class="button" type="submit">新增類型</button></form></section>
+  <div class="admin-rule-stack">
+    {% for project_type in project_types %}
+    <section class="work-panel"><div class="work-panel__head"><div><h2>{{ project_type.name }} <span class="muted">{{ project_type.code }} · {{ project_type.school_year }}</span></h2><p>{{ "目前可使用" if project_type.is_active else "目前停用，尚不會被新的指派使用" }}</p></div><form method="post" action="{{ url_for('admin.toggle_project_type_active', project_type_id=project_type.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--quiet" type="submit">{{ "停用類型" if project_type.is_active else "啟用類型" }}</button></form></div>
+      <form class="admin-inline-form" method="post" action="{{ url_for('admin.create_requirement_template', project_type_id=project_type.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>模板名稱<input name="name" placeholder="例如 期中成果要求" required></label><label>版本<input name="version" placeholder="例如 1" required></label><button class="button button--quiet" type="submit">新增模板</button></form>
+      {% for template in project_type.templates %}
+      <article class="rule-template"><div class="work-panel__head"><div><h3>{{ template.name }} <span class="muted">v{{ template.version }}</span></h3><p>{{ "啟用中" if template.is_active else "已停用" }} · {{ template.items|length }} 項要求</p></div><form method="post" action="{{ url_for('admin.toggle_template_active', template_id=template.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--quiet" type="submit">{{ "停用模板" if template.is_active else "啟用模板" }}</button></form></div>
+        <ul class="rule-item-list">{% for item in template.items %}<li><strong>{{ item.sort_order }}. {{ item.title }}</strong><span>{{ item.stage }} · {{ "必填" if item.is_required else "選填" }}{% if item.description %} · {{ item.description }}{% endif %}</span></li>{% else %}<li class="muted">還沒有要求項目。</li>{% endfor %}</ul>
+        <form class="admin-item-form" method="post" action="{{ url_for('admin.create_requirement_item', template_id=template.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>要求項目<input name="title" placeholder="例如 資料模型圖" required></label><label>階段<select name="stage"><option value="midterm">期中</option><option value="review_1">第一次複評</option><option value="review_2">第二次複評</option></select></label><label>排序<input name="sort_order" type="number" value="0"></label><label>說明<input name="description" placeholder="選填"></label><label>性質<select name="is_required"><option value="on">必填</option><option value="off">選填</option></select></label><button class="button button--quiet" type="submit">新增要求</button></form>
+      </article>
+      {% endfor %}
+    </section>
+    {% else %}<section class="work-panel"><p class="muted">還沒有專題類型。先新增一種今年要使用的類型即可。</p></section>{% endfor %}
+  </div>
+</section>
+{% endblock %}

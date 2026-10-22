@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% set page_name = "student-welcome" %}
+{% set piece_path = "M0 0H100V35A15 15 0 1 1 100 65V100H0V65A15 15 0 0 0 0 35Z" %}
+{% set types = [
+  ("成績", "var(--year-1)", "每學期的成績單"),
+  ("證照", "var(--year-2)", "網頁設計丙級"),
+  ("活動", "var(--year-3)", "迎新活動、社團"),
+  ("競賽", "var(--year-4)", "全國技藝競賽"),
+  ("服務", "var(--year-2)", "資訊週志工"),
+  ("幹部", "var(--year-5)", "班級學藝股長"),
+] %}
+
+{% block title %}歡迎｜資管科智慧學習歷程系統{% endblock %}
+
+{% block content %}
+<div class="welcome" data-welcome>
+  <form class="welcome__skip" method="post" action="{{ url_for('main.student_welcome_done') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" data-welcome-skip>跳過</button>
+  </form>
+
+  <div class="welcome__stage">
+    {# 1 歡迎 #}
+    <section class="welcome__step" data-welcome-step="1">
+      <svg class="welcome__art welcome__art--hero" viewBox="0 0 140 130" aria-hidden="true">
+        <path class="piece piece--in" style="--c: var(--year-1); --d: 0s" transform="translate(20 15)" d="{{ piece_path }}"/>
+      </svg>
+      <h1>{{ user.display_name }}，歡迎來到資管科。</h1>
+      <p>五年很長，我們陪你一片一片拼。</p>
+    </section>
+
+    {# 2 五年五片 #}
+    <section class="welcome__step" data-welcome-step="2">
+      <svg class="welcome__art" viewBox="0 0 560 130" role="img" aria-label="專一到專五，五片拼圖">
+        {% for stop in plan %}
+        <g transform="translate({{ loop.index0 * 104 + 20 }} 15)" class="piece-group{% if stop.grade == grade %} is-now{% endif %}">
+          <path class="piece piece--in" style="--c: var(--year-{{ stop.grade }}); --d: {{ loop.index0 * 0.12 }}s" d="{% if loop.first %}M0 0H100V35A15 15 0 1 1 100 65V100H0Z{% elif loop.last %}M0 0H100V100H0V65A15 15 0 0 0 0 35Z{% else %}{{ piece_path }}{% endif %}"/>
+          <text x="50" y="58" text-anchor="middle" class="piece__label">{{ stop.title[:2] }}</text>
+        </g>
+        {% endfor %}
+      </svg>
+      <h1>五年，五片拼圖。</h1>
+      <p>{% if grade_label %}你現在是{{ grade_label }}，從這一片開始。{% else %}每一年，拼上一片。{% endif %}</p>
+    </section>
+
+    {# 3 六種成果 #}
+    <section class="welcome__step" data-welcome-step="3">
+      <h1>每件事，都是一片。</h1>
+      <p>點一片，看能存什麼。</p>
+      <div class="welcome__tiles">
+        {% for name, color, example in types %}
+        <button type="button" class="tile" style="--c: {{ color }};" data-tile data-example="{{ name }}：{{ example }}">
+          <svg viewBox="-5 -5 125 110" aria-hidden="true"><path d="{{ piece_path }}"/></svg>
+          <span>{{ name }}</span>
+        </button>
+        {% endfor %}
+      </div>
+      <p class="welcome__hint" data-tile-hint aria-live="polite">&nbsp;</p>
+    </section>
+
+    {# 4 拼好之後 #}
+    <section class="welcome__step" data-welcome-step="4">
+      <h1>拼好之後，去哪裡？</h1>
+      <p>二技校系看的，就是你拼的這些。</p>
+      <div class="welcome__schools">
+        {% for school in schools %}
+        <article class="school">
+          <b>{{ school.school }}</b>
+          <span>{{ school.department }}</span>
+          <div class="school__bar">{% for item in school["items"][:4] %}<i style="flex: {{ item.weight }}">{{ item.name }} {{ item.weight }}%</i>{% endfor %}</div>
+        </article>
+        {% endfor %}
+      </div>
+      <p class="welcome__note">範例取自 115 學年度簡章。</p>
+    </section>
+
+    {# 5 第一片 #}
+    <section class="welcome__step" data-welcome-step="5">
+      <h1>先放第一片。</h1>
+      <p>選一個開始，之後隨時可以換。</p>
+      <form class="welcome__choices" method="post" action="{{ url_for('main.student_welcome_done') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="choice" name="to" value="upload"><b>上傳成績單</b><small>最快的第一片</small></button>
+        <button class="choice" name="to" value="activity"><b>記下一件活動</b><small>社團、幹部、志工都可以</small></button>
+        <button class="choice" name="to" value="schools"><b>先看目標校系</b><small>想去哪裡？</small></button>
+        <button class="choice choice--quiet" name="to" value="home"><b>先逛逛</b></button>
+      </form>
+    </section>
+  </div>
+
+  <nav class="welcome__nav" aria-label="歡迎步驟">
+    <button type="button" class="welcome__back" data-welcome-back>上一步</button>
+    <ol class="welcome__dots" data-welcome-dots>{% for n in range(5) %}<li></li>{% endfor %}</ol>
+    <button type="button" class="button" data-welcome-next>繼續 →</button>
+  </nav>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+  const root = document.querySelector("[data-welcome]");
+  if (!root) return;
+  const steps = [...root.querySelectorAll("[data-welcome-step]")];
+  const dots = [...root.querySelectorAll("[data-welcome-dots] li")];
+  const back = root.querySelector("[data-welcome-back]");
+  const next = root.querySelector("[data-welcome-next]");
+  const hint = root.querySelector("[data-tile-hint]");
+  let index = 0;
+  root.classList.add("is-ready");
+  const show = (i) => {
+    index = Math.max(0, Math.min(steps.length - 1, i));
+    steps.forEach((step, n) => {
+      step.hidden = n !== index;
+      step.classList.toggle("is-active", n === index);
+    });
+    dots.forEach((dot, n) => dot.classList.toggle("is-on", n <= index));
+    back.style.visibility = index === 0 ? "hidden" : "visible";
+    next.style.display = index === steps.length - 1 ? "none" : "";
+    const target = steps[index].querySelector("h1");
+    if (target) { target.setAttribute("tabindex", "-1"); target.focus({ preventScroll: true }); }
+  };
+  next.addEventListener("click", () => show(index + 1));
+  back.addEventListener("click", () => show(index - 1));
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowRight") show(index + 1);
+    if (event.key === "ArrowLeft") show(index - 1);
+  });
+  const tiles = [...root.querySelectorAll("[data-tile]")];
+  tiles.forEach((tile) => tile.addEventListener("click", () => {
+    tile.classList.add("is-snapped");
+    const got = tiles.filter((t) => t.classList.contains("is-snapped")).length;
+    hint.textContent = got === tiles.length ? "六片都拼上了。" : tile.dataset.example;
+  }));
+  show(0);
+})();
+</script>
+{% endblock %}

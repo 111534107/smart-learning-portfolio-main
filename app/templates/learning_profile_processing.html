@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% set page_name = "learning-profile-processing" %}
+{% set is_transcript = document.document_type == "transcript" %}
+{% set page_label = "成績單" if is_transcript else "證照" %}
+{% set item_label = "門課" if is_transcript else "張證照" %}
+{% set back_url = url_for("student.learning_profile") if is_transcript else url_for("student.learning_profile_credentials") %}
+{% set status_url = url_for("student.learning_profile_document_status", document_id=document.id, next=next_path) %}
+{% set failed = state == "failed" %}
+
+{% block title %}{{ "辨識失敗" if failed else "辨識中" }}｜{{ page_label }}｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, page_label) }}{% endblock %}
+
+{% block content %}
+{{ page_band(page_label ~ ("辨識失敗" if failed else "辨識中"), [(page_label, back_url)]) }}
+<div class="page page--banded">
+  <div class="ocr-desk {{ 'is-failed' if failed else 'is-working' }}" id="ocr-desk"
+       data-status-url="{{ status_url }}" data-state="{{ state }}" data-item-label="{{ item_label }}">
+    <figure class="ocr-bed">
+      <div class="ocr-sheet{{ ' has-preview' if preview_url }}" id="ocr-sheet">
+        {% if preview_url %}<img class="ocr-sheet__img is-loaded" id="ocr-preview" src="{{ preview_url }}" alt="你上傳的{{ page_label }}第一頁">
+        {% else %}<img class="ocr-sheet__img" id="ocr-preview" hidden alt="你上傳的{{ page_label }}第一頁">{% endif %}
+        <div class="ocr-sheet__ghost" aria-hidden="true">{% for _ in range(9) %}<span></span>{% endfor %}</div>
+        <span class="ocr-sheet__beam" aria-hidden="true"></span>
+        {% if failed %}
+        <div class="ocr-stamp ocr-stamp--failed"><b>未辨識</b><small>檔案已保存</small></div>
+        {% else %}
+        <div class="ocr-stamp" id="ocr-stamp" hidden><b id="ocr-stamp-count">辨識完成</b><small>辨識完成</small></div>
+        {% endif %}
+      </div>
+      <figcaption>{{ document.display_name }}</figcaption>
+    </figure>
+
+    <section class="ocr-panel" aria-labelledby="ocr-title">
+      {% if failed %}
+      <p class="ocr-panel__eyebrow">{{ page_label }}自動辨識</p>
+      <h1 class="ocr-panel__title" id="ocr-title">這次沒有讀出來</h1>
+      <div class="ocr-failure">
+        <p class="ocr-failure__reason" role="alert">{{ error or "辨識失敗" }}</p>
+        <p class="ocr-panel__lead">檔案已經存好，可以直接再辨識一次；還是不行的話，換一份更清楚的檔案，或自己輸入。</p>
+        <div class="ocr-failure__actions">
+          <form method="post" action="{{ url_for('student.learning_profile_document_retry', document_id=document.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {% if next_path %}<input type="hidden" name="next" value="{{ next_path }}">{% endif %}
+            <button class="button" type="submit" data-busy-text="排隊中…">重新辨識</button>
+          </form>
+          <a class="button button--line" href="{{ url_for('student.learning_profile_upload_page', type=document.document_type, next=next_path) }}">重新上傳</a>
+          <a class="button button--quiet" href="{{ url_for('student.learning_profile_document_review', document_id=document.id, next=next_path) }}">改用手動輸入</a>
+        </div>
+        <ul class="ocr-failure__tips">
+          {% if is_transcript %}<li>從學校系統下載的 PDF 成績單最容易辨識。</li>{% endif %}
+          <li>拍照時讓整頁入鏡、不要斜拍或反光，長邊至少 2000 像素。</li>
+          <li>手動輸入的資料一樣可以存成學習歷程。</li>
+        </ul>
+      </div>
+      {% else %}
+      <p class="ocr-panel__eyebrow">{{ page_label }}自動辨識</p>
+      <h1 class="ocr-panel__title" id="ocr-title">正在讀你的{{ page_label }}</h1>
+      <p class="ocr-panel__lead" id="ocr-message" role="status" aria-live="polite">讀完會自動打開確認頁，不用重新整理。</p>
+      <ol class="ocr-timeline" aria-label="辨識進度">
+        <li class="is-finished"><b>已收到檔案</b><small>原檔只存在本系統，不會傳到外部</small></li>
+        {% set reading_note = "一列一列讀出" ~ ("課名、學分與成績" if is_transcript else "證照名稱與日期") %}
+        <li class="is-current" id="ocr-step-read" data-reading-note="{{ reading_note }}"><b id="ocr-step-read-title">{{ "排隊中" if state == "queued" else "辨識文字" }}</b>
+          <small id="ocr-step-read-note">{% if state == "queued" %}{{ "前面還有 " ~ ahead ~ " 份" if ahead else "下一份就輪到你" }}{% else %}{{ reading_note }}{% endif %}</small></li>
+        <li id="ocr-step-review"><b>整理成可確認的{{ "課程清單" if is_transcript else "證照資料" }}</b><small>讀到的內容還要你逐筆確認</small></li>
+      </ol>
+      <div class="ocr-ruler">
+        <div class="ocr-ruler__head"><b><span id="ocr-elapsed">0</span> 秒</b><span id="ocr-ruler-note">斜線區是平常需要的時間</span></div>
+        <div class="ocr-ruler__track" aria-hidden="true"><span class="ocr-ruler__usual"></span><span class="ocr-ruler__fill" id="ocr-ruler-fill"></span></div>
+        <div class="ocr-ruler__scale" aria-hidden="true"><span>0</span><span>10</span><span>20</span><span>30</span><span>40</span><span>50</span><span>60 秒</span></div>
+      </div>
+      <p class="ocr-panel__aside">可以先離開這頁，之後到<a href="{{ back_url }}">{{ page_label }}</a>點這份文件就會回到這裡。</p>
+      <noscript><meta http-equiv="refresh" content="5"><p>瀏覽器沒有開啟 JavaScript，本頁每 5 秒會自動重新整理。</p></noscript>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}
+
+{% block scripts %}
+{% if not failed %}
+<script>
+(function () {
+  var desk = document.getElementById("ocr-desk");
+  var sheet = document.getElementById("ocr-sheet");
+  var preview = document.getElementById("ocr-preview");
+  var elapsed = document.getElementById("ocr-elapsed");
+  var fill = document.getElementById("ocr-ruler-fill");
+  var rulerNote = document.getElementById("ocr-ruler-note");
+  var message = document.getElementById("ocr-message");
+  var readStep = document.getElementById("ocr-step-read");
+  var itemLabel = desk.dataset.itemLabel;
+  var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var started = Date.now();
+  var failures = 0;
+
+  function tick() {
+    var seconds = Math.floor((Date.now() - started) / 1000);
+    elapsed.textContent = seconds;
+    fill.style.width = Math.min(seconds / 60, 1) * 100 + "%";
+    if (seconds > 30) {
+      rulerNote.textContent = "比平常久一點：沒有顯示卡時可能要 1～2 分鐘";
+    }
+  }
+  var ticker = setInterval(tick, 1000);
+
+  function showPreview(url) {
+    if (!url || preview.getAttribute("src")) { return; }
+    preview.onload = function () { preview.hidden = false; preview.classList.add("is-loaded"); sheet.classList.add("has-preview"); };
+    preview.src = url;
+  }
+
+  function setStep(title, note) {
+    document.getElementById("ocr-step-read-title").textContent = title;
+    document.getElementById("ocr-step-read-note").textContent = note;
+  }
+
+  function finish(data) {
+    clearInterval(ticker);
+    desk.classList.remove("is-working");
+    readStep.className = "is-finished";
+    setStep("辨識文字", "讀完了");
+    document.getElementById("ocr-step-review").className = "is-current";
+    document.getElementById("ocr-title").textContent = "讀完了";
+    var stamp = document.getElementById("ocr-stamp");
+    document.getElementById("ocr-stamp-count").textContent = data.found ? "找到 " + data.found + " " + itemLabel : "辨識完成";
+    stamp.hidden = false;
+    stamp.classList.add("is-landing");
+    message.textContent = (data.found ? "找到 " + data.found + " " + itemLabel + "，" : "") + "正在打開確認頁…";
+    setTimeout(function () { window.location.assign(data.redirect); }, reduceMotion ? 700 : 1500);
+  }
+
+  function poll() {
+    fetch(desk.dataset.statusUrl, { headers: { "Accept": "application/json" }, credentials: "same-origin" })
+      .then(function (response) { if (!response.ok) { throw new Error(response.status); } return response.json(); })
+      .then(function (data) {
+        failures = 0;
+        showPreview(data.preview);
+        if (data.state === "done") { finish(data); return; }
+        // 失敗頁由伺服器畫（原因、重新辨識、重新上傳），重新載入即可
+        if (data.state === "failed") { window.location.reload(); return; }
+        if (data.state === "queued") {
+          setStep("排隊中", data.ahead ? "前面還有 " + data.ahead + " 份" : "下一份就輪到你");
+        } else {
+          setStep("辨識文字", readStep.dataset.readingNote);
+        }
+        setTimeout(poll, 2000);
+      })
+      .catch(function () {
+        failures += 1;
+        message.textContent = "暫時連不到伺服器，" + (failures < 5 ? "稍後自動再試。" : "請重新整理本頁。");
+        if (failures < 5) { setTimeout(poll, 4000); }
+      });
+  }
+  tick();
+  setTimeout(poll, 800);
+})();
+</script>
+{% endif %}
+{% endblock %}

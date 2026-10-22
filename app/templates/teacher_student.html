@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% from "partials/files.html" import evidence_grid, lightbox with context %}
+{% set page_name = "teacher-student" %}
+{% set status_text = {"complete": "已備齊", "partial": "還差一點", "missing": "沒有資料", "prepare": "需自己準備"} %}
+{% set review_text = {"pending": ("等待確認", "tag--warn"), "confirmed": ("已確認", "tag--ok"), "needs_revision": ("已請學生修改", "tag--danger")} %}
+
+{% block title %}{{ student.display_name }}｜導師工作台{% endblock %}
+
+{% block navigation %}{{ masthead(user, "工作台") }}{% endblock %}
+
+{% block content %}
+<section class="work-shell" data-work-role="teacher">
+  <header class="work-heading">
+    <div>
+      <p class="small"><a href="{{ url_for('main.teacher_dashboard') }}">← 本班學生</a> · {{ student.student_profile.student_no }} · {{ student.student_profile.class_name }}</p>
+      <h1>{{ student.display_name }}</h1>
+      <p>以下是學生已確認的資料。請確認內容是否合理，有需要修改的地方請具體寫下來。</p>
+    </div>
+  </header>
+
+  <section class="teacher-journey-map" aria-labelledby="teacher-journey-title" data-teacher-journey-map data-tour="先看學生五年留下多少資料。" data-tour-order="1">
+    <div class="teacher-journey-map__head">
+      <div>
+        <p class="small">五年簡圖</p>
+        <h2 id="teacher-journey-title">這位學生五年留下的資料</h2>
+      </div>
+      <p class="small muted">點有資料的年級，可直接查看下方內容。</p>
+    </div>
+    <ol class="teacher-journey-map__route" aria-label="專一到專五的資料筆數">
+      {% for stop in journey_stops %}
+      <li class="teacher-journey-map__stop teacher-journey-map__stop--{{ stop.state }}"
+          data-teacher-journey-stop data-grade="{{ stop.grade }}" data-records="{{ stop.count }}" data-state="{{ stop.state }}"{% if stop.state == "now" %} aria-current="step"{% endif %}>
+        {% if stop.count %}<a href="#teacher-year-{{ stop.grade }}">{% else %}<span>{% endif %}
+          <span class="teacher-journey-map__dot" aria-hidden="true">{{ stop.count }}</span>
+          <b>{{ stop.label }}</b>
+          <small>{{ stop.count }} 筆{% if stop.state == "now" %} · 今年{% elif stop.state == "future" %} · 尚未到{% endif %}</small>
+        {% if stop.count %}</a>{% else %}</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+
+  {% set notice = review_notices.get(request.args.get("notice")) %}
+  {% if notice %}<p class="alert mb-1" role="alert">{{ notice }}</p>{% endif %}
+  {% if request.args.get("saved") %}<p class="notice mb-1" role="status">自傳已存成新的一版，學生看得到你改了哪裡。</p>{% endif %}
+  {% if transfer_credit %}
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>轉學生抵免進度</h2><p>這是學生自行記錄的辦理狀態，不代表校方審核結果。</p></div></div>
+    <p>狀態：{{ {"not_started": "尚未申請", "submitted": "已送出申請", "needs_documents": "需要補交資料", "completed": "本人記錄已完成"}.get(transfer_credit.status, "未知") }}</p>
+    {% if transfer_credit.submitted_on %}<p>申請日期：{{ transfer_credit.submitted_on.isoformat() }}</p>{% endif %}
+    {% if transfer_credit.missing_documents %}<p>待補資料：{{ transfer_credit.missing_documents }}</p>{% endif %}
+    {% if transfer_credit.note %}<p>備註：{{ transfer_credit.note }}</p>{% endif %}
+    {% if transfer_credit.teacher_confirmed %}<p class="notice">你已於 {{ transfer_credit.teacher_confirmed_at.strftime("%Y-%m-%d") }} 確認看過。</p>{% else %}
+    <form method="post" action="{{ url_for('transfer_credit.confirm_transfer_credit', student_id=student.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="button button--line" type="submit" name="confirmed" value="1">確認看過這筆紀錄</button>
+    </form>
+    {% endif %}
+  </section>
+  {% endif %}
+  <div class="work-metrics work-metrics--four">
+    {% for key in category_keys %}
+    <article class="work-metric"><span>{{ category_labels[key] }}</span><strong>{{ journey.totals[key] }}</strong><small>筆</small></article>
+    {% endfor %}
+  </div>
+
+  {% for target in targets %}
+  {% set gap = target.gap %}
+  <section class="work-panel">
+    <div class="work-panel__head">
+      <div><h2>{{ target.program.school_name }} {{ target.program.department_name }}</h2>
+        <p>{% if target.program.program_code.isdigit() %}志願代碼 {{ target.program.program_code }} · {% endif %}{{ target.program.admission_year }} 學年度 · {{ target.program.admission_category or "" }} · 準備度 {{ gap.readiness if gap.readiness is not none else "—" }}%</p></div>
+      <div class="record-card__actions">
+        {% if target.cancelled %}<span class="tag tag--danger">學生已取消這個目標</span>{% endif %}
+        {% if target.review %}{% set label, cls = review_text[target.review.status] %}<span class="tag {{ cls }}">{{ label }}</span>{% else %}<span class="tag">學生尚未送出</span>{% endif %}
+      </div>
+    </div>
+    {% set snap = target.review.snapshot_json if target.review else none %}
+    {% if snap %}
+    <div class="snapshot-box mt-1">
+      <p class="small"><b>送審內容</b>：{{ target.review.requested_at.strftime("%Y-%m-%d %H:%M") }} 送出時的資料{% if snap.autobiography %}，自傳依據第 {{ snap.autobiography.version }} 版{% if target.current_version and target.current_version != snap.autobiography.version %}（目前第 {{ target.current_version }} 版）{% endif %}{% else %}，當時還沒有自傳{% endif %}。學生之後再改，這份內容不會變。</p>
+      {% if target.diff %}
+      <p class="small mt-1"><b>和你 {{ target.previous.reviewed_at.strftime("%Y-%m-%d") if target.previous.reviewed_at else "" }} 確認的版本相比：</b></p>
+      <ul class="diff-list">
+        {% for text in target.diff.added %}<li class="diff-list__add">新增：{{ text }}</li>{% endfor %}
+        {% for text in target.diff.removed %}<li class="diff-list__remove">移除：{{ text }}</li>{% endfor %}
+        {% if not target.diff.added and not target.diff.removed %}<li>資料沒有變動（可能只改了自傳文字）。</li>{% endif %}
+      </ul>
+      {% endif %}
+      <details class="source-doc mt-1"><summary>送審當下的資料（{{ snap.facts|length }} 筆）</summary>
+        <ul class="rule-item-list">{% for fact in snap.facts %}<li><span>{{ fact.text }}</span></li>{% else %}<li>沒有已確認的資料。</li>{% endfor %}</ul>
+      </details>
+    </div>
+    {% endif %}
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>評分項目</th><th>加權</th><th>情形</th><th>已有</th><th>缺少</th></tr></thead>
+        <tbody>
+          {% for item in gap["items"] %}
+          <tr>
+            <td><b>{{ item.name }}</b></td><td class="mono">{{ item.weight }}%</td>
+            <td><span class="tag {{ {'complete': 'tag--ok', 'partial': 'tag--warn', 'missing': 'tag--danger'}.get(item.status, '') }}">{{ status_text[item.status] }}</span></td>
+            <td class="small">{% for key in item.have %}{{ labels[key] }}（{{ item.counts[key] }}）{% if not loop.last %}、{% endif %}{% else %}—{% endfor %}</td>
+            <td class="small">{% for key in item.missing + item.documents %}{{ labels[key] }}{% if not loop.last %}、{% endif %}{% else %}—{% endfor %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if target.autobiography %}
+    {% set auto = target.autobiography.content_json %}
+    <details class="source-doc mt-1">
+      {% set editor_text = {"teacher": "你修改過", "student": "學生已修改儲存", "ai": "AI 草稿，學生尚未修改"} %}
+      <summary>自傳第 {{ target.current_version }} 版（{{ editor_text.get(auto.editor_role) or ("學生已修改儲存" if auto.edited else "AI 草稿，學生尚未修改") }}{{ "，示範草稿" if auto.provider == "demo" else "" }}）</summary>
+      {% for paragraph in auto.paragraphs %}<h3 class="h3 mt-1">{{ paragraph.title }}</h3><p>{{ paragraph.text }}</p>{% if paragraph.teacher_comment %}<blockquote class="teacher-comment"><b>你的意見：</b>{{ paragraph.teacher_comment }}</blockquote>{% endif %}{% endfor %}
+      <p class="mt-1"><a class="button button--small button--line" href="{{ url_for('teacher.autobiography_edit', student_id=student.id, output_id=target.autobiography.id) }}">直接修改文字、留意見</a></p>
+    </details>
+    {% else %}
+    <p class="small muted mt-1">學生還沒有寫自傳。</p>
+    {% endif %}
+    {% if target.review and target.review.status == "pending" %}
+    <form class="decision-form mt-1" method="post" action="{{ url_for('teacher.decide_review', review_id=target.review.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {# 記住導師看到的是哪個時間點的送審內容；學生之後又更新，按確認會被擋下 #}
+      <input type="hidden" name="taken_at" value="{{ (target.review.snapshot_json or {}).get('taken_at', '') }}">
+      <div class="choice-group">
+        <label class="choice"><input type="radio" name="decision" value="confirmed" required><span><b>內容合理，確認</b><small>學生可以產出正式備審資料</small></span></label>
+        <label class="choice"><input type="radio" name="decision" value="needs_revision"><span><b>需要修改</b><small>請在下方寫下建議</small></span></label>
+      </div>
+      <label class="field">給學生的建議<textarea name="comment" placeholder="例如：競賽成果請補上獎狀照片；自傳可以多寫專題中負責的部分。"></textarea></label>
+      <div><button class="button" type="submit">送出</button></div>
+    </form>
+    {% elif target.review %}
+    {% if target.review.comment %}<p class="small mt-1"><b>你的建議：</b>{{ target.review.comment }}</p>{% endif %}
+    {% if target.review.status == "confirmed" %}
+    <details class="mt-1"><summary class="small">按錯了？撤回確認</summary>
+      <form class="form-stack mt-1" method="post" action="{{ url_for('teacher.withdraw_review', review_id=target.review.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label class="field">撤回原因（會留下紀錄）<textarea name="reason" required placeholder="例如：按錯了，自傳還沒看完。"></textarea></label>
+        <div><button class="button button--line" type="submit">撤回確認</button></div>
+      </form>
+    </details>
+    {% endif %}
+    {% endif %}
+  </section>
+  {% else %}
+  <section class="work-panel"><p class="work-empty"><strong>學生還沒有選擇目標校系。</strong><span>選好後，這裡會顯示該校系的缺件比對。</span></p></section>
+  {% endfor %}
+
+  {# 學生上傳的成績單、證照原始檔（學生已確認的） #}
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>成績單與證照原始檔</h2><p>和下面的資料對照，確認學生輸入的內容沒有錯。</p></div></div>
+    {% if documents %}
+    {{ evidence_grid(documents, "teacher.document_view", id_arg="document_id") }}
+    {% else %}
+    <p class="muted">學生還沒有確認過任何成績單或證照。</p>
+    {% endif %}
+  </section>
+
+  {# 學生上傳的佐證照片：導師確認時可以直接看，不用下載 #}
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>佐證照片</h2><p>點照片可以放大。</p></div></div>
+    {% for record in records_with_evidence %}
+    <h3 class="mt-1">{{ record.title }} <span class="muted small">{{ category_labels.get(record.category, record.category) }}</span></h3>
+    {{ evidence_grid(record.evidence_items, "teacher.evidence_view") }}
+    {% else %}
+    <p class="muted">學生還沒有上傳佐證。</p>
+    {% endfor %}
+  </section>
+
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>五年資料</h2></div></div>
+    {% for year in journey.years if year.count %}
+    <section class="teacher-year-data" id="teacher-year-{{ year.grade }}">
+      <h3 class="mt-1">{{ year.label }} <span class="mono muted small">{{ year.count }} 筆</span></h3>
+      <ul class="rule-item-list">
+        {% for key in category_keys %}{% for item in year.categories[key] %}<li><strong>{{ item.title }}</strong><span>{{ category_labels[key] }}{% if item.detail %} · {{ item.detail }}{% endif %}{% if item.source %} <span class="tag tag--source">{{ item.source }}</span>{% endif %}</span></li>{% endfor %}{% endfor %}
+      </ul>
+    </section>
+    {% else %}
+    <p class="muted">學生還沒有已確認的資料。</p>
+    {% endfor %}
+  </section>
+</section>
+{{ lightbox() }}
+{% endblock %}

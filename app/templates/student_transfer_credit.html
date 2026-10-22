@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "student-transfer-credit" %}
+{% block title %}轉學生抵免進度｜資管科學習歷程{% endblock %}
+{% block navigation %}{{ masthead(user, "抵免進度") }}{% endblock %}
+{% block content %}
+<section class="work-shell">
+  <header class="work-heading">
+    <div>
+      <p class="small">學習支援</p>
+      <h1>轉學生抵免進度</h1>
+      <p>在學校正式系統申請後，可回來記下目前進度和待補資料。</p>
+    </div>
+  </header>
+  {% if saved %}<p class="notice" role="status">抵免進度已儲存。</p>{% endif %}
+  <section class="work-panel">
+    <h2>先到學校系統辦理</h2>
+    <p>本系統不會登入或讀取校方抵免系統，也不會替學校判定抵免結果。</p>
+    <p><a class="button button--line" href="https://ec.ukn.edu.tw/CT_web/login.aspx" target="_blank" rel="noopener noreferrer">開啟康寧大學抵免系統</a></p>
+  </section>
+  <section class="work-panel mt-1">
+    <h2>記錄申請進度</h2>
+    {% if record and record.teacher_confirmed %}<p class="notice">導師已於 {{ record.teacher_confirmed_at.strftime("%Y-%m-%d") }} 確認看過這筆進度紀錄。</p>{% endif %}
+    <form class="form-stack" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="field">目前狀態
+        <select name="status" required>
+          {% for key, label in status_labels.items() %}<option value="{{ key }}"{% if record and record.status == key %} selected{% elif not record and key == "not_started" %} selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="field">申請日期<input type="date" name="submitted_on" value="{{ record.submitted_on.isoformat() if record and record.submitted_on else "" }}"></label>
+      <label class="field">待補交資料<textarea name="missing_documents" maxlength="1000" rows="3" placeholder="例如：前校課程大綱">{{ record.missing_documents if record else "" }}</textarea></label>
+      <label class="field">備註<textarea name="note" maxlength="2000" rows="4" placeholder="只記錄辦理進度，請勿填寫身分證字號或帳密。">{{ record.note if record else "" }}</textarea></label>
+      <div><button class="button" type="submit">儲存進度</button></div>
+    </form>
+  </section>
+  <p class="small muted mt-1">本頁只供申請進度整理；抵免科目與結果仍以學校正式系統及教務單位審核為準。</p>
+</section>
+{% endblock %}

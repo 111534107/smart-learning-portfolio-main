@@ -1,0 +1,604 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% from "partials/files.html" import lightbox with context %}
+{% set page_name = "learning-profile-review" %}
+{% set is_transcript = document.document_type == "transcript" %}
+
+{% block title %}確認上傳內容｜資管科智慧學習歷程系統{% endblock %}
+
+{% set page_label = "成績單" if document.document_type == "transcript" else "證照" %}
+{% block navigation %}{{ masthead(user, page_label) }}{% endblock %}
+
+{% block content %}
+{{ page_band("確認上傳內容", [(page_label, url_for('student.learning_profile') if document.document_type == "transcript" else url_for('student.learning_profile_credentials'))], note=document.display_name) }}
+<div class="page page--banded ocr-review">
+  {% if document.extraction and document.extraction.provider == "demo" %}<p class="notice mb-1">本機模擬 OCR：辨識結果是合成資料，請修正後再確認；這不代表真實 OCR 已完成。</p>{% endif %}
+
+  {# 學生上傳的原始文件：放在最上面，邊看邊核對 #}
+  {% set source_url = url_for('student.learning_profile_document_view', document_id=document.id) %}
+  <details class="source-doc mb-1" open>
+    <summary>你上傳的文件：{{ document.display_name }}</summary>
+    {% if document.preview_kind == "image" %}
+    <button type="button" class="source-doc__image" data-lightbox="{{ source_url }}" aria-label="放大 {{ document.display_name }}">
+      <img src="{{ source_url }}" alt="{{ document.display_name }}">
+      <span class="small">點圖片放大</span>
+    </button>
+    {% elif document.preview_kind == "pdf" %}
+    <a class="button button--small button--line" href="{{ source_url }}" target="_blank" rel="noopener">在新分頁開啟 PDF</a>
+    {% else %}
+    <p class="muted small">這種檔案無法預覽，請改用 PDF、PNG 或 JPG。</p>
+    <div class="record-card__actions">
+      <a class="button button--small button--line" href="{{ url_for('student.learning_profile_upload_page', type=document.document_type) }}">重新上傳文件</a>
+    </div>
+    {% endif %}
+  </details>
+
+  {# M12：辨識失敗時，用表格手動輸入（本分支原有設計） #}
+  {% if document.status == "analysis_failed" %}
+  <div class="mb-1">
+    <p class="alert">這份文件無法自動辨識，請手動輸入內容。</p>
+    <div class="record-card__actions">
+      <a class="button button--small" href="#{{ 'course-table-title' if is_transcript else 'credential-table-title' }}">開始手動輸入</a>
+    </div>
+  </div>
+  <form method="post" action="{{ url_for('student.learning_profile_document_confirm', document_id=document.id) }}" class="form-stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if next_path %}<input type="hidden" name="next" value="{{ next_path }}">{% endif %}
+    <input type="hidden" name="courses_json" id="courses-json" value="[]">
+    <input type="hidden" name="credentials_json" id="credentials-json" value="[]">
+
+    {% if is_transcript %}
+    <section class="sheet" aria-labelledby="course-table-title">
+      <div class="sheet__head">
+        <div><h2 id="course-table-title">課程</h2><p class="muted small">年級填 1～5，或民國學年度（例如 113）。抵、免、補不是分數，請在「註記」選擇。</p></div>
+        <button class="button button--small button--line" type="button" data-add-row="course-table">＋ 新增一門課</button>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table edit-table" id="course-table" data-record-table data-output="courses-json"
+               data-fields='["school_year", "semester", "course_name", "credits", "score", "status_mark"]'
+               data-initial='[]'>
+          <thead><tr><th>年級／學年度</th><th>學期</th><th>課程名稱</th><th>學分</th><th>分數</th><th>註記</th><th><span class="visually-hidden">刪除</span></th></tr></thead>
+          <tbody><tr class="empty-row"><td colspan="7">還沒有課程，按「新增一門課」開始輸入。</td></tr></tbody>
+          <template>
+            <tr data-row>
+              <td><input data-field="school_year" inputmode="numeric" aria-label="年級或學年度"></td>
+              <td><select data-field="semester" aria-label="學期"><option value=""></option><option value="上">上</option><option value="下">下</option></select></td>
+              <td><input data-field="course_name" aria-label="課程名稱"></td>
+              <td><input data-field="credits" inputmode="numeric" aria-label="學分"></td>
+              <td><input data-field="score" inputmode="numeric" aria-label="分數"></td>
+              <td><select data-field="status_mark" aria-label="註記"><option value=""></option><option value="抵">抵</option><option value="免">免</option><option value="補">補</option></select></td>
+              <td><button class="icon-button" type="button" data-remove aria-label="刪除這一列">✕</button></td>
+            </tr>
+          </template>
+        </table>
+      </div>
+    </section>
+    {% else %}
+    <section class="sheet" aria-labelledby="credential-table-title">
+      <div class="sheet__head">
+        <div><h2 id="credential-table-title">證照</h2><p class="muted small">取得日期決定這張證照放在哪一個年級。</p></div>
+        <button class="button button--small button--line" type="button" data-add-row="credential-table">＋ 新增一張證照</button>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table edit-table" id="credential-table" data-record-table data-output="credentials-json"
+               data-fields='["credential_name", "level", "issuing_organization", "issue_date"]'
+               data-initial='[]'>
+          <thead><tr><th>證照名稱</th><th>級別</th><th>發證單位</th><th>取得日期</th><th><span class="visually-hidden">刪除</span></th></tr></thead>
+          <tbody><tr class="empty-row"><td colspan="5">還沒有證照，按「新增一張證照」開始輸入。</td></tr></tbody>
+          <template>
+            <tr data-row>
+              <td><input data-field="credential_name" aria-label="證照名稱"></td>
+              <td><input data-field="level" aria-label="級別" placeholder="例如 丙級"></td>
+              <td><input data-field="issuing_organization" aria-label="發證單位"></td>
+              <td><input data-field="issue_date" type="date" aria-label="取得日期"></td>
+              <td><button class="icon-button" type="button" data-remove aria-label="刪除這一列">✕</button></td>
+            </tr>
+          </template>
+        </table>
+      </div>
+    </section>
+    {% endif %}
+
+    <div class="record-card__actions">
+      <button class="button" type="submit">確認並儲存</button>
+      <a class="button button--line" href="{{ url_for('student.learning_profile') }}">取消</a>
+    </div>
+  </form>
+  {% endif %}
+
+  {# 以下為組員 111534107 的 OCR 確認介面 #}
+<h2>確認擷取資料：{{ document.display_name }}</h2>
+<p>請只保留你能確認正確的資料。抵、免、補不是分數，仍須由課程規則與學校人員確認。</p>
+{% set result = review_result if review_result is defined else (document.extraction.result_json if document.extraction and document.extraction.result_json else {}) %}
+{% if review_error %}<p role="alert" class="review-warning">{{ review_error }}</p>{% endif %}
+<div class="review-actions">
+  <a href="{{ url_for('student.learning_profile') }}">回來源檔清單</a>
+  <a href="{{ url_for('student.learning_profile_document_source', document_id=document.id) }}">下載原始檔案</a>
+  <form method="post" action="{{ url_for('student.learning_profile_document_reanalyze', document_id=document.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="button button--small button--line" type="submit" data-busy-text="重新辨識中…">重新分析來源檔</button>
+  </form>
+</div>
+<p>重新分析會建立新草稿；已確認的課程與證照會保留，直到你明確確認並儲存新草稿。尚未儲存的修改不會帶入新分析。</p>
+{% if result.get('history') %}<p>目前保留 {{ result.history|length }} 份先前擷取快照。</p>{% endif %}
+{% if result.get('source', {}).get('engine') %}<p>辨識引擎：{{ result.source.engine }}</p>{% endif %}
+{% for warning in result.get('warnings', []) %}<p class="review-warning">{{ warning }}</p>{% endfor %}
+{% if document.status == "analysis_failed" and document.extraction and document.extraction.error_message %}
+<p style="color:#b42318;font-weight:700">檔案目前沒有產生可確認資料：{{ document.extraction.error_message }}</p>
+{% endif %}
+{% set trace = result.get('processing_steps', []) %}
+{% set raw_text = result.get('raw_text', '') %}
+<details class="ocr-trace">
+  <summary>查看 OCR 辨識過程</summary>
+  <p>這些紀錄用來說明系統如何從圖片整理出下方資料。</p>
+  <ol>{% for item in trace %}<li>{{ item|ocr_step }}</li>{% else %}<li>目前沒有詳細處理紀錄。</li>{% endfor %}</ol>
+  {% if raw_text %}
+    {% if document.document_type == 'credential' %}
+      <label>OCR 辨識文字（繁體顯示）<textarea rows="8" readonly>{{ raw_text|traditional_text }}</textarea></label>
+    {% else %}
+      <label>OCR 原始文字<textarea rows="8" readonly>{{ raw_text }}</textarea></label>
+    {% endif %}
+  {% endif %}
+</details>
+{% set courses = (review_courses if review_courses is defined else (document.extraction.result_json.courses if document.extraction and document.extraction.result_json and document.extraction.result_json.courses else [])) %}
+{% set academic_summary = (document.extraction.result_json.academic_summary if document.extraction and document.extraction.result_json and document.extraction.result_json.academic_summary else []) %}
+{% set credentials = result.get('credentials') or [] %}
+<style>
+  .score-groups { display: grid; gap: .75rem; max-width: 980px; }
+  .score-group { border: 1px solid #d8dce5; border-radius: 12px; background: #fff; }
+  .score-group > summary { cursor: pointer; list-style: none; padding: 1rem 1.1rem; font-size: 1.15rem; font-weight: 800; display: flex; justify-content: space-between; gap: 1rem; align-items: center; }
+  .score-group > summary::-webkit-details-marker { display: none; }
+  .score-group > summary::after { content: "＋"; color: #52606d; }
+  .score-group[open] > summary::after { content: "－"; }
+  .score-group.failed { border-color: #f3b4ad; }
+  .score-group.failed > summary { color: #b42318; background: #fff5f4; }
+  .score-group__best { font-size: .9rem; font-weight: 600; color: #667085; }
+  .score-group__body { padding: 0 1.1rem 1rem; }
+  .score-group table { width: 100%; border-collapse: collapse; }
+  .score-group th, .score-group td { padding: .55rem; border-bottom: 1px solid #e7e9ef; text-align: left; }
+  .score-group .failed { color: #b42318; font-weight: 700; }
+  .empty { color: #667085; }
+  .credential-editor { max-width: 700px; display: grid; gap: .8rem; margin: 1rem 0 1.5rem; padding: 1rem; border: 1px solid #d8dce5; border-radius: 10px; background: #fff; }
+  .credential-editor label { display: grid; gap: .35rem; font-weight: 700; }
+  .credential-editor input { padding: .65rem; font: inherit; }
+  .credential-evidence { display: grid; grid-template-columns: minmax(9rem, 1fr) 2fr; gap: .5rem 1rem; margin: 0; }
+  .credential-evidence dt { font-weight: 700; }
+  .credential-evidence dd { margin: 0; }
+  .credential-evidence small { display: block; margin-top: .15rem; }
+  .retake-done { display: block; color: #1b6b3a; font-weight: 700; }
+  .retake-of { display: block; color: #4c5361; }
+  .credential-field-preview { display: block; max-width: min(100%, 22rem); max-height: 5.5rem; margin: .35rem 0; border: 1px solid #d6cdbb; border-radius: 4px; background: #fff; object-fit: contain; }
+  .ocr-trace { max-width: 900px; margin: 1rem 0; padding: .9rem 1rem; border: 1px solid #d8dce5; border-radius: 10px; background: #f8fafc; }
+  .ocr-trace summary { cursor: pointer; font-weight: 700; }
+  .ocr-trace textarea { display: block; width: 100%; margin-top: .5rem; font: .9rem/1.5 monospace; }
+  .academic-summary { max-width: 900px; margin: 1rem 0; padding: 1rem; border: 1px solid #d8dce5; border-radius: 10px; background: #fff; }
+  .academic-summary table { width: 100%; border-collapse: collapse; }
+  .academic-summary th, .academic-summary td { padding: .55rem; border-bottom: 1px solid #e7e9ef; text-align: left; }
+  .review-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+  .review-warning, .confidence-low, .confidence-unknown { color: #8a3600; }
+  .course-editor { max-width: 100%; margin: 1rem 0; }
+  .course-editor table { width: 100%; border-collapse: collapse; min-width: 850px; }
+  .course-editor th, .course-editor td { padding: .7rem; border-bottom: 1px solid #d8dce5; text-align: left; vertical-align: top; }
+  .course-editor input { width: 100%; min-width: 5rem; box-sizing: border-box; padding: .5rem; font: inherit; }
+  .course-editor td:first-child input { min-width: 10rem; }
+  .course-editor small { display: block; margin-top: .3rem; }
+  .course-editor .needs-review { background: #fffbeb; }
+  .course-editor .failed { color: #b42318; font-weight: 700; }
+  .course-editor td.field-pending { background: #fff7ed; }
+  .course-editor input.value-pending { border: 2px solid #c2410c; background: #fff7ed; }
+  .course-editor input.score-locked { background: #f2f4f7; color: #475467; cursor: not-allowed; }
+  .course-editor input.all-fields-locked { background: #e8edf5; color: #344054; border-color: #98a2b3; cursor: not-allowed; box-shadow: inset 0 0 0 1px #cbd5e1; }
+  .pending-badge { color: #b42318; font-weight: 800; }
+  .course-grade-filter { display: flex; align-items: center; gap: .75rem; margin: 1rem 0; font-weight: 700; }
+  .course-grade-filter select { min-width: 12rem; padding: .55rem; font: inherit; }
+  .review-filter-bar { position: sticky; top: 0; z-index: 20; display: flex; flex-wrap: wrap; align-items: end; gap: .75rem 1rem; margin: 1rem 0; padding: .8rem; border: 1px solid #cbd5e1; border-radius: 12px; background: #fff; box-shadow: 0 5px 16px rgb(16 24 40 / 14%); }
+  .review-filter-bar label { display: grid; gap: .25rem; font-weight: 750; }
+  .review-filter-bar select, .review-filter-bar button { min-height: 42px; padding: .5rem .7rem; font: inherit; }
+  .review-filter-bar .lock-all-scores { display: inline-flex; align-items: center; gap: .4rem; border: 1px solid #0ba8d5; color: #075985; background: #ecfeff; font-weight: 750; cursor: pointer; }
+  .review-filter-bar .lock-all-scores:hover { background: #cffafe; }
+  .lock-all-scores svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .lock-all-icon--open, .lock-all-scores.is-unlocked .lock-all-icon--closed { display: none; }
+  .lock-all-scores.is-unlocked .lock-all-icon--open { display: block; }
+  .score-lock-status { color: #475467; font-weight: 700; }
+  .course-year-group { margin: 1rem 0; }
+  .course-year-group[hidden] { display: none; }
+  .course-year-group > summary { cursor: pointer; list-style: none; padding: 1rem 1.1rem; font-size: 1.1rem; font-weight: 800; display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; }
+  .course-year-group > summary::-webkit-details-marker { display: none; }
+  .course-year-group > summary::after { content: "＋ 展開"; margin-left: auto; color: #365ac9; }
+  .course-year-group[open] > summary::after { content: "－ 收合"; }
+  .course-year-group__top-three { flex: 1 0 100%; margin: 0; padding-left: 1.5rem; color: #344054; font-size: .93rem; font-weight: 500; }
+  .course-year-group[open] .course-year-group__top-three,
+  .course-year-group[open] .course-year-group__top-label { display: none; }
+  .course-year-group__body { padding: 0 1.1rem 1rem; }
+  .course-year-group__empty[hidden] { display: none; }
+  .course-review-semester[hidden] { display: none; }
+  .course-review-semester > summary { display: flex; align-items: center; gap: .5rem; margin: 1rem 0 .5rem; padding: .65rem .8rem; background: #eef4ff; border-radius: 8px; color: #1d3a6f; cursor: pointer; font-size: 1.1rem; font-weight: 800; list-style: none; }
+  .course-review-semester > summary::-webkit-details-marker { display: none; }
+  .course-review-semester > summary::after { content: "＋ 展開"; margin-left: auto; color: #365ac9; font-size: .95rem; }
+  .course-review-semester[open] > summary::after { content: "－ 收合"; }
+  .course-review-section { margin: .5rem 0 1rem; border: 1px solid #e7e9ef; border-radius: 10px; }
+  .course-review-section h4 { margin: 0; padding: .7rem .9rem; background: #f8fafc; }
+  .course-review-section.failed h4 { background: #fff5f4; color: #b42318; }
+  .course-review-section.pending h4 { background: #fffbeb; color: #8a3600; }
+  .course-review-section table { width: 100%; border-collapse: collapse; min-width: 850px; }
+  .course-review-section th, .course-review-section td { padding: .7rem; border-bottom: 1px solid #d8dce5; text-align: left; vertical-align: top; }
+  .course-review-section thead th { position: sticky; top: 0; z-index: 5; background: #f8fafc; }
+  .course-review-section .highest-mark { display: inline-block; margin-left: .35rem; color: #365ac9; font-weight: 700; }
+
+  /* 課程確認表格版面：每門課一張橫向卡片——上排五個欄位，下排核對提示（不再擠在最右側窄欄） */
+  .course-review-section .course-editor { margin: 0; }
+  .course-review-section table,
+  .course-review-section thead,
+  .course-review-section tbody { display: block; width: 100%; min-width: 0; }
+  .course-review-section tr {
+    display: grid;
+    grid-template-columns: minmax(11rem, 2.6fr) minmax(4.25rem, .7fr) minmax(4.75rem, .8fr) minmax(6.5rem, 1.1fr) minmax(6rem, 1fr);
+    gap: .35rem .8rem; align-items: start;
+    padding: .8rem 1rem; border-bottom: 1px solid #edf0f4;
+  }
+  .course-review-section tr[hidden] { display: none; }
+  .course-review-section tbody tr:last-child { border-bottom: 0; }
+  .course-review-section th, .course-review-section td { padding: 0; border: 0; }
+  .course-review-section thead tr { padding: .55rem 1rem; background: #f8fafc; border-bottom: 1px solid #e7e9ef; }
+  .course-review-section thead th { position: static; background: none; color: #475467; font-size: .82rem; font-weight: 700; }
+  .course-review-section thead th:last-child { display: none; }
+  .course-review-section tr.needs-review { background: #fffdf7; box-shadow: inset 4px 0 0 #f2b33d; }
+  .course-review-section input {
+    width: 100%; min-width: 0; box-sizing: border-box; padding: .45rem .6rem;
+    border: 1px solid #cfd4dc; border-radius: 7px; background: #fff; font-size: .98rem;
+  }
+  .course-review-section td:first-child input { min-width: 0; font-weight: 700; }
+  .course-review-section input[type="number"] { text-align: center; }
+  .course-review-section input.value-pending { border: 1.5px dashed #d97706; background: #fffaf0; }
+  .course-review-section td.field-pending { background: none; }
+  .course-review-section td small[id^="confidence-"] { margin-top: .25rem; color: #98a2b3; font-size: .74rem; line-height: 1.35; }
+  .course-review-section td small.confidence-low,
+  .course-review-section td small.confidence-unknown { color: #b54708; }
+  .course-review-section .pending-badge { margin-top: .15rem; font-size: .74rem; }
+  .course-review-section td.course-notes-cell { grid-column: 1 / -1; }
+  .course-notes { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .5rem; padding-top: .2rem; font-size: .8rem; }
+  .course-notes small { display: inline-flex; margin: 0; }
+  .note-chip { align-items: center; padding: .12rem .6rem; border-radius: 999px; background: #eef2f6; color: #344054; font-weight: 700; }
+  .note-chip--failed { background: #fee4e2; color: #b42318; }
+  .note-chip--ok { background: #dcfae6; color: #1b6b3a; }
+  .note-chip--info { background: #e0eaff; color: #1d3a6f; }
+  .note-chip--warn { background: #fef0c7; color: #93370d; }
+  .note-text { color: #93370d; }
+  .note-text + .note-text::before { content: "・"; margin-right: .2rem; color: #d0d5dd; }
+  .note-source { margin-left: auto; color: #667085; }
+  .note-source a { margin-left: .15rem; font-weight: 700; }
+  @media (max-width: 720px) {
+    .course-review-section thead { display: none; }
+    .course-review-section tr { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem .7rem; padding: .75rem; }
+    .review-filter-bar { position: static; box-shadow: none; }
+    .course-review-section td:first-child { grid-column: 1 / -1; }
+    .course-review-section td[data-label]::before { content: attr(data-label); display: block; margin-bottom: .2rem; color: #475467; font-size: .76rem; font-weight: 700; }
+    .note-source { margin-left: 0; }
+  }
+</style>
+<form method="post" action="{{ url_for('student.learning_profile_document_confirm', document_id=document.id) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {% if result.get('draft_revision') %}<input type="hidden" name="draft_revision" value="{{ result.draft_revision }}">{% endif %}
+  {% if next_path %}<input type="hidden" name="next" value="{{ next_path }}">{% endif %}
+{% if document.document_type == "transcript" %}
+{% if academic_summary %}
+<section class="academic-summary">
+  <h2>學業統計</h2>
+  <p class="empty">以下資料來自成績單底部統計區，不會列入課程或不及格判斷。</p>
+  <table>
+    <thead><tr><th>年級</th><th>統計項目</th><th>第一學期</th><th>第二學期</th></tr></thead>
+    <tbody>{% for item in academic_summary %}<tr><td>{{ item.grade_level }}</td><td>{{ item.metric }}</td><td>{{ item.semester_1 }}</td><td>{{ item.semester_2 }}</td></tr>{% endfor %}</tbody>
+  </table>
+  {% if academic_summary|selectattr('needs_confirmation')|list %}
+    <p class="empty">部分統計標籤不清楚，以上數字是依表格列順序擷取，請對照原始成績單確認。</p>
+  {% endif %}
+</section>
+{% endif %}
+<h2>辨識到的課程（共 {{ courses|length }} 門）</h2>
+<p>可直接修改科目、學分、成績、學期與年級。空白表示缺漏／待確認，0 表示來源明確記載零值。</p>
+<p>OCR 信心是辨識引擎的分數，不代表正確率。低於 85% 或未知時請優先核對；修改欄位不會改變原 OCR 信心。</p>
+{% set layout = namespace(inferred=false) %}
+{% for course in courses %}{% if '學期依表格位置推定，請核對表頭。' in (course.get('review_reasons') or []) %}{% set layout.inferred = true %}{% endif %}{% endfor %}
+{% if layout.inferred %}<p class="review-warning">每門課的學期是依成績單表格位置推定的，請對照原圖的表頭（第一學期／第二學期）核對。</p>{% endif %}
+<div class="review-filter-bar" role="region" aria-label="課程篩選與成績鎖定">
+  <label for="review-grade-filter">查看年級
+    <select id="review-grade-filter" aria-controls="review-grade-groups">
+      <option value="all">全部年級</option>
+      {% for group in review_groups %}<option value="{{ group.key }}">{{ group.label }}</option>{% endfor %}
+    </select>
+  </label>
+  <label for="review-failure-filter">課程狀態
+    <select id="review-failure-filter" aria-controls="review-grade-groups">
+      <option value="all">全部課程</option><option value="failed">只看不及格</option><option value="pending">只看缺學分</option>
+    </select>
+  </label>
+  <label for="review-makeup-filter">重補修
+    <select id="review-makeup-filter" aria-controls="review-grade-groups">
+      <option value="all">全部類別</option><option value="summer">暑期重補修</option><option value="winter">寒期重補修</option>
+    </select>
+  </label>
+  <button type="button" id="lock-all-scores" class="lock-all-scores" aria-label="全部鎖定欄位" title="鎖定所有課程欄位"><svg class="lock-all-icon--closed" viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="10" width="15" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><svg class="lock-all-icon--open" viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="10" width="15" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.5-2"/></svg><span class="lock-all-label">全部鎖定</span></button>
+  <input type="hidden" id="scores-unlocked" name="scores_unlocked" value="0">
+  <input type="hidden" id="all-fields-locked" name="all_fields_locked" value="0">
+  <span id="score-lock-status" class="score-lock-status" role="status" aria-live="polite">成績已鎖定，避免誤改</span>
+</div>
+<p class="empty">「只看缺學分」只列出學分空白或待確認的課程；可直接補填後儲存。</p>
+<p class="empty">各年級先分第一、第二學期，每學期依成績由高到低排列；不及格與缺成績另外列出。修改後請儲存，重新開啟時會更新分類。</p>
+<label><input type="radio" name="course_input_mode" value="fields" checked> 儲存下列表格修改</label>
+{% macro course_table(entries, group, semester, kind, heading, document, result) %}
+<section class="course-review-section {{ kind }}">
+  <h4 data-heading="{{ heading }}">{{ heading }}（{{ entries|length }} 門）</h4>
+  <div class="course-editor">
+    <table>
+      <thead><tr><th scope="col">科目</th><th scope="col">學分</th><th scope="col">成績</th><th scope="col">第幾學期</th><th scope="col">年級</th><th scope="col">核對提示與來源</th></tr></thead>
+      <tbody data-review-grade="{{ group.key }}" data-review-semester="{{ semester.label }}" data-review-kind="{{ kind }}">
+      {% for entry in entries %}
+      {% set index = entry.index %}
+      {% set course = entry.course %}
+      {% set confidence = course.get('field_confidence') or {} %}
+      <tr data-course-index="{{ index }}" data-review-grade="{{ group.key }}" data-review-semester="{{ semester.label }}" data-review-kind="{{ kind }}" data-needs-review="{{ 'true' if course.get('needs_review') else 'false' }}" data-makeup-season="{{ course.get('makeup_season') or '' }}" data-school-year="{{ course.get('school_year') or '' }}" class="{{ 'needs-review' if course.get('needs_review') else '' }}">
+        {% for field, label in [('course_name', '科目'), ('credits', '學分'), ('score', '成績'), ('semester', '第幾學期'), ('grade_level', '年級')] %}
+          {% set value = course.get(field) %}
+          {% set certainty = confidence.get(field) %}
+          {% set known = certainty is number and certainty is not sameas true and certainty is not sameas false and certainty >= 0 and certainty <= 1 %}
+          {% set field_pending = value is none or value == '' or (value is string and '待確認' in value) %}
+          <td class="{{ 'field-pending' if field_pending else '' }}" data-label="{{ label }}">
+            <input id="course-{{ index }}-{{ field }}" aria-label="第 {{ index + 1 }} 列{{ label }}" aria-describedby="confidence-{{ index }}-{{ field }}" name="course_{{ index }}_{{ field }}" value="{{ value if value is not none else '' }}" {% if field in ['credits', 'score'] %}type="number" min="0" step="1" {% if field == 'score' %}max="100"{% endif %}{% else %}type="text"{% endif %} {% if field == 'score' %}readonly class="score-locked{% if field_pending %} value-pending{% endif %}" title="成績目前已鎖定"{% elif field_pending %}class="value-pending"{% endif %} {% if field == 'course_name' %}required{% endif %} {% if field == 'grade_level' %}list="grade-options"{% endif %} placeholder="待確認">
+            {% if field == 'course_name' and group.highest and group.highest.index == index %}<small class="highest-mark">最高成績</small>{% endif %}
+            <small id="confidence-{{ index }}-{{ field }}" class="{{ 'confidence-low' if known and certainty < 0.85 else ('confidence-unknown' if not known else '') }}" title="OCR 信心：{% if known %}{{ (certainty * 100)|round|int }}%{% else %}未知{% endif %}（不代表正確率{% if not known or certainty < 0.85 %}，請對照原圖核對{% endif %}）">信心 {% if known %}{{ (certainty * 100)|round|int }}%{% if certainty < 0.85 %}・偏低{% endif %}{% else %}未知{% endif %}</small>
+            {% if field_pending %}<small class="pending-badge">⚠ 待確認</small>{% endif %}
+          </td>
+        {% endfor %}
+        <td class="course-notes-cell">
+          <div class="course-notes">
+          {% if kind == 'failed' %}<small class="failed note-chip note-chip--failed">不及格／待確認</small>{% endif %}
+          {% if course.get('retake') %}<small class="retake-done note-chip note-chip--ok">✓ 已重補修：{{ course.retake.label }}（及格）</small>{% endif %}
+          {% if course.get('retake_of') %}<small class="retake-of note-chip">重補修：補 {{ course.retake_of.label }}</small>{% endif %}
+          {% if course.get('makeup_season') %}<small class="note-chip note-chip--info">{{ '暑期' if course.makeup_season == 'summer' else '寒期' }}重補修</small>{% endif %}
+          {% if course.get('status_mark') %}<small class="note-chip">課程狀態：{{ course.status_mark }}</small>{% endif %}
+          {# 「學期依表格位置推定」是整份成績單共通的提醒，已在課程清單上方說明一次，不在每門課重複 #}
+          {% set row_reasons = (course.get('review_reasons') or [])|reject('equalto', '學期依表格位置推定，請核對表頭。')|list %}
+          {% if course.get('needs_confirmation') and row_reasons %}<small class="review-warning note-chip note-chip--warn">需要人工確認</small>{% endif %}
+          {% for reason in row_reasons %}<small class="review-warning note-text">{{ reason }}</small>{% endfor %}
+          <small class="note-source">{% if course.get('source_page') %}第 {{ course.source_page }} 頁{% if course.get('source_line') %}・第 {{ course.source_line }} 列{% endif %}{% if course.get('source_region') %}・區域 {{ course.source_region }}{% endif %}・{% endif %}{% if course.get('source_bbox') %}<a href="{{ url_for('student.learning_profile_course_source', document_id=document.id, course_index=index, revision=result.get('draft_revision')) }}" target="_blank" rel="noopener">查看原圖區域</a>{% else %}無定位資訊，請下載原始檔核對。{% endif %}</small>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endmacro %}
+<div id="review-grade-groups" class="score-groups">
+  {% for group in review_groups %}
+  <details class="score-group course-year-group" data-review-grade="{{ group.key }}" data-review-empty="{{ 'true' if group.empty else 'false' }}" open>
+    <summary><span>{{ group.label }}</span><strong class="course-year-group__top-label">收合時最高三筆</strong><ol class="course-year-group__top-three">{% for entry in group.top_three %}<li>{{ entry.course.course_name }}・{{ entry.course.score }} 分・{{ entry.semester_label }}{% if entry.school_year %}・{{ entry.school_year }} 學年度{% endif %}</li>{% else %}<li>目前沒有可排名的成績</li>{% endfor %}</ol></summary>
+    <div class="score-group__body course-year-group__body">
+      <p class="empty course-year-group__empty" hidden>沒有符合目前篩選條件的課程。</p>
+      {% for semester in group.semesters %}
+      <details class="course-review-semester" data-semester="{{ semester.label }}" open>
+        <summary><span data-heading="{{ semester.label }}">{{ semester.label }}（{{ semester.passed|length + semester.failed|length + semester.pending|length }} 門）</span></summary>
+        {% if semester.passed %}{{ course_table(semester.passed, group, semester, 'passed', '及格課程', document, result) }}{% endif %}
+        {% if semester.failed %}{{ course_table(semester.failed, group, semester, 'failed', '不及格課程', document, result) }}{% endif %}
+        {% if semester.pending %}{{ course_table(semester.pending, group, semester, 'pending', '成績待確認', document, result) }}{% endif %}
+      </details>
+      {% endfor %}
+      {% if group.empty %}<p class="empty">此年級目前沒有課程草稿。</p>{% endif %}
+    </div>
+  </details>
+  {% endfor %}
+</div>
+{% if not courses %}<p class="empty">目前沒有課程草稿，可重新分析或使用下方 JSON 手動補上。</p>{% endif %}
+<datalist id="grade-options">{% for grade in ['一年級', '二年級', '三年級', '四年級', '五年級', '1年級', '2年級', '3年級', '4年級', '5年級'] %}<option value="{{ grade }}">{% endfor %}</datalist>
+{% elif document.document_type == "credential" %}
+{% set analyses = result.get('credential_analyses') or ([result.get('credential_analysis')] if result.get('credential_analysis') else []) %}
+{% set first_analysis = analyses[0] if analyses else {} %}
+{% for analysis in analyses %}
+{% set analysis_index = loop.index0 %}
+{% if analysis.get('document_kind') %}
+<section class="credential-editor" aria-label="證照 OCR 判斷">
+  <h2>OCR 判斷：{% if analysis.get('source_page') %}第 {{ analysis.source_page }} 頁・{% endif %}{{ analysis.get('document_label', '證照類型未辨識') }}</h2>
+  <p><strong>{{ '需要人工確認' if analysis.get('needs_review') else '已辨識欄位，仍須人工確認' }}</strong>。此結果只供欄位核對，不代表證照真偽。</p>
+  {% if analysis.get('classification_reason') %}<p class="review-warning">{{ analysis.classification_reason }}</p>{% endif %}
+  <ol>{% for step in analysis.get('steps', []) %}<li>{{ step }}</li>{% endfor %}</ol>
+  <p>請對照 <a href="{{ url_for('student.learning_profile_document_source', document_id=document.id) }}">原始證照圖片</a> 核對每個欄位；OCR 信心分數不是正確率（<a href="{{ url_for('main.ocr_acceptance') }}">看實測結果</a>）。</p>
+  {% if analysis.get('document_kind') in ('taiwan_technician_certificate', 'possible_taiwan_technician_certificate') %}
+  {% set field_names = [('occupation', '職類（項）名稱'), ('level', '級別'), ('certificate_number', '技術士證總編號'), ('effective_date', '生效日期'), ('issue_date', '製發日期'), ('issuer', '發證單位')] %}
+  <dl class="credential-evidence">
+  {% for key, label in field_names %}
+    {% set field = analysis.get('fields', {}).get(key, {}) %}
+    <dt>{{ label }}</dt>
+    <dd>
+      <strong>{{ (field.get('value') or '未辨識')|traditional_text }}</strong>
+      {% if field.get('raw_text') %}<small>OCR 原文（繁體顯示）：{{ field.raw_text|traditional_text }}</small>{% endif %}
+      {% if field.get('page') and field.get('bbox') %}<img class="credential-field-preview" src="{{ url_for('student.learning_profile_credential_field_source', document_id=document.id, analysis_index=analysis_index, field_key=key, revision=result.get('draft_revision')) }}" alt="原圖中「{{ label }}」的位置（第 {{ field.page }} 頁）" loading="lazy">{% endif %}
+      {% if field.get('confidence') is not none %}<small>OCR 信心：{{ (field.confidence * 100)|round|int }}%</small>{% endif %}
+      {% if field.get('reason') %}<small class="review-warning">{{ field.reason }}</small>{% endif %}
+    </dd>
+  {% endfor %}
+  </dl>
+  <p>總編號僅保留在 OCR 核對草稿，不會寫入正式證照紀錄。生效日期與製發日期分開核對。</p>
+  {% endif %}
+</section>
+{% endif %}
+{% endfor %}
+<section class="credential-editor">
+  <h2>證照資料</h2>
+  {% if credentials|length > 1 %}<p>本檔案有 {{ credentials|length }} 筆證照；下方表單只修改第一筆，其餘筆會保留。若需逐筆修改，請使用下方進階 JSON 編輯。</p>{% endif %}
+  {% if credentials %}
+    {% set credential = credentials[0] %}
+    <p class="empty">請確認以下資料，必要時可以直接修改後儲存。</p>
+    <label>證照名稱
+      <input type="text" name="credential_name" value="{{ credential.credential_name|default('', true) }}" required>
+    </label>
+    <label>證照等級
+      <input type="text" name="credential_level" value="{{ credential.level|default('', true) }}" placeholder="例如：乙級、丙級">
+    </label>
+    <label>發證單位
+      <input type="text" name="credential_issuing_organization" value="{{ credential.issuing_organization|default('', true) }}">
+    </label>
+    <label>製發日期（西元）
+      <input type="date" name="credential_issue_date" value="{{ credential.issue_date|default('', true) }}">
+    </label>
+  {% else %}
+    <p class="empty">目前沒有辨識到證照資料，請手動輸入。</p>
+    <label>證照名稱
+      <input type="text" name="credential_name" required>
+    </label>
+    <label>證照等級
+      <input type="text" name="credential_level" placeholder="例如：乙級、丙級">
+    </label>
+    <label>發證單位
+      <input type="text" name="credential_issuing_organization">
+    </label>
+    <label>製發日期（西元）
+      <input type="date" name="credential_issue_date" value="{{ first_analysis.get('fields', {}).get('issue_date', {}).get('value') or '' }}">
+    </label>
+  {% endif %}
+</section>
+{% endif %}
+  <details>
+    <summary>進階：修改原始確認資料</summary>
+    {% if document.document_type == 'transcript' %}<label><input type="radio" name="course_input_mode" value="json"> 改用下方 JSON 儲存課程（忽略表格修改，可增刪列或修改抵／免／補）</label>{% endif %}
+    {% if document.document_type == 'credential' %}<label><input type="radio" name="credential_input_mode" value="json"> 改用下方 JSON 儲存全部證照（忽略上方證照欄位，可增刪筆數）</label>{% endif %}
+    <label>課程資料 JSON</label>
+    <textarea name="courses_json" rows="10">{{ courses | tojson }}</textarea>
+    <label>證照資料 JSON（進階）</label>
+    <textarea name="credentials_json" rows="10">{{ credentials | tojson }}</textarea>
+  </details>
+  <button class="button" type="submit" formnovalidate>確認並儲存</button>
+</form>
+{% endblock %}
+
+{% block scripts %}
+{% if document.document_type == 'transcript' %}
+<script>
+  (() => {
+    const filter = document.getElementById('review-grade-filter');
+    const failureFilter = document.getElementById('review-failure-filter');
+    const makeupFilter = document.getElementById('review-makeup-filter');
+    const groups = document.querySelectorAll('#review-grade-groups .course-year-group[data-review-grade]');
+    const lockAllButton = document.getElementById('lock-all-scores');
+    const unlockInput = document.getElementById('scores-unlocked');
+    const allFieldsLockedInput = document.getElementById('all-fields-locked');
+    const lockStatus = document.getElementById('score-lock-status');
+    const scoreInputs = document.querySelectorAll('#review-grade-groups input[name$="_score"]');
+    const courseInputs = document.querySelectorAll('#review-grade-groups input[name^="course_"]');
+    if (!filter || !failureFilter || !makeupFilter) return;
+    let scoresUnlocked = false;
+    let allFieldsLocked = false;
+    const setScoreLock = (unlocked) => {
+      if (allFieldsLocked && unlocked) return;
+      scoresUnlocked = unlocked;
+      unlockInput.value = unlocked ? '1' : '0';
+      lockStatus.textContent = allFieldsLocked ? '全部欄位已鎖定，避免誤改' : (unlocked ? '成績編輯已開啟，儲存前請再核對' : '成績已鎖定，避免誤改');
+      for (const input of scoreInputs) {
+        input.readOnly = !unlocked;
+        input.classList.toggle('score-locked', !unlocked);
+      }
+    };
+    const setAllFieldsLock = (locked) => {
+      allFieldsLocked = locked;
+      allFieldsLockedInput.value = locked ? '1' : '0';
+      if (locked) setScoreLock(false);
+      else setScoreLock(true);
+      for (const input of courseInputs) {
+        input.readOnly = locked || (input.name.endsWith('_score') && !scoresUnlocked);
+        input.classList.toggle('all-fields-locked', locked);
+      }
+      const label = lockAllButton.querySelector('.lock-all-label');
+      if (label) label.textContent = locked ? '全部解鎖' : '全部鎖定';
+      lockAllButton.classList.toggle('is-unlocked', locked);
+      lockAllButton.setAttribute('aria-label', locked ? '全部解鎖欄位' : '全部鎖定欄位');
+      lockAllButton.setAttribute('title', locked ? '解鎖所有課程欄位' : '鎖定所有課程欄位');
+    };
+    if (lockAllButton) lockAllButton.addEventListener('click', () => setAllFieldsLock(!allFieldsLocked));
+    for (const mode of document.querySelectorAll('input[name="course_input_mode"]')) {
+      mode.addEventListener('change', () => {
+        if (mode.checked && mode.value === 'json') setAllFieldsLock(false);
+      });
+    }
+    const update = () => {
+      for (const group of groups) {
+        const rows = group.querySelectorAll('tr[data-course-index]');
+        let visibleCount = 0;
+        const scored = [];
+        for (const row of rows) {
+          const gradeMatches = filter.value === 'all' || row.dataset.reviewGrade === filter.value;
+          const creditsInput = row.querySelector('input[name$="_credits"]');
+          const creditsPending = creditsInput &&
+            (creditsInput.value.trim() === '' || creditsInput.value.includes('待確認'));
+          const failureMatches = failureFilter.value === 'all' ||
+            (failureFilter.value === 'failed' && row.dataset.reviewKind === 'failed') ||
+            (failureFilter.value === 'pending' && creditsPending);
+          const makeupMatches = makeupFilter.value === 'all' || row.dataset.makeupSeason === makeupFilter.value;
+          row.hidden = !(gradeMatches && failureMatches && makeupMatches);
+          if (!row.hidden) {
+            visibleCount += 1;
+            const scoreInput = row.querySelector('input[name$="_score"]');
+            const score = Number(scoreInput.value);
+            if (scoreInput.value !== '' && Number.isInteger(score) && score >= 0 && score <= 100) {
+              const name = row.querySelector('input[name$="_course_name"]').value;
+              const semester = row.querySelector('input[name$="_semester"]').value;
+              const schoolYear = row.dataset.schoolYear;
+              const parts = [`${name}・${score} 分`];
+              if (semester) parts.push(semester);
+              if (schoolYear) parts.push(`${schoolYear} 學年度`);
+              scored.push({ score, index: Number(row.dataset.courseIndex), text: parts.join('・') });
+            }
+          }
+        }
+        for (const section of group.querySelectorAll('.course-review-section')) {
+          const sectionRows = section.querySelectorAll('tr[data-course-index]');
+          const visibleRows = Array.from(sectionRows).filter((row) => !row.hidden);
+          section.hidden = visibleRows.length === 0;
+          const heading = section.querySelector('h4');
+          if (heading) heading.textContent = `${heading.dataset.heading}（${visibleRows.length} 門）`;
+        }
+        for (const semester of group.querySelectorAll('.course-review-semester')) {
+          const semesterRows = Array.from(semester.querySelectorAll('tr[data-course-index]'));
+          const semesterCount = semesterRows.filter((row) => !row.hidden).length;
+          semester.hidden = semesterCount === 0;
+          const heading = semester.querySelector('summary [data-heading]');
+          if (heading) heading.textContent = `${heading.dataset.heading}（${semesterCount} 門）`;
+        }
+        const emptyMessage = group.querySelector('.course-year-group__empty');
+        if (emptyMessage) emptyMessage.hidden = visibleCount > 0;
+        const topThree = group.querySelector('.course-year-group__top-three');
+        if (topThree) {
+          topThree.replaceChildren();
+          scored.sort((a, b) => b.score - a.score || a.index - b.index);
+          for (const item of scored.slice(0, 3)) {
+            const entry = document.createElement('li');
+            entry.textContent = item.text;
+            topThree.append(entry);
+          }
+          if (!scored.length) {
+            const entry = document.createElement('li');
+            entry.textContent = '目前沒有符合篩選條件且有成績的課程';
+            topThree.append(entry);
+          }
+        }
+        group.hidden = (filter.value !== 'all' && rows.length > 0 &&
+          !Array.from(rows).some((row) => row.dataset.reviewGrade === filter.value)) ||
+          (filter.value === 'all' && group.dataset.reviewEmpty === 'true');
+        if (filter.value === 'all' && visibleCount === 0) group.hidden = true;
+      }
+    };
+    filter.addEventListener('change', update);
+    failureFilter.addEventListener('change', update);
+    makeupFilter.addEventListener('change', update);
+    for (const input of scoreInputs) {
+      input.addEventListener('input', update);
+    }
+    setScoreLock(false);
+    update();
+  })();
+</script>
+{% endif %}
+</div>
+{{ lightbox() }}
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

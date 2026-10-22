@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% from "partials/files.html" import upload_field with context %}
+{% set page_name = "learning-profile-upload" %}
+{% set document_type = document_type|default("transcript") %}
+{% set page_label = "成績單" if document_type == "transcript" else "證照" %}
+{% set back_url = url_for("student.learning_profile") if document_type == "transcript" else url_for("student.learning_profile_credentials") %}
+
+{% block title %}上傳{{ page_label }}｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, page_label) }}{% endblock %}
+
+{% block content %}
+{{ page_band("上傳" ~ page_label, [(page_label, back_url)]) }}
+<div class="page narrow page--banded">
+  {% if config.DOCUMENT_ANALYSIS_PROVIDER == "demo" %}<p class="notice mb-1">本機展示模式：上傳後會出現合成的 OCR 辨識結果，可修改後再確認；不會呼叫 Google 或外部 AI。</p>{% endif %}
+  {% if error %}<p class="alert mb-1" role="alert">{{ error }}</p>{% endif %}
+  <section class="sheet">
+    <form method="post" action="{{ url_for('student.learning_profile_document_upload') }}" enctype="multipart/form-data" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% if next_path %}<input type="hidden" name="next" value="{{ next_path }}">{% endif %}
+      {# 成績單和證照分開上傳，不讓學生選類型，避免傳錯地方 #}
+      <input type="hidden" name="document_type" value="{{ document_type }}">
+      <p class="upload-kind">
+        {% if document_type == "transcript" %}<b>成績單</b>：從學校系統下載，建議用列印版。
+        {% else %}<b>證照</b>：證書正面的照片或 PDF。{% endif %}
+      </p>
+      {{ upload_field(hint="PDF、PNG、JPG", accept="image/png,image/jpeg,.pdf") }}
+      <div class="record-card__actions">
+        <button class="button" type="submit" data-busy-text="上傳中…">上傳</button>
+        <a class="button button--line" href="{{ back_url }}">取消</a>
+      </div>
+      <p class="muted small">上傳後請逐筆確認。系統不會保存你的學校帳號密碼。
+        {% if document_type == "transcript" %}要上傳的是證照？<a href="{{ url_for('student.learning_profile_upload_page', type='credential', next=next_path) }}">改上傳證照</a>
+        {% else %}要上傳的是成績單？<a href="{{ url_for('student.learning_profile_upload_page', type='transcript', next=next_path) }}">改上傳成績單</a>{% endif %}
+      </p>
+    </form>
+  </section>
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

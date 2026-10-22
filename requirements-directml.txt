@@ -1,0 +1,12 @@
+# 選用：Windows 顯示卡加速 OCR（DirectML，可用 NVIDIA／AMD／Intel 顯示卡）
+# 與 requirements.txt 的 onnxruntime（CPU 版）不能同時安裝，兩者都提供 onnxruntime 模組。
+# 改用顯示卡：
+#   pip uninstall -y onnxruntime
+#   pip install -r requirements-directml.txt
+#   .env 設定 OCR_DEVICE=dml、OCR_DML_DEVICE_ID=顯示卡編號（筆電獨立顯示卡常是 1）
+# 切回 CPU：
+#   pip uninstall -y onnxruntime-directml
+#   pip install onnxruntime==1.31.0
+#   .env 設定 OCR_DEVICE=cpu（或刪除這一行）
+# 註：DirectML 套件也包含 CPU 執行，只裝 DirectML 版時 OCR_DEVICE=cpu 仍可正常使用。
+onnxruntime-directml==1.24.4

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "admin-course-rules" %}
+
+{% block title %}課程規則｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "課程規則") }}{% endblock %}
+
+{% block content %}
+<section class="work-shell" data-work-role="admin">
+  <header class="work-heading">
+    <div><h1>課程規則</h1><p>依入學學年度管理必修與選修課程。比對結果只供學習規劃，不取代正式畢業或抵免審查。</p></div>
+  </header>
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>新增規則</h2></div></div>
+    <form class="admin-inline-form" method="post" action="{{ url_for('admin.course_rules') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>入學學年度<input type="number" name="school_year" min="1" max="999" placeholder="例如 111" required></label>
+      <label>課程名稱<input name="course_name" required></label>
+      <label>分類<input name="category" placeholder="例如 專業必修" required></label>
+      <label>必選修<select name="requirement_type"><option value="required">必修</option><option value="elective">選修</option></select></label>
+      <label>學分<input type="number" name="credits" min="0"></label>
+      <label>能力領域<input name="ability_domain" placeholder="選填"></label>
+      <button class="button" type="submit">新增規則</button>
+    </form>
+  </section>
+  <section class="work-panel">
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>學年度</th><th>課程</th><th>分類</th><th>必選修</th><th>狀態</th><th>操作</th></tr></thead>
+        <tbody>
+          {% for rule in course_rules %}
+          <tr>
+            <td class="mono">{{ rule.school_year }}</td><td>{{ rule.course_name }}</td><td>{{ rule.category }}</td>
+            <td>{{ "必修" if rule.requirement_type == "required" else "選修" }}</td>
+            <td><span class="tag {{ 'tag--ok' if rule.is_active else '' }}">{{ "啟用" if rule.is_active else "停用" }}</span></td>
+            <td><form method="post" action="{{ url_for('admin.toggle_course_rule_active', rule_id=rule.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small button--quiet" type="submit">{{ "停用" if rule.is_active else "啟用" }}</button></form></td>
+          </tr>
+          {% else %}
+          <tr class="empty-row"><td colspan="6">尚無規則。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</section>
+{% endblock %}

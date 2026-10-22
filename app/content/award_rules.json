@@ -1,0 +1,18 @@
+{
+  "說明": "獎懲事由的分類規則。由上往下比對，事由同時包含 keywords 裡的每個詞，就分到 category。科上可以自己增加或調整順序；比不到的由 AI 建議，最後由學生確認。category 只能是 activity（活動）、competition（競賽）、service（服務學習）、leadership（幹部經歷）。",
+  "rules": [
+    {"keywords": ["參加", "獲得"], "category": "competition"},
+    {"keywords": ["競賽"], "category": "competition"},
+    {"keywords": ["比賽"], "category": "competition"},
+    {"keywords": ["大賽"], "category": "competition"},
+    {"keywords": ["協助"], "category": "service"},
+    {"keywords": ["服務"], "category": "service"},
+    {"keywords": ["志工"], "category": "service"},
+    {"keywords": ["幹部"], "category": "leadership"},
+    {"keywords": ["班長"], "category": "leadership"},
+    {"keywords": ["股長"], "category": "leadership"},
+    {"keywords": ["小老師"], "category": "leadership"},
+    {"keywords": ["社長"], "category": "leadership"}
+  ],
+  "rewards": ["嘉獎", "小功", "大功"]
+}

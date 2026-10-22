@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "admin-ocr" %}
+
+{% block title %}OCR 辨識設定｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "OCR 辨識設定") }}{% endblock %}
+
+{% block content %}
+<section class="work-shell" data-work-role="admin">
+  <header class="work-heading">
+    <div><h1>OCR 辨識設定</h1><p>學生上傳成績單或證照後，系統在本機辨識文字（圖片不送外部服務）。這裡可以選擇用 CPU 或顯示卡辨識；切換後立即生效，不用重開網站。</p></div>
+  </header>
+
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>目前狀態</h2></div></div>
+    <p><strong>目前使用：{{ "CPU" if device == "cpu" else "顯示卡（DirectML 編號 " ~ dml_device_id ~ "）" }}</strong></p>
+    {% if gpu_available %}
+    <p class="notice">這台電腦可以使用顯示卡加速（已安裝 onnxruntime-directml）。</p>
+    {% else %}
+    <p class="notice">這台電腦目前只能用 CPU 辨識；要用顯示卡，請先依專案的 <code>requirements-directml.txt</code> 改裝 onnxruntime-directml。</p>
+    {% endif %}
+    {% if provider != "rapidocr" %}
+    <p class="muted small">提醒：目前的文件分析方式是「{{ provider }}」，這個設定只影響本機 RapidOCR（<code>DOCUMENT_ANALYSIS_PROVIDER=rapidocr</code>）。</p>
+    {% endif %}
+  </section>
+
+  <p><a href="{{ url_for('main.ocr_acceptance') }}">看 OCR 實測結果（逐欄對照原圖的驗收紀錄）→</a></p>
+
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>切換</h2></div></div>
+    {% if error %}<p class="alert mb-1" role="alert">{{ error }}</p>{% endif %}
+    <form class="admin-inline-form" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <fieldset class="field">
+        <legend>辨識裝置</legend>
+        <label class="choice"><input type="radio" name="device" value="cpu" {{ "checked" if device == "cpu" }}><span><b>CPU</b><small>任何電腦都能用；成績單一頁約 30 秒</small></span></label>
+        <label class="choice"><input type="radio" name="device" value="dml" {{ "checked" if device == "dml" }} {{ "disabled" if not gpu_available }}><span><b>顯示卡（DirectML）</b><small>開發筆電 RTX 4060 實測約 6 秒；會佔用約 3～5 GB 顯示卡記憶體</small></span></label>
+      </fieldset>
+      <label>顯示卡編號<input name="dml_device_id" type="number" min="0" max="15" value="{{ dml_device_id }}" required></label>
+      <button class="button" type="submit">儲存</button>
+    </form>
+    <p class="muted small">筆電常有兩張顯示卡：編號 0 多半是內建顯示（較慢），獨立顯示卡常是 1。選錯編號時辨識仍會成功，只是不會變快。每次切換都會記入稽核紀錄。</p>
+  </section>
+</section>
+{% endblock %}

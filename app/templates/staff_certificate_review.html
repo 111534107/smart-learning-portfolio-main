@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer with context %}
+{% set page_name = "staff-certificate-review" %}
+
+{% block title %}審核電子獎狀｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "電子獎狀") }}{% endblock %}
+
+{% block content %}
+<div class="page narrow">
+  <p class="small"><a href="{{ url_for('certificate.staff_list') }}">← 回電子獎狀清單</a></p>
+  <section class="sheet mb-1">
+    <h1 class="h2">{{ cert.student.display_name }} 的電子獎狀申請</h1>
+    <p>服務紀錄：<b>{{ cert.portfolio.title }}</b>{% if cert.portfolio.description %}（{{ cert.portfolio.description }}）{% endif %}</p>
+    {% if cert.portfolio.source_document %}
+    <p><a class="button button--small button--line" href="{{ url_for('certificate.staff_source', cert_id=cert.id) }}" target="_blank" rel="noopener">對照學生上傳的獎懲記錄</a></p>
+    {% endif %}
+    {% if cert.status == "approved" %}<p class="notice">已核准，驗證碼 <span class="mono">{{ cert.verify_code }}</span>。</p>{% endif %}
+    {% if cert.status == "returned" %}<p class="notice">已退回：{{ cert.return_reason }}</p>{% endif %}
+  </section>
+
+  <section class="sheet">
+    {% if error %}<p class="alert mb-1" role="alert">{{ error }}</p>{% endif %}
+    <form method="post" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <p class="muted small">獎狀外框固定；下面的文字會印在獎狀上，系統已先帶入，可以直接修改。</p>
+      <label class="field"><span class="field__label">證明類別（獎狀標題）</span><input name="title" value="{{ cert.title }}" maxlength="50" required></label>
+      <label class="field"><span class="field__label">內文</span><textarea name="body" rows="6" required>{{ cert.body }}</textarea></label>
+      <label class="field"><span class="field__label">發證單位</span><input name="issuer" value="{{ cert.issuer }}" maxlength="100" required></label>
+      <label class="field"><span class="field__label">退回原因 <small>只有退回時要填</small></span><input name="return_reason" maxlength="500" value="{{ cert.return_reason or '' }}"></label>
+      <div class="record-card__actions">
+        <button class="button" type="submit" name="action" value="approve">核准並產出獎狀</button>
+        <button class="button button--line" type="submit" name="action" value="return" formnovalidate>退回</button>
+        <a class="button button--line" href="{{ url_for('certificate.certificate_view', cert_id=cert.id) }}" target="_blank" rel="noopener">預覽獎狀</a>
+      </div>
+    </form>
+  </section>
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

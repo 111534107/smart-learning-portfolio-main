@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "admin-classes" %}
+
+{% block title %}導師班級｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "導師班級") }}{% endblock %}
+
+{% block content %}
+<section class="work-shell" data-work-role="admin">
+  <header class="work-heading">
+    <div><h1>導師班級</h1><p>導師只看得到這裡設定的班級學生。班級名稱要和學生資料上的班級完全相同。</p></div>
+  </header>
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>新增</h2></div></div>
+    {% if error %}<p class="alert mb-1" role="alert">{{ error }}</p>{% endif %}
+    <form class="admin-inline-form" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>導師<select name="teacher_id" required><option value="">請選擇</option>{% for teacher in teachers %}<option value="{{ teacher.id }}">{{ teacher.display_name }}（{{ teacher.username }}）</option>{% endfor %}</select></label>
+      <label>班級<input name="class_name" list="class-names" placeholder="例如 資管科三甲" required>
+        <datalist id="class-names">{% for name in class_names %}<option value="{{ name }}">{% endfor %}</datalist></label>
+      <label>學年度<input name="school_year" type="number" min="100" max="200" placeholder="例如 115" required></label>
+      <button class="button" type="submit">新增</button>
+    </form>
+  </section>
+  <section class="work-panel">
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>學年度</th><th>班級</th><th>導師</th><th><span class="visually-hidden">操作</span></th></tr></thead>
+        <tbody>
+          {% for advisor in advisors %}
+          <tr><td class="mono">{{ advisor.school_year }}</td><td>{{ advisor.class_name }}</td><td>{{ advisor.teacher.display_name }}</td>
+            <td><form method="post" action="{{ url_for('admin.class_delete', advisor_id=advisor.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small button--quiet" type="submit">移除</button></form></td></tr>
+          {% else %}
+          <tr class="empty-row"><td colspan="4">還沒有設定任何導師班級。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</section>
+{% endblock %}

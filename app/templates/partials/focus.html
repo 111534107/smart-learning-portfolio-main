@@ -1,0 +1,31 @@
+{# 聚焦：先把所有校系要的東西堆滿畫面，再淡出，只留最重要的 3 件。資料來自 focus_service。
+   用語界線（UI-01 審查 R1、R2）：沒有推薦≠全部準備好；分類待確認要寫出來；不說成校方配分。 #}
+<section class="focus" data-focus aria-labelledby="focus-title" data-tour="選很多校系時，這裡告訴你先做哪幾件。" data-tour-order="1">
+  <div class="focus__pile" aria-hidden="true">
+    {% for piece in focus.pieces %}
+    <span class="focus__piece" style="--i: {{ loop.index0 }}; --x: {{ (loop.index0 * 37) % 92 }}%; --y: {{ (loop.index0 * 53) % 84 }}%; --r: {{ ((loop.index0 * 29) % 21) - 10 }}deg;">
+      <small>{{ piece.school }}</small>{{ piece.name }} {{ piece.weight }}%
+    </span>
+    {% endfor %}
+  </div>
+  <div class="focus__front">
+    <p class="focus__count" data-focus-count>{{ focus.targets }} 所校系，{{ focus.total }} 項要求</p>
+    {% if focus.top %}
+    <h2 id="focus-title">先做這 {{ focus.top|length }} 件，離下一站更近。</h2>
+    <ol class="focus__top plain-list">
+      {% for item in focus.top %}
+      <li data-focus-top style="--n: {{ loop.index0 }};">
+        <span class="focus__no">{{ loop.index }}</span>
+        <span><b>{{ item.verb }}{{ item.label }}</b><small>{{ item.schools }} 所校系的要求有這項{% if item.pending %} · <em class="focus__pending">分類待確認</em>{% endif %}</small></span>
+        <a class="button button--small" href="{{ item.href }}">去做 →</a>
+      </li>
+      {% endfor %}
+    </ol>
+    <p class="focus__note">依系統目前的分類估算，不是校方配分{% if focus.has_pending %}；標「分類待確認」的還沒經管理者核對{% endif %}。專題作品等文件請看各校的文件清單。</p>
+    {% else %}
+    <h2 id="focus-title">資料很多，先看各校要什麼。</h2>
+    <p>目前沒有可以推薦的補件。專題作品、自傳等文件，請看各校的文件清單。</p>
+    {% endif %}
+    <button type="button" class="focus__replay" data-focus-replay>再看一次</button>
+  </div>
+</section>

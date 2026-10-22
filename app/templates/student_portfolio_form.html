@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% from "partials/record_fields.html" import record_fields %}
+{% from "partials/files.html" import upload_field, evidence_grid, lightbox with context %}
+{# 新增和編輯共用這一頁：portfolio 是 None 就是新增。 #}
+{% set page_name = "student-portfolio-edit" if portfolio else "student-portfolio-new" %}
+{% set page_title = "編輯經歷" if portfolio else "新增經歷" %}
+
+{% block title %}{{ page_title }}｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "活動與經歷") }}{% endblock %}
+
+{% block content %}
+{{ page_band(page_title, [("活動與經歷", url_for('student.portfolio_list'))], note=portfolio.title if portfolio else "") }}
+<div class="page narrow page--banded">
+  <section class="sheet">
+    {% if error %}
+    <div class="mb-1">
+      <p class="alert" role="alert">{{ error }}</p>
+      <div class="record-card__actions"><a class="button button--small" href="#record-form">回到必填欄位</a></div>
+    </div>
+    {% endif %}
+    <form id="record-form" method="post" class="form-stack" action="{{ url_for('student.portfolio_edit', portfolio_id=portfolio.id) if portfolio else url_for('student.portfolio_list') }}">
+      {% if not portfolio %}{% if next_path %}<input type="hidden" name="next" value="{{ next_path }}">{% endif %}{% endif %}
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {{ record_fields(categories, category_labels, values) }}
+      <p class="small muted">確認過的經歷才會被 AI 寫進自傳；之後再修改，要重新確認。</p>
+      <div class="record-card__actions">
+        <button class="button" type="submit" name="confirm" value="1">確認並儲存</button>
+        <button class="button button--line" type="submit">先存成草稿</button>
+        <a class="button button--line" href="{{ url_for('student.portfolio_list') }}">取消</a>
+      </div>
+    </form>
+  </section>
+
+  {% if portfolio and (portfolio.certificate or (portfolio.source == "award_record" and portfolio.category == "service")) %}
+  {% set cert = portfolio.certificate %}
+  <section class="sheet mt-1" aria-labelledby="certificate-title">
+    <div class="sheet__head"><h2 id="certificate-title">電子獎狀</h2></div>
+    {% if cert and cert.status == "approved" %}
+    <p class="mb-1">科辦已核准，驗證碼 <span class="mono">{{ cert.verify_code }}</span>。</p>
+    <a class="button button--small" href="{{ url_for('certificate.certificate_view', cert_id=cert.id) }}" target="_blank" rel="noopener">查看與列印獎狀</a>
+    {% elif cert and cert.status == "pending" %}
+    <p class="muted">已送出申請，等科辦核准。</p>
+    {% else %}
+    {% if cert and cert.status == "returned" %}<p class="alert mb-1">科辦退回：{{ cert.return_reason }}</p>{% endif %}
+    <p class="muted small mb-1">這是科上派的服務，可以請科辦開一張電子獎狀（補充個別證明，不取代學校的獎懲記錄）。</p>
+    <form method="post" action="{{ url_for('certificate.certificate_apply', portfolio_id=portfolio.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="button button--small" type="submit">{{ "重新申請" if cert else "申請電子獎狀" }}</button>
+    </form>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {% if portfolio %}
+  <section class="sheet mt-1" aria-labelledby="evidence-title">
+    <div class="sheet__head"><h2 id="evidence-title">佐證（照片、證明）</h2></div>
+    {% if portfolio.evidence_items %}
+    <div class="mb-1">{{ evidence_grid(portfolio.evidence_items, "student.evidence_view", download_endpoint="student.evidence_download", delete_endpoint="student.evidence_delete") }}</div>
+    {% endif %}
+    <form method="post" action="{{ url_for('student.evidence_upload', portfolio_id=portfolio.id) }}" enctype="multipart/form-data" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {{ upload_field(label="新增佐證", hint="PNG、JPG、PDF 可以直接預覽", accept="image/png,image/jpeg,.pdf,.doc,.docx,.odt,.txt") }}
+      <div><button class="button button--small" type="submit">上傳佐證</button></div>
+    </form>
+  </section>
+  {{ lightbox() }}
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% set page_name = "autobiography-versions" %}
+{% set role_text = {"ai": "AI 產生", "student": "學生修改", "teacher": "導師修改"} %}
+
+{% block title %}自傳版本紀錄｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "備審資料") }}{% endblock %}
+
+{% block content %}
+{{ page_band("自傳版本紀錄", [("自傳小幫手", url_for('student.autobiography', program_id=program.id))], note=program.school_name ~ " " ~ program.department_name) }}
+<div class="page page--banded">
+  {% if cancelled %}<p class="notice notice--warn mb-1">這是已取消的目標校系。自傳紀錄都還保留著，可以看，但不能再修改；要繼續寫請重新加入目標。</p>{% endif %}
+  {% if not versions %}
+  <p class="paper-empty">還沒有自傳。</p>
+  {% else %}
+  <div class="split">
+    <section class="sheet">
+      {% set content = selected.content_json %}
+      {% set editor = editors.get(content.editor_id) %}
+      <div class="sheet__head"><h2>第 {{ version_of(selected) }} 版</h2>
+        <span class="tag {{ 'tag--warn' if content.editor_role == 'teacher' else 'tag--info' }}">{{ role_text.get(content.editor_role, "修改") }}</span></div>
+      <p class="small muted mb-1">{{ selected.created_at.strftime("%Y-%m-%d %H:%M") }}{% if editor %} · {{ editor.display_name }}{% endif %}{% if previous %} · 和第 {{ version_of(previous) }} 版比較：<ins>綠色</ins>是新增、<del>紅色</del>是刪掉{% endif %}</p>
+      {% for paragraph in diff %}
+      <section class="draft__paragraph">
+        <h3 class="h3">{{ paragraph.title }}{% if paragraph.changed %} <span class="tag tag--warn">有修改</span>{% endif %}</h3>
+        <p class="version-text">{{ paragraph.html }}</p>
+        {% if paragraph.comment %}<blockquote class="teacher-comment"><b>導師意見：</b>{{ paragraph.comment }}</blockquote>{% endif %}
+      </section>
+      {% endfor %}
+    </section>
+    <aside class="sheet">
+      <h2 class="h3 mb-1">所有版本</h2>
+      <p class="small muted mb-1">每次儲存都會留下一版，不會被覆蓋，也不能刪除。</p>
+      <ol class="version-list">
+        {% for version in versions %}
+        {% set c = version.content_json %}
+        <li{% if version.id == selected.id %} aria-current="true"{% endif %}>
+          <a href="{{ url_for('student.autobiography_versions', program_id=program.id, v=version.id) }}">第 {{ version_of(version) }} 版</a>
+          <span class="small muted">{{ role_text.get(c.editor_role, "修改") }}{% if editors.get(c.editor_id) %} · {{ editors[c.editor_id].display_name }}{% endif %} · {{ version.created_at.strftime("%m-%d %H:%M") }}</span>
+        </li>
+        {% endfor %}
+      </ol>
+    </aside>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

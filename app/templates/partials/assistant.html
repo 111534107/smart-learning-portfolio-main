@@ -1,0 +1,32 @@
+{# 資管科小助手：每一頁右下角的聊天視窗（學生、導師）。
+   對話只存在瀏覽器這個分頁裡，關掉就清掉；伺服器不保存問題與回答。 #}
+{% set suggestions = {
+  "student": ["我還差幾張證照？", "目標校系還缺什麼？", "檢查我的自傳", "二技什麼時候報名？"],
+  "teacher": ["誰還沒選目標校系？", "誰在等我確認？", "檢查學生的自傳", "專題報告要交什麼？"],
+}[user.role] %}
+<div class="assistant" data-assistant data-endpoint="{{ url_for('assistant.assistant_ask') }}">
+  <button class="assistant__toggle" type="button" data-assistant-toggle aria-expanded="false" aria-controls="assistant-panel">
+    <span class="assistant__dot" aria-hidden="true"></span>資管科小助手
+  </button>
+  <section class="assistant__panel" id="assistant-panel" hidden aria-label="資管科小助手">
+    <header class="assistant__head">
+      <div><b>資管科小助手</b><small>問操作、規定、進度</small></div>
+      <button class="assistant__close" type="button" data-assistant-toggle aria-label="關閉">×</button>
+    </header>
+    <div class="assistant__log" data-assistant-log aria-live="polite">
+      <div class="assistant__msg assistant__msg--bot">
+        <p>嗨 {{ user.display_name }}，想問什麼？點一個就好。</p>
+        <div class="assistant__chips">
+          {% for text in suggestions %}<button type="button" class="assistant__chip" data-assistant-suggest>{{ text }}</button>{% endfor %}
+        </div>
+      </div>
+    </div>
+    <form class="assistant__form" data-assistant-form>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="visually-hidden" for="assistant-input">輸入問題</label>
+      <textarea id="assistant-input" name="message" rows="1" maxlength="1500" placeholder="輸入問題，Enter 送出" required></textarea>
+      <button class="button button--small" type="submit">送出</button>
+    </form>
+    <p class="assistant__note">AI 回答僅供參考，以科辦公告為準。</p>
+  </section>
+</div>

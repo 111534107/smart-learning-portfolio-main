@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer with context %}
+{% set page_name = "upload-too-large" %}
+
+{% block title %}檔案太大｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user) }}{% endblock %}
+
+{% block content %}
+<div class="page narrow">
+  <section class="sheet">
+    <h1 class="sheet__head">檔案太大，沒有上傳</h1>
+    <p class="mb-1">每個檔案最大 {{ limit_mb }}MB。可以這樣縮小：</p>
+    <ul class="mb-1">
+      <li>手機照片：用相簿的「編輯 → 裁切」只留證書範圍，或在相機設定改成較低畫質。</li>
+      <li>PDF：只留需要的那幾頁，或用「列印 → 另存為 PDF」重新存一次。</li>
+    </ul>
+    <a class="button" href="{{ back or url_for('main.index') }}">回上一頁重新選檔案</a>
+  </section>
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

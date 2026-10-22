@@ -1,0 +1,9 @@
+{% macro status_chip(state) -%}
+  {% set states = {
+    "confirmed": ("✓", "已確認"),
+    "pending-source": ("!", "待補來源"),
+    "draft": ("—", "草稿")
+  } %}
+  {% set icon, label = states.get(state, states["draft"]) %}
+  <span class="status-chip status-chip--{{ state if state in states else 'draft' }}"><span class="status-chip__icon" aria-hidden="true">{{ icon }}</span><span>{{ label }}</span></span>
+{%- endmacro %}

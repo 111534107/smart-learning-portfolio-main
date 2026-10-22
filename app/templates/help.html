@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% set page_name = "help" %}
+
+{% block title %}怎麼操作｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "") }}{% endblock %}
+
+{% block content %}
+{{ page_band("怎麼操作") }}
+<div class="page page--banded help">
+  <p class="help__lead">點問題看答案。找不到的話，右下角可以問小助手。</p>
+  <p><button type="button" class="button button--line" data-tour-replay="{{ tour_page }}" data-tour-replay-url="{{ tour_url }}">重看我的角色導覽</button></p>
+  {% for section in sections %}
+  <section class="help__section" aria-labelledby="help-{{ loop.index }}">
+    <h2 id="help-{{ loop.index }}">{{ section.title }}</h2>
+    {% for item in section["items"] %}
+    <details class="help__item">
+      <summary>{{ item.q }}</summary>
+      <p class="help__answer">{{ item.a }}</p>
+      <a class="button button--small" href="{{ url_for(item.link) }}">{{ item.label }} →</a>
+    </details>
+    {% endfor %}
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

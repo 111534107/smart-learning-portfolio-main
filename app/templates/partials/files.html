@@ -1,0 +1,65 @@
+{# 上傳與預覽的共用元件。改上傳框或縮圖的樣子，只要改這一個檔案。
+   用法：
+     {% from "partials/files.html" import upload_field, evidence_grid, lightbox with context %}
+     {{ upload_field(hint="成績單或證照的照片、PDF", accept=".pdf,.png,.jpg,.jpeg") }}
+     {{ evidence_grid(record.evidence_items, "student.evidence_view", delete_endpoint="student.evidence_delete") }}
+     {{ lightbox() }}   ← 有縮圖的頁面放一次就好 #}
+
+{# 上傳框：點一下選檔案（手機可拍照），也可以把檔案拖進來；選好後先預覽，太大會直接提醒。 #}
+{% macro upload_field(name="file", label="檔案", hint="", accept="image/png,image/jpeg,.pdf") %}
+{% set limit_mb = config.MAX_CONTENT_LENGTH // (1024 * 1024) %}
+<div class="field">
+  <span class="field__label">{{ label }} <small>{{ hint }}{% if hint %}；{% endif %}最大 {{ limit_mb }}MB</small></span>
+  <div class="dropzone" data-upload data-max-bytes="{{ config.MAX_CONTENT_LENGTH }}">
+    <input class="dropzone__input" type="file" name="{{ name }}" accept="{{ accept }}" required aria-label="{{ label }}">
+    <img class="dropzone__preview" alt="即將上傳的檔案預覽" hidden>
+    <span class="dropzone__hint" aria-hidden="true"><b>點這裡選檔案</b><small>手機可以直接拍照，電腦可以把檔案拖進來</small></span>
+  </div>
+  <div class="dropzone__tools" hidden>
+    <button class="button button--small button--line" type="button" data-rotate="-90">↺ 向左轉</button>
+    <button class="button button--small button--line" type="button" data-rotate="90">↻ 向右轉</button>
+    <span class="muted small">照片歪了就轉到正面再上傳</span>
+  </div>
+  <p class="dropzone__status small" aria-live="polite"></p>
+</div>
+{% endmacro %}
+
+{# 縮圖格子：圖片點了放大、PDF 開新分頁、其他檔案下載。有 delete_endpoint 才顯示「刪除」。
+   原始文件的網址參數叫 document_id，所以用 id_arg="document_id"。 #}
+{% macro evidence_grid(items, view_endpoint, download_endpoint=None, delete_endpoint=None, id_arg="evidence_id") %}
+<ul class="evidence-grid">
+  {% for evidence in items %}
+  {% set view_url = url_for(view_endpoint, **{id_arg: evidence.id}) %}
+  <li class="evidence-tile">
+    {% if evidence.preview_kind == "image" %}
+    <button type="button" class="evidence-tile__thumb" data-lightbox="{{ view_url }}" aria-label="放大 {{ evidence.display_name }}">
+      <img src="{{ view_url }}" alt="{{ evidence.display_name }}" loading="lazy">
+    </button>
+    {% elif evidence.preview_kind == "pdf" %}
+    <a class="evidence-tile__thumb evidence-tile__file" href="{{ view_url }}" target="_blank" rel="noopener">PDF<small>點我開啟</small></a>
+    {% elif download_endpoint %}
+    <a class="evidence-tile__thumb evidence-tile__file" href="{{ url_for(download_endpoint, **{id_arg: evidence.id}) }}">{{ evidence.extension|upper or "檔案" }}<small>點我下載</small></a>
+    {% else %}
+    <span class="evidence-tile__thumb evidence-tile__file">{{ evidence.extension|upper or "檔案" }}<small>無法預覽</small></span>
+    {% endif %}
+    <div class="evidence-tile__bar">
+      <span class="small" title="{{ evidence.display_name }}">{{ evidence.display_name }}</span>
+      {% if delete_endpoint %}
+      <form method="post" action="{{ url_for(delete_endpoint, **{id_arg: evidence.id}) }}" data-confirm="確定要刪除「{{ evidence.display_name }}」嗎？">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="link-button" type="submit">刪除</button>
+      </form>
+      {% endif %}
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% endmacro %}
+
+{# 放大檢視的視窗（瀏覽器內建 <dialog>）。按 ×、Esc 或點旁邊都會關。 #}
+{% macro lightbox() %}
+<dialog class="lightbox" data-lightbox-dialog>
+  <form method="dialog"><button class="lightbox__close" type="submit" aria-label="關閉">×</button></form>
+  <img alt="">
+</dialog>
+{% endmacro %}

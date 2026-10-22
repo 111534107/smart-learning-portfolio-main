@@ -1,0 +1,129 @@
+{# 共用刊頭導覽。用法：{% from "partials/nav.html" import masthead %}{{ masthead(user, "我的五年") }} #}
+{% macro masthead(user=None, active="") %}
+{% if user and user.role == "student" and student_progress is defined %}{{ student_masthead(user, active) }}{% else %}
+{% set links = {
+  "student": [("我的五年", url_for("main.student_dashboard")), ("成績單", url_for("student.learning_profile")), ("證照", url_for("student.learning_profile_credentials")), ("活動與經歷", url_for("student.portfolio_list")), ("目標校系", url_for("student.target_list"))],
+  "teacher": [("工作台", url_for("main.teacher_dashboard")), ("我的審查", url_for("review.teacher_reviews"))],
+  "staff": [("電子獎狀", url_for("certificate.staff_list")), ("待處理送件", url_for("main.staff_dashboard"))],
+  "admin": [("系統總覽", url_for("main.admin_dashboard")), ("帳號管理", url_for("admin.accounts")), ("專題規則", url_for("admin.project_types")), ("課程規則", url_for("admin.course_rules")), ("校系資料", url_for("admin.programs")), ("招生資料 Agent", url_for("admin.agent_home")), ("導師班級", url_for("admin.classes")), ("OCR 辨識設定", url_for("admin.ocr_settings_page"))],
+} %}
+<header class="masthead">
+  <div class="masthead__inner">
+    <a class="brand" href="{{ url_for('main.index') }}">
+      <span class="brand__mark" aria-hidden="true">IM</span>
+      <span>資管科學習歷程</span>
+      <span class="brand__issue">康寧大學 · 資訊管理科五專</span>
+    </a>
+    <nav class="masthead__links" aria-label="主要導覽">
+      {% if user %}
+        {% for label, href in links.get(user.role, []) %}
+        <a href="{{ href }}"{% if label == active %} aria-current="page"{% endif %}>{{ label }}</a>
+        {% endfor %}
+        <button type="button" class="masthead__help" data-tour-start hidden>導覽</button>
+        <a class="masthead__help" href="{{ url_for('main.help_page') }}">❓ 怎麼操作</a>
+        <span class="masthead__user">{{ user.display_name }}</span>
+        <form method="post" action="{{ url_for('main.logout') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="button button--small button--quiet" type="submit">登出</button>
+        </form>
+      {% else %}
+        <a href="{{ url_for('main.index') }}#route">五年路徑</a>
+        <a class="button button--small" href="{{ url_for('main.login') }}">登入</a>
+      {% endif %}
+    </nav>
+  </div>
+</header>
+{% endif %}
+{% endmacro %}
+
+{# 學生：參考臺大教務處網站，上方只留一排主選單，所在頁面加底線。 #}
+{% macro student_masthead(user, active="") %}
+{% set gap_href = url_for("student.target_gap", program_id=student_progress.program.id) if student_progress.program else url_for("student.target_list") %}
+{# 「目標校系」與「備審資料」合併：選了校系就直接進第一個校系的備審頁，還沒選就到選校系頁 #}
+{% set items = [
+  ("我的五年", url_for("main.student_dashboard")),
+  ("成績單", url_for("student.learning_profile")),
+  ("證照", url_for("student.learning_profile_credentials")),
+  ("活動與經歷", url_for("student.portfolio_list")),
+  ("目標與備審", gap_href),
+] %}
+{% if has_transfer_record %}{% set items = items + [("抵免進度", url_for("transfer_credit.student_transfer_credit"))] %}{% endif %}
+{% set active = "目標與備審" if active in ("目標校系", "備審資料") else active %}
+<header class="masthead masthead--student">
+  <div class="masthead__inner">
+    <a class="brand" href="{{ url_for('main.student_dashboard') }}">
+      <span class="brand__mark" aria-hidden="true">IM</span>
+      <span>資管科學習歷程</span>
+    </a>
+    <nav class="mainnav" aria-label="主要導覽">
+      {% for label, href in items %}
+      <a href="{{ href }}"{% if label == active %} aria-current="page"{% endif %}>{{ label }}</a>
+      {% endfor %}
+    </nav>
+    <div class="masthead__links">
+      <button type="button" class="masthead__help" data-tour-start hidden>導覽</button>
+      <a class="masthead__help" href="{{ url_for('main.help_page') }}">❓ 怎麼操作</a>
+      <span class="masthead__user">{{ user.display_name }}</span>
+      <form method="post" action="{{ url_for('main.logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="button button--small button--quiet" type="submit">登出</button>
+      </form>
+    </div>
+  </div>
+</header>
+{% endmacro %}
+
+{# 頁面標題列：左邊色塊是頁名，右邊是麵包屑。
+   用法：{{ page_band("成績與證照") }} 或 {{ page_band("確認資料", [("成績與證照", url)]) }} #}
+{% macro page_band(title, crumbs=[], note="") %}
+<div class="band">
+  <h1 class="band__title">{{ title }}</h1>
+  <nav class="band__crumbs" aria-label="目前位置">
+    <a href="{{ url_for('main.student_dashboard') if student_progress is defined else url_for('main.index') }}">首頁</a>
+    {% for label, href in crumbs %}<span aria-hidden="true">／</span><a href="{{ href }}">{{ label }}</a>{% endfor %}
+    <span aria-hidden="true">／</span><span aria-current="page">{{ title }}</span>
+  </nav>
+  {% if note %}<span class="band__note">{{ note }}</span>{% endif %}
+</div>
+{% endmacro %}
+
+{# 首頁專用：只在「我的五年」放一張下一步卡片，其他頁不顯示。 #}
+{% macro next_card() %}
+{% if student_progress is defined %}
+{% set finished = student_progress.steps|selectattr("state", "equalto", "done")|list|length %}
+<a class="next-card" href="{{ student_progress.next.href }}">
+  <span class="next-card__progress">主線進度 <b>{{ finished }}</b>／4</span>
+  <span class="next-card__text"><span class="muted">下一步</span>{{ student_progress.next.text }} →</span>
+</a>
+{% endif %}
+{% endmacro %}
+
+{# 引導卡片：最多 3 張，每張一兩句話、一個按鈕。「稍後再說」隔一天再出現。 #}
+{% macro guide_deck(cards) %}
+{% if cards %}
+<section class="guide" data-guide aria-label="下一步">
+  {% for card in cards %}
+  <article class="guide-card guide-card--{{ card.level }}" data-guide-card="{{ card.id }}" style="--i: {{ loop.index0 }};">
+    <p class="guide-card__text">{{ card.text }}</p>
+    <div class="guide-card__actions">
+      <a class="button button--small" href="{{ card.href }}">{{ card.button }} →</a>
+      <form method="post" action="{{ url_for('main.guide_snooze') }}" data-guide-snooze>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="card" value="{{ card.id }}">
+        <button class="guide-card__later" type="submit">稍後再說</button>
+      </form>
+    </div>
+  </article>
+  {% endfor %}
+</section>
+{% endif %}
+{% endmacro %}
+
+{% macro footer() %}
+<footer class="footer">
+  <div class="footer__inner">
+    <span>資管科智慧學習歷程系統 · 康寧大學資訊管理科畢業專題</span>
+    <span class="mono">展示資料皆為測試資料</span>
+  </div>
+</footer>
+{% endmacro %}

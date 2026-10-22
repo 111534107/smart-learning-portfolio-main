@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% set page_name = "student-blocked" %}
+
+{% block title %}還不能使用｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "") }}{% endblock %}
+
+{% block content %}
+{{ page_band("還不能使用這個功能") }}
+<div class="page narrow page--banded">
+  <section class="sheet">
+    <p class="notice notice--warn" role="alert">{{ reason }}</p>
+    <div class="record-card__actions mt-1">
+      <a class="button" href="{{ back }}">{{ "回到目標校系" if back == url_for('student.target_list') else "回到上一頁" }}</a>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

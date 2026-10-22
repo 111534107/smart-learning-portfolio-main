@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer with context %}
+{% set page_name = "certificate-verify" %}
+
+{% block title %}電子獎狀驗證｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(None) }}{% endblock %}
+
+{% block content %}
+<div class="page narrow">
+  <section class="sheet">
+    <h1 class="h2">電子獎狀驗證</h1>
+    <p class="muted small mb-1">輸入獎狀右下角的 8 碼驗證碼，確認這張獎狀是否由資管科核發。</p>
+    <form method="get" action="{{ url_for('certificate.verify') }}" class="form-stack">
+      <label class="field"><span class="field__label">驗證碼</span>
+        <input name="code" value="{{ code }}" maxlength="12" autocomplete="off" required></label>
+      <div><button class="button" type="submit">查詢</button></div>
+    </form>
+    {% if code %}
+      {% if cert %}
+      <div class="notice mt-1" role="status">
+        <p><b>有效。</b>這張「{{ cert.title }}」由 {{ cert.issuer }} 於 {{ issued }} 核發給 {{ masked_name }} 同學。</p>
+      </div>
+      {% else %}
+      <p class="alert mt-1" role="alert">查無這個驗證碼，請確認有沒有打錯，或向資管科辦公室查詢。</p>
+      {% endif %}
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

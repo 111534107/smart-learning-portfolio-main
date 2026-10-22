@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% set page_name = "student-autobiography" %}
+
+{% block title %}自傳小幫手｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "備審資料") }}{% endblock %}
+
+{% block content %}
+{% set crumbs = [("備審資料", url_for('student.target_gap', program_id=program.id))] if program else [] %}
+{{ page_band("自傳小幫手", crumbs, note=(program.school_name ~ " " ~ program.department_name) if program else "") }}
+<div class="page page--banded">
+
+  {% if not program %}
+  {# 還沒選目標校系：自傳要針對校系寫 #}
+  <section class="sheet narrow">
+    <h2 class="mb-1">先選一個目標校系</h2>
+    <p class="muted mb-1">每個校系看重的項目不同，自傳小幫手會依校系的加權調整重點。</p>
+    <a class="button" href="{{ url_for('student.target_list') }}">選目標校系 →</a>
+  </section>
+
+  {% else %}
+  {% if targets|length > 1 %}
+  <nav class="target-switch mb-1" aria-label="切換校系">
+    {% for t in targets %}<a href="{{ url_for('student.autobiography', program_id=t.id) }}"{% if t.id == program.id %} aria-current="page"{% endif %}>{{ t.school_name|replace("國立", "") }} {{ t.department_name }}</a>{% endfor %}
+  </nav>
+  {% endif %}
+
+  <aside class="ai-boundary mb-1" aria-labelledby="ai-boundary-title">
+    <h2 class="h3" id="ai-boundary-title">🚫 AI 不能做的事</h2>
+    <p>給分、退件、核定資格、發布招生規則。</p>
+    <p class="ai-boundary__confirm">✓ 送出前要你自己確認</p>
+  </aside>
+
+  {% if asking %}
+  {# 第一步：回答問題。有 JavaScript 時一次顯示一題 #}
+  <div class="split">
+    <form class="sheet ask" method="post" action="{{ url_for('student.autobiography_generate') }}" data-steps data-tour="回答四個問題，AI 幫你排出草稿。" data-tour-order="1">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="program_id" value="{{ program.id }}">
+      <p class="ask__progress small muted" data-step-progress></p>
+      {% if error %}<p class="alert mb-1" role="alert">{{ error }}</p>{% endif %}
+      {% for key, question, hint in questions %}
+      <label class="field ask__step" data-step>
+        <span class="ask__question">{{ question }}</span>
+        <small>{{ hint }}。想不到可以先跳過，AI 不會替你編。</small>
+        <textarea name="{{ key }}" rows="5" maxlength="1000">{{ answers.get(key, "") }}</textarea>
+      </label>
+      {% endfor %}
+      {# 學生自己的金鑰：不會存檔，送出後就丟掉。欄位不會回填，避免金鑰出現在頁面上。 #}
+      {% if not config.LOCAL_DEMO_MODE %}<details class="own-key"{% if error %} open{% endif %}>
+        <summary>用自己的 Gemini 金鑰（選填）</summary>
+        <label class="field">Gemini API 金鑰
+          <input type="password" name="own_api_key" autocomplete="off" spellcheck="false" placeholder="貼上金鑰，只用這一次">
+        </label>
+        <p class="small muted">系統<b>只在這一次產生草稿時使用</b>，不會儲存、不會寫進紀錄，也不會傳給 Google 以外的地方。用完後請到 <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a> 刪除這把金鑰。</p>
+      </details>
+      {% else %}<p class="notice">本機展示模式不呼叫外部 AI；草稿只用合成資料在本機排列。</p>{% endif %}
+      {% if school_turns is not none %}<p class="small muted">今天學校 AI 還能用 {{ school_turns }} 次（每人每天 {{ config.SCHOOL_AI_DAILY_LIMIT }} 次）；用自己的金鑰不限次數。</p>{% endif %}
+      <div class="ask__nav">
+        <button class="button button--line" type="button" data-step-prev>← 上一題</button>
+        <button class="button button--line" type="button" data-step-next>下一題 →</button>
+        <button class="button" type="submit" data-step-submit
+                data-busy-text="{{ '正在整理本機示範草稿…' if config.LOCAL_DEMO_MODE else 'AI 正在寫草稿…（約 10～30 秒）' }}">
+          {{ "產生示範草稿" if config.LOCAL_DEMO_MODE else "請 AI 寫草稿" }}
+        </button>
+      </div>
+    </form>
+
+    <aside class="sheet facts">
+      <h2 class="h3">AI 只會用這些資料</h2>
+      <p class="small muted mb-1">{{ program.department_name }}看重的項目（加權高的會寫得比較多）：</p>
+      <ul class="facts__weights mb-1">
+        {% for w in facts.weights %}<li><b>{{ w.weight }}%</b> {{ w.name }}</li>{% endfor %}
+      </ul>
+      <p class="small muted">你已確認的資料（{{ facts["items"]|length }} 筆）：</p>
+      <ul class="facts__list">
+        {% for fact in facts["items"] %}<li><span class="mono">{{ fact.id }}</span>{{ fact.text }}{% if fact.evidence_id %}<small class="muted">（證據 {{ fact.evidence_id }}）</small>{% endif %}</li>{% else %}<li class="muted">還沒有資料，建議先到「成績與證照」「活動與經歷」補上。</li>{% endfor %}
+      </ul>
+    </aside>
+  </div>
+
+  {% else %}
+  {# 第二步：逐段修改草稿 #}
+  {% set content = draft.content_json %}
+  {% set fact_text = {} %}{% for f in content.get("facts", []) %}{% set _ = fact_text.update({f.id: f.text}) %}{% endfor %}
+  {% if request.args.get("used_own_key") %}
+  <p class="alert mb-1" role="alert"><b>記得刪除你的金鑰！</b>剛才用了你自己的 Gemini 金鑰，系統沒有保存。請現在到 <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a> 把它刪除或停用，以免被別人拿去用。</p>
+  {% endif %}
+  {% if stale %}
+  <div class="alert mb-1" role="alert"><p>{{ stale.message }}</p>
+    <details open><summary class="small">你剛才打的字（還沒存）</summary>
+      {% for text in stale.texts %}<h3 class="h3 mt-1">{{ stale.paragraphs[loop.index0].title }}</h3><p class="version-text">{{ text }}</p>{% endfor %}
+    </details>
+  </div>
+  {% endif %}
+  {% if request.args.get("saved") %}<p class="notice mb-1" role="status">已儲存成新的一版。下載備審資料時，「自傳」章節會使用最新版。</p>{% endif %}
+  {% if content.editor_role == "teacher" %}<p class="notice notice--warn mb-1">這一版是導師修改的。<a href="{{ url_for('student.autobiography_versions', program_id=program.id) }}">看導師改了哪裡 →</a></p>{% endif %}
+  {% if content.provider == "demo" %}
+  <p class="alert alert--soft mb-1">這是示範草稿：系統尚未接上 AI（Gemini 金鑰還沒設定），所以只把你的回答和資料排好。接上 AI 後按「重新回答問題」就會產生真正的草稿。</p>
+  {% endif %}
+
+  {% set gdoc = google_docs_panel(user, program) %}
+  {% if gdoc.message %}<p class="{{ 'notice' if gdoc.message[0] == 'ok' else 'notice notice--warn' }} mb-1" role="status">{{ gdoc.message[1] }}</p>{% endif %}
+  <section class="sheet mb-1 google-doc" aria-label="Google 文件">
+    <div class="list-head">
+      <p class="small muted">
+        {% if not gdoc.configured %}想在 Google 文件裡改也可以，但學校還沒設定 Google 連線。請先在下面直接編輯。
+        {% elif gdoc.link %}Google 文件建立於 {{ gdoc.link.created_at.strftime('%Y-%m-%d %H:%M') }}（從第 {{ gdoc.based_on_version }} 版建立{% if gdoc.link.last_pulled_at %}，最後取回 {{ gdoc.link.last_pulled_at.strftime('%Y-%m-%d %H:%M') }}{% endif %}）。在 Google 改完請按「取回」，系統會存成新的一版；之後在系統內的修改不會自動同步到 Google。
+        {% else %}可以把這份草稿放到你自己的 Google 雲端硬碟用 Google 文件修改。系統只能碰它自己建立的這份文件，送導師確認仍用系統內的版本。{% endif %}
+      </p>
+      <div class="record-card__actions">
+        {% if not gdoc.configured %}
+        <button class="button button--line" type="button" disabled>Google 尚未設定</button>
+        {% else %}
+        <form method="post" action="{{ url_for('google_docs.open_document', output_id=draft.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="button button--line" type="submit">在 Google 文件中編輯</button>
+        </form>
+        {% if gdoc.link %}
+        <form method="post" action="{{ url_for('google_docs.pull_document', output_id=draft.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="button button--line" type="submit">從 Google 文件取回</button>
+        </form>
+        {% endif %}
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <form method="post" action="{{ url_for('student.autobiography_save', output_id=draft.id) }}" class="draft">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="list-head">
+      <p class="muted">第 {{ version }} 版。AI 草稿只是起點，請改成你自己的話；每次儲存都會留下一版。<span class="mono" data-char-total></span></p>
+      <div class="record-card__actions">
+        <a class="button button--line" href="{{ url_for('student.autobiography_versions', program_id=program.id) }}">版本紀錄</a>
+        <a class="button button--line" href="{{ url_for('student.autobiography', program_id=program.id, redo=1) }}">重新回答問題</a>
+        <button class="button" type="submit">儲存</button>
+      </div>
+    </div>
+    {% for paragraph in content.paragraphs %}
+    {% set review = paragraph_reviews[loop.index0] %}
+    <section class="draft__paragraph">
+      <h2 class="h3">{{ paragraph.title }}</h2>
+      <p class="review-label">主張</p>
+      <textarea name="paragraph_{{ loop.index0 }}" rows="6" data-autosize data-char aria-label="{{ paragraph.title }}">{{ paragraph.text }}</textarea>
+      {% if paragraph.teacher_comment %}<blockquote class="teacher-comment"><b>導師意見：</b>{{ paragraph.teacher_comment }}</blockquote>{% endif %}
+      <div class="paragraph-review">
+        <section class="paragraph-review__evidence" aria-label="證據"{% if loop.first %} data-tour="每段都看得到依據、疑點和建議。" data-tour-order="2"{% endif %}>
+          <h3>證據</h3>
+          {% for evidence in review.evidence %}
+          <details class="evidence-item">
+          <summary><span class="mono">{{ evidence.id }}</span> {{ evidence.title }}{% if evidence.evidence_id %}<small class="muted">（{{ evidence.evidence_id }}）</small>{% endif %}</summary>
+            <p>{{ evidence.text }}</p>
+          </details>
+          {% else %}<p class="small muted">○ 尚無引用資料</p>{% endfor %}
+        </section>
+        <section aria-label="疑點">
+          <h3>疑點</h3>
+          <p class="review-line"><span aria-hidden="true">{{ review.icon }}</span> {{ review.issue }}</p>
+        </section>
+        <section aria-label="建議">
+          <h3>建議</h3>
+          <p class="review-line">→ {{ review.suggestion }}</p>
+        </section>
+      </div>
+    </section>
+    {% endfor %}
+    <div><button class="button" type="submit">儲存</button></div>
+  </form>
+  {% endif %}
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

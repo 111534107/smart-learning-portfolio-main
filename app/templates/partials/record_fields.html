@@ -1,0 +1,34 @@
+{# 活動／競賽／服務學習／幹部經歷 共用欄位。values 可以是 request.form 或 Portfolio 物件。 #}
+{% macro record_fields(categories, category_labels, values=None) %}
+{% set v = values or {} %}
+{% set current_category = v.category if v.category is defined else v.get("category", "") %}
+{% set current_year = (v.school_year if v.school_year is defined else v.get("school_year", "")) or "" %}
+{% set current_semester = (v.semester if v.semester is defined else v.get("semester", "")) or "" %}
+<fieldset class="field">
+  <legend>類別</legend>
+  <div class="choice-group">
+    {% for key in categories %}
+    <label class="choice"><input type="radio" name="category" value="{{ key }}" required{% if current_category == key %} checked{% endif %}><span><b>{{ category_labels[key] }}</b></span></label>
+    {% endfor %}
+  </div>
+</fieldset>
+<label class="field">名稱<input name="title" value="{{ (v.title if v.title is defined else v.get('title', '')) or '' }}" placeholder="例如：資訊週志工、班級學藝股長" required></label>
+<div class="field-row">
+  <label class="field">年級
+    <select name="school_year">
+      <option value="">還不確定</option>
+      {# 舊資料或匯入時存成民國學年度（例如 114）：保留原值，不要一儲存就被清掉 #}
+      {% if current_year and current_year|int > 5 %}<option value="{{ current_year }}" selected>{{ current_year }} 學年度</option>{% endif %}
+      {% for n in range(1, 6) %}<option value="{{ n }}"{% if current_year|string == n|string %} selected{% endif %}>專{{ "一二三四五"[n - 1] }}</option>{% endfor %}
+    </select>
+  </label>
+  <label class="field">學期
+    <select name="semester">
+      <option value="">不分</option>
+      <option value="1"{% if current_semester|string == "1" %} selected{% endif %}>上學期</option>
+      <option value="2"{% if current_semester|string == "2" %} selected{% endif %}>下學期</option>
+    </select>
+  </label>
+</div>
+<label class="field">說明 <small>做了什麼、學到什麼，之後寫自傳會用到</small><textarea name="description">{{ (v.description if v.description is defined else v.get('description', '')) or '' }}</textarea></label>
+{% endmacro %}

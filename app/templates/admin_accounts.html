@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "admin-accounts" %}
+
+{% block title %}帳號管理｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "帳號管理") }}{% endblock %}
+
+{% block content %}
+<section class="work-shell work-shell--wide" data-work-role="admin">
+  <header class="work-heading"><div><h1>帳號管理</h1><p>這裡只處理啟用與停用，不會刪除學生歷程或重設任何人的密碼。為了避免把自己鎖在系統外，登入中的管理者不能停用自己。</p></div></header>
+  <section class="work-panel" aria-labelledby="admission-title">
+    <div class="work-panel__head"><div><h2 id="admission-title">匯入入學學年度</h2><p>系統用入學學年度判斷學生幾年級（決定能不能填高年級資料、送導師確認、用 AI 寫自傳）。學生不能自己填，由管理者匯入。</p></div></div>
+    {% if admission_import %}
+    <p class="notice mb-1" role="status">已更新 {{ admission_import.updated }} 位學生的入學學年度。</p>
+    {% if admission_import.problems %}<ul class="alert mb-1">{% for problem in admission_import.problems %}<li>{{ problem }}</li>{% endfor %}</ul>{% endif %}
+    {% endif %}
+    <form method="post" action="{{ url_for('admin.import_admission_years') }}" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="field">每行一位：學號,入學學年度（可以從學校名單的 Excel 直接複製兩欄貼上）
+        <textarea name="rows" rows="5" placeholder="111534105,111&#10;111534107,111"></textarea></label>
+      <div><button class="button" type="submit">匯入</button></div>
+    </form>
+  </section>
+  <section class="work-panel"><div class="work-panel__head"><div><h2>全部帳號</h2><p>停用後帳號無法登入，但資料會保留。</p></div></div><ul class="work-list admin-account-list">
+    {% for account in accounts %}
+    <li><span class="work-list__index">{{ loop.index }}</span><div><strong>{{ account.display_name }}</strong><span>{{ account.username }} · {{ account.role }}{% if account.role == "student" %} · {% if account.student_profile and account.student_profile.admission_year %}{{ account.student_profile.admission_year }} 學年度入學{% else %}<b class="tag tag--warn">未填入學學年度</b>{% endif %}{% endif %}</span></div><div class="admin-action"><span class="queue-badge {% if account.is_active %}queue-badge--strong{% endif %}">{{ "啟用中" if account.is_active else "已停用" }}</span>{% if account.id == user.id %}<span class="muted">目前登入帳號</span>{% else %}<form method="post" action="{{ url_for('admin.toggle_account_active', user_id=account.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--quiet" type="submit">{{ "停用" if account.is_active else "重新啟用" }}</button></form>{% endif %}</div></li>
+    {% endfor %}
+  </ul></section>
+</section>
+{% endblock %}

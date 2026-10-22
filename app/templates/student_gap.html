@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% set page_name = "student-gap" %}
+{% set status_text = {"complete": "已備齊", "partial": "還差一點", "missing": "還沒有資料", "prepare": "需自己準備"} %}
+{% set add_links = {"grades": url_for("student.learning_profile_upload_page", type="transcript", next=request.path), "credential": url_for("student.learning_profile_upload_page", type="credential", next=request.path)} %}
+{% set review_text = {"pending": ("等待導師確認", "tag--warn"), "confirmed": ("導師已確認", "tag--ok"), "needs_revision": ("導師建議修改", "tag--danger")} %}
+
+{% block title %}{{ program.school_name }} {{ program.department_name }}｜缺件比對{% endblock %}
+
+{% block navigation %}{{ masthead(user, "備審資料") }}{% endblock %}
+
+{% block content %}
+{{ page_band("備審資料", [("目標校系", url_for('student.target_list'))]) }}
+<div class="page page--banded">
+  <nav class="target-switch" aria-label="切換目標校系">
+    {% for target in targets %}
+    <a href="{{ url_for('student.target_gap', program_id=target.id) }}"{% if target.id == program.id %} aria-current="page"{% endif %}>{{ target.school_name|replace("國立", "") }} {{ target.department_name }}</a>
+    {% endfor %}
+    <a class="add" href="{{ url_for('student.target_list') }}">＋ 其他校系</a>
+  </nav>
+
+  <header class="student-cover">
+    <div>
+      <p class="muted small">{{ program.admission_year }} 學年度 · {{ program.admission_category or "" }}{% if program.program_code.isdigit() %} · 志願代碼 {{ program.program_code }}{% endif %}{% if program.admission_category == "日間部申請入學" %} · 下面是書審內部比例，另計統測{% endif %}</p>
+      <h2 class="program-title">{{ program.school_name }} {{ program.department_name }}</h2>
+      <p>方塊越寬，佔分越多；裝得越滿，準備得越完整。點方塊看細節。</p>
+    </div>
+    <div class="readiness" data-tour="這裡整理你已確認的資料。" data-tour-order="1">
+      {% if gap.readiness is not none %}
+      <strong><span data-count="{{ gap.readiness }}">{{ gap.readiness }}</span><small>%</small></strong>
+      <span>準備度</span>
+      {% else %}
+      <span>此校系項目都需要自己準備文件</span>
+      {% endif %}
+      <small class="readiness__note">準備度只看你確認過的資料，不是錄取機率</small>
+    </div>
+  </header>
+
+  <section aria-labelledby="board-title">
+    <h2 id="board-title" class="visually-hidden">各評分項目準備情形</h2>
+    <div class="gap-board" data-gap-board>
+      {% for item in gap["items"] %}
+      <button type="button" class="vessel vessel--{{ item.status }}" aria-controls="detail-{{ loop.index }}" aria-expanded="false"
+              style="--weight: {{ item.weight }}; --fill: {{ item.percent or 0 }}%;"
+              data-priority="{{ 'true' if gap.priority_id == item.id else 'false' }}">
+        <span class="vessel__weight">{{ item.weight }}<small>%</small></span>
+        <span>
+          <span class="vessel__name">{{ item.name }}</span><br>
+          <span class="vessel__state">{{ status_text[item.status] }}{% if item.percent is not none %} · {{ item.percent }}%{% endif %}</span>
+        </span>
+      </button>
+      {% endfor %}
+    </div>
+    <p class="gap-legend">
+      <span style="--c: #a9d7cd;">已備齊</span><span style="--c: #f2d58f;">還差一點</span><span style="--c: transparent;">還沒有資料（虛線）</span><span style="--c: var(--paper-deep);">需自己準備的文件（斜線）</span>
+    </p>
+
+    {% for item in gap["items"] %}
+    <div class="gap-detail" id="detail-{{ loop.index }}" data-gap-detail>
+      <div class="sheet__head">
+        <h3 class="serif">{{ item.name }}（佔 {{ item.weight }}%）</h3>
+        <span class="tag {{ {'complete': 'tag--ok', 'partial': 'tag--warn', 'missing': 'tag--danger'}.get(item.status, '') }}">{{ status_text[item.status] }}</span>
+      </div>
+      {% if item.mapping_pending %}<p class="muted small">這個項目對應哪些資料，是依簡章名稱推論的，各校分則可能另有說明。</p>{% endif %}
+      <ul class="piece-list">
+        {% for key in item.have %}<li class="piece piece--have"><b>{{ labels[key] }}</b><small>已有 {{ item.counts[key] }} 筆</small></li>{% endfor %}
+        {% for key in item.missing %}<li class="piece piece--missing"><b>{{ labels[key] }}</b><a class="small" href="{{ add_links.get(key, url_for('student.portfolio_new', category=key, next=request.path)) }}">去新增 →</a></li>{% endfor %}
+        {% for key in item.documents %}<li class="piece piece--doc"><b>{{ labels[key] }}</b>{% if key == "autobiography" %}<a class="small" href="{{ url_for('student.autobiography', program_id=program.id) }}">{{ "看自傳草稿 →" if autobiography else "用自傳小幫手寫 →" }}</a>{% else %}<small>寫在備審資料裡，產出的 Word 已留好位置</small>{% endif %}</li>{% endfor %}
+      </ul>
+    </div>
+    {% endfor %}
+  </section>
+
+  <div class="split mt-1">
+    <section class="sheet" aria-labelledby="toc-title">
+      <div class="sheet__head"><h2 id="toc-title">這個校系的備審目錄</h2></div>
+      <p class="muted small mb-1">佔分越高的章節排越前面。</p>
+      <ol class="toc">
+        {% for chapter in chapters %}
+        <li><span>{{ chapter.title }} <span class="mono">原 {{ chapter.code }}</span></span>{% if chapter.weight %}<span class="toc__bar" style="--w: {{ chapter.weight }};" title="相關加權 {{ chapter.weight }}%"><i></i></span>{% else %}<span class="mono">{{ "固定章節" if chapter.code in ("01", "02") else "此校系未列加權" }}</span>{% endif %}</li>
+        {% endfor %}
+      </ol>
+    </section>
+
+    <aside class="form-stack">
+      <section class="sheet" aria-labelledby="autobio-title">
+        <div class="sheet__head"><h2 id="autobio-title">自傳</h2>
+          {% if autobiography %}<span class="tag {{ 'tag--ok' if autobiography.content_json.edited else 'tag--warn' }}">{{ "已修改儲存" if autobiography.content_json.edited else "草稿未修改" }}</span>{% else %}<span class="tag">還沒寫</span>{% endif %}
+        </div>
+        <p class="small muted mb-1">回答 4 個問題，AI 會依你的資料和這個系的加權寫草稿，你再改成自己的話。</p>
+        <a class="button button--line" href="{{ url_for('student.autobiography', program_id=program.id) }}">{{ "繼續修改自傳" if autobiography else "開始寫自傳" }}</a>
+      </section>
+      <section class="sheet review-box" id="review" aria-labelledby="review-title" data-tour="資料齊了，從這裡請導師確認。" data-tour-order="2">
+        <div class="sheet__head"><h2 id="review-title">導師確認</h2>
+          {% if review %}{% set label, cls = review_text[review.status] %}<span class="tag {{ cls }}">{{ label }}</span>{% else %}<span class="tag">尚未送出</span>{% endif %}
+        </div>
+        {% if review_timeline %}
+        <ol data-tour="每次送審都留一版，看得到導師的結果。" data-tour-order="2" class="review-timeline" data-review-timeline aria-label="送審版本時間軸">
+          {% for item in review_timeline %}
+          <li>
+            <span>第 {{ item.version }} 版</span>
+            <span class="review-timeline__status review-timeline__status--{{ item.status }}">{{ item.status_text }}</span>
+            <time datetime="{{ item.requested_at.strftime('%Y-%m-%d') }}">{{ item.requested_at.strftime('%Y-%m-%d') }}</time>
+            {% if item.is_latest %}<span class="tag">最新</span>{% endif %}
+          </li>
+          {% endfor %}
+        </ol>
+        {% endif %}
+        {% if review and review.status == "needs_revision" %}<blockquote><b>{{ review.teacher.display_name if review.teacher else "導師" }}：</b>{{ review.comment }}</blockquote>{% endif %}
+        {% if review and review.status == "confirmed" %}<p class="small">{{ review.teacher.display_name if review.teacher else "導師" }} 已確認內容合理，可以產出備審資料。</p>{% endif %}
+        {% if request.args.get("sent") %}<p class="notice mb-1" role="status">已送出。導師看到的是現在這一份內容，之後再改要重新送出。</p>{% endif %}
+        {% if review and review.snapshot_json and review.snapshot_json.autobiography %}<p class="small muted mb-1">送出的自傳是第 {{ review.snapshot_json.autobiography.version }} 版。</p>{% endif %}
+        {% if not review or review.status != "pending" %}
+        <form method="post" action="{{ url_for('student.target_request_review', program_id=program.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="button button--line" type="submit">{{ "有新資料，送出新的一版請導師確認" if review else "請導師確認內容" }}</button>
+        </form>
+        {% if review and review.status == "confirmed" %}<p class="small muted mt-1">例如送審後才考到新證照：確認證照後再送一次，導師之前確認的版本會保留。</p>{% endif %}
+        {% else %}
+        <p class="small muted">已於 {{ review.requested_at.strftime("%Y-%m-%d") }} 送出，導師確認後這裡會更新。</p>
+        <form method="post" action="{{ url_for('student.target_request_review', program_id=program.id) }}" class="mt-1">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="button button--small button--quiet" type="submit">資料有改，更新送出的內容</button>
+        </form>
+        {% endif %}
+      </section>
+
+      <section class="sheet sheet--ink" aria-labelledby="package-title" data-tour="最後在這裡下載備審資料。" data-tour-order="3">
+        <h2 id="package-title" class="mb-1">產出備審資料</h2>
+        <p class="small mb-1">依上面的目錄順序產出 Word，可以再編輯後列印。{% if not review or review.status != "confirmed" %}還沒經導師確認，文件上會註明。{% endif %}</p>
+        <ul data-tour="下載前看一下還有哪幾項沒完成。" data-tour-order="3" class="download-checklist" aria-label="下載前檢查清單">
+          {% for item in download_checklist %}
+          <li class="download-checklist__item {{ 'is-complete' if item.complete else 'is-open' }}">
+            <span class="download-checklist__state">{% if item.complete %}✓ 已完成{% else %}! 還沒{% endif %}</span>
+            <span>{{ item.label }}</span>
+            {% if not item.complete %}<a href="{{ url_for(item.endpoint, **item.params) if item.endpoint else item.href }}">去補 →</a>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        <a class="button button--accent" href="{{ url_for('student.target_package', program_id=program.id) }}">下載 Word ↓</a>
+      </section>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

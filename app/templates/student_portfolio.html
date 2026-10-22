@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% from "partials/status.html" import status_chip %}
+{% set page_name = "student-portfolio" %}
+{% set slot_colors = {"activity": "var(--year-3)", "competition": "var(--year-4)", "service": "var(--year-2)", "leadership": "var(--year-5)"} %}
+{% set semester_labels = {1: "上學期", 2: "下學期"} %}
+
+{% block title %}活動與經歷｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "活動與經歷") }}{% endblock %}
+
+{% block content %}
+{{ page_band("活動與經歷") }}
+<div class="page page--banded">
+  <div class="list-head">
+    <p class="muted">填上年級的資料會放進「我的五年」。</p>
+    <div class="record-card__actions">
+      <a class="button button--line" href="{{ url_for('award.award_upload_page') }}" data-tour="學校的獎懲記錄可以直接匯入。" data-tour-order="2">從學校獎懲記錄匯入</a>
+      <a class="button" href="{{ url_for('student.portfolio_new') }}" data-tour="活動、競賽、服務、幹部從這裡新增。" data-tour-order="1">＋ 新增一筆</a>
+    </div>
+  </div>
+  {% if request.args.get("imported") is not none %}<p class="notice mb-1" role="status">已從獎懲記錄匯入 {{ request.args.get("imported") }} 筆（已經匯入過的不會重複）。</p>{% endif %}
+  {% if request.args.get("confirmed") %}<p class="notice mb-1" role="status">已確認，這筆經歷之後可以被自傳小幫手引用。</p>{% endif %}
+  {% if unconfirmed_count %}<p class="notice notice--warn mb-1">有 {{ unconfirmed_count }} 筆經歷還沒確認。<b>確認過的經歷才會被 AI 寫進自傳、送給導師確認。</b></p>{% endif %}
+  {% if request.args.get("added") %}<p class="notice mb-1" role="status">已新增一筆{{ category_labels.get(request.args.get("added"), "") }}。</p>{% endif %}
+
+  {% for key in categories %}
+  {% set records = grouped[key] %}
+  <section class="record-group" style="--slot: {{ slot_colors[key] }};" aria-labelledby="group-{{ key }}">
+    <div class="record-group__head">
+      <h2 id="group-{{ key }}">{{ category_labels[key] }} <span class="muted small">{{ records|length }} 筆</span></h2>
+      <a class="small" href="{{ url_for('student.portfolio_new', category=key) }}">＋ 新增{{ category_labels[key] }}</a>
+    </div>
+    {% if records %}
+    <div class="record-cards">
+      {% for record in records %}
+      <div class="record-card-slot">
+      <a class="record-card record-card--link" href="{{ url_for('student.portfolio_edit', portfolio_id=record.id) }}">
+        <div class="record-card__meta">
+          {{ status_chip(record_state(record)) }}
+          {% if record.school_year %}<span class="tag tag--info">{% if record.school_year <= 5 %}專{{ "一二三四五"[record.school_year - 1] }}{% else %}{{ record.school_year }} 學年度{% endif %}</span>{% else %}<span class="tag tag--warn">未填年級</span>{% endif %}
+          {% if record.semester %}<span class="tag">{{ semester_labels.get(record.semester) }}</span>{% endif %}
+          {% if record.evidence_items %}<span class="tag">佐證 {{ record.evidence_items|length }}</span>{% endif %}
+          {% if record.source != "student" %}<span class="tag tag--source">{{ record.source_label }}</span>{% endif %}
+          {% if record.certificate and record.certificate.status == "approved" %}<span class="tag tag--ok">科辦電子獎狀</span>{% endif %}
+        </div>
+        {% set photo = record.evidence_items|selectattr("preview_kind", "equalto", "image")|first %}
+        {% if photo %}<img class="record-card__photo" src="{{ url_for('student.evidence_view', evidence_id=photo.id) }}" alt="" loading="lazy">{% endif %}
+        <h3>{{ record.title }}</h3>
+        {% if record.description %}<p>{{ record.description }}</p>{% endif %}
+      </a>
+      {% if record.status == "draft" %}
+      <form method="post" action="{{ url_for('student.portfolio_confirm', portfolio_id=record.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="button button--small" type="submit">確認內容正確</button>
+      </form>
+      {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="paper-empty">還沒有{{ category_labels[key] }}。</p>
+    {% endif %}
+  </section>
+  {% endfor %}
+
+  {% if legacy %}
+  <section class="record-group" aria-labelledby="group-legacy">
+    <div class="record-group__head"><h2 id="group-legacy">舊的類別 <span class="muted small">{{ legacy|length }} 筆</span></h2></div>
+    <p class="muted mb-1">這些是舊版系統建立的資料。點進去選一個新類別，就會放進「我的五年」。</p>
+    <div class="record-cards">
+      {% for record in legacy %}
+      <a class="record-card record-card--link" href="{{ url_for('student.portfolio_edit', portfolio_id=record.id) }}"><div class="record-card__meta">{{ status_chip(record_state(record)) }}<span class="tag tag--warn">{{ record.category }}</span></div><h3>{{ record.title }}</h3></a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

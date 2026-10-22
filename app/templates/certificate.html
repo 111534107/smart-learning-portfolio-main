@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ cert.title }}｜{{ cert.student.display_name }}</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M2 8h11l3 3h14v17H2z' fill='%232448c9'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700&family=Noto+Sans+TC:wght@400;500&display=swap">
+  <style>
+    /* 獎狀外框：固定版面，只有內文會變。印成 A4 直式。 */
+    :root { --frame: #3f6b4f; --ink: #1c2230; --muted: #5d636d; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #e9e6df; color: var(--ink); font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif; }
+    .toolbar { display: flex; gap: .6rem; justify-content: center; align-items: center; padding: 1rem; flex-wrap: wrap; }
+    .toolbar button, .toolbar a { font: inherit; padding: .5rem 1rem; border: 1px solid var(--ink); background: #fff; color: var(--ink); border-radius: 6px; cursor: pointer; text-decoration: none; }
+    .toolbar .status { color: #b7791f; font-weight: 600; }
+    .sheet { width: min(210mm, calc(100% - 2rem)); aspect-ratio: 210 / 297; margin: 0 auto 2rem; background: #fff; padding: 8mm; box-shadow: 0 10px 30px -15px rgb(0 0 0 / 40%); }
+    .frame { height: 100%; border: 3px solid var(--frame); outline: 1px solid var(--frame); outline-offset: -9px; padding: 14% 12% 8%; display: flex; flex-direction: column; text-align: center; }
+    .school { font-family: "Noto Serif TC", serif; font-size: clamp(1.1rem, 3.4vw, 1.75rem); letter-spacing: .1em; margin: 0; }
+    .title { font-family: "Noto Serif TC", serif; font-size: clamp(1.3rem, 4.2vw, 2.2rem); letter-spacing: .5em; margin: 1.2em 0 1.4em; padding-left: .5em; }
+    .body { text-align: left; font-size: clamp(.85rem, 2.4vw, 1.25rem); line-height: 2; white-space: pre-wrap; flex: 1; margin: 0; }
+    .issuer { text-align: right; font-family: "Noto Serif TC", serif; font-size: clamp(.95rem, 2.6vw, 1.35rem); margin: 1em 0; }
+    .date { font-size: clamp(.85rem, 2.4vw, 1.2rem); letter-spacing: .15em; margin: 1.5em 0 2em; }
+    .verify { display: flex; justify-content: space-between; gap: 1rem; font-size: .7rem; color: var(--muted); text-align: left; border-top: 1px solid #d6d2c8; padding-top: .6rem; overflow-wrap: anywhere; }
+    .verify b { font-family: Consolas, monospace; font-size: .85rem; color: var(--ink); letter-spacing: .1em; white-space: nowrap; }
+    /* 手機：畫面窄時讓獎狀高度隨內容撐開，列印時仍是固定 A4 */
+    @media screen and (max-width: 640px) {
+      .sheet { aspect-ratio: auto; padding: 4mm; }
+      .frame { padding: 12% 8% 6%; }
+      .verify { flex-direction: column; gap: .3rem; }
+    }
+    @media print {
+      @page { size: A4 portrait; margin: 0; }
+      body { background: #fff; }
+      .toolbar { display: none; }
+      .sheet { width: 210mm; height: 297mm; margin: 0; box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    {% if cert.status != "approved" %}<span class="status">預覽（尚未核准，沒有驗證碼）</span>{% endif %}
+    <button type="button" onclick="window.print()">列印／存成 PDF</button>
+  </div>
+  <article class="sheet" aria-label="{{ cert.title }}">
+    <div class="frame">
+      <p class="school">康寧大學　資訊管理科</p>
+      <h1 class="title">{{ cert.title }}</h1>
+      <p class="body">{{ cert.body }}</p>
+      <p class="issuer">{{ cert.issuer }}</p>
+      <p class="date">{{ issued }}</p>
+      <div class="verify">
+        <span>資管科智慧學習歷程系統 電子獎狀<br>驗證網址：{{ verify_url }}</span>
+        <span>驗證碼：<b>{{ cert.verify_code or "（核准後產生）" }}</b></span>
+      </div>
+    </div>
+  </article>
+</body>
+</html>

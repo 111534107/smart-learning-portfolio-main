@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% from "partials/files.html" import lightbox with context %}
+{% set page_name = "award-review" %}
+
+{% block title %}確認獎懲記錄｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "活動與經歷") }}{% endblock %}
+
+{% block content %}
+{{ page_band("確認獎懲記錄", [("活動與經歷", url_for('student.portfolio_list')), ("匯入獎懲記錄", url_for('award.award_upload_page'))], note=document.display_name) }}
+<div class="page page--banded">
+  {% set source_url = url_for('student.learning_profile_document_view', document_id=document.id) %}
+  <details class="source-doc mb-1" open>
+    <summary>你上傳的獎懲記錄：{{ document.display_name }}</summary>
+    {% if document.preview_kind == "image" %}
+    <button type="button" class="source-doc__image" data-lightbox="{{ source_url }}" aria-label="放大 {{ document.display_name }}">
+      <img src="{{ source_url }}" alt="{{ document.display_name }}">
+      <span class="small">點圖片放大</span>
+    </button>
+    {% elif document.preview_kind == "pdf" %}
+    <a class="button button--small button--line" href="{{ source_url }}" target="_blank" rel="noopener">在新分頁開啟 PDF</a>
+    {% endif %}
+  </details>
+
+  {% if error %}<p class="alert mb-1" role="alert">{{ error }}</p>{% endif %}
+  {% for warning in warnings %}<p class="notice mb-1">{{ warning }}</p>{% endfor %}
+
+  <form method="post" action="{{ url_for('award.award_confirm', document_id=document.id) }}" class="form-stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="table-wrap">
+      <table class="data-table award-table">
+        <thead><tr><th>匯入</th><th>事由</th><th>類別</th><th>學年度</th><th>學期</th><th>日期與獎勵</th></tr></thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td class="award-table__include"><input type="checkbox" name="include" value="{{ loop.index0 }}" checked aria-label="匯入第 {{ loop.index }} 列"></td>
+            <td><input name="reason" value="{{ row.reason }}" aria-label="第 {{ loop.index }} 列事由"></td>
+            <td>
+              <select name="category" aria-label="第 {{ loop.index }} 列類別">
+                <option value=""{% if not row.category %} selected{% endif %}>請選擇</option>
+                {% for key in categories %}<option value="{{ key }}"{% if row.category == key %} selected{% endif %}>{{ category_labels[key] }}</option>{% endfor %}
+              </select>
+            </td>
+            <td><input name="school_year" value="{{ row.school_year }}" inputmode="numeric" aria-label="第 {{ loop.index }} 列學年度"></td>
+            <td><input name="semester" value="{{ row.semester }}" inputmode="numeric" aria-label="第 {{ loop.index }} 列學期（1 或 2）"></td>
+            <td><input name="detail" value="{{ row.detail }}" aria-label="第 {{ loop.index }} 列日期與獎勵"></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="muted small">事由空白的列不會匯入。學年度寫民國年（例如 114），學期寫 1 或 2。匯入後的資料標示「學校獎懲記錄」，之後還能在「活動與經歷」修改。</p>
+    <div class="record-card__actions">
+      <button class="button" type="submit">確認匯入勾選的列</button>
+      <a class="button button--line" href="{{ url_for('student.portfolio_list') }}">先不要</a>
+    </div>
+  </form>
+</div>
+{{ lightbox() }}
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

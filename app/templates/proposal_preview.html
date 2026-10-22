@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% set page_name = "proposal-preview" %}
+
+{% block title %}把五年，拼成下一站｜資管科智慧學習歷程{% endblock %}
+
+{% block navigation %}
+<header class="preview-nav">
+  <a class="preview-brand" href="{{ url_for('main.index') }}" aria-label="回到系統首頁">
+    <span class="preview-brand__mark" aria-hidden="true">IM</span>
+    <span>資管科<span class="preview-brand__sub">學習歷程提案</span></span>
+  </a>
+  <nav aria-label="展示導覽">
+    <a href="#journey">資料怎麼整理</a>
+    <a href="#drive-link">Drive 原型</a>
+    <a class="preview-nav__back" href="{{ url_for('main.index') }}">回到系統首頁 ↗</a>
+  </nav>
+</header>
+{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/proposal-preview.css') }}">
+<div class="proposal-preview" data-drive-enabled="{{ 'true' if drive_enabled else 'false' }}"
+     data-csrf-token="{{ csrf_token() }}"
+     {% if drive_enabled %}
+     data-google-client-id="{{ google_client_id }}"
+     data-google-picker-api-key="{{ google_picker_api_key }}"
+     data-google-project-number="{{ google_project_number }}"
+     {% endif %}>
+  <div class="preview-notice" role="note">
+    <span class="preview-notice__index">DEMO / 01</span>
+    <p><strong>提案展示</strong><span>目標與學習成果使用假資料。連接 Drive 後，只會顯示你親自選取的檔案。</span></p>
+    <span class="preview-notice__stamp">原型階段</span>
+  </div>
+
+  <section class="preview-hero" aria-labelledby="preview-title">
+    <div class="preview-hero__copy">
+      <p class="preview-kicker"><span>資管科</span><span>／</span><span>數位學習檔案</span></p>
+      <h1 id="preview-title">五年，不只是<br><em>五個學年。</em></h1>
+      <p class="preview-hero__lead">把散在各處的課程、作品和證明，收進一條看得見的路。<br>要準備下一站時，知道自己已有什麼，還能補上什麼。</p>
+      <a class="preview-link" href="#journey"><span>往下看這條路怎麼走</span><span aria-hidden="true">↓</span></a>
+    </div>
+    <div class="preview-orbit" aria-label="五年學習成果構成的路徑示意圖">
+      <svg class="preview-orbit__route" viewBox="0 0 520 440" role="img" aria-label="從專一到專五，連結課程、作品與升學目標">
+        <path d="M70 86 C155 32 210 150 270 120 S370 72 410 165 S330 248 252 236 S128 238 115 327 S230 384 328 342 S420 345 456 388" />
+      </svg>
+      <div class="orbit-label orbit-label--one"><small>01 / 探索</small><strong>專一</strong><span>留下第一塊</span></div>
+      <div class="orbit-label orbit-label--two"><small>02 / 累積</small><strong>專二</strong><span>開始有方向</span></div>
+      <div class="orbit-label orbit-label--three"><small>03 / 實作</small><strong>專三</strong><span>作品長出來</span></div>
+      <div class="orbit-label orbit-label--four"><small>04 / 深化</small><strong>專四</strong><span>把經驗說清楚</span></div>
+      <div class="orbit-label orbit-label--five"><small>05 / 出發</small><strong>專五</strong><span>整理下一站</span></div>
+      <span class="orbit-piece orbit-piece--blue" aria-hidden="true">作品</span>
+      <span class="orbit-piece orbit-piece--yellow" aria-hidden="true">證明</span>
+      <span class="orbit-piece orbit-piece--coral" aria-hidden="true">反思</span>
+      <span class="orbit-center" aria-hidden="true">一段<br>自己的路</span>
+    </div>
+  </section>
+
+  <section class="preview-story" id="journey" aria-labelledby="journey-title">
+    <div class="preview-section-head">
+      <p class="preview-index">01 — 一條資料路徑</p>
+      <div><h2 id="journey-title">從「我做過」<br>到「我能證明」。</h2>
+        <p>系統整理資料的脈絡；原始檔案繼續留在 Google Drive。</p></div>
+    </div>
+
+    <div class="story-flow">
+      <article class="story-step story-step--target">
+        <span class="story-step__no">A</span><p class="story-step__label">先選一個方向</p>
+        <h3>二技資訊管理</h3><p>目標校系為展示用範例，正式資料仍須依當年度簡章確認。</p>
+        <span class="story-step__note">目標只是整理起點，不是錄取判斷。</span>
+      </article>
+      <div class="story-connector" aria-hidden="true"><span></span></div>
+      <article class="story-step story-step--archive">
+        <span class="story-step__no">B</span><p class="story-step__label">把成果收成檔案</p>
+        <div class="archive-stack" aria-hidden="true"><span>課程紀錄</span><span>專題作品</span><span>證照證明</span></div>
+        <h3>已有的證據</h3><p>分清楚成果紀錄、原始佐證和還沒確認的資料。</p>
+      </article>
+      <div class="story-connector" aria-hidden="true"><span></span></div>
+      <article class="story-step story-step--gap">
+        <span class="story-step__no">C</span><p class="story-step__label">找出還能補的地方</p>
+        <h3>缺件看得見</h3><ul><li><span>✓</span>作品紀錄 <small>示意</small></li><li><span>!</span>競賽證明 <small>待補</small></li><li><span>·</span>校系要求 <small>待確認</small></li></ul>
+      </article>
+      <div class="story-connector" aria-hidden="true"><span></span></div>
+      <article class="story-step story-step--next">
+        <span class="story-step__no">D</span><p class="story-step__label">只給下一個可做的步驟</p>
+        <h3>先補一份<br>成果證明。</h3><p>不替學生判定資格，也不把缺資料說成不符合。</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="drive-section" id="drive-link" aria-labelledby="drive-title">
+    <div class="drive-section__heading">
+      <p class="preview-index">02 — 雲端檔案怎麼接上</p>
+      <h2 id="drive-title">Drive 留原件。<br><em>歷程留下線索。</em></h2>
+      <p>Google Drive 保存你選的原始檔；學習歷程系統記下它對應哪一項成果，並整理目標、進度和待補資料。</p>
+    </div>
+    <div class="drive-workspace">
+      <div class="drive-workspace__topline"><span>證據抽屜 / 作品與證明</span><span>展示學生：林同學 <small>假資料</small></span></div>
+      <div class="drive-record">
+        <div class="drive-record__index">03</div>
+        <div class="drive-record__copy"><small>成果紀錄 / 專題作品</small><h3>校園資訊服務專題</h3><p>成果描述和學生資料為展示用假資料。</p></div>
+        <div class="drive-record__piece" aria-hidden="true">拼圖<br>一角</div>
+      </div>
+      <div class="drive-attach">
+        <div class="drive-attach__label"><span class="drive-folder-icon" aria-hidden="true">▱</span><div><strong>連結一份 Drive 原始證明</strong><small>你在 Google Picker 選取後，這裡顯示檔案名稱、類型與原始檔連結。</small></div></div>
+        {% if drive_enabled %}
+        <button class="drive-connect" id="drive-connect" type="button" disabled>
+          <span aria-hidden="true">G</span><span>準備 Google Drive…</span>
+        </button>
+        <p class="drive-scope-note">只請求 <code>drive.file</code> 權限，並以 API 讀取你所選檔案的中繼資料。原型不會上傳、修改或刪除 Drive 檔案。</p>
+        {% else %}
+        <div class="drive-not-configured" role="status"><strong>Google Drive 尚未設定</strong><span>完成本機 OAuth、Drive API 與 Picker API 設定後，才會啟用真實選檔。</span></div>
+        {% endif %}
+        <div class="drive-feedback" id="drive-feedback" role="status" aria-live="polite">尚未選取檔案。</div>
+        <article class="drive-selected" id="drive-selected" hidden aria-live="polite">
+          <span class="drive-selected__icon" aria-hidden="true">↗</span>
+          <div><small>你選取的 Google Drive 原始檔</small><strong id="drive-file-name"></strong><span id="drive-file-type"></span></div>
+          <a id="drive-file-link" target="_blank" rel="noopener noreferrer">在 Google Drive 開啟 ↗</a>
+          <button class="drive-selected__clear" id="drive-clear" type="button">清除此頁的選取</button>
+        </article>
+      </div>
+      <div class="drive-workspace__foot"><span>這個示範只保留目前頁面的選取狀態</span><span>不複製或搬動你的原始檔</span></div>
+    </div>
+  </section>
+
+  <section class="preview-close" aria-labelledby="close-title">
+    <p class="preview-index">03 — 先驗證，再決定</p>
+    <h2 id="close-title">如果這條線接得起來，<br><em>每份努力就不用重新找。</em></h2>
+    <div class="preview-close__notes"><p>目前驗證範圍：Google 授權、使用者選檔、讀取檔案資訊、連回原始檔。</p><p>正式納入專題前，再由組員與指導老師確認資料保存、權限管理及後續維護範圍。</p></div>
+    <a class="preview-link" href="{{ url_for('main.index') }}"><span>回到學習歷程系統首頁</span><span aria-hidden="true">↗</span></a>
+  </section>
+
+  <footer class="preview-footer"><span>資管科智慧學習歷程系統 / Google Drive 可行性展示</span><span>展示流程不代表正式招生判定，也不讀取真實學生資料。</span></footer>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if drive_enabled %}
+<script>
+  window.drivePreviewSettings = {
+    clientId: {{ google_client_id|tojson }},
+    apiKey: {{ google_picker_api_key|tojson }},
+    projectNumber: {{ google_project_number|tojson }}
+  };
+  window.drivePreviewPickerReady = false;
+  window.drivePreviewIdentityReady = false;
+  window.drivePreviewPickerApiLoaded = function () {
+    window.gapi.load("picker", function () {
+      window.drivePreviewPickerReady = true;
+      window.dispatchEvent(new Event("drive-preview-picker-ready"));
+    });
+  };
+  window.drivePreviewIdentityApiLoaded = function () {
+    window.drivePreviewIdentityReady = true;
+    window.dispatchEvent(new Event("drive-preview-identity-ready"));
+  };
+</script>
+<script async defer src="https://apis.google.com/js/api.js?onload=drivePreviewPickerApiLoaded"></script>
+<script async defer src="https://accounts.google.com/gsi/client" onload="drivePreviewIdentityApiLoaded()"></script>
+<script src="{{ url_for('static', filename='js/proposal-preview-drive.js') }}" defer></script>
+{% endif %}
+{% endblock %}

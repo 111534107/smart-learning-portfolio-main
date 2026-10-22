@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer with context %}
+{% set page_name = "staff-certificates" %}
+{% set status_labels = {"pending": "待核准", "approved": "已核准", "returned": "已退回"} %}
+
+{% block title %}電子獎狀｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "電子獎狀") }}{% endblock %}
+
+{% block content %}
+<div class="page">
+  <h1 class="visually-hidden">電子獎狀</h1>
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>待核准的電子獎狀</h2><p>學生從學校獎懲記錄匯入、由科上派的服務。點「審核」對照獎懲記錄，修改內文後核准或退回。</p></div></div>
+    {% if pending %}
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>學生</th><th>服務內容</th><th>申請日期</th><th><span class="visually-hidden">操作</span></th></tr></thead>
+        <tbody>
+          {% for cert in pending %}
+          <tr>
+            <td>{{ cert.student.display_name }} <span class="muted small mono">{{ cert.student.student_profile.student_no if cert.student.student_profile else "" }}</span></td>
+            <td>{{ cert.portfolio.title }}</td>
+            <td class="small">{{ cert.created_at.strftime("%Y-%m-%d") }}</td>
+            <td><a class="button button--small" href="{{ url_for('certificate.staff_review', cert_id=cert.id) }}">審核</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="muted">目前沒有待核准的申請。</p>
+    {% endif %}
+  </section>
+
+  {% if done %}
+  <section class="work-panel mt-1">
+    <div class="work-panel__head"><div><h2>最近處理過的</h2></div></div>
+    <ul class="plain-list">
+      {% for cert in done %}
+      <li><a href="{{ url_for('certificate.staff_review', cert_id=cert.id) }}">{{ cert.student.display_name }}：{{ cert.portfolio.title }}</a>
+        <span class="tag {{ 'tag--ok' if cert.status == 'approved' else 'tag--warn' }}">{{ status_labels[cert.status] }}</span>
+        {% if cert.verify_code %}<span class="muted small mono">{{ cert.verify_code }}</span>{% endif %}</li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

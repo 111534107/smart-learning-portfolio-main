@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "admin-agent" %}
+{% set task_names = {"admission_source_check": "檢查來源", "admission_extract": "擷取加權"} %}
+{% set task_status = {"succeeded": ("成功", "tag--ok"), "failed": ("失敗", "tag--danger"), "running": ("執行中", "tag--warn"), "pending": ("等待中", "tag")} %}
+
+{% block title %}招生資料 Agent｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "招生資料 Agent") }}{% endblock %}
+
+{% block content %}
+<section class="work-shell" data-work-role="admin">
+  <header class="work-heading">
+    <div><h1>招生資料 Agent</h1>
+      <p>Agent 每年檢查官方簡章有沒有更新；有更新就擷取資管相關校系的備審加權，建立「候選」版本。<b>你核准後學生才看得到</b>，Agent 不會自己發布。</p></div>
+  </header>
+  {% if message %}<p class="notice mb-1" role="status">{{ message }}</p>{% endif %}
+  {% if error %}<p class="alert mb-1" role="alert">{{ error }}</p>{% endif %}
+
+  {# 三個步驟一眼看懂 #}
+  <ol class="agent-phases">
+    <li class="is-done"><b>① 手動建立</b><span>種子資料（115 學年度）已匯入</span></li>
+    <li class="{{ 'is-done' if sources else '' }}"><b>② 偵測更新</b><span>{{ sources|length }} 個官方來源</span></li>
+    <li class="{{ 'is-done' if ai_ready else 'is-warn' }}"><b>③ 擷取加權</b><span>{{ "Gemini 已連線" if ai_ready else "尚未設定 Gemini 金鑰" }}</span></li>
+  </ol>
+
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>官方來源</h2><p>只擷取科系名稱含「{{ keywords|join("、") }}」的校系（可在 .env 的 AGENT_PROGRAM_KEYWORDS 修改）。</p></div></div>
+    {% if sources %}
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>名稱</th><th>來源</th><th>上次抓取</th><th><span class="visually-hidden">操作</span></th></tr></thead>
+        <tbody>
+          {% for source in sources %}
+          {% set snap = latest[source.id] %}
+          <tr>
+            <td><b>{{ source.name }}</b></td>
+            <td class="small">{% if source.source_type == "url" %}<a href="{{ source.url }}" target="_blank" rel="noopener noreferrer">{{ source.url|truncate(48, True, "…") }}</a>{% else %}手動上傳：{{ source.url[9:] }}{% endif %}</td>
+            <td class="mono small">{{ snap.fetched_at.strftime("%Y-%m-%d %H:%M") if snap else "還沒抓過" }}</td>
+            <td>{% if source.source_type == "url" %}
+              <form method="post" action="{{ url_for('admin.agent_check_source', source_id=source.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small" type="submit" data-busy-text="檢查中…">立即檢查</button></form>
+            {% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="muted mb-1">還沒有來源。先新增技專校院招生委員會的簡章網址，或直接上傳簡章 PDF。</p>
+    {% endif %}
+
+    <div class="agent-add mt-1">
+      <form class="admin-inline-form" method="post" action="{{ url_for('admin.agent_add_source') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label>名稱<input name="name" placeholder="例如：116 二技技優甄審簡章" required></label>
+        <label>網址<input name="url" type="url" placeholder="https://…（PDF 或網頁）" required></label>
+        <button class="button" type="submit">新增網址來源</button>
+      </form>
+      <form class="admin-inline-form" method="post" action="{{ url_for('admin.agent_add_source') }}" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label>名稱<input name="name" placeholder="例如：116 簡章附錄（手動上傳）" required></label>
+        <label>簡章檔案<input name="file" type="file" accept=".pdf,.html,.htm" required></label>
+        <button class="button button--line" type="submit">上傳簡章</button>
+      </form>
+    </div>
+  </section>
+
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>偵測到的更新</h2><p>按「擷取加權」後，Agent 會建立候選校系，到「校系資料」核對後再核准。</p></div></div>
+    {% if changes %}
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>時間</th><th>來源</th><th>類型</th><th>狀態</th><th><span class="visually-hidden">操作</span></th></tr></thead>
+        <tbody>
+          {% for change, snap, source in changes %}
+          <tr>
+            <td class="mono small">{{ snap.fetched_at.strftime("%Y-%m-%d %H:%M") }}</td>
+            <td>{{ source.name }}</td>
+            <td>{{ "第一次抓取" if change.change_type == "first" else "內容有變" }} <span class="muted small">{{ (change.diff_json.size / 1024)|round|int }} KB</span></td>
+            <td><span class="tag {{ 'tag--ok' if change.status == 'extracted' else 'tag--warn' }}">{{ "已擷取" if change.status == "extracted" else "待擷取" }}</span></td>
+            <td>
+              <form method="post" action="{{ url_for('admin.agent_extract', change_id=change.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="button button--small{{ ' button--quiet' if change.status == 'extracted' else '' }}" type="submit" data-busy-text="AI 擷取中…（約 30 秒～2 分鐘）"{% if not ai_ready %} disabled title="尚未設定 Gemini 金鑰"{% endif %}>{{ "再擷取一次" if change.status == "extracted" else "擷取加權" }}</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if not ai_ready %}<p class="small muted mt-1">要擷取加權需要 Gemini 金鑰：在 .env 設定 <span class="mono">AI_ENABLED=true</span>、<span class="mono">AI_PROVIDER=gemini</span>、<span class="mono">AI_API_KEY=…</span> 後重新啟動。</p>{% endif %}
+    {% else %}
+    <p class="muted">還沒有偵測到任何更新。</p>
+    {% endif %}
+  </section>
+
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>執行紀錄</h2><p>最近 15 次。排程執行：<span class="mono">flask agent-check</span>（可用 Windows 工作排程器每月跑一次）。</p></div></div>
+    <ul class="rule-item-list">
+      {% for task in tasks %}
+      {% set label, cls = task_status.get(task.status, (task.status, "tag")) %}
+      <li><strong>{{ task_names.get(task.task_type, task.task_type) }} <span class="tag {{ cls }}">{{ label }}</span></strong>
+        <span class="mono small">{{ task.created_at.strftime("%Y-%m-%d %H:%M") }}</span>
+        {% if task.error_message %}<span class="small">{{ task.error_message }}</span>
+        {% elif task.result_json and task.result_json.created is defined %}<span class="small">新增 {{ task.result_json.created|length }} 個候選，略過 {{ task.result_json.skipped|length }} 個</span>
+        {% elif task.result_json %}<span class="small">{{ "有更新" if task.result_json.changed else "沒有更新" }}</span>{% endif %}
+      </li>
+      {% else %}
+      <li class="muted">還沒有執行紀錄。</li>
+      {% endfor %}
+    </ul>
+  </section>
+</section>
+{% endblock %}

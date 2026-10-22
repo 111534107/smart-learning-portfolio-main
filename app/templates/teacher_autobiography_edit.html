@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "teacher-autobiography-edit" %}
+
+{% block title %}修改自傳｜導師工作台{% endblock %}
+
+{% block navigation %}{{ masthead(user, "工作台") }}{% endblock %}
+
+{% block content %}
+<section class="work-shell" data-work-role="teacher">
+  <header class="work-heading">
+    <div>
+      <p class="small"><a href="{{ url_for('teacher.student_detail', student_id=student.id) }}">← {{ student.display_name }}</a>{% if program %} · {{ program.school_name }} {{ program.department_name }}{% endif %}</p>
+      <h1>修改自傳（目前第 {{ version }} 版）</h1>
+      <p>你可以直接改文字，也可以在每段下面留意見。儲存後會變成新的一版，學生看得到你改了哪裡；原本的版本會保留。</p>
+    </div>
+  </header>
+  {% if stale %}
+  <section class="work-panel">
+    <p class="alert mb-1" role="alert">{{ stale.message }}</p>
+    <details open><summary class="small">你剛才打的字（還沒存）</summary>
+      {% for text in stale.texts %}<h3 class="h3 mt-1">{{ stale.paragraphs[loop.index0].title }}</h3><p class="version-text">{{ text }}</p>{% if stale.comments[loop.index0] %}<blockquote class="teacher-comment"><b>你的意見：</b>{{ stale.comments[loop.index0] }}</blockquote>{% endif %}{% endfor %}
+    </details>
+  </section>
+  {% endif %}
+  <form method="post" class="work-panel draft" action="{{ url_for('teacher.autobiography_edit', student_id=student.id, output_id=output.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% for paragraph in output.content_json.paragraphs %}
+    <section class="draft__paragraph">
+      <h2 class="h3">{{ paragraph.title }}</h2>
+      <textarea name="paragraph_{{ loop.index0 }}" rows="6" data-autosize aria-label="{{ paragraph.title }}">{{ paragraph.text }}</textarea>
+      <label class="field small">給學生的意見（選填）<textarea name="comment_{{ loop.index0 }}" rows="2">{{ paragraph.teacher_comment or "" }}</textarea></label>
+    </section>
+    {% endfor %}
+    <div class="record-card__actions">
+      <button class="button" type="submit">儲存成新的一版</button>
+      <a class="button button--line" href="{{ url_for('teacher.student_detail', student_id=student.id) }}">取消</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

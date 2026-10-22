@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% set page_name = "student-targets" %}
+
+{% block title %}目標校系｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "目標校系") }}{% endblock %}
+
+{% block content %}
+{{ page_band("目標校系") }}
+<div class="page page--banded">
+  {% if slots.limit and slots.used > slots.limit %}
+  <div class="mb-1">
+    <p class="alert" role="alert">五年級準備備審資料時，目標校系最多 {{ slots.limit }} 所。你目前有 {{ slots.used }} 所，請先取消 {{ slots.used - slots.limit }} 所；已寫好的自傳仍會保留。</p>
+    <div class="record-card__actions"><a class="button button--small" href="#target-programs">查看已選目標校系</a></div>
+  </div>
+  {% endif %}
+  {% if slots.limit %}
+  <p class="muted mb-1" data-tour="五年級最多選 5 所，換學校自傳要重寫。" data-tour-order="0">先選最想上的 {{ slots.limit }} 所，看準備度。換掉學校，寫好的自傳要重寫。</p>
+  <p class="mb-1"><span class="tag {{ 'tag--warn' if slots.used >= slots.limit else 'tag--info' }}">已選 {{ slots.used }}／{{ slots.limit }}</span></p>
+  {% else %}
+  <p class="muted mb-1" data-tour="想去哪裡都可以選，隨時可以換。" data-tour-order="0">目標校系隨時可以更換。五年級準備備審資料時最多保留 5 所。</p>
+  {% endif %}
+  {% if focus %}{% include "partials/focus.html" %}{% endif %}
+  {% if error %}
+  <div class="mb-1">
+    <p class="alert" role="alert">{{ error }}</p>
+    <div class="record-card__actions"><a class="button button--small" href="#target-programs">查看已選目標校系</a></div>
+  </div>
+  {% endif %}
+
+  {% if slots.old %}
+  <section class="sheet mb-1" aria-labelledby="old-targets">
+    <div class="sheet__head"><h2 id="old-targets">舊學年度的目標校系</h2></div>
+    <p class="small muted mb-1">新的簡章已經公布，這些是舊學年度的校系，不占名額。之前的送審紀錄會保留。</p>
+    <ul class="plain-list">
+      {% for target in slots.old %}
+      <li class="record-card__actions">
+        <span>{{ target.program.school_name }} {{ target.program.department_name }}（{{ target.program.admission_year }} 學年度）</span>
+        <form method="post" action="{{ url_for('student.target_remove', program_id=target.rule_version_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small button--quiet" type="submit">刪除</button></form>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if programs %}
+  <div class="program-cards" id="target-programs" data-tour="每張卡片是一個校系，按「設為目標校系」加入。" data-tour-order="2">
+    {% for program in programs %}
+    {% set gap = gaps[program.id] %}
+    {% set chosen = program.id in selected %}
+    <article class="program-card{% if chosen %} program-card--selected{% endif %}" data-motion="reveal">
+      <p class="muted small">{{ program.admission_year }} 學年度 · {{ program.admission_category or "" }}{% if program.program_code.isdigit() %} · 志願代碼 {{ program.program_code }}{% endif %}</p>
+      {% if program.admission_category == "日間部申請入學" %}<p class="muted small">下面是書審內部比例，另計統測</p>{% endif %}
+      <h3>{{ program.school_name }}<br>{{ program.department_name }}</h3>
+      <div class="mini-weights" role="img" aria-label="{% for item in gap['items'] %}{{ item.name }} {{ item.weight }}%{% if not loop.last %}、{% endif %}{% endfor %}">
+        {% for item in gap["items"] %}<span style="width: {{ item.weight }}%; --fill: {{ item.percent or 0 }}%;"><i></i></span>{% endfor %}
+      </div>
+      <p class="small muted">{% for item in gap["items"] %}{{ item.name }} {{ item.weight }}%{% if not loop.last %}／{% endif %}{% endfor %}</p>
+      <div class="program-card__ready">
+        {% if gap.readiness is not none %}<strong>{{ gap.readiness }}<small>%</small></strong><span class="muted small">你目前的準備度</span>{% else %}<span class="muted small">此校系以自傳等文件為主，需自行準備</span>{% endif %}
+      </div>
+      {% if chosen %}
+      <div class="record-card__actions">
+        <a class="button button--small" href="{{ url_for('student.target_gap', program_id=program.id) }}">看還缺什麼 →</a>
+        <form method="post" action="{{ url_for('student.target_remove', program_id=program.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small button--quiet" type="submit">取消目標校系</button></form>
+      </div>
+      {% else %}
+      <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="program_id" value="{{ program.id }}"><button class="button button--small button--line" type="submit">設為目標校系</button></form>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="paper-empty">
+    <p>目前還沒有公開的目標校系資料。你可以先整理自己的資料。</p>
+    <div class="record-card__actions"><a class="button button--small" href="{{ url_for('main.student_dashboard') }}">先整理我的資料</a></div>
+  </div>
+  {% endif %}
+  {% if cancelled_programs %}
+  <section class="sheet mt-1" aria-labelledby="cancelled-title">
+    <div class="sheet__head"><h2 id="cancelled-title">已取消的目標校系（自傳紀錄保留）</h2></div>
+    <ul class="plain-list">
+      {% for program in cancelled_programs %}
+      <li><a href="{{ url_for('student.autobiography_versions', program_id=program.id) }}">{{ program.school_name }} {{ program.department_name }}（{{ program.admission_year }} 學年度）：看自傳版本紀錄 →</a></li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+  <p class="muted small mt-1">校系資料整理自各校二技簡章（技優甄審、日間部申請入學，學年度標在每張卡片上）；正式規定以當年度簡章與各校系分則為準。準備度只依你已確認的資料計算，不代表錄取機率。</p>
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}
