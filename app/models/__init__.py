@@ -23,6 +23,7 @@ from app.models.learning_profile import (
 )
 from app.models.user import StudentProfile, User
 from app.models.admission import (
+    AdmissionEligibilityRule,
     AdmissionProgram,
     AdmissionRequirementItem,
     ClassAdvisor,
@@ -82,6 +83,7 @@ __all__ = [
     "PublicSourceChange",
     "PublicSourcePublication",
     "AdmissionProgram",
+    "AdmissionEligibilityRule",
     "AdmissionRequirementItem",
     "StudentTarget",
     "ClassAdvisor",

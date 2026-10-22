@@ -36,6 +36,10 @@ class AdmissionProgram(db.Model):
         "AdmissionRequirementItem", back_populates="program", cascade="all, delete-orphan",
         order_by="AdmissionRequirementItem.sort_order",
     )
+    eligibility_rules = db.relationship(
+        "AdmissionEligibilityRule", back_populates="program", cascade="all, delete-orphan",
+        order_by="AdmissionEligibilityRule.sort_order",
+    )
 
     @property
     def total_weight(self):
@@ -66,6 +70,32 @@ class AdmissionRequirementItem(db.Model):
     @property
     def category_keys(self):
         return [key for key in (self.mapped_categories or "").split(",") if key]
+
+
+class AdmissionEligibilityRule(db.Model):
+    """一筆招生版本的報名資格條件與官方來源定位。"""
+
+    __tablename__ = "admission_eligibility_rules"
+    __table_args__ = (
+        db.Index("ix_admission_eligibility_rule_version_status", "rule_version_id", "mapping_status"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    rule_version_id = db.Column(
+        db.Integer, db.ForeignKey("admission_rule_versions.id"), nullable=False, index=True
+    )
+    rule_group = db.Column(db.Integer, nullable=False, default=1)
+    condition_type = db.Column(db.String(40), nullable=False)
+    operator = db.Column(db.String(30), nullable=False)
+    value_json = db.Column(db.JSON, nullable=True)
+    description = db.Column(db.Text, nullable=False)
+    source_url = db.Column(db.String(500), nullable=True)
+    source_location = db.Column(db.String(150), nullable=True)
+    mapping_status = db.Column(db.String(20), nullable=False, default="pending", index=True)
+    is_required = db.Column(db.Boolean, nullable=False, default=True)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+
+    program = db.relationship("AdmissionProgram", back_populates="eligibility_rules")
 
 
 class StudentTarget(db.Model):

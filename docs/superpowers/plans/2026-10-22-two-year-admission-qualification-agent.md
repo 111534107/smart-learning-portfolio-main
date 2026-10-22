@@ -43,9 +43,9 @@
 - 欄位：`rule_group`（整數）、`condition_type`（字串）、`operator`（字串）、`value_json`（JSON）、`description`（文字）、`source_url`（字串）、`source_location`（字串）、`mapping_status`（`pending`／`confirmed`）、`is_required`（布林值）、`sort_order`（整數）。
 - 群組邏輯：同一組中的必要條件必須全部符合（AND）；不同組之間符合任一組即可（OR）。非必要條件僅供參考，不會阻擋符合結果。
 
-- [ ] 新增 SQLAlchemy 模型及 `AdmissionProgram.eligibility_rules` 關聯，並從 `app.models` 匯出模型。
-- [ ] 新增可升級及降級的資料庫遷移，建立 `admission_eligibility_rules`、校系版本外鍵，以及依 `rule_version_id` 和 `mapping_status` 查詢的索引。
-- [ ] 確認既有 SQLite 遷移流程可以建立和移除新資料表，且不會移除較早建立的招生資料表。
+- [x] 新增 SQLAlchemy 模型及 `AdmissionProgram.eligibility_rules` 關聯，並從 `app.models` 匯出模型。
+- [x] 新增可升級及降級的資料庫遷移，建立 `admission_eligibility_rules`、校系版本外鍵，以及依 `rule_version_id` 和 `mapping_status` 查詢的索引。
+- [x] 確認既有 SQLite 遷移流程可以建立和移除新資料表，且不會移除較早建立的招生資料表。
 
 ### 任務 2：實作確定性的資格比對
 

@@ -68,6 +68,31 @@ def test_admission_main_line_migration_upgrades_and_downgrades(tmp_path):
     assert "package_reviews" not in tables
 
 
+def test_admission_eligibility_rule_migration_creates_and_removes_its_table(tmp_path):
+    database_path = tmp_path / "admission-eligibility-migration.db"
+    app = create_app({"SQLALCHEMY_DATABASE_URI": f"sqlite:///{database_path}", "TESTING": True})
+    runner = app.test_cli_runner()
+
+    assert runner.invoke(args=["db", "upgrade"]).exit_code == 0
+    with app.app_context():
+        inspector = inspect(db.engine)
+        columns = {column["name"] for column in inspector.get_columns("admission_eligibility_rules")}
+        foreign_keys = inspector.get_foreign_keys("admission_eligibility_rules")
+
+    assert {
+        "id", "rule_version_id", "rule_group", "condition_type", "operator", "value_json",
+        "description", "source_url", "source_location", "mapping_status", "is_required", "sort_order",
+    } <= columns
+    assert any(fk["referred_table"] == "admission_rule_versions" for fk in foreign_keys)
+
+    assert runner.invoke(args=["db", "downgrade", "a7c3e9d10f42"]).exit_code == 0
+    with app.app_context():
+        db.engine.dispose()
+        inspector = inspect(db.engine)
+        assert not inspector.has_table("admission_eligibility_rules")
+        assert inspector.has_table("admission_rule_versions")
+
+
 def test_transfer_credit_migration_creates_and_removes_its_table(tmp_path):
     database_path = tmp_path / "transfer-credit-migration.db"
     app = create_app({"SQLALCHEMY_DATABASE_URI": f"sqlite:///{database_path}", "TESTING": True})
