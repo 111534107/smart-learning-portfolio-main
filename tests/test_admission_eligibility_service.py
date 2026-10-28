@@ -12,7 +12,7 @@ from app.models import (
     StudentProfile,
     User,
 )
-from app.services.admission_eligibility_service import evaluate_program
+from app.services.admission_eligibility_service import evaluate_program, validate_eligibility_condition
 
 
 @pytest.fixture()
@@ -244,3 +244,12 @@ def test_evaluate_program_does_not_infer_competition_rank_from_text(app):
 
     assert result["status"] == "needs_review"
     assert result["conditions"][0]["status"] == "needs_review"
+
+
+@pytest.mark.parametrize(("condition_type", "operator", "value"), [
+    ("student_status", "in", {"field": [], "values": ["資管科三甲"]}),
+    ("credential", "has_credential", {"min_level": []}),
+    ("credential", "has_credential", {"issue_date_from": []}),
+])
+def test_validate_eligibility_condition_rejects_malformed_json_types(condition_type, operator, value):
+    assert validate_eligibility_condition(condition_type, operator, value) is not None

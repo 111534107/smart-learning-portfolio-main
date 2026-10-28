@@ -26,15 +26,14 @@
         <label class="field">密碼<input name="password" type="password" autocomplete="current-password" required></label>
         <button class="button" type="submit">登入 →</button>
       </form>
-      {% if config.get("LOCAL_DEMO_MODE") and config.get("FLASK_ENV") != "production" %}
+      {% if login_accounts %}
       <table class="data-table mt-1 demo-accounts">
-        <caption class="small">本機展示測試帳號（正式環境不顯示）</caption>
+        <caption class="small">本機測試帳號（正式環境不顯示）</caption>
         <tbody>
           <tr><th scope="col">角色</th><th scope="col">帳號</th><th scope="col">密碼</th></tr>
-          <tr><th scope="row">學生</th><td class="mono">student_demo</td><td class="mono">demo2026</td></tr>
-          <tr><th scope="row">教師</th><td class="mono">teacher_demo</td><td class="mono">demo2026</td></tr>
-          <tr><th scope="row">科辦</th><td class="mono">staff_demo</td><td class="mono">demo2026</td></tr>
-          <tr><th scope="row">管理員</th><td class="mono">admin_demo</td><td class="mono">demo2026</td></tr>
+          {% for account in login_accounts %}
+          <tr><th scope="row">{{ account.role }}</th><td class="mono">{{ account.username }}</td><td class="mono">{{ account.password }}</td></tr>
+          {% endfor %}
         </tbody>
       </table>
       {% endif %}

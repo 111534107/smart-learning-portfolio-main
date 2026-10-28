@@ -30,6 +30,53 @@ def _source_for(rule, program):
     return {"url": url, "location": location} if url and location else None
 
 
+def validate_eligibility_condition(condition_type, operator, value):
+    """回傳可顯示的驗證錯誤；None 表示此版本可由規則服務判斷。"""
+    if not isinstance(value, dict):
+        return "資格條件必須是 JSON 物件。"
+    if condition_type == "student_status":
+        if operator != "in" or set(value) != {"field", "values"}:
+            return "學籍條件需使用 in，並提供 field 與 values。"
+        field, values = value.get("field"), value.get("values")
+        if not isinstance(field, str) or field not in {"class_name", "admission_year"} or not isinstance(values, list) or not values:
+            return "學籍欄位或允許值格式不正確。"
+        if field == "class_name" and not all(isinstance(item, str) and item.strip() for item in values):
+            return "班級允許值必須是非空文字。"
+        if field == "admission_year" and not all(
+            isinstance(item, int) and not isinstance(item, bool) for item in values
+        ):
+            return "入學年度允許值必須是整數。"
+        return None
+    if condition_type == "credential":
+        allowed = {"name", "issuer", "min_level", "issue_date_from", "issue_date_to"}
+        if operator != "has_credential" or set(value) - allowed:
+            return "證照條件需使用 has_credential，且只能包含支援的欄位。"
+        name, issuer, minimum_level = value.get("name"), value.get("issuer"), value.get("min_level")
+        date_from_text, date_to_text = value.get("issue_date_from"), value.get("issue_date_to")
+        date_from = _parse_date(date_from_text) if date_from_text else None
+        date_to = _parse_date(date_to_text) if date_to_text else None
+        if not any((name, issuer, minimum_level, date_from_text, date_to_text)):
+            return "至少要指定證照名稱、發證單位、最低級別或取得日期範圍。"
+        if name is not None and (not isinstance(name, str) or not name.strip()):
+            return "證照名稱必須是非空文字。"
+        if issuer is not None and (not isinstance(issuer, str) or not issuer.strip()):
+            return "發證單位必須是非空文字。"
+        if minimum_level is not None and (
+            not isinstance(minimum_level, str) or minimum_level not in LEVEL_RANK
+        ):
+            return "目前只支援丙級、乙級、甲級或特級的級別比較。"
+        if date_from_text and not date_from or date_to_text and not date_to:
+            return "取得日期必須使用 YYYY-MM-DD 格式。"
+        if date_from and date_to and date_from > date_to:
+            return "取得日期起日不可晚於迄日。"
+        return None
+    if condition_type == "competition":
+        if operator != "has_competition" or value != {"category": "competition"}:
+            return "目前只支援比對是否有已確認的競賽經歷；獎項、名次及日期需人工確認。"
+        return None
+    return "目前不支援此類資格條件。"
+
+
 def _condition(rule, program, student):
     source = _source_for(rule, program)
     result = {
@@ -48,23 +95,16 @@ def _condition(rule, program, student):
         return result
 
     value = rule.value_json
-    if not isinstance(value, dict):
-        result["reason"] = "資格條件格式不完整，需由管理者確認。"
+    validation_error = validate_eligibility_condition(rule.condition_type, rule.operator, value)
+    if validation_error:
+        result["reason"] = validation_error
         return result
     if rule.condition_type == "student_status":
-        if rule.operator != "in":
-            result["reason"] = "目前不支援這種學籍條件運算方式。"
-            return result
         field = value.get("field")
         values = value.get("values")
         profile = student.student_profile
-        if (set(value) != {"field", "values"}
-                or field not in {"class_name", "admission_year"}
-                or not isinstance(values, list) or not values):
-            result["reason"] = "學籍資格條件格式不受支援。"
-            return result
         actual = getattr(profile, field, None) if profile else None
-        if actual is None:
+        if actual is None or actual == "":
             result["status"] = RESULT_INSUFFICIENT
             result["reason"] = "學生資料缺少判斷這項學籍條件所需的欄位。"
         elif actual in values:
@@ -76,27 +116,11 @@ def _condition(rule, program, student):
         return result
 
     if rule.condition_type == "credential":
-        if rule.operator != "has_credential":
-            result["reason"] = "目前不支援這種證照條件運算方式。"
-            return result
         name = value.get("name")
         issuer = value.get("issuer")
         minimum_level = value.get("min_level")
         date_from = _parse_date(value.get("issue_date_from")) if value.get("issue_date_from") else None
         date_to = _parse_date(value.get("issue_date_to")) if value.get("issue_date_to") else None
-        allowed = {"name", "issuer", "min_level", "issue_date_from", "issue_date_to"}
-        if (set(value) - allowed
-                or not any((name, issuer, minimum_level, value.get("issue_date_from"), value.get("issue_date_to")))
-                or (name is not None and not isinstance(name, str))
-                or (issuer is not None and not isinstance(issuer, str))
-                or (minimum_level is not None and not isinstance(minimum_level, str))
-                or (minimum_level and minimum_level not in LEVEL_RANK)
-                or (value.get("issue_date_from") and not date_from)
-                or (value.get("issue_date_to") and not date_to)
-                or (date_from and date_to and date_from > date_to)):
-            result["reason"] = "證照資格條件格式不受支援，需由管理者確認。"
-            return result
-
         records = CredentialRecord.query.filter_by(student_id=student.id).all()
         confirmed = [record for record in records if record.confirmation_status == "confirmed"]
         possible_unconfirmed = [record for record in records if record.confirmation_status != "confirmed"]
@@ -140,14 +164,6 @@ def _condition(rule, program, student):
         return result
 
     if rule.condition_type == "competition":
-        if rule.operator != "has_competition":
-            result["reason"] = "目前不支援這種競賽條件運算方式。"
-            return result
-        if (set(value) - {"category"}
-                or value.get("category") != "competition"
-                or any(key in value for key in ("min_rank", "award", "date_from", "date_to", "keywords"))):
-            result["reason"] = "競賽獎項、名次或日期目前沒有結構化學生欄位，需人工確認。"
-            return result
         records = Portfolio.query.filter_by(student_id=student.id, category="competition").all()
         confirmed = [record for record in records if record.status == "confirmed"]
         if confirmed:

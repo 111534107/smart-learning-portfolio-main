@@ -1,7 +1,19 @@
+import os
 from datetime import datetime, timezone
 from functools import wraps
 
-from flask import Blueprint, abort, jsonify, redirect, render_template, request, send_file, session, url_for
+from flask import (
+    Blueprint,
+    abort,
+    current_app,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    send_file,
+    session,
+    url_for,
+)
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -18,6 +30,39 @@ from app.services.admission_sample import load_sample_programs
 from app.services.journey_service import GRADE_LABELS, current_grade, CATEGORY_KEYS, CATEGORY_LABELS, EXPERIENCE_CATEGORIES, build_journey
 
 main_bp = Blueprint("main", __name__)
+
+
+def _local_login_accounts():
+    """Return known local demo credentials only for development on a local DB."""
+    local_hosts = {"127.0.0.1", "localhost", "::1"}
+    if current_app.config.get("FLASK_ENV") == "production":
+        return []
+    if current_app.config.get("DB_HOST") not in local_hosts:
+        return []
+
+    expected_passwords = {
+        "student_demo": "demo2026",
+        "teacher_demo": "demo2026",
+    }
+    admin_password = os.getenv("ADMIN_DEFAULT_PASSWORD", "")
+    if admin_password:
+        expected_passwords["admin"] = admin_password
+
+    labels = {"student": "學生", "teacher": "教師", "staff": "科辦", "admin": "管理員"}
+    accounts = []
+    for username, password in expected_passwords.items():
+        user = User.query.filter_by(username=username, is_active=True).first()
+        if user and user.check_password(password):
+            accounts.append({
+                "role": labels.get(user.role, user.role),
+                "username": user.username,
+                "password": password,
+            })
+    return accounts
+
+
+def _render_login(**context):
+    return render_template("login.html", login_accounts=_local_login_accounts(), **context)
 
 
 def get_current_user():
@@ -65,13 +110,13 @@ def health():
 @main_bp.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "GET":
-        return render_template("login.html")
+        return _render_login()
 
     username = request.form.get("username", "").strip()
     password = request.form.get("password", "")
     user = User.query.filter_by(username=username).first()
     if not user or not user.is_active or not user.check_password(password):
-        return render_template("login.html", error="帳號或密碼錯誤"), 401
+        return _render_login(error="帳號或密碼錯誤"), 401
 
     session.clear()
     session["user_id"] = user.id
@@ -84,7 +129,7 @@ def login():
     endpoint = destinations.get(user.role)
     if not endpoint:
         session.clear()
-        return render_template("login.html", error="此帳號尚未設定可用角色"), 403
+        return _render_login(error="此帳號尚未設定可用角色"), 403
     if user.role == "student":
         # 記下登入時間：首頁用它判斷是不是很久沒來（「好久不見」那一幕）
         db.session.add(AuditLog(user_id=user.id, action="student.login", ip_address=request.remote_addr))

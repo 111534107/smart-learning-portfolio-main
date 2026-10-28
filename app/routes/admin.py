@@ -1,10 +1,13 @@
 from datetime import date
+import json
+from urllib.parse import urlparse
 
 from flask import Blueprint, abort, current_app, redirect, render_template, request, session, url_for
 
 from app.extensions import db
 from app.security import validate_upload_filename
 from app.models import (
+    AdmissionEligibilityRule,
     AdmissionProgram,
     AgentTask,
     AuditLog,
@@ -22,6 +25,7 @@ from app.models import (
 )
 from app.services import admission_agent_service as agent
 from app.services.admission_service import import_seed_programs
+from app.services.admission_eligibility_service import validate_eligibility_condition
 from app.services.gemini_client import ai_ready
 from app.services.gap_service import ALL_LABELS
 from app.services.journey_service import academic_year_of
@@ -286,6 +290,80 @@ def program_item_update(item_id):
     item.mapping_status = status if status in {"confirmed", "pending"} else "pending"
     db.session.commit()
     return redirect(url_for("admin.programs") + f"#program-{item.rule_version_id}")
+
+
+@admin_bp.post("/admin/eligibility-rules/<int:rule_id>")
+@role_required("admin")
+def admission_eligibility_rule_update(rule_id):
+    rule = db.session.get(AdmissionEligibilityRule, rule_id)
+    if not rule:
+        abort(404)
+    try:
+        rule_group = int(request.form.get("rule_group", ""))
+    except (TypeError, ValueError):
+        abort(400, description="資格條件群組必須是正整數。")
+    if rule_group < 1:
+        abort(400, description="資格條件群組必須是正整數。")
+
+    condition_type = request.form.get("condition_type", "").strip()
+    operator = request.form.get("operator", "").strip()
+    description = request.form.get("description", "").strip()
+    source_url = request.form.get("source_url", "").strip() or None
+    source_location = request.form.get("source_location", "").strip() or None
+    mapping_status = request.form.get("mapping_status", "pending")
+    if not description or len(description) > 2000:
+        abort(400, description="請填寫資格原文或清楚的待核對說明（最多 2000 字）。")
+    if mapping_status not in {"pending", "confirmed"}:
+        abort(400, description="資格規則狀態不正確。")
+    try:
+        value_json = json.loads(request.form.get("value_json", "").strip() or "null")
+    except (json.JSONDecodeError, TypeError):
+        abort(400, description="條件內容必須是有效的 JSON。")
+
+    if mapping_status == "confirmed":
+        validation_error = validate_eligibility_condition(condition_type, operator, value_json)
+        parsed_url = urlparse(source_url or "")
+        if validation_error:
+            abort(400, description=validation_error)
+        if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+            abort(400, description="確認資格規則前，請填寫官方簡章網址。")
+        if not source_location:
+            abort(400, description="確認資格規則前，請填寫頁碼或章節位置。")
+
+    before = {
+        "condition_type": rule.condition_type,
+        "operator": rule.operator,
+        "mapping_status": rule.mapping_status,
+        "source_url": rule.source_url,
+        "source_location": rule.source_location,
+    }
+    rule.rule_group = rule_group
+    rule.condition_type = condition_type or "unresolved"
+    rule.operator = operator or "unresolved"
+    rule.value_json = value_json
+    rule.description = description
+    rule.source_url = source_url
+    rule.source_location = source_location
+    rule.mapping_status = mapping_status
+    rule.is_required = request.form.get("is_required") == "on"
+    db.session.add(AuditLog(
+        user_id=get_current_user().id,
+        action="admission.eligibility_rule_updated",
+        target_type="admission_eligibility_rule",
+        target_id=rule.id,
+        detail_json={
+            "before": before,
+            "after": {
+                "condition_type": rule.condition_type,
+                "operator": rule.operator,
+                "mapping_status": rule.mapping_status,
+                "source_url": rule.source_url,
+                "source_location": rule.source_location,
+            },
+        },
+    ))
+    db.session.commit()
+    return redirect(url_for("admin.programs") + f"#eligibility-rule-{rule.id}")
 
 
 # ---------- 招生資料 Agent（系統亮點第二、三階段） ----------
