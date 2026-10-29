@@ -19,7 +19,7 @@ certificate_bp = Blueprint("certificate", __name__)
 def certificate_apply(portfolio_id):
     user = get_current_user()
     record = db.session.get(Portfolio, portfolio_id)
-    if not record or record.student_id != user.id:
+    if not record or record.student_id != user.id or record.deleted_at:
         abort(404)
     if not service.can_apply(record):
         return "只有從學校獎懲記錄匯入的服務學習紀錄可以申請電子獎狀。", 400

@@ -18,7 +18,7 @@ from app.routes.main import get_current_user, role_required
 from app.services.gap_service import ALL_LABELS, analyze_gap
 from app.services.journey_service import CATEGORY_KEYS, CATEGORY_LABELS, build_journey
 from app.services.package_service import latest_review
-from app.services import autobiography_service, review_snapshot_service
+from app.services import audit_service, autobiography_service, review_snapshot_service
 from app.services.autobiography_service import latest_draft, version_of
 from app.services.file_preview import inline_file
 from app.services.teacher_scope import can_view_student
@@ -80,7 +80,7 @@ def student_detail(student_id):
         transfer_credit=TransferCreditRecord.query.filter_by(student_id=student.id).first(),
         documents=SourceDocument.query.filter_by(owner_id=student.id, status="confirmed")
                                       .order_by(SourceDocument.created_at).all(),
-        records_with_evidence=[r for r in Portfolio.query.filter_by(student_id=student.id).order_by(Portfolio.id).all()
+        records_with_evidence=[r for r in Portfolio.active().filter_by(student_id=student.id).order_by(Portfolio.id).all()
                                if r.evidence_items],
         category_keys=CATEGORY_KEYS,
         category_labels=CATEGORY_LABELS,
@@ -94,7 +94,7 @@ def student_detail(student_id):
 def evidence_view(evidence_id):
     """導師看本班學生的佐證照片；不是自己班的學生就 403。"""
     evidence = db.session.get(PortfolioEvidence, evidence_id)
-    if not evidence:
+    if not evidence or evidence.deleted_at:
         abort(404)
     if not can_view_student(get_current_user(), evidence.portfolio.student):
         abort(403)
@@ -170,7 +170,9 @@ def autobiography_edit(student_id, output_id):
         texts = [request.form.get(f"paragraph_{i}", "") for i in range(count)]
         comments = [request.form.get(f"comment_{i}", "") for i in range(count)]
         try:
-            autobiography_service.save_edits(output, texts, teacher, comments=comments)
+            saved = autobiography_service.save_edits(output, texts, teacher, comments=comments)
+            audit_service.record(teacher, "autobiography.teacher_edit", "learning_profile_output", saved.id,
+                                 detail={"student_id": student.id}, commit=True)
         except autobiography_service.StaleVersion as exc:
             latest = latest_draft(student, program)
             return render_template(

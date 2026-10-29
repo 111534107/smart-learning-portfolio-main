@@ -1,0 +1,36 @@
+{# 推薦排序的細項：登入學生本人的已符合與缺少。列表頁展開與整頁共用這一份。 #}
+{% macro matching_detail(row, category_labels) %}
+{% set have_items = row.gap["items"] | selectattr("have") | list %}
+{% set missing_items = row.gap["items"] | selectattr("status", "in", ["missing", "partial"]) | list %}
+{% set prepare_items = row.gap["items"] | selectattr("status", "equalto", "prepare") | list %}
+<p class="small mb-1">
+  {% if row.fit is not none %}<strong>準備度 {{ row.fit }}%（建議值）</strong>{% else %}準備度：以自傳等文件為主，系統算不出來{% endif %}
+  <span class="muted">· 只列你自己的資料，不是錄取機率</span>
+</p>
+{% if row.gap.documents %}<p class="muted small">未計入準備度：{% for key in row.gap.documents %}{{ category_labels.get(key, key) }}{% if not loop.last %}、{% endif %}{% endfor %}。請自行確認這些文件是否備妥。</p>{% endif %}
+<div class="match-detail">
+  <section class="match-detail__col">
+    <h3>已符合</h3>
+    {% if have_items %}
+    <ul>
+      {% for item in have_items %}
+      <li>{{ item.name }}{% if item.status == "partial" %}（部分）{% endif %}（占 {{ item.weight }}%）<span class="muted small">：{% for key in item.have %}{{ category_labels.get(key, key) }}{% if not loop.last %}、{% endif %}{% endfor %}</span></li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="muted small">目前沒有已符合的項目。</p>{% endif %}
+  </section>
+  <section class="match-detail__col">
+    <h3>缺少</h3>
+    {% if missing_items or prepare_items %}
+    <ul>
+      {% for item in missing_items %}
+      <li>{{ item.name }}（占 {{ item.weight }}%）<span class="muted small">：還缺 {% for key in item.missing %}{{ category_labels.get(key, key) }}{% if not loop.last %}、{% endif %}{% endfor %}</span></li>
+      {% endfor %}
+      {% for item in prepare_items %}
+      <li>{{ item.name }}（占 {{ item.weight }}%）<span class="muted small">：需要自己準備的文件</span></li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="muted small">目前沒有缺少的項目。</p>{% endif %}
+  </section>
+</div>
+{% endmacro %}

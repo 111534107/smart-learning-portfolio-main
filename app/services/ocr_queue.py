@@ -18,6 +18,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.extensions import db
 from app.models import AuditLog, DocumentExtraction, SourceDocument
+from app.services import storage_service
 from app.services.document_analysis_service import analyze_document
 from app.services.upload_quality import resolution_check
 
@@ -78,12 +79,13 @@ def run_job(app, document_id):
             return False
 
         document = db.session.get(SourceDocument, document_id)
-        # 先做第一頁縮圖給「辨識中」頁顯示；PDF 轉圖不能跨執行緒同時做，所以放在同一條執行緒
-        make_preview(app, document.file_path)
         provider = app.config["DOCUMENT_ANALYSIS_PROVIDER"]
         result, error, raw_error = None, None, None
         try:
-            source_path = Path(document.file_path)
+            # 檔案可能在 Google 雲端硬碟：先取回本機快取（拿不到會丟出中文的 StorageUnavailable）
+            source_path = storage_service.local_path(document.file_path)
+            # 先做第一頁縮圖給「辨識中」頁顯示；PDF 轉圖不能跨執行緒同時做，所以放在同一條執行緒
+            make_preview(app, document.file_path)
             result = analyze_document(document.document_type, source_path, provider,
                                       ocr_engine=app.config.get("OCR_ENGINE"))
             result = {**result, "draft_revision": uuid4().hex}
@@ -142,8 +144,8 @@ def student_error(message):
 
 
 def preview_path(file_path):
-    """第一頁縮圖存在原檔旁邊。"""
-    path = Path(file_path)
+    """第一頁縮圖存在原檔（雲端檔案則是本機快取）旁邊。"""
+    path = storage_service.cache_path(file_path)
     return path.with_name(path.name + ".preview.png")
 
 
@@ -153,7 +155,7 @@ def make_preview(app, file_path):
 
     pages = None
     try:
-        pages = load_document_pages(file_path)
+        pages = load_document_pages(storage_service.local_path(file_path))
         page = next(iter(pages))
         page.thumbnail((PREVIEW_LONG_SIDE, PREVIEW_LONG_SIDE))
         page.save(preview_path(file_path), format="PNG")

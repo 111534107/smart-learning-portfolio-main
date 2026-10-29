@@ -1,19 +1,7 @@
-import os
 from datetime import datetime, timezone
 from functools import wraps
 
-from flask import (
-    Blueprint,
-    abort,
-    current_app,
-    jsonify,
-    redirect,
-    render_template,
-    request,
-    send_file,
-    session,
-    url_for,
-)
+from flask import Blueprint, abort, jsonify, redirect, render_template, request, send_file, session, url_for
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -22,7 +10,7 @@ from app.models import AuditLog, AwardCertificate, PortfolioSubmission, SourceDo
 from app.services.gap_service import analyze_gap
 from app.services.guide_service import CARD_IDS, guide_cards
 from app.services.journey_home import journey_home
-from app.services import photo_service
+from app.services import photo_service, student_rules
 from app.services.package_service import latest_review
 from app.services.teacher_scope import advised_classes, students_for_teacher
 from app.content.five_year_plan import FIVE_YEAR_PLAN, NEXT_STOPS
@@ -30,39 +18,6 @@ from app.services.admission_sample import load_sample_programs
 from app.services.journey_service import GRADE_LABELS, current_grade, CATEGORY_KEYS, CATEGORY_LABELS, EXPERIENCE_CATEGORIES, build_journey
 
 main_bp = Blueprint("main", __name__)
-
-
-def _local_login_accounts():
-    """Return known local demo credentials only for development on a local DB."""
-    local_hosts = {"127.0.0.1", "localhost", "::1"}
-    if current_app.config.get("FLASK_ENV") == "production":
-        return []
-    if current_app.config.get("DB_HOST") not in local_hosts:
-        return []
-
-    expected_passwords = {
-        "student_demo": "demo2026",
-        "teacher_demo": "demo2026",
-    }
-    admin_password = os.getenv("ADMIN_DEFAULT_PASSWORD", "")
-    if admin_password:
-        expected_passwords["admin"] = admin_password
-
-    labels = {"student": "學生", "teacher": "教師", "staff": "科辦", "admin": "管理員"}
-    accounts = []
-    for username, password in expected_passwords.items():
-        user = User.query.filter_by(username=username, is_active=True).first()
-        if user and user.check_password(password):
-            accounts.append({
-                "role": labels.get(user.role, user.role),
-                "username": user.username,
-                "password": password,
-            })
-    return accounts
-
-
-def _render_login(**context):
-    return render_template("login.html", login_accounts=_local_login_accounts(), **context)
 
 
 def get_current_user():
@@ -109,14 +64,18 @@ def health():
 
 @main_bp.route("/login", methods=["GET", "POST"])
 def login():
+    from app.services.flow import safe_next
+    next_path = safe_next(request.values.get("next"))
     if request.method == "GET":
-        return _render_login()
+        return render_template("login.html", next_path=next_path)
 
     username = request.form.get("username", "").strip()
     password = request.form.get("password", "")
     user = User.query.filter_by(username=username).first()
-    if not user or not user.is_active or not user.check_password(password):
-        return _render_login(error="帳號或密碼錯誤"), 401
+    if not user or not user.check_password(password):
+        return render_template("login.html", error="帳號或密碼錯誤", next_path=next_path), 401
+    if not user.is_active:  # 密碼對了才說明已停用，不讓人用來試哪些帳號存在
+        return render_template("login.html", error="這個帳號已停用，請洽系統管理員。", next_path=next_path), 403
 
     session.clear()
     session["user_id"] = user.id
@@ -129,14 +88,14 @@ def login():
     endpoint = destinations.get(user.role)
     if not endpoint:
         session.clear()
-        return _render_login(error="此帳號尚未設定可用角色"), 403
-    if user.role == "student":
-        # 記下登入時間：首頁用它判斷是不是很久沒來（「好久不見」那一幕）
-        db.session.add(AuditLog(user_id=user.id, action="student.login", ip_address=request.remote_addr))
-        db.session.commit()
+        return render_template("login.html", error="此帳號尚未設定可用角色"), 403
+    # 每次登入都記（規格 M11）；學生首頁也用 student.login 判斷是不是很久沒來（「好久不見」那一幕）
+    action = "student.login" if user.role == "student" else "user.login"
+    db.session.add(AuditLog(user_id=user.id, action=action, ip_address=request.remote_addr))
+    db.session.commit()
     if user.role == "student" and not _welcome_done(user):
         return redirect(url_for("main.student_welcome"))
-    return redirect(url_for(endpoint))
+    return redirect(next_path or url_for(endpoint))  # 被登出前想看的頁面；權限照樣由那一頁檢查
 
 
 @main_bp.post("/logout")
@@ -183,6 +142,7 @@ def student_dashboard():
         user=user,
         journey=journey,
         home=home,
+        autobiography_note=student_rules.review_open_note(user),
         show_return=show_return,
         photo_url=photo_url,
         semester_label="上學期" if semester == 1 else "下學期",

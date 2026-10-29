@@ -40,6 +40,14 @@ def test_welcome_has_five_short_steps(client):
     assert "data-welcome-skip" in page
 
 
+def test_welcome_prompts_student_to_check_basic_profile(client):
+    login(client)
+    page = client.get("/student/welcome").get_data(as_text=True)
+    assert "先核對基本資料" in page
+    assert "入學學年度：115" in page
+    assert "班級尚未設定" in page
+
+
 def test_finishing_welcome_goes_home_and_is_remembered(client):
     login(client)
     response = client.post("/student/welcome/done", data={"to": "upload"})

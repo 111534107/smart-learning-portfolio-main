@@ -20,7 +20,7 @@
   </section>
   <section class="work-panel mt-1">
     <h2>記錄申請進度</h2>
-    {% if record and record.teacher_confirmed %}<p class="notice">導師已於 {{ record.teacher_confirmed_at.strftime("%Y-%m-%d") }} 確認看過這筆進度紀錄。</p>{% endif %}
+    {% if record and record.teacher_confirmed %}<p class="notice">導師已於 {{ record.teacher_confirmed_at|taipei_time("%Y-%m-%d") }} 確認看過這筆進度紀錄。</p>{% endif %}
     <form class="form-stack" method="post">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label class="field">目前狀態

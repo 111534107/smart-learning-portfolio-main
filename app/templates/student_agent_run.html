@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% set page_name = "student-agent-run" %}
+
+{% block title %}升學 Agent｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "目標校系") }}{% endblock %}
+
+{% block content %}
+{% set running = task.status == "running" %}
+{# 每個工具第一次被叫到的順序（畫面依這個順序再亮一次）；同一個工具可能被叫好幾次 #}
+{% set order = {} %}
+{% for step in run.steps or [] %}{% if step.tool not in order %}{% set _ = order.update({step.tool: order|length}) %}{% endif %}{% endfor %}
+{% set groups = namespace(used=0) %}
+{% for card in lineup %}{% if card.tools|select("in", order)|list %}{% set groups.used = groups.used + 1 %}{% endif %}{% endfor %}
+{{ page_band("升學 Agent") }}
+<div class="page page--banded">
+  <div class="record-card__actions mb-1">
+    <a class="button button--small button--quiet" href="{{ url_for('student.matching') }}">← 回推薦排序</a>
+    <form method="post" action="{{ url_for('student.agent_advise') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small button--line" type="submit" data-busy-text="Agent 正在規劃…（約 30 秒～1 分鐘）"{% if running %} disabled{% endif %}>再請 Agent 規劃一次</button></form>
+  </div>
+
+  <section class="agent-board mb-1{% if not running %} is-replay{% endif %}" aria-labelledby="board-title"
+           data-status="{{ task.status }}" data-progress-url="{{ url_for('student.agent_run_progress', task_id=task.id) }}">
+    <div class="agent-board__brain">
+      <span class="agent-board__pulse" aria-hidden="true"></span>
+      <div class="agent-board__who">
+        <h2 id="board-title">一個 Agent，分給不同工具做</h2>
+        <p class="agent-board__phase" data-phase aria-live="polite">
+          {% if running %}準備開始…
+          {% elif task.status == "failed" %}這次沒有完成。
+          {% else %}完成：用了 {{ groups.used }} 組工具、{{ (run.steps or [])|length }} 個步驟。{% endif %}
+        </p>
+      </div>
+      <span class="agent-board__mode" data-mode>{% if run.mode == "ai" %}Gemini 決定下一步{% elif run.mode == "rule" %}固定流程{% endif %}</span>
+    </div>
+    <ol class="agent-board__tools">
+      {% for card in lineup %}
+      {# 這一組最後執行的步驟，以及這組第一次被叫到的順序 #}
+      {% set ns = namespace(step=none, order=none) %}
+      {% for step in run.steps or [] %}{% if step.tool in card.tools %}{% set ns.step = step %}{% endif %}{% endfor %}
+      {% for name in card.tools %}{% if name in order and (ns.order is none or order[name] < ns.order) %}{% set ns.order = order[name] %}{% endif %}{% endfor %}
+      {% set state = ("error" if ns.step and not ns.step.get("ok", true) else "done") if ns.step else ("idle" if running else "unused") %}
+      <li class="agent-tool agent-tool--{{ state }}" data-tools="{{ card.tools|join(' ') }}" data-label="{{ card.label }}"
+          style="--tone: var(--year-{{ card.tone }});{% if ns.step %} --order: {{ ns.order }};{% endif %}">
+        <span class="agent-tool__group">{{ card.group }}</span>
+        <strong class="agent-tool__label">{{ card.label }}</strong>
+        <span class="agent-tool__state" data-state>{{ {"done": "完成", "error": "沒有完成", "idle": "待命", "unused": "這次沒用到"}[state] }}</span>
+        <p class="agent-tool__result" data-result>{{ ns.step.summary if ns.step else card.does }}</p>
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+
+  {% if not running %}
+  <section class="sheet mb-1" aria-labelledby="advice-title">
+    <div class="sheet__head">
+      <h2 id="advice-title">Agent 的建議</h2>
+      <span class="tag {{ 'tag--info' if run.mode == 'ai' else '' }}">{{ "AI 決定步驟" if run.mode == "ai" else "固定流程" }}</span>
+    </div>
+    {% if run.fallback_reason %}<p class="small muted mb-1">AI 這次不能用（{{ run.fallback_reason }}），改用固定流程完成。</p>{% endif %}
+    <div class="mb-1">{% for line in (run.summary or "").split("\n") if line.strip() %}<p>{{ line }}</p>{% endfor %}</div>
+    {% if run.links %}
+    <div class="record-card__actions">
+      {% for link in run.links %}<a class="button button--small" href="{{ url_for(link.endpoint, **link.params) }}">{{ link.label }} →</a>{% endfor %}
+    </div>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  <section class="sheet" aria-labelledby="steps-title">
+    <div class="sheet__head"><h2 id="steps-title">Agent 做了哪些事</h2></div>
+    <ol class="agent-steps" data-steps>
+      {% for step in run.steps or [] %}<li style="--order: {{ loop.index0 }};"><strong>{{ step.label }}</strong>：{{ step.summary }}</li>{% endfor %}
+    </ol>
+    <p class="small muted">{{ task.created_at|taipei_time }} 執行。Agent 只會排序、提醒、產生草稿；目標校系由你決定，草稿要你自己檢查修改後才算數。準備度不是錄取機率，能不能報與錄取以招生簡章為準。</p>
+  </section>
+</div>
+
+{% if running %}
+<script>
+(() => {
+  const board = document.querySelector(".agent-board");
+  const phase = board.querySelector("[data-phase]");
+  const mode = board.querySelector("[data-mode]");
+  const list = document.querySelector("[data-steps]");
+  const cards = {};
+  board.querySelectorAll("[data-tools]").forEach((card) => {
+    card.dataset.tools.split(" ").forEach((name) => { cards[name] = card; });
+  });
+
+  function mark(card, state, text) {
+    card.className = "agent-tool agent-tool--" + state;
+    card.querySelector("[data-state]").textContent = {active: "執行中…", done: "完成", error: "沒有完成"}[state];
+    if (text) card.querySelector("[data-result]").textContent = text;
+  }
+
+  async function tick() {
+    let data;
+    try {
+      data = await (await fetch(board.dataset.progressUrl, {headers: {Accept: "application/json"}})).json();
+    } catch (error) {
+      setTimeout(tick, 2500);  // 連線不穩時慢一點再試
+      return;
+    }
+    if (data.done) { location.reload(); return; }
+    mode.textContent = data.mode === "ai" ? "Gemini 決定下一步" : data.mode === "rule" ? "固定流程" : "";
+    data.steps.slice(list.children.length).forEach((step) => {
+      const item = document.createElement("li");
+      const label = document.createElement("strong");
+      label.textContent = step.label;
+      item.append(label, "：" + step.summary);
+      list.append(item);
+    });
+    data.steps.forEach((step) => { if (cards[step.tool]) mark(cards[step.tool], step.ok === false ? "error" : "done", step.summary); });
+    const current = data.phase === "running" && cards[data.current_tool];
+    if (current) {
+      mark(current, "active");
+      phase.textContent = "正在「" + current.dataset.label + "」…";
+    } else if (data.phase === "deciding") {
+      phase.textContent = data.mode === "ai" ? "Gemini 正在想下一步要用哪個工具…" : "依固定流程決定下一步…";
+    }
+    setTimeout(tick, 1000);
+  }
+  tick();
+})();
+</script>
+{% endif %}
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

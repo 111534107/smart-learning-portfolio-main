@@ -76,3 +76,11 @@ def test_build_journey_puts_each_record_in_its_year_and_category():
     assert journey["totals"]["grades"] == 1
     assert journey["totals"]["service"] == 0
     assert journey["missing_categories"] == ["competition", "service", "leadership"]
+    # 每筆都帶「來源＋資料庫編號」，首頁拼圖桌用它固定每片的位置
+    with app.app_context():
+        course = LearningCourseRecord.query.one()
+        credential = CredentialRecord.query.one()
+        activity = Portfolio.query.filter_by(title="迎新活動").one()
+    assert years[2]["categories"]["grades"][0]["id"] == f"course-{course.id}"
+    assert years[2]["categories"]["credential"][0]["id"] == f"credential-{credential.id}"
+    assert years[1]["categories"]["activity"][0]["id"] == f"portfolio-{activity.id}"

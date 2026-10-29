@@ -17,6 +17,7 @@ from app.models import (
 from app.services.admission_service import import_seed_programs
 from app.services.autobiography_service import build_facts
 from app.services.journey_service import academic_year_of
+from tests.board_helpers import fill_board
 
 # 讓「stu」不論哪一年跑測試都是專三
 GRADE3_ADMISSION_YEAR = academic_year_of(date.today()) - 2
@@ -43,6 +44,7 @@ def app(tmp_path):
         teacher = User.query.filter_by(username="teacher").one()
         db.session.add(ClassAdvisor(teacher_id=teacher.id, class_name="資管科三甲", school_year=115))
         db.session.commit()
+        fill_board(stu)  # 拼圖要完成才能生成自傳
         yield app
 
 
@@ -457,7 +459,7 @@ def test_teacher_confirm_and_withdraw_are_logged(app):
     with app.app_context():
         actions = [log.action for log in AuditLog.query.filter(AuditLog.action.like("package_review.%")).order_by(AuditLog.id).all()]
         withdraw = AuditLog.query.filter_by(action="package_review.withdraw").one()
-    assert actions == ["package_review.confirm", "package_review.withdraw"]
+    assert actions == ["package_review.request", "package_review.confirm", "package_review.withdraw"]  # 送審也有紀錄（M11）
     assert withdraw.detail_json["reason"] == "按錯了，自傳還沒看完"
     assert withdraw.target_id == review_id
 
@@ -529,6 +531,7 @@ def save(client, output_id, texts, url=None, comments=None):
 
 
 def test_each_save_is_a_new_version_and_old_ones_stay(app):
+    set_admission_year(app, GRADE3_ADMISSION_YEAR - 2)  # 專五：自傳到專五才開放生成
     client = login(app)
     write_autobiography(app, client)
     first = autobiography_rows(app)[0]
@@ -548,6 +551,7 @@ def test_each_save_is_a_new_version_and_old_ones_stay(app):
 
 
 def test_regenerating_is_also_a_new_version(app):
+    set_admission_year(app, GRADE3_ADMISSION_YEAR - 2)  # 專五：自傳到專五才開放生成
     client = login(app)
     pid = write_autobiography(app, client)
 
@@ -560,6 +564,7 @@ def test_regenerating_is_also_a_new_version(app):
 
 
 def test_teacher_edits_text_and_leaves_comments(app):
+    set_admission_year(app, GRADE3_ADMISSION_YEAR - 2)  # 專五：自傳到專五才開放生成
     student = login(app)
     write_autobiography(app, student)
     first = autobiography_rows(app)[0]
@@ -586,6 +591,7 @@ def test_teacher_edits_text_and_leaves_comments(app):
 
 
 def test_other_class_teacher_cannot_edit_autobiography(app):
+    set_admission_year(app, GRADE3_ADMISSION_YEAR - 2)  # 專五：自傳到專五才開放生成
     write_autobiography(app, login(app))
     first = autobiography_rows(app)[0]
     url = f"/teacher/students/{user_id(app, 'stu')}/autobiography/{first['id']}/edit"
@@ -596,6 +602,7 @@ def test_other_class_teacher_cannot_edit_autobiography(app):
 
 
 def test_teacher_page_shows_reviewed_and_current_version(app):
+    set_admission_year(app, GRADE3_ADMISSION_YEAR - 2)  # 專五：自傳到專五才開放生成
     client = login(app)
     pid = write_autobiography(app, client)
     client.post(f"/student/targets/{pid}/review")
@@ -633,6 +640,7 @@ def generate(client, pid, **extra):
 
 
 def test_school_key_is_limited_to_five_a_day(app, monkeypatch):
+    set_admission_year(app, GRADE3_ADMISSION_YEAR - 2)  # 專五：自傳到專五才開放生成
     calls = enable_school_ai(app, monkeypatch)
     client = login(app)
     pid = program_id(app)
@@ -655,6 +663,7 @@ def test_school_key_is_limited_to_five_a_day(app, monkeypatch):
 
 
 def test_failed_ai_call_does_not_use_a_turn(app, monkeypatch):
+    set_admission_year(app, GRADE3_ADMISSION_YEAR - 2)  # 專五：自傳到專五才開放生成
     from app.services.gemini_client import AIUnavailable
     from app.services.ai_quota_service import remaining
     enable_school_ai(app, monkeypatch, result=AIUnavailable("連不到 Gemini"))
@@ -670,6 +679,7 @@ def test_failed_ai_call_does_not_use_a_turn(app, monkeypatch):
 
 
 def test_page_shows_remaining_school_turns(app, monkeypatch):
+    set_admission_year(app, GRADE3_ADMISSION_YEAR - 2)  # 專五：自傳到專五才開放生成
     enable_school_ai(app, monkeypatch)
     client = login(app)
     pid = program_id(app)
@@ -805,6 +815,7 @@ def test_withdraw_is_refused_when_a_newer_review_exists(app):
 
 
 def test_saving_an_old_version_is_refused_and_text_is_kept(app):
+    set_admission_year(app, GRADE3_ADMISSION_YEAR - 2)  # 專五：自傳到專五才開放生成
     """P0-3：導師開第 1 版後學生存了第 2 版，導師用舊頁面存檔要被擋下，打的字要留著。"""
     student = login(app)
     write_autobiography(app, student)
@@ -824,6 +835,7 @@ def test_saving_an_old_version_is_refused_and_text_is_kept(app):
 
 
 def test_student_saving_an_old_version_is_refused(app):
+    set_admission_year(app, GRADE3_ADMISSION_YEAR - 2)  # 專五：自傳到專五才開放生成
     student = login(app)
     write_autobiography(app, student)
     first = autobiography_rows(app)[0]
@@ -854,6 +866,7 @@ def test_quota_exceeded_does_not_roll_back_the_callers_work(app):
 
 
 def test_student_still_sees_versions_after_cancelling_target(app):
+    set_admission_year(app, GRADE3_ADMISSION_YEAR - 2)  # 專五：自傳到專五才開放生成
     """主持人 2026-10-10：取消目標校系後，學生仍看得到那個校系的自傳版本紀錄（唯讀）。"""
     client = login(app)
     pid = write_autobiography(app, client)

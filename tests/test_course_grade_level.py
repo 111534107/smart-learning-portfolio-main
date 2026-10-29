@@ -93,3 +93,46 @@ def test_confirm_rejects_grade_level_above_students_current_grade(tmp_path):
     assert response.status_code == 400
     with app.app_context():
         assert LearningCourseRecord.query.count() == 0
+
+
+def test_grade_typed_on_confirm_page_wins_over_ocr_roc_year(tmp_path):
+    """10-27 實測問題 3：辨識草稿帶 school_year=115（民國學年度），學生填年級 3，清單卻顯示 115、學期「一」。"""
+    import io
+    import json
+
+    from app.models import SourceDocument
+
+    app = create_app({"SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:", "TESTING": True,
+                      "UPLOAD_FOLDER": str(tmp_path)})
+    with app.app_context():
+        db.create_all()
+        student = User(username="stu3", display_name="合成三年級學生", role="student")
+        student.set_password("pw")
+        db.session.add(student)
+        db.session.flush()
+        db.session.add(StudentProfile(user_id=student.id, student_no="SYN0003", admission_year=113))
+        db.session.commit()
+    client = app.test_client()
+    client.post("/login", data={"username": "stu3", "password": "pw"})
+    client.post("/student/learning-profile/documents", data={
+        "document_type": "transcript", "file": (io.BytesIO(b"synthetic"), "synthetic.pdf"),
+    }, content_type="multipart/form-data")
+    with app.app_context():
+        document = SourceDocument.query.one()
+        document_id, revision = document.id, document.extraction.result_json["draft_revision"]
+
+    response = client.post(f"/student/learning-profile/documents/{document_id}/review/confirm", data={
+        "draft_revision": revision,
+        "courses_json": json.dumps([
+            {"course_name": "模擬程式設計", "credits": "3", "score": "95", "school_year": 115, "semester": "一",
+             "grade_level": "3"},
+            {"course_name": "模擬網頁設計", "credits": "3", "score": "90", "school_year": 114, "semester": "二"},
+        ]),
+        "credentials_json": "[]",
+    })
+
+    assert response.status_code == 302
+    with app.app_context():
+        typed, roc_only = LearningCourseRecord.query.order_by(LearningCourseRecord.id).all()
+        assert (typed.school_year, typed.semester, typed.grade_level) == (3, "上", "3年級")
+        assert (roc_only.school_year, roc_only.semester) == (2, "下")  # 114 學年度、113 入學 → 二年級

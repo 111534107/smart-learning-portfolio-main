@@ -20,7 +20,7 @@
       {% set editor = editors.get(content.editor_id) %}
       <div class="sheet__head"><h2>第 {{ version_of(selected) }} 版</h2>
         <span class="tag {{ 'tag--warn' if content.editor_role == 'teacher' else 'tag--info' }}">{{ role_text.get(content.editor_role, "修改") }}</span></div>
-      <p class="small muted mb-1">{{ selected.created_at.strftime("%Y-%m-%d %H:%M") }}{% if editor %} · {{ editor.display_name }}{% endif %}{% if previous %} · 和第 {{ version_of(previous) }} 版比較：<ins>綠色</ins>是新增、<del>紅色</del>是刪掉{% endif %}</p>
+      <p class="small muted mb-1">{{ selected.created_at|taipei_time("%Y-%m-%d %H:%M") }}{% if editor %} · {{ editor.display_name }}{% endif %}{% if backup_label(selected) %} · {{ backup_label(selected) }}{% endif %}{% if previous %} · 和第 {{ version_of(previous) }} 版比較：<ins>綠色</ins>是新增、<del>紅色</del>是刪掉{% endif %}</p>
       {% for paragraph in diff %}
       <section class="draft__paragraph">
         <h3 class="h3">{{ paragraph.title }}{% if paragraph.changed %} <span class="tag tag--warn">有修改</span>{% endif %}</h3>
@@ -37,7 +37,7 @@
         {% set c = version.content_json %}
         <li{% if version.id == selected.id %} aria-current="true"{% endif %}>
           <a href="{{ url_for('student.autobiography_versions', program_id=program.id, v=version.id) }}">第 {{ version_of(version) }} 版</a>
-          <span class="small muted">{{ role_text.get(c.editor_role, "修改") }}{% if editors.get(c.editor_id) %} · {{ editors[c.editor_id].display_name }}{% endif %} · {{ version.created_at.strftime("%m-%d %H:%M") }}</span>
+          <span class="small muted">{{ "示範草稿（沒有接上 AI）" if c.provider == "demo" and c.editor_role == "ai" else role_text.get(c.editor_role, "修改") }}{% if editors.get(c.editor_id) %} · {{ editors[c.editor_id].display_name }}{% endif %} · {{ version.created_at|taipei_time("%m-%d %H:%M") }}{% if backup_label(version) %} · {{ backup_label(version) }}{% endif %}</span>
         </li>
         {% endfor %}
       </ol>

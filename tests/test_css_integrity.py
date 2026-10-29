@@ -14,3 +14,10 @@ def test_no_merge_markers_and_balanced_braces():
         depth += line.count("{") - line.count("}")
         assert depth >= 0, f"第 {number} 行多了一個 }}"
     assert depth == 0, "有區塊沒有關閉"
+
+
+def test_home_cover_layers_stay_below_the_sticky_masthead():
+    """首頁封面的標語層 z-index 是 30（要蓋過資料夾），比刊頭的 20 高；
+    封面要自成一個圖層（isolation: isolate），捲動時標語才不會蓋到刊頭（2026-10-22 使用者回報）。"""
+    text = CSS.read_text(encoding="utf-8")
+    assert '[data-page="public-home"] .cover.story-scene--scatter { isolation: isolate; }' in text

@@ -22,6 +22,7 @@
   <p class="muted mb-1" data-tour="想去哪裡都可以選，隨時可以換。" data-tour-order="0">目標校系隨時可以更換。五年級準備備審資料時最多保留 5 所。</p>
   {% endif %}
   {% if focus %}{% include "partials/focus.html" %}{% endif %}
+  <div class="record-card__actions mb-1"><a class="button button--small button--line" href="{{ url_for('student.matching') }}">看全部校系的推薦排序 →</a><a class="button button--small button--quiet" href="{{ url_for('student.schedule') }}">招生時程</a></div>
   {% if error %}
   <div class="mb-1">
     <p class="alert" role="alert">{{ error }}</p>
@@ -60,6 +61,9 @@
       <div class="program-card__ready">
         {% if gap.readiness is not none %}<strong>{{ gap.readiness }}<small>%</small></strong><span class="muted small">你目前的準備度</span>{% else %}<span class="muted small">此校系以自傳等文件為主，需自行準備</span>{% endif %}
       </div>
+      {% if links[program.id] %}
+      <p class="small">{% for link in links[program.id] %}<a href="{{ link.url }}" target="_blank" rel="noopener noreferrer">{{ link.label }}</a>{% if not loop.last %}／{% endif %}{% endfor %}</p>
+      {% endif %}
       {% if chosen %}
       <div class="record-card__actions">
         <a class="button button--small" href="{{ url_for('student.target_gap', program_id=program.id) }}">看還缺什麼 →</a>

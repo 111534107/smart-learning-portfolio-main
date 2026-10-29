@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% set page_name = "student-schedule" %}
+
+{% block title %}招生時程｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "目標校系") }}{% endblock %}
+
+{% block content %}
+{{ page_band("招生時程") }}
+<div class="page page--banded">
+  <div class="record-card__actions mb-1">
+    <a class="button button--small button--quiet" href="{{ url_for('student.target_list') }}">← 回目標校系</a>
+    <a class="button button--small button--quiet" href="{{ url_for('student.matching') }}">推薦排序</a>
+  </div>
+
+  {% if skill %}
+  <section class="sheet mb-1" aria-labelledby="skill-title">
+    <div class="sheet__head"><h2 id="skill-title">{{ skill.year }} 學年度{{ skill.channel_label }}重要日程</h2></div>
+    {% if skill.finished %}
+    <p class="alert mb-1" role="status">這一屆已經結束。{{ skill.year + 1 }} 學年度的日程尚未公告（{{ checked_on }} 查詢官網）；去年的簡章在 {{ skill.events[0].start.strftime('%m/%d') }} 開放下載，可以先依下面的順序準備。</p>
+    {% elif skill.next %}
+    <p class="alert mb-1" role="status">下一步：<strong>{{ skill.next.name }}</strong>（{{ skill.next.start.strftime('%Y/%m/%d %H:%M') }}{% if skill.next.end %} 到 {{ skill.next.end.strftime('%m/%d %H:%M') }}{% endif %}）</p>
+    {% endif %}
+    <ol class="plain-list">
+      {% for event in skill.events %}
+      <li class="mb-1">
+        <span class="tag {{ {'past': '', 'current': 'tag--warn', 'upcoming': 'tag--info'}[event.state] }}">{{ {'past': '已過', 'current': '進行中', 'upcoming': '還沒到'}[event.state] }}</span>
+        <strong>{{ event.start.strftime('%Y/%m/%d') }}{% if event.end and event.end.date() != event.start.date() %}～{{ event.end.strftime('%m/%d') }}{% endif %}</strong>
+        {{ event.name }}{% if event.note %}<span class="muted small">：{{ event.note }}</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+    <p class="small muted">出處：<a href="{{ skill.events[0].source }}" target="_blank" rel="noopener noreferrer">技專校院招生委員會聯合會 {{ skill.year }} 學年度重要日程表</a>。日期如有變動，以官方公告為準。</p>
+  </section>
+  {% endif %}
+
+  <section class="sheet" aria-labelledby="my-title">
+    <div class="sheet__head"><h2 id="my-title">我的目標校系看哪一份時程</h2></div>
+    {% if targets %}
+    <ul class="plain-list">
+      {% for target in targets %}
+      <li class="mb-1">
+        <strong>{{ target.program.school_name }} {{ target.program.department_name }}</strong>
+        <span class="muted small">（{{ target.program.admission_year }} 學年度{% if target.program.admission_category %} · {{ target.program.admission_category }}{% endif %}）</span><br>
+        {% if target.schedule %}看上面的{{ target.schedule.channel_label }}日程。
+        {% else %}{{ target.channel_label }}時程依各校簡章，請看學校招生網站。
+        {% endif %}
+        {% for link in target.links %}<a href="{{ link.url }}" target="_blank" rel="noopener noreferrer">{{ link.label }}</a>{% if not loop.last %}／{% endif %}{% endfor %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">還沒有目標校系。到 <a href="{{ url_for('student.matching') }}">推薦排序</a> 看看哪些學校適合你。</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

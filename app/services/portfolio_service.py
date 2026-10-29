@@ -13,7 +13,7 @@ from app.models import (
 
 def owned_portfolio(portfolio_id, actor):
     portfolio = db.session.get(Portfolio, portfolio_id)
-    if not portfolio:
+    if not portfolio or portfolio.deleted_at:  # 學生刪除過的（只標記）當成不存在
         abort(404)
     if actor.role not in {"admin", "staff"} and portfolio.student_id != actor.id:
         abort(403)

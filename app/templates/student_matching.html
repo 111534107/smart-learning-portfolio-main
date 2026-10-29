@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% set page_name = "student-matching" %}
+
+{% block title %}校系建議｜資管科智慧學習歷程系統{% endblock %}
+{% block navigation %}{{ masthead(user, "目標校系") }}{% endblock %}
+
+{% block content %}
+{{ page_band("校系建議") }}
+<div class="page page--banded">
+  <p class="muted mb-1">依已確認的學習歷程資料計算準備度，並按報考資格與準備度排序。各校顯示目前最高的校系準備度；補上資料並確認後，重新開啟本頁即可看到更新的建議。</p>
+  {% if not has_confirmed_data %}<p class="notice mb-1">你尚未確認學習歷程資料；以下是初步校系清單，請先上傳並核對資料，再查看個人化建議。</p>{% endif %}
+  <p class="notice mb-1">百分比是資料準備度建議值，不是錄取機率，也不保證錄取；面試、筆試與正式審查結果仍以當年度招生簡章及學校公告為準。</p>
+  <div class="record-card__actions mb-1">
+    <a class="button button--small button--quiet" href="{{ url_for('student.target_list') }}">← 回目標校系</a>
+    <a class="button button--small button--line" href="{{ url_for('student.learning_profile') }}">補上學習歷程資料</a>
+    <form method="post" action="{{ url_for('student.agent_advise') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small" type="submit" data-busy-text="Agent 正在規劃…">請升學 Agent 幫我規劃</button></form>
+  </div>
+  {% if school_groups %}
+  <ol class="plain-list" aria-label="依準備度排序的學校">
+    {% for group in school_groups %}
+    <li class="sheet mb-1" data-motion="reveal">
+      <details class="matching-school">
+        <summary class="matching-school__summary">
+          <span class="matching-school__name">{{ loop.index }}. {{ group.name }}</span>
+          {% if group.best.fit is not none %}<strong>最高校系準備度 {{ group.best.fit }}%（建議值）</strong>{% else %}<span class="muted">目前無法計算準備度</span>{% endif %}
+          <span class="matching-school__chevron" aria-hidden="true">⌄</span>
+        </summary>
+      <ul class="plain-list matching-school__programs">
+        {% for row in group.rows %}
+        {% set program = row.program %}
+        <li class="record-card mb-1">
+          <div class="record-card__meta">
+            <span class="tag">{{ row.channel_label }}</span>
+            <span class="tag {{ {'eligible': 'tag--info', 'needs_check': 'tag--warn', 'ineligible': 'tag--danger'}[row.status] }}">{{ row.status_label }}</span>
+          </div>
+          <h3>{{ program.department_name }}</h3>
+          {% if row.fit is not none %}
+          <p>準備度 <strong>{{ row.fit }}%</strong>（建議值）</p>
+          <progress value="{{ row.fit }}" max="100" aria-label="{{ program.department_name }}資料準備度 {{ row.fit }}%"></progress>
+          {% else %}<p class="muted">{{ row.fit_note or '目前無法計算準備度' }}</p>{% endif %}
+          <p class="small muted">{{ program.admission_year }} 學年度 · 各項比重與待補資料請至細項查看。</p>
+          <a class="button button--small button--line" href="{{ url_for('student.matching_detail', program_id=program.id) }}">查看校系細項與計算依據 →</a>
+        </li>
+        {% endfor %}
+      </ul>
+      </details>
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <div class="paper-empty"><p>{{ '沒有符合篩選條件的校系。' if total else '目前還沒有公開的校系資料。' }}</p></div>
+  {% endif %}
+</div>
+{% endblock %}
+{% block footer %}{{ footer() }}{% endblock %}

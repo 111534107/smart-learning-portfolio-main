@@ -107,8 +107,12 @@ def detect_transcript_panels(image):
         span, top, bottom = max(gaps)
         if span < image.height * .25:
             continue
+        # 表頭（第 N 學年、起訖年月）從表格最上緣的橫線讀起；再往上是頁首的
+        # 班級、學號，縮小後會讓文字偵測漏掉「第 N 學年」
+        header_top = min((y for y in ys if top - image.height*.1 <= y < top), default=top - image.height*.1)
         panels.append({"bbox": [left, 0, right, image.height],
                        "body": (top+2, bottom-2),
+                       "header_top": max(0, header_top),
                        "columns": [0, *([name_left-left] if left < name_left else []),
                                    *[x-left for x in numeric_edges]],
                        "layout_verified": False})
@@ -120,6 +124,11 @@ def detect_transcript_panels(image):
             # line. Neighboring panels in this form share the same baseline.
             if abs(bottom-common_bottom) < image.height*.04:
                 panel["body"] = (top, min(bottom, common_bottom))
+        # 表格上緣也一樣：縮小後頁首大標題的密集字會被當成橫線，讓單一欄的表頭往上包進學號列
+        common_header = median(p["header_top"] for p in panels)
+        for panel in panels:
+            if abs(panel["header_top"]-common_header) > image.height*.005:
+                panel["header_top"] = common_header
     return panels
 
 
@@ -162,7 +171,7 @@ def _rows(words):
 
 def parse_panel_words(words, size, region_index, *, body=None, columns=None,
                       offset=0, page=1, rotation=0, layout_verified=False,
-                      grade_level=None, grade_confidence=None):
+                      grade_level=None, grade_confidence=None, grade_note=None):
     from app.services.document_analysis_service import score_band
 
     width, height = size
@@ -206,6 +215,8 @@ def parse_panel_words(words, size, region_index, *, body=None, columns=None,
             reasons = [] if layout_verified else ["學期依表格位置推定，請核對表頭。"]
             if grade_level is None:
                 reasons.append("年級表頭未辨識完整，請核對。")
+            elif grade_note:
+                reasons.append(grade_note)
             for field, label, value in (("course_name", "科目", name), ("credits", "學分", credits), ("score", "成績", score)):
                 if value is None or value == "":
                     reasons.append(f"{label}未讀取完整。")
@@ -236,6 +247,37 @@ def grade_from_header(words):
     value = next(v for v in match.groups() if v)
     value = str("一二三四五".index(value)+1) if value in "一二三四五" else value
     return f"{value}年級", _confidence(words)
+
+
+def school_year_from_header(words):
+    """表頭的起訖年月（例：113年8月至114年6月）→ 起始年 113；讀不到或不是相連兩年回傳 None。"""
+    text = re.sub(r"\s+", "", unicodedata.normalize("NFKC", "".join(w["text"] for w in words)))
+    match = re.search(r"(?<!\d)(\d{2,3})年\d{1,2}月至(\d{2,3})年", text)
+    if not match or int(match.group(2)) != int(match.group(1)) + 1:
+        return None
+    return int(match.group(1))
+
+
+def resolve_panel_grades(headers):
+    """依序（由左到右）的各學年表頭文字 → [(年級, 信心, 推定說明)]。
+
+    「第 N 學年」緊貼表格上緣橫線，縮小的圖片常被文字偵測整行漏掉，起訖年月那行卻讀得到。
+    漏讀的學年用同頁已讀到的學年推算：先比起訖年的差距，沒有年份才比欄位順序；推算的一律標示請核對。
+    """
+    resolved = [(*grade_from_header(words), None) for words in headers]
+    years = [school_year_from_header(words) for words in headers]
+    known = [(i, int(grade[0])) for i, (grade, _conf, _note) in enumerate(resolved) if grade]
+    for i, (grade, _conf, _note) in enumerate(resolved):
+        if grade or not known:
+            continue
+        by_year = [number + years[i] - years[k] for k, number in known if years[i] and years[k]]
+        if by_year:
+            guesses, note = by_year, "年級表頭未辨識，依起訖年月推定，請核對。"
+        else:
+            guesses, note = [number + i - k for k, number in known], "年級表頭未辨識，依學年欄位順序推定，請核對。"
+        if len(set(guesses)) == 1 and 1 <= guesses[0] <= 5:
+            resolved[i] = (f"{guesses[0]}年級", None, note)
+    return resolved
 
 
 def parse_unknown_rows(words, *, page, size, rotation=0):
@@ -449,6 +491,7 @@ def analyze(document_type, file_path, engine):
             # credential fallback only when the focused pass cannot classify.
             page_words = []
             if panels:
+                read_panels = []
                 for region, panel in enumerate(panels, 1):
                     left, _, right, _ = panel["bbox"]
                     top, bottom = panel["body"]
@@ -467,17 +510,23 @@ def analyze(document_type, file_path, engine):
                                           scale=1 if paddle and index else None))
                     if not words:
                         # Empty future-year panels still have printed headers.
-                        # There is no course to assign that year to.
+                        # There is no course to assign that year to. Keep a
+                        # placeholder so panel order still counts this column.
+                        read_panels.append((region, panel, [], []))
                         continue
-                    header_words = _recognize_crop(image, [left, max(0, top-image.height*.1), right, top], engine,
+                    header_words = _recognize_crop(image, [left, panel["header_top"], right, top], engine,
                                                    scale=1 if paddle else None)
-                    grade, grade_conf = grade_from_header(header_words)
                     page_words.extend(header_words)
                     page_words.extend(words)
+                    read_panels.append((region, panel, words, header_words))
+                grades = resolve_panel_grades([header_words for *_rest, header_words in read_panels])
+                for (region, panel, words, _header), (grade, grade_conf, grade_note) in zip(read_panels, grades):
+                    left, _, right, _ = panel["bbox"]
                     local_words = [{**w, "bbox": [w["bbox"][0]-left, w["bbox"][1], w["bbox"][2]-left, w["bbox"][3]]} for w in words]
                     courses.extend(parse_panel_words(local_words, (right-left, image.height), region,
                         body=panel["body"], columns=panel["columns"], offset=left,
-                        page=page_number, rotation=rotation, grade_level=grade, grade_confidence=grade_conf))
+                        page=page_number, rotation=rotation, grade_level=grade, grade_confidence=grade_conf,
+                        grade_note=grade_note))
             else:
                 if document_type != "credential":
                     page_words = _recognize_crop(image, [0,0,image.width,image.height], engine)

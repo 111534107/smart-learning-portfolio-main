@@ -43,7 +43,7 @@ def focus_view(user, journey=None):
         return None
     journey = journey or build_journey(user)
 
-    can_write_bio = student_rules.review_block_reason(user) is None
+    can_write_bio = student_rules.autobiography_block_reason(user) is None
     pieces, scores, schools, links, pending = [], {}, {}, {}, set()
     for target in targets:
         program = target.program

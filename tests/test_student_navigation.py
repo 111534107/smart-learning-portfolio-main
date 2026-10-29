@@ -60,6 +60,16 @@ def test_next_step_only_on_home(tmp_path):
     assert "next-line" not in client.get("/student/portfolio").get_data(as_text=True)
 
 
+def test_home_explains_upload_review_recommendation_order(tmp_path):
+    client = records_app(tmp_path).test_client()
+    login(client)
+    html = client.get("/student/dashboard").get_data(as_text=True)
+    assert "先新增或上傳" in html
+    assert "核對辨識內容" in html
+    assert "查看校系建議" in html
+    assert "可繼續新增或重複上傳" in html
+
+
 def test_evidence_upload_returns_to_edit_page(tmp_path):
     app = records_app(tmp_path)
     client = app.test_client()
@@ -78,16 +88,37 @@ def test_evidence_upload_returns_to_edit_page(tmp_path):
     assert "photo.png" in edit_html
 
 
-def test_login_page_lists_demo_accounts_only_in_local_demo_mode(tmp_path):
+def test_login_page_lists_demo_accounts_only_when_configured(tmp_path):
+    from app.demo import DEMO_ACCOUNTS
+
     app = records_app(tmp_path)
     regular_page = app.test_client().get("/login").get_data(as_text=True)
-    assert "teacher_demo" not in regular_page
+    assert "Demo 快速登入" not in regular_page
     assert "demo2026" not in regular_page
 
-    app.config["LOCAL_DEMO_MODE"] = True
+    app.config["DEMO_ACCOUNTS"] = DEMO_ACCOUNTS
     demo_page = app.test_client().get("/login").get_data(as_text=True)
+    assert "Demo 快速登入" in demo_page
     assert "teacher_demo" in demo_page
     assert "demo2026" in demo_page
+
+    app.config["FLASK_ENV"] = "production"
+    production_page = app.test_client().get("/login").get_data(as_text=True)
+    assert "Demo 快速登入" not in production_page
+
+
+def test_demo_quick_login_button_signs_in_with_listed_account(tmp_path):
+    app = records_app(tmp_path)
+    app.config["DEMO_ACCOUNTS"] = [{"role": "student", "label": "學生", "username": "stu",
+                                    "password": "pw", "name": "測試學生"}]
+    client = app.test_client()
+    page = client.get("/login").get_data(as_text=True)
+    assert 'name="username" value="stu"' in page
+    assert 'name="password" value="pw"' in page
+
+    # 按鈕送出的就是表單裡的帳密
+    response = client.post("/login", data={"username": "stu", "password": "pw"})
+    assert response.status_code == 302
 
 
 def _record_with_evidence(app, client, filename, content=b"\x89PNG\r\n\x1a\nfake"):

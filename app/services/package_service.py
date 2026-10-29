@@ -80,7 +80,7 @@ def _chapter_body(document, student, chapter, program):
     if "project" in codes:
         document.add_paragraph("請附上專題或作品集，說明個人負責的部分與成果。")
         return
-    records = Portfolio.query.filter(Portfolio.student_id == student.id, Portfolio.category.in_(codes),
+    records = Portfolio.active().filter(Portfolio.student_id == student.id, Portfolio.category.in_(codes),
                                      Portfolio.status.in_(CONFIRMED_PORTFOLIO_STATUSES)).order_by(
         Portfolio.school_year, Portfolio.id).all()
     for record in records:

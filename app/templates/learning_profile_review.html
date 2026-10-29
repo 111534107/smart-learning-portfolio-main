@@ -14,9 +14,11 @@
 <div class="page page--banded ocr-review">
   {% if document.extraction and document.extraction.provider == "demo" %}<p class="notice mb-1">本機模擬 OCR：辨識結果是合成資料，請修正後再確認；這不代表真實 OCR 已完成。</p>{% endif %}
 
-  {# 學生上傳的原始文件：放在最上面，邊看邊核對 #}
+  {# 左圖右表：電腦版原圖在左（跟著捲動）、確認表格在右；手機版改為單欄，原圖預設收合 #}
+  <div class="review-layout">
+  {# 學生上傳的原始文件：邊看邊核對 #}
   {% set source_url = url_for('student.learning_profile_document_view', document_id=document.id) %}
-  <details class="source-doc mb-1" open>
+  <details class="source-doc mb-1" id="review-source-doc" open>
     <summary>你上傳的文件：{{ document.display_name }}</summary>
     {% if document.preview_kind == "image" %}
     <button type="button" class="source-doc__image" data-lightbox="{{ source_url }}" aria-label="放大 {{ document.display_name }}">
@@ -32,6 +34,7 @@
     </div>
     {% endif %}
   </details>
+  <div class="review-main">
 
   {# M12：辨識失敗時，用表格手動輸入（本分支原有設計） #}
   {% if document.status == "analysis_failed" %}
@@ -267,6 +270,25 @@
   .note-text + .note-text::before { content: "・"; margin-right: .2rem; color: #d0d5dd; }
   .note-source { margin-left: auto; color: #667085; }
   .note-source a { margin-left: .15rem; font-weight: 700; }
+  /* 左圖右表：原圖在左、表格在右；信心偏低的欄位用橘色標出 */
+  .review-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; align-items: start; }
+  .review-layout .source-doc { min-width: 0; }
+  .review-layout .source-doc img { max-width: 100%; height: auto; }
+  .review-main { min-width: 0; }
+  .review-count { display: inline-block; margin: .5rem 0; padding: .4rem .8rem; border-radius: 999px; background: #fef0c7; color: #93370d; font-weight: 800; }
+  .review-count--clear { background: #dcfae6; color: #1b6b3a; }
+  .course-review-section td.field-low input { border: 1.5px solid #f2b33d; background: #fffaf0; }
+  @media (min-width: 961px) {
+    .review-layout { grid-template-columns: minmax(16rem, 2fr) minmax(0, 3fr); }
+    .review-layout .source-doc { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow: auto; margin-bottom: 0; }
+    .review-layout .course-review-section thead { display: none; }
+    .review-layout .course-review-section tr { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .review-layout .course-review-section td[data-label]::before { content: attr(data-label); display: block; margin-bottom: .2rem; color: #475467; font-size: .76rem; font-weight: 700; }
+    .review-layout .course-review-section td:first-child { grid-column: 1 / -1; }
+  }
+  @media (max-width: 600px) {
+    .review-layout .course-review-section tr { grid-template-columns: minmax(0, 1fr); }
+  }
   @media (max-width: 720px) {
     .course-review-section thead { display: none; }
     .course-review-section tr { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem .7rem; padding: .75rem; }
@@ -297,6 +319,8 @@
 <h2>辨識到的課程（共 {{ courses|length }} 門）</h2>
 <p>可直接修改科目、學分、成績、學期與年級。空白表示缺漏／待確認，0 表示來源明確記載零值。</p>
 <p>OCR 信心是辨識引擎的分數，不代表正確率。低於 85% 或未知時請優先核對；修改欄位不會改變原 OCR 信心。</p>
+{% set pending_rows = courses|selectattr('needs_review')|list|length %}
+{% if pending_rows %}<p class="review-count" role="status">還有 {{ pending_rows }} 列待確認</p>{% else %}<p class="review-count review-count--clear" role="status">沒有標示待確認的列，仍請對照原圖核對</p>{% endif %}
 {% set layout = namespace(inferred=false) %}
 {% for course in courses %}{% if '學期依表格位置推定，請核對表頭。' in (course.get('review_reasons') or []) %}{% set layout.inferred = true %}{% endif %}{% endfor %}
 {% if layout.inferred %}<p class="review-warning">每門課的學期是依成績單表格位置推定的，請對照原圖的表頭（第一學期／第二學期）核對。</p>{% endif %}
@@ -317,7 +341,7 @@
       <option value="all">全部類別</option><option value="summer">暑期重補修</option><option value="winter">寒期重補修</option>
     </select>
   </label>
-  <button type="button" id="lock-all-scores" class="lock-all-scores" aria-label="全部鎖定欄位" title="鎖定所有課程欄位"><svg class="lock-all-icon--closed" viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="10" width="15" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><svg class="lock-all-icon--open" viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="10" width="15" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.5-2"/></svg><span class="lock-all-label">全部鎖定</span></button>
+  <button type="button" id="lock-all-scores" class="lock-all-scores" aria-label="全部鎖定欄位" title="鎖定所有課程欄位"><svg class="lock-all-icon--closed" viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="10" width="15" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><svg class="lock-all-icon--open" viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="10" width="15" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.5-2"/></svg><span class="lock-all-label">解鎖成績</span></button>
   <input type="hidden" id="scores-unlocked" name="scores_unlocked" value="0">
   <input type="hidden" id="all-fields-locked" name="all_fields_locked" value="0">
   <span id="score-lock-status" class="score-lock-status" role="status" aria-live="polite">成績已鎖定，避免誤改</span>
@@ -342,7 +366,7 @@
           {% set certainty = confidence.get(field) %}
           {% set known = certainty is number and certainty is not sameas true and certainty is not sameas false and certainty >= 0 and certainty <= 1 %}
           {% set field_pending = value is none or value == '' or (value is string and '待確認' in value) %}
-          <td class="{{ 'field-pending' if field_pending else '' }}" data-label="{{ label }}">
+          <td class="{{ 'field-pending' if field_pending else '' }}{{ ' field-low' if field in ['course_name', 'credits', 'score'] and known and certainty < 0.85 else '' }}" data-label="{{ label }}">
             <input id="course-{{ index }}-{{ field }}" aria-label="第 {{ index + 1 }} 列{{ label }}" aria-describedby="confidence-{{ index }}-{{ field }}" name="course_{{ index }}_{{ field }}" value="{{ value if value is not none else '' }}" {% if field in ['credits', 'score'] %}type="number" min="0" step="1" {% if field == 'score' %}max="100"{% endif %}{% else %}type="text"{% endif %} {% if field == 'score' %}readonly class="score-locked{% if field_pending %} value-pending{% endif %}" title="成績目前已鎖定"{% elif field_pending %}class="value-pending"{% endif %} {% if field == 'course_name' %}required{% endif %} {% if field == 'grade_level' %}list="grade-options"{% endif %} placeholder="待確認">
             {% if field == 'course_name' and group.highest and group.highest.index == index %}<small class="highest-mark">最高成績</small>{% endif %}
             <small id="confidence-{{ index }}-{{ field }}" class="{{ 'confidence-low' if known and certainty < 0.85 else ('confidence-unknown' if not known else '') }}" title="OCR 信心：{% if known %}{{ (certainty * 100)|round|int }}%{% else %}未知{% endif %}（不代表正確率{% if not known or certainty < 0.85 %}，請對照原圖核對{% endif %}）">信心 {% if known %}{{ (certainty * 100)|round|int }}%{% if certainty < 0.85 %}・偏低{% endif %}{% else %}未知{% endif %}</small>
@@ -469,9 +493,18 @@
   </details>
   <button class="button" type="submit" formnovalidate>確認並儲存</button>
 </form>
+  </div>
+  </div>
 {% endblock %}
 
 {% block scripts %}
+<script>
+  // 手機寬度：原圖預設收合，避免佔掉整個畫面
+  (() => {
+    const source = document.getElementById('review-source-doc');
+    if (source && window.matchMedia('(max-width: 600px)').matches) source.removeAttribute('open');
+  })();
+</script>
 {% if document.document_type == 'transcript' %}
 <script>
   (() => {
@@ -507,13 +540,27 @@
         input.readOnly = locked || (input.name.endsWith('_score') && !scoresUnlocked);
         input.classList.toggle('all-fields-locked', locked);
       }
-      const label = lockAllButton.querySelector('.lock-all-label');
-      if (label) label.textContent = locked ? '全部解鎖' : '全部鎖定';
-      lockAllButton.classList.toggle('is-unlocked', locked);
-      lockAllButton.setAttribute('aria-label', locked ? '全部解鎖欄位' : '全部鎖定欄位');
-      lockAllButton.setAttribute('title', locked ? '解鎖所有課程欄位' : '鎖定所有課程欄位');
+      refreshLockButton();
     };
-    if (lockAllButton) lockAllButton.addEventListener('click', () => setAllFieldsLock(!allFieldsLocked));
+    // 按鈕寫的是「按下去會怎樣」：一開始成績是鎖的，按一次就能改成績（10-27 實測問題 8）
+    const refreshLockButton = () => {
+      if (!lockAllButton) return;
+      const next = allFieldsLocked ? '全部解鎖' : (scoresUnlocked ? '全部鎖定' : '解鎖成績');
+      const label = lockAllButton.querySelector('.lock-all-label');
+      if (label) label.textContent = next;
+      lockAllButton.classList.toggle('is-unlocked', allFieldsLocked || !scoresUnlocked);
+      lockAllButton.setAttribute('aria-label', next);
+      lockAllButton.setAttribute('title', next);
+    };
+    if (lockAllButton) lockAllButton.addEventListener('click', () => {
+      if (!allFieldsLocked && !scoresUnlocked) {
+        setScoreLock(true);
+        refreshLockButton();
+      } else {
+        setAllFieldsLock(!allFieldsLocked);
+      }
+    });
+    refreshLockButton();
     for (const mode of document.querySelectorAll('input[name="course_input_mode"]')) {
       mode.addEventListener('change', () => {
         if (mode.checked && mode.value === 'json') setAllFieldsLock(false);

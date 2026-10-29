@@ -54,3 +54,17 @@ def test_pipeline_records_source_resolution_model_and_device():
     pipeline = (Path(__file__).resolve().parents[1] / "app" / "services" / "ocr_pipeline.py").read_text(encoding="utf-8")
     for key in ('"source"', '"dpi"', '"original_width"', '"tried_rotations"', '"model_tier"', '"device"', '"document_type"'):
         assert key in pipeline
+
+
+def test_missing_size_and_character_count_are_left_out_not_shown_as_zero():
+    assert describe_step({"step": "file_loaded", "width": 1200, "height": 900}) == "讀取檔案（1200×900 像素）。"
+    assert describe_step({"step": "file_loaded"}) == "讀取檔案。"
+    assert "抓到 12 個字元" in describe_step({"step": "ocr_text_extracted", "rotation": 0, "character_count": 12})
+    assert "個字元" not in describe_step({"step": "ocr_text_extracted", "rotation": 0})
+
+
+def test_demo_mode_steps_say_no_real_ocr_ran():
+    for step in ("file_loaded", "ocr_text_extracted"):
+        text = describe_step({"step": step, "mode": "deterministic_demo"})
+        assert "示範模式" in text
+        assert "像素" not in text and "0 個字元" not in text

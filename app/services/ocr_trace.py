@@ -53,6 +53,26 @@ def _resolution(item):
     return f"檢查解析度：長邊 {item.get('long_side')} 像素（{verdict}）。"
 
 
+DEMO_NOTE = "（示範模式，沒有真的辨識）"
+
+
+def _file_loaded(item):
+    if item.get("mode") == "deterministic_demo":
+        return f"讀取檔案{DEMO_NOTE}。"
+    size = _size(item.get("width"), item.get("height"))
+    return f"讀取檔案（{size} 像素）。" if size else "讀取檔案。"
+
+
+def _text_extracted(item):
+    if item.get("mode") == "deterministic_demo":
+        return f"產生示範文字{DEMO_NOTE}。"
+    text = f"辨識文字（旋轉 {item.get('rotation', 0)} 度）"
+    # 舊紀錄沒有字數時不寫，避免顯示成「0 個字元」
+    if "character_count" in item:
+        text += f"，抓到 {item['character_count']} 個字元"
+    return text + "。"
+
+
 def _credential_fields(item):
     kind = {"taiwan_technician_certificate": "中華民國技術士證",
             "possible_taiwan_technician_certificate": "疑似中華民國技術士證（標題需核對）"}.get(
@@ -66,12 +86,11 @@ DESCRIBERS = {
     "resolution_checked": _resolution,
     "credential_fields_parsed": _credential_fields,
     "credential_manual_review": lambda item: "證照類型或欄位沒有可靠辨識，請對照原圖人工填寫。",
-    "file_loaded": lambda item: f"讀取檔案（{_size(item.get('width'), item.get('height')) or '大小未記錄'} 像素）。",
+    "file_loaded": _file_loaded,
     "image_auto_aligned": lambda item: "自動校正圖片歪斜。",
     "table_lines_removed": lambda item: "去掉表格框線。",
     "transcript_panels_scanned": lambda item: f"掃描成績單的 {item.get('panel_count', '')} 個學年表格。",
-    "ocr_text_extracted": lambda item: (f"辨識文字（旋轉 {item.get('rotation', 0)} 度），"
-                                        f"抓到 {item.get('character_count', 0)} 個字元。"),
+    "ocr_text_extracted": _text_extracted,
     "fields_parsed": lambda item: (f"整理欄位：課程 {item.get('course_count', 0)} 門、"
                                    f"證照 {item.get('credential_count', 0)} 筆。"),
 }

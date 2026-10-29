@@ -14,6 +14,7 @@
 {{ page_band(page_title, [("活動與經歷", url_for('student.portfolio_list'))], note=portfolio.title if portfolio else "") }}
 <div class="page narrow page--banded">
   <section class="sheet">
+    {% if request.args.get("locked") %}<p class="alert mb-1" role="alert">{{ locked_message }}</p>{% endif %}
     {% if error %}
     <div class="mb-1">
       <p class="alert" role="alert">{{ error }}</p>
@@ -66,6 +67,10 @@
     </form>
   </section>
   {{ lightbox() }}
+  <form class="mt-1" method="post" action="{{ url_for('student.portfolio_delete', portfolio_id=portfolio.id) }}" data-confirm="確定要刪除「{{ portfolio.title }}」嗎？已送導師確認的經歷不能刪除。">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="link-button" type="submit">刪除這筆經歷</button>
+  </form>
   {% endif %}
 </div>
 {% endblock %}

@@ -45,7 +45,7 @@ def test_request_has_key_schema_and_pdf():
 
 def test_missing_key_raises_chinese_message():
     with make_app(AI_ENABLED=False).app_context():
-        with pytest.raises(AIUnavailable, match="金鑰"):
+        with pytest.raises(AIUnavailable, match="沒有開啟"):
             generate_json("x", {})
 
 

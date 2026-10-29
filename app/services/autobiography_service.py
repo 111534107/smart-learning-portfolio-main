@@ -17,7 +17,8 @@ from datetime import datetime, timezone
 from markupsafe import Markup, escape
 
 from app.extensions import db
-from app.models import CredentialRecord, LearningCourseRecord, LearningProfileOutput, Portfolio
+from app.models import AdmissionProgram, CredentialRecord, LearningCourseRecord, LearningProfileOutput, Portfolio, User
+from app.services import autobiography_backup
 from app.services.gap_service import ALL_LABELS
 from app.services.gemini_client import AIUnavailable, ai_ready, generate_json
 from app.services.journey_service import CATEGORY_LABELS
@@ -76,7 +77,7 @@ def build_facts(student, program):
             "evidence_id": f"credential:{credential.id}",
             "evidence_type": "credential",
         })
-    for record in (Portfolio.query.filter_by(student_id=student.id)
+    for record in (Portfolio.active().filter_by(student_id=student.id)
                    .filter(Portfolio.status.in_(CONFIRMED_PORTFOLIO_STATUSES)).order_by(Portfolio.id)):
         label = CATEGORY_LABELS.get(record.category)
         if label:
@@ -163,23 +164,25 @@ def generate_draft(student, program, answers, generate=None, api_key=None):
         if not paragraphs:
             raise AIUnavailable("AI 沒有產生內容，請再試一次。")
         provider = "gemini"
+    content = {
+        "program_id": program.id,
+        "answers": answers,
+        "paragraphs": paragraphs,
+        "facts": facts["items"],
+        "provider": provider,
+        "edited": False,
+        "version": _next_version(student.id, program.id),
+        "editor_id": student.id,
+        "editor_role": "ai",
+        "based_on": previous.id if previous else None,
+    }
+    content["backup_location"] = autobiography_backup.backup(student, program, content)
     output = LearningProfileOutput(
         student_id=student.id,
         output_type=OUTPUT_TYPE,
-        content_json={
-            "program_id": program.id,
-            "answers": answers,
-            "paragraphs": paragraphs,
-            "facts": facts["items"],
-            "provider": provider,
-            "edited": False,
-            "version": _next_version(student.id, program.id),
-            "editor_id": student.id,
-            "editor_role": "ai",
-            "based_on": previous.id if previous else None,
-        },
-    source_snapshot_json={"program_id": program.id, "fact_count": len(facts["items"]),
-                          "evidence_package": evidence_package,
+        content_json=content,
+        source_snapshot_json={"program_id": program.id, "fact_count": len(facts["items"]),
+                              "evidence_package": evidence_package,
                               "generated_at": datetime.now(timezone.utc).isoformat()},
     )
     db.session.add(output)
@@ -227,6 +230,13 @@ def _next_version(student_id, program_id):
     return 1 + max((version_of(o) for o in outputs if o.content_json.get("program_id") == program_id), default=0)
 
 
+def _backup_existing(student_id, content):
+    """存修改／取回的新版本也要備份到學校端；找不到學生或校系時當作備份失敗。"""
+    student = db.session.get(User, student_id)
+    program = db.session.get(AdmissionProgram, content.get("program_id"))
+    content["backup_location"] = autobiography_backup.backup(student, program, content) if student and program else ""
+
+
 def save_edits(output, texts, editor, comments=None):
     """逐段修改後儲存成**新的一版**，回傳新版本；舊版不動。
 
@@ -259,6 +269,7 @@ def save_edits(output, texts, editor, comments=None):
         "editor_role": editor.role,
         "based_on": output.id,
     })
+    _backup_existing(output.student_id, content)
     new_version = LearningProfileOutput(
         student_id=output.student_id,
         output_type=OUTPUT_TYPE,
@@ -294,6 +305,7 @@ def save_imported(output, paragraphs, editor, origin):
         "based_on": output.id,
         "origin": origin,
     })
+    _backup_existing(output.student_id, content)
     new_version = LearningProfileOutput(
         student_id=output.student_id,
         output_type=OUTPUT_TYPE,

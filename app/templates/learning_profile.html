@@ -30,7 +30,7 @@
               <tr>
                 <td>{{ document.display_name }}</td>
                 <td>{{ status_chip(record_state(document)) }}</td>
-                <td class="mono small">{{ document.created_at.strftime("%Y-%m-%d") }}</td>
+                <td class="mono small">{{ document.created_at|taipei_time("%Y-%m-%d") }}</td>
                 <td>{% if document.status in ("queued", "processing") %}<a class="button button--small button--line" href="{{ url_for('student.learning_profile_document_processing', document_id=document.id) }}">辨識中…</a>
                   {% else %}<a class="button button--small {{ 'button--line' if document.status == 'confirmed' else '' }}" href="{{ url_for('student.learning_profile_document_review', document_id=document.id) }}">{{ "修改" if document.status == "confirmed" else "確認" }}</a>
                   <form class="inline-form" method="post" action="{{ url_for('student.learning_profile_document_reanalyze', document_id=document.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small button--line" type="submit" title="重新辨識會建立新的待確認草稿；已確認的資料會保留到再次確認。">重新辨識</button></form>{% endif %}</td>

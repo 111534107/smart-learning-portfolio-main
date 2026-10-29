@@ -24,10 +24,16 @@ def preview_kind(filename):
 
 
 def inline_file(file_path, filename):
-    """在瀏覽器直接顯示檔案；不能預覽或檔案不見了就回 404。"""
-    if not preview_kind(filename) or not file_path or not Path(file_path).is_file():
+    """在瀏覽器直接顯示檔案；不能預覽或檔案不見了（含雲端暫時拿不到）就回 404。
+
+    file_path 是資料庫裡的檔案位置，由 storage_service 換成本機可讀的路徑。
+    """
+    from app.services import storage_service
+
+    path = storage_service.local_path_or_none(file_path) if preview_kind(filename) else None
+    if path is None:
         abort(404)
     # 轉成絕對路徑：send_file 會把相對路徑當成相對於 app/ 資料夾，而上傳檔是相對於專案資料夾
-    response = send_file(Path(file_path).resolve(), mimetype=PREVIEW_TYPES[extension(filename)])
+    response = send_file(Path(path).resolve(), mimetype=PREVIEW_TYPES[extension(filename)])
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response

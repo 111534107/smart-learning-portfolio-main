@@ -20,9 +20,40 @@
     </div>
   </div>
   {% if request.args.get("imported") is not none %}<p class="notice mb-1" role="status">已從獎懲記錄匯入 {{ request.args.get("imported") }} 筆（已經匯入過的不會重複）。</p>{% endif %}
+  {% if request.args.get("deleted") %}<p class="notice mb-1" role="status">已刪除這筆經歷。</p>{% endif %}
   {% if request.args.get("confirmed") %}<p class="notice mb-1" role="status">已確認，這筆經歷之後可以被自傳小幫手引用。</p>{% endif %}
   {% if unconfirmed_count %}<p class="notice notice--warn mb-1">有 {{ unconfirmed_count }} 筆經歷還沒確認。<b>確認過的經歷才會被 AI 寫進自傳、送給導師確認。</b></p>{% endif %}
   {% if request.args.get("added") %}<p class="notice mb-1" role="status">已新增一筆{{ category_labels.get(request.args.get("added"), "") }}。</p>{% endif %}
+
+  {# DEMO-03：活動適合學校。點學校，用得到的紀錄會亮起來 #}
+  <section class="fit-brief" id="fit-brief" aria-labelledby="fit-brief-title">
+    {% if fit.summary %}
+    <h2 id="fit-brief-title" class="fit-brief__title">你的 {{ fit.record_count }} 筆活動，最能用在：{% for school in fit.summary_schools %}<span class="fit-brief__name">{{ school }}</span>{% if not loop.last %}、{% endif %}{% endfor %}</h2>
+    <ol class="fit-brief__list">
+      {% for row in fit.summary %}
+      <li>
+        <button type="button" class="fit-pick fit-brief__row" data-fit-pick="{{ row.program.id }}" data-fit-name="{{ row.name }}（{{ row.channel }}）" aria-pressed="false">
+          <span class="fit-brief__rank">{{ loop.index }}</span>
+          <span class="fit-brief__school">{{ row.name }} <small>{{ row.channel }}</small></span>
+          <span class="fit-brief__meta">幫得上 {{ row.count }} 筆；用得上的甄審項目最高占 {{ row.weight }}%</span>
+        </button>
+      </li>
+      {% endfor %}
+    </ol>
+    <p class="fit-brief__hint" id="fit-status" role="status">點一間學校，看你哪幾筆紀錄用得上。</p>
+    {% elif fit.record_count %}
+    <h2 id="fit-brief-title" class="fit-brief__title">你的 {{ fit.record_count }} 筆活動，{{ fit.empty_note }}。</h2>
+    {% else %}
+    <h2 id="fit-brief-title" class="fit-brief__title">新增第一筆活動後，這裡會告訴你它能用在哪些學校的甄審。</h2>
+    {% endif %}
+    <p class="fit-brief__scope muted small">
+      {% if fit.scope == "target" %}依你選的 {{ fit.programs|length }} 個目標校系的甄審加權比對。
+      {% elif fit.programs %}你還沒選目標校系，先用推薦排序裡前 {{ fit.programs|length }} 個可報、和你背景相關的校系比對。
+      {% else %}目前沒有可報的推薦校系可以比對。
+      {% endif %}
+      <a href="{{ url_for('student.target_list') }}">{{ "看目標校系" if fit.scope == "target" else "選目標校系" }}</a>
+    </p>
+  </section>
 
   {% for key in categories %}
   {% set records = grouped[key] %}
@@ -34,7 +65,8 @@
     {% if records %}
     <div class="record-cards">
       {% for record in records %}
-      <div class="record-card-slot">
+      {% set fits = fit.by_record.get(record.id, []) %}
+      <div class="record-card-slot" data-fit-programs="{% for entry in fits %}{{ entry.program.id }} {% endfor %}">
       <a class="record-card record-card--link" href="{{ url_for('student.portfolio_edit', portfolio_id=record.id) }}">
         <div class="record-card__meta">
           {{ status_chip(record_state(record)) }}
@@ -49,6 +81,24 @@
         <h3>{{ record.title }}</h3>
         {% if record.description %}<p>{{ record.description }}</p>{% endif %}
       </a>
+      {% if fits %}
+      <div class="fit-line">
+        <p class="fit-line__label">對這些學校的甄審有幫助</p>
+        <ul class="fit-line__list">
+          {% for entry in fits %}
+          <li>
+            <button type="button" class="fit-pick fit-line__school" data-fit-pick="{{ entry.program.id }}" data-fit-name="{{ entry.name }}（{{ entry.channel }}）" aria-pressed="false">
+              <span class="fit-line__name">{{ entry.name }} <small>{{ entry.channel }}</small></span>
+              <span class="fit-line__weight">可放進「{{ entry.item }}」（這個項目占 {{ entry.weight }}%）</span>
+              <span class="fit-bar" style="--w: {{ entry.weight }}%" aria-hidden="true"><i></i></span>
+            </button>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% else %}
+      <p class="fit-line fit-line--empty">{{ fit.empty_note }}。</p>
+      {% endif %}
       {% if record.status == "draft" %}
       <form method="post" action="{{ url_for('student.portfolio_confirm', portfolio_id=record.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -79,3 +129,49 @@
 {% endblock %}
 
 {% block footer %}{{ footer() }}{% endblock %}
+
+{% block scripts %}
+<script>
+/* DEMO-03：點一間學校，用得到的紀錄亮起來；占比長條進到畫面時才長出來 */
+(function () {
+  var page = document.querySelector(".page--banded");
+  var status = document.getElementById("fit-status");
+  if (!page) return;
+  var picked = null;
+  function pick(id, name) {
+    picked = picked === id ? null : id;
+    page.classList.toggle("is-fit-picking", picked !== null);
+    var lit = 0;
+    page.querySelectorAll(".record-card-slot").forEach(function (slot) {
+      var on = picked !== null && (" " + slot.dataset.fitPrograms).indexOf(" " + picked + " ") !== -1;
+      slot.classList.toggle("is-fit-lit", on);
+      if (on) lit += 1;
+    });
+    page.querySelectorAll(".fit-pick").forEach(function (button) {
+      var on = button.dataset.fitPick === picked;
+      button.classList.toggle("is-fit-lit", on);
+      button.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    if (status) {
+      status.textContent = picked === null ? "點一間學校，看你哪幾筆紀錄用得上。"
+        : name + " 用得上你 " + lit + " 筆紀錄（再點一次取消）。";
+    }
+  }
+  page.addEventListener("click", function (event) {
+    var button = event.target.closest(".fit-pick");
+    if (button) pick(button.dataset.fitPick, button.dataset.fitName);
+  });
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape" && picked !== null) pick(picked, "");
+  });
+  if (!("IntersectionObserver" in window) || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  page.classList.add("fit-ready");
+  var observer = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (entry.isIntersecting) { entry.target.classList.add("is-shown"); observer.unobserve(entry.target); }
+    });
+  }, { threshold: 0.4 });
+  page.querySelectorAll(".fit-line, .fit-brief").forEach(function (el) { observer.observe(el); });
+})();
+</script>
+{% endblock %}

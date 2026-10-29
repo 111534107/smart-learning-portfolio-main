@@ -39,7 +39,7 @@ def _retry_delay(error_body):
 def _post(body, api_key, opener, model=None):
     """送出請求並回傳 JSON。免費額度有「每分鐘次數」限制，遇到 429 會等一下再試一次。"""
     if not api_key and not ai_ready():
-        raise AIUnavailable("AI 尚未啟用（尚未設定 Gemini 金鑰：.env 的 AI_ENABLED、AI_PROVIDER、AI_API_KEY）。")
+        raise AIUnavailable("學校的 AI 目前沒有開啟，請稍後再試或洽系統管理員。")  # 設定方式寫在 .env.example，不給學生看變數名
     request = urllib.request.Request(
         API_URL.format(model=model or current_app.config.get("GEMINI_MODEL", "gemini-2.5-flash")),
         data=json.dumps(body, ensure_ascii=False).encode("utf-8"),

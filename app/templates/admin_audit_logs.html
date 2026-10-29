@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "admin-audit-logs" %}
+{% set role_labels = {"student": "學生", "teacher": "導師", "staff": "科辦", "admin": "管理者"} %}
+
+{% block title %}操作紀錄｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "操作紀錄") }}{% endblock %}
+
+{% block content %}
+<section class="work-shell work-shell--wide" data-work-role="admin">
+  <header class="work-heading">
+    <div><h1>操作紀錄</h1><p>登入、確認、送審、刪除、上傳等動作的最近 200 筆。只記動作與對象編號，不記內容、姓名與學號；要知道是誰，用使用者編號到帳號管理查。</p></div>
+  </header>
+  <section class="work-panel">
+    <form class="admin-inline-form" method="get">
+      <label>動作<select name="action">
+        <option value="">全部動作</option>
+        {% for code in actions %}<option value="{{ code }}"{% if code == action %} selected{% endif %}>{{ label(code) }}</option>{% endfor %}
+      </select></label>
+      <button class="button" type="submit">篩選</button>
+      {% if action %}<a class="button button--line" href="{{ url_for('admin.audit_logs') }}">清除</a>{% endif %}
+    </form>
+  </section>
+  <section class="work-panel">
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>時間</th><th>角色</th><th>使用者編號</th><th>動作</th><th>對象</th></tr></thead>
+        <tbody>
+          {% for log in logs %}
+          <tr>
+            <td class="mono">{{ log.created_at|taipei_time }}</td>
+            <td>{{ role_labels.get(log.user.role, log.user.role) if log.user else "系統" }}</td>
+            <td class="mono">{{ log.user_id or "—" }}</td>
+            <td>{{ label(log.action) }}<br><small class="muted mono">{{ log.action }}</small></td>
+            <td class="mono">{% if log.target_type %}{{ log.target_type }} #{{ log.target_id }}{% else %}—{% endif %}</td>
+          </tr>
+          {% else %}
+          <tr class="empty-row"><td colspan="5">{{ "沒有這個動作的紀錄。" if action else "還沒有操作紀錄。" }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</section>
+{% endblock %}

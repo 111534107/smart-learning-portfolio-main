@@ -12,6 +12,7 @@
 
 import hashlib
 import re
+import ssl
 import urllib.request
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -20,9 +21,9 @@ from flask import current_app
 
 from app.extensions import db
 from app.models import (
-    AdmissionEligibilityRule,
     AdmissionProgram,
     AdmissionRequirementItem,
+    AdmissionScheduleEvent,
     AgentTask,
     PublicSource,
     PublicSourceChange,
@@ -57,10 +58,21 @@ def add_source(name, url=None, upload_name=None):
     return source
 
 
+def _ssl_context():
+    """照常驗證憑證與網域；只關掉 Python 3.13 新增的嚴格 X.509 檢查。
+
+    部分學校與政府網站（例如技專校院招生委員會聯合會）的憑證缺少 Subject Key Identifier，
+    瀏覽器可以開，但嚴格檢查會拒絕連線。
+    """
+    context = ssl.create_default_context()
+    context.verify_flags &= ~ssl.VERIFY_X509_STRICT
+    return context
+
+
 def fetch_url(url):
     """下載官方網頁或 PDF，回傳 (內容, Content-Type)。"""
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(request, timeout=30) as response:
+    with urllib.request.urlopen(request, timeout=30, context=_ssl_context()) as response:
         content = response.read(MAX_DOWNLOAD + 1)
         if len(content) > MAX_DOWNLOAD:
             raise ValueError("檔案超過 30MB，請改用手動上傳")
@@ -110,7 +122,7 @@ def check_source(source, requester, fetch=fetch_url, content=None, content_type=
     try:
         if content is None:
             content, content_type = fetch(source.url)
-        digest = hashlib.sha256(content).hexdigest()
+        digest = _fingerprint(content, content_type)
         previous = (PublicSourceSnapshot.query.filter_by(source_id=source.id)
                     .order_by(PublicSourceSnapshot.id.desc()).first())
         if previous and previous.content_hash == digest:
@@ -134,10 +146,10 @@ def check_source(source, requester, fetch=fetch_url, content=None, content_type=
         return _finish(task, "failed", error=f"抓取失敗：{exc}")
 
 
-def check_all(requester):
-    """排程用：檢查所有啟用中的網址來源（flask agent-check）。"""
+def check_all(requester, fetch=fetch_url):
+    """排程用：檢查所有啟用中的網址來源（flask agent-check、升學 Agent 巡查）。fetch 可換成假的（測試用）。"""
     sources = PublicSource.query.filter_by(is_active=True, source_type="url").all()
-    return [check_source(source, requester) for source in sources]
+    return [check_source(source, requester, fetch=fetch) for source in sources]
 
 
 # ---------- 第三階段：擷取加權 ----------
@@ -155,22 +167,6 @@ EXTRACT_SCHEMA = {
                     "school_name": {"type": "STRING"},
                     "department_name": {"type": "STRING"},
                     "admission_category": {"type": "STRING"},
-                    "eligibility_rules": {
-                        "type": "ARRAY",
-                        "items": {
-                            "type": "OBJECT",
-                            "properties": {
-                                "rule_group": {"type": "INTEGER"},
-                                "condition_type": {"type": "STRING"},
-                                "operator": {"type": "STRING"},
-                                "value_json": {"type": "OBJECT"},
-                                "description": {"type": "STRING"},
-                                "source_location": {"type": "STRING"},
-                                "is_required": {"type": "BOOLEAN"},
-                            },
-                            "required": ["description", "source_location"],
-                        },
-                    },
                     "items": {
                         "type": "ARRAY",
                         "items": {
@@ -184,13 +180,34 @@ EXTRACT_SCHEMA = {
                         },
                     },
                 },
-                "required": ["program_code", "admission_year", "school_name", "department_name", "items",
-                             "eligibility_rules"],
+                "required": ["program_code", "admission_year", "school_name", "department_name", "items"],
+            },
+        },
+        "schedule": {
+            "type": "OBJECT",
+            "properties": {
+                "channel": {"type": "STRING"},
+                "admission_year": {"type": "INTEGER"},
+                "events": {
+                    "type": "ARRAY",
+                    "items": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "name": {"type": "STRING"},
+                            "start": {"type": "STRING"},
+                            "end": {"type": "STRING"},
+                            "note": {"type": "STRING"},
+                        },
+                        "required": ["name", "start"],
+                    },
+                },
             },
         },
     },
     "required": ["programs"],
 }
+
+SCHEDULE_CHANNELS = {"skill_review"}
 
 
 def _extract_prompt(keywords, page_text=None):
@@ -201,55 +218,48 @@ def _extract_prompt(keywords, page_text=None):
 - school_name、department_name、admission_category（招生類別，例如「管理類四」）
 - items：備審資料（第二階段）的每個評分項目名稱與加權百分比（整數，照原文）
 - categories：建議這個項目對應的資料類別，只能從這些代碼選：{categories}
-- eligibility_rules：只擷取簡章明確寫出的第一階段報名資格；每筆包含 rule_group（同組條件必須同時符合，不同組是替代資格）、condition_type（student_status、credential、competition）、operator、value_json、description（保留簡章原意）及 source_location（頁碼／章節）。
-- value_json 只使用可直接對照學生結構化資料的欄位：學籍可用 field（class_name 或 admission_year）及 values；證照可用 name、min_level、issuer、issue_date_from、issue_date_to；競賽只可表達是否有已確認競賽經歷。
 
-規則：只擷取文件裡真的有寫的內容，看不清楚或沒有寫的不要猜；獎項、名次或日期等目前沒有對應學生欄位的條件，不要轉成可自動判斷的 value_json，只保留 description 並讓 condition_type、operator 或 value_json 留空；保留該條原文和頁碼／章節供管理者核對。不符合關鍵字的科系不要列出。"""
+規則：只擷取文件裡真的有寫的內容，看不清楚或沒有寫的不要猜；不符合關鍵字的科系不要列出。
+
+另外，如果文件有「重要日程表」，請填 schedule：
+- channel：二技技優保送／技優甄審的日程填 skill_review；其他招生管道填 other
+- admission_year：學年度（民國年，例如 116）
+- events：考生要注意的每一個日程，只取【技優甄審】欄或兩欄共用的項目；學校之間的行政作業（例如寄送錄取名單）不要列
+  - 只出現在【技優保送】欄的項目（例如網路查詢成績排名、成績排名複查、網路選填志願）不要列；日期請對準【技優甄審】欄那一列
+  - name：項目名稱，20 個字以內（例如「網路報名」「登記就讀志願序」）；說明、電話、注意事項一律放 note，不要放進 name
+  - start、end：轉成西元「YYYY-MM-DD HH:MM」（民國年加 1911，例如 115.4.9 → 2026-04-09）；沒寫時間的開始用 00:00、結束用 23:59
+  - 「…前」「…止」這種截止時間只有一個時間點：start 填那個時間、end 留空
+  - note：注意事項（例如「當日只到 17:00」），沒有就留空
+沒有日程表就不要填 schedule。"""
     if page_text:
         prompt += "\n\n文件內容：\n" + page_text[:200000]
     return prompt
 
 
+# 網頁上每次都會變、但和招生內容無關的計數器，比對前先拿掉（例如「網站人次：1666538」）
+COUNTER = re.compile(r"(網站|瀏覽|訪客|參觀|累計|今日|本日)?(人次|人數|點閱數|點閱率|瀏覽數)\s*[:：]?\s*[\d,]+")
+
+
+def _decode(content):
+    """學校網站常是 Big5：先試 UTF-8，不行再用 cp950（Big5 的 Windows 版）。"""
+    try:
+        return content.decode("utf-8")
+    except UnicodeDecodeError:
+        return content.decode("cp950", errors="ignore")
+
+
+def _fingerprint(content, content_type):
+    """判斷來源有沒有更新用的雜湊：PDF 比原始檔；網頁比去掉標籤與計數器後的文字。"""
+    if content_type == "text/html":
+        text = COUNTER.sub(" ", _html_to_text(content))
+        return hashlib.sha256(re.sub(r"\s+", " ", text).strip().encode("utf-8")).hexdigest()
+    return hashlib.sha256(content).hexdigest()
+
+
 def _html_to_text(content):
-    text = content.decode("utf-8", errors="ignore")
+    text = _decode(content)
     text = re.sub(r"(?is)<(script|style).*?</\1>", " ", text)
     return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", text))
-
-
-def _eligibility_candidate(raw, source_url, sort_order):
-    """只將結構明確的擷取結果留下可比對欄位；其他內容退為待核對原文。"""
-    raw = raw if isinstance(raw, dict) else {"description": raw if isinstance(raw, str) else ""}
-    description = str(raw.get("description") or "").strip()
-    location = str(raw.get("source_location") or "").strip() or None
-    condition_type = str(raw.get("condition_type") or "").strip()
-    operator = str(raw.get("operator") or "").strip()
-    value = raw.get("value_json")
-    group_value = raw.get("rule_group")
-    group = group_value if isinstance(group_value, int) and not isinstance(group_value, bool) else 0
-    supported = {
-        ("student_status", "in"),
-        ("credential", "has_credential"),
-        ("competition", "has_competition"),
-    }
-    structured = (condition_type, operator) in supported and isinstance(value, dict) and group >= 1
-    if not description:
-        description = "擷取到資格區塊，但未能可靠整理條件；請管理者回到官方簡章核對。"
-    if not structured:
-        condition_type = operator = "unresolved"
-        value = None
-        group = max(group, 1)
-    return {
-        "rule_group": group,
-        "condition_type": condition_type,
-        "operator": operator,
-        "value_json": value,
-        "description": description[:2000],
-        "source_url": source_url,
-        "source_location": location,
-        "mapping_status": "pending",
-        "is_required": raw.get("is_required") if isinstance(raw.get("is_required"), bool) else True,
-        "sort_order": sort_order,
-    }
 
 
 def extract_programs(change, requester, generate=None):
@@ -304,21 +314,53 @@ def extract_programs(change, requester, generate=None):
                 rule_version_id=program.id, source_item_name=str(item.get("name", "")).strip()[:100] or "（未命名）",
                 weight_percent=weight, mapped_categories=",".join(keys), mapping_status="pending", sort_order=order,
             ))
-        official_url = None if source.url.startswith("upload://") else source.url
-        raw_rules = raw.get("eligibility_rules")
-        if not isinstance(raw_rules, list) or not raw_rules:
-            raw_rules = [{
-                "description": "未能擷取到可核對的報名資格條件；請管理者回到官方簡章確認。",
-                "source_location": None,
-            }]
-        for order, raw_rule in enumerate(raw_rules, start=1):
-            db.session.add(AdmissionEligibilityRule(
-                rule_version_id=program.id,
-                **_eligibility_candidate(raw_rule, official_url, order),
-            ))
         created.append(code)
+    schedule_created, schedule_skipped = _save_schedule(result.get("schedule") or {}, change, source)
     change.status = "extracted"
-    return _finish(task, "succeeded", {"created": created, "skipped": skipped})
+    return _finish(task, "succeeded", {"created": created, "skipped": skipped,
+                                       "schedule_created": schedule_created, "schedule_skipped": schedule_skipped})
+
+
+def _parse_time(text):
+    try:
+        return datetime.strptime(str(text or "").strip(), "%Y-%m-%d %H:%M")
+    except ValueError:
+        return None
+
+
+def _save_schedule(schedule, change, source):
+    """把擷取到的日程存成候選；日期看不懂、結束比開始早的項目略過。回傳 (新增數, 略過數)。"""
+    if schedule.get("channel") not in SCHEDULE_CHANNELS:
+        return 0, 0
+    try:
+        year = int(schedule.get("admission_year"))
+    except (TypeError, ValueError):
+        return 0, len(schedule.get("events") or [])
+    if not 100 <= year <= 200:
+        return 0, len(schedule.get("events") or [])
+    created = skipped = 0
+    for raw in schedule.get("events") or []:
+        name = str(raw.get("name", "")).strip()[:100]
+        start, end = _parse_time(raw.get("start")), _parse_time(raw.get("end")) if str(raw.get("end") or "").strip() else None
+        bad_end = str(raw.get("end") or "").strip() and end is None
+        if not name or start is None or bad_end or (end and end < start) or not 2000 <= start.year <= 2100:
+            skipped += 1
+            continue
+        duplicate = AdmissionScheduleEvent.query.filter(
+            AdmissionScheduleEvent.channel == schedule["channel"], AdmissionScheduleEvent.admission_year == year,
+            AdmissionScheduleEvent.name == name, AdmissionScheduleEvent.start_at == start,
+            AdmissionScheduleEvent.end_at.is_(end) if end is None else AdmissionScheduleEvent.end_at == end,
+            AdmissionScheduleEvent.status.in_(["candidate", "published"])).first()
+        if duplicate:
+            continue
+        db.session.add(AdmissionScheduleEvent(
+            channel=schedule["channel"], admission_year=year, name=name, start_at=start, end_at=end,
+            note=str(raw.get("note") or "").strip()[:255] or None,
+            source_url=None if source.url.startswith("upload://") else source.url,
+            status="candidate", data_origin="agent", change_id=change.id,
+        ))
+        created += 1
+    return created, skipped
 
 
 def compare_with_published(program):

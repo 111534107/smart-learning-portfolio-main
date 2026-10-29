@@ -57,10 +57,11 @@
       </details>
       {% else %}<p class="notice">本機展示模式不呼叫外部 AI；草稿只用合成資料在本機排列。</p>{% endif %}
       {% if school_turns is not none %}<p class="small muted">今天學校 AI 還能用 {{ school_turns }} 次（每人每天 {{ config.SCHOOL_AI_DAILY_LIMIT }} 次）；用自己的金鑰不限次數。</p>{% endif %}
+      {% if review_note %}<p class="notice" role="status">{{ review_note }}。</p>{% endif %}
       <div class="ask__nav">
         <button class="button button--line" type="button" data-step-prev>← 上一題</button>
         <button class="button button--line" type="button" data-step-next>下一題 →</button>
-        <button class="button" type="submit" data-step-submit
+        <button class="button" type="submit" data-step-submit{% if review_note %} disabled{% endif %}
                 data-busy-text="{{ '正在整理本機示範草稿…' if config.LOCAL_DEMO_MODE else 'AI 正在寫草稿…（約 10～30 秒）' }}">
           {{ "產生示範草稿" if config.LOCAL_DEMO_MODE else "請 AI 寫草稿" }}
         </button>
@@ -102,10 +103,11 @@
 
   {% set gdoc = google_docs_panel(user, program) %}
   {% if gdoc.message %}<p class="{{ 'notice' if gdoc.message[0] == 'ok' else 'notice notice--warn' }} mb-1" role="status">{{ gdoc.message[1] }}</p>{% endif %}
-  <section class="sheet mb-1 google-doc" aria-label="Google 文件">
+  <section class="sheet mb-1 google-doc" aria-labelledby="google-doc-title">
+    <h2 class="h3" id="google-doc-title">在自己的 Google 文件中編輯</h2>
     <div class="list-head">
       <p class="small muted">
-        {% if not gdoc.configured %}想在 Google 文件裡改也可以，但學校還沒設定 Google 連線。請先在下面直接編輯。
+        {% if not gdoc.configured %}學校尚未設定 Google 連線。設定好之後可以把草稿放到你自己的 Google 文件修改；現在請先在下面直接編輯。
         {% elif gdoc.link %}Google 文件建立於 {{ gdoc.link.created_at.strftime('%Y-%m-%d %H:%M') }}（從第 {{ gdoc.based_on_version }} 版建立{% if gdoc.link.last_pulled_at %}，最後取回 {{ gdoc.link.last_pulled_at.strftime('%Y-%m-%d %H:%M') }}{% endif %}）。在 Google 改完請按「取回」，系統會存成新的一版；之後在系統內的修改不會自動同步到 Google。
         {% else %}可以把這份草稿放到你自己的 Google 雲端硬碟用 Google 文件修改。系統只能碰它自己建立的這份文件，送導師確認仍用系統內的版本。{% endif %}
       </p>
@@ -132,6 +134,7 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="list-head">
       <p class="muted">第 {{ version }} 版。AI 草稿只是起點，請改成你自己的話；每次儲存都會留下一版。<span class="mono" data-char-total></span></p>
+      {% if backup_label %}<p class="small {{ 'muted' if backup_label != '備份失敗' else 'notice notice--warn' }}" role="status">{{ backup_label }}{% if backup_label == '備份失敗' %}：這一版仍已存在系統裡，只是學校端的 Word 備份沒有存成功，下次儲存會再備份一次。{% else %}（每一版都會另存一份 Word 檔）{% endif %}</p>{% endif %}
       <div class="record-card__actions">
         <a class="button button--line" href="{{ url_for('student.autobiography_versions', program_id=program.id) }}">版本紀錄</a>
         <a class="button button--line" href="{{ url_for('student.autobiography', program_id=program.id, redo=1) }}">重新回答問題</a>
@@ -158,6 +161,11 @@
         <section aria-label="疑點">
           <h3>疑點</h3>
           <p class="review-line"><span aria-hidden="true">{{ review.icon }}</span> {{ review.issue }}</p>
+          {% if review.unsupported %}
+          <ul class="unsupported-list" aria-label="找不到依據的句子">
+            {% for sentence in review.unsupported %}<li><q>{{ sentence }}</q></li>{% endfor %}
+          </ul>
+          {% endif %}
         </section>
         <section aria-label="建議">
           <h3>建議</h3>

@@ -13,6 +13,14 @@ from app.services.journey_service import academic_year_of
 
 DEMO_PASSWORD = "demo2026"
 
+# 登入頁「Demo 快速登入」列出的帳號（只有設定 DEMO_ACCOUNTS 的展示站會顯示）
+DEMO_ACCOUNTS = [
+    {"role": "student", "label": "學生", "username": "student_demo", "password": DEMO_PASSWORD, "name": "合成學生"},
+    {"role": "teacher", "label": "導師", "username": "teacher_demo", "password": DEMO_PASSWORD, "name": "合成導師"},
+    {"role": "staff", "label": "科辦", "username": "staff_demo", "password": DEMO_PASSWORD, "name": "合成科助"},
+    {"role": "admin", "label": "管理者", "username": "admin_demo", "password": DEMO_PASSWORD, "name": "合成管理者"},
+]
+
 
 class SerializedWSGI:
     """讓展示站一次只處理一個請求（網站仍可同時接受多條連線）。
@@ -49,6 +57,7 @@ def create_local_demo_app():
         "TESTING": False,
         "SECRET_KEY": "local-demo-only-not-for-production",
         "LOCAL_DEMO_MODE": True,
+        "DEMO_ACCOUNTS": DEMO_ACCOUNTS,
         "AI_ENABLED": False,
         "AI_PROVIDER": "none",
         "AI_API_KEY": "",

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer with context %}
+{% set page_name = "error-page" %}
+
+{% block title %}{{ title }}｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user) }}{% endblock %}
+
+{% block content %}
+<div class="page narrow">
+  <section class="sheet">
+    <h1 class="sheet__head">{{ title }}</h1>
+    <p class="mb-1">{{ message }}</p>
+    <div class="record-card__actions">
+      {% if code == 401 %}
+      <a class="button" href="{{ url_for('main.login', next=next_path) if next_path else url_for('main.login') }}">去登入</a>
+      {% endif %}
+      <a class="button button--line" href="{{ url_for('main.index') }}">回首頁</a>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

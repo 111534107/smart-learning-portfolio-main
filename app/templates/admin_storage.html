@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "admin-storage" %}
+
+{% block title %}檔案存放設定｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "檔案存放設定") }}{% endblock %}
+
+{% block content %}
+<section class="work-shell" data-work-role="admin">
+  <header class="work-heading">
+    <div><h1>檔案存放設定</h1><p>學生上傳的成績單、證照、佐證檔案存在哪裡。資料庫只記檔案編號與位置；Google 雲端硬碟只當原始檔案倉庫，AI 不會直接瀏覽雲端硬碟。</p></div>
+  </header>
+
+  {% if message %}<p class="{{ 'notice' if message[0] == 'ok' else 'alert' }} mb-1" role="status">{{ message[1] }}</p>{% endif %}
+
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>目前狀態</h2></div></div>
+    <p><strong>目前存在：{{ "Google 雲端硬碟" if active == "google_drive" else "本機" }}</strong></p>
+    <p class="muted small">自傳備份也存在這裡：學生每產生或儲存一版自傳，系統會另存一份 Word 檔（檔名「自傳_學號_校系_第幾版.docx」）。Google 雲端硬碟模式放在「{{ folder_name }}」資料夾；本機模式放在上傳資料夾的 <code>autobiography</code> 子資料夾。正式版本仍以系統資料庫為準。</p>
+    {% if not wants_drive %}
+    <p class="muted small">設定是本機（<code>STORAGE_BACKEND=local</code>，預設）。要改存 Google 雲端硬碟，請依設定文件修改 <code>.env</code> 後重開網站。{% if not configured %}（Google 雲端硬碟 OAuth 尚未設定）{% endif %}</p>
+    {% elif not configured %}
+    <p class="alert">Google 雲端硬碟尚未設定：<code>.env</code> 的 OAuth 欄位沒填齊，所以先存本機。</p>
+    {% elif not connected %}
+    <p class="notice">Google 雲端硬碟已設定，尚未連線。連線前新上傳的檔案都存本機。</p>
+    {% else %}
+    <p class="notice">已連上 Google 雲端硬碟（只授權本系統建立的檔案，權杖只放伺服器記憶體；網站重開後要重新連線）。</p>
+    {% endif %}
+  </section>
+
+  {% if wants_drive and configured %}
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>連線</h2></div></div>
+    {% if connected %}
+    <form class="admin-inline-form" method="post" action="{{ url_for('storage.disconnect') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="button button--secondary" type="submit">中斷 Google 雲端硬碟</button>
+    </form>
+    {% else %}
+    <form class="admin-inline-form" method="post" action="{{ url_for('storage.connect') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="button" type="submit">連上 Google 雲端硬碟</button>
+    </form>
+    {% endif %}
+    <p class="muted small">連線時請登入要存放檔案的 Google 帳號（目前用個人帳號測試；正式導入改學校 Workspace）。每次連線、中斷都會記入稽核紀錄。</p>
+  </section>
+  {% endif %}
+</section>
+{% endblock %}

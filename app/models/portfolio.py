@@ -28,6 +28,8 @@ class Portfolio(db.Model):
     source = db.Column(db.String(30), nullable=False, default="student", server_default="student")
     source_document_id = db.Column(db.Integer, db.ForeignKey("source_documents.id"), nullable=True, index=True)
     submitted_at = db.Column(db.DateTime, nullable=True)
+    # 學生刪除只標記時間，資料列保留（規格 M10）；讀經歷一律用 Portfolio.active() 排除
+    deleted_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(
         db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
     )
@@ -42,13 +44,21 @@ class Portfolio(db.Model):
     source_document = db.relationship("SourceDocument")
     certificate = db.relationship("AwardCertificate", back_populates="portfolio", uselist=False,
                                   cascade="all, delete-orphan")
+    # evidence_items 只含沒刪除的佐證；all_evidence_items 連已刪除的也算（只讀）
     evidence_items = db.relationship(
-        "PortfolioEvidence", back_populates="portfolio", cascade="all, delete-orphan"
+        "PortfolioEvidence", back_populates="portfolio", cascade="all, delete-orphan",
+        primaryjoin="and_(Portfolio.id == PortfolioEvidence.portfolio_id, PortfolioEvidence.deleted_at.is_(None))",
     )
+    all_evidence_items = db.relationship("PortfolioEvidence", viewonly=True, order_by="PortfolioEvidence.id")
     submissions = db.relationship(
         "PortfolioSubmission", back_populates="portfolio", cascade="all, delete-orphan",
         order_by="PortfolioSubmission.version_no",
     )
+
+    @classmethod
+    def active(cls):
+        """沒被學生刪除的經歷。讀經歷的地方都從這裡開始查。"""
+        return cls.query.filter(cls.deleted_at.is_(None))
 
     @property
     def source_label(self):
@@ -67,11 +77,12 @@ class PortfolioEvidence(db.Model):
     file_path = db.Column(db.String(255), nullable=True)
     external_url = db.Column(db.String(500), nullable=True)
     is_available = db.Column(db.Boolean, nullable=False, default=True)
+    deleted_at = db.Column(db.DateTime, nullable=True)  # 學生刪除只標記，資料列保留
     created_at = db.Column(
         db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
     )
 
-    portfolio = db.relationship("Portfolio", back_populates="evidence_items")
+    portfolio = db.relationship("Portfolio", back_populates="evidence_items", overlaps="all_evidence_items")
 
     @property
     def extension(self):

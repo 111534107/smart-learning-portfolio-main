@@ -68,31 +68,6 @@ def test_admission_main_line_migration_upgrades_and_downgrades(tmp_path):
     assert "package_reviews" not in tables
 
 
-def test_admission_eligibility_rule_migration_creates_and_removes_its_table(tmp_path):
-    database_path = tmp_path / "admission-eligibility-migration.db"
-    app = create_app({"SQLALCHEMY_DATABASE_URI": f"sqlite:///{database_path}", "TESTING": True})
-    runner = app.test_cli_runner()
-
-    assert runner.invoke(args=["db", "upgrade"]).exit_code == 0
-    with app.app_context():
-        inspector = inspect(db.engine)
-        columns = {column["name"] for column in inspector.get_columns("admission_eligibility_rules")}
-        foreign_keys = inspector.get_foreign_keys("admission_eligibility_rules")
-
-    assert {
-        "id", "rule_version_id", "rule_group", "condition_type", "operator", "value_json",
-        "description", "source_url", "source_location", "mapping_status", "is_required", "sort_order",
-    } <= columns
-    assert any(fk["referred_table"] == "admission_rule_versions" for fk in foreign_keys)
-
-    assert runner.invoke(args=["db", "downgrade", "a7c3e9d10f42"]).exit_code == 0
-    with app.app_context():
-        db.engine.dispose()
-        inspector = inspect(db.engine)
-        assert not inspector.has_table("admission_eligibility_rules")
-        assert inspector.has_table("admission_rule_versions")
-
-
 def test_transfer_credit_migration_creates_and_removes_its_table(tmp_path):
     database_path = tmp_path / "transfer-credit-migration.db"
     app = create_app({"SQLALCHEMY_DATABASE_URI": f"sqlite:///{database_path}", "TESTING": True})
@@ -136,3 +111,36 @@ def test_portfolio_source_migration_adds_and_removes_columns(tmp_path):
         db.engine.dispose()
         columns = {column["name"] for column in inspect(db.engine).get_columns("portfolios")}
     assert "source" not in columns
+
+
+def test_soft_delete_migration_upgrades_downgrades_and_upgrades_again(tmp_path):
+    """M10：deleted_at 欄位從零升級、降級、再升級都正常（只在 SQLite 測；MySQL 要先備份再執行）。"""
+    fresh = create_app({"SQLALCHEMY_DATABASE_URI": f"sqlite:///{tmp_path / 'fresh.db'}", "TESTING": True})
+    app = create_app({"SQLALCHEMY_DATABASE_URI": f"sqlite:///{tmp_path / 'old.db'}", "TESTING": True})
+    runner = app.test_cli_runner()
+
+    def columns(table):
+        with app.app_context():
+            db.engine.dispose()
+            return {column["name"] for column in inspect(db.engine).get_columns(table)}
+
+    # 從零：基本表還沒建時要能跳過，降到 base 再升回來也不會錯
+    fresh_runner = fresh.test_cli_runner()
+    assert fresh_runner.invoke(args=["db", "upgrade"]).exit_code == 0
+    assert fresh_runner.invoke(args=["db", "downgrade", "base"]).exit_code == 0
+    assert fresh_runner.invoke(args=["db", "upgrade"]).exit_code == 0
+
+    # 舊資料庫：表已存在但還沒有 deleted_at（模擬上一版的正式資料庫）
+    with app.app_context():
+        db.create_all()
+        with db.engine.begin() as connection:
+            for table in ("portfolio_evidence", "portfolios"):
+                connection.exec_driver_sql(f"ALTER TABLE {table} DROP COLUMN deleted_at")
+    assert runner.invoke(args=["db", "stamp", "c4e2b7a91d05"]).exit_code == 0
+
+    assert runner.invoke(args=["db", "upgrade"]).exit_code == 0
+    assert "deleted_at" in columns("portfolios") and "deleted_at" in columns("portfolio_evidence")
+    assert runner.invoke(args=["db", "downgrade", "c4e2b7a91d05"]).exit_code == 0
+    assert "deleted_at" not in columns("portfolios") and "deleted_at" not in columns("portfolio_evidence")
+    assert runner.invoke(args=["db", "upgrade"]).exit_code == 0
+    assert "deleted_at" in columns("portfolios") and "deleted_at" in columns("portfolio_evidence")

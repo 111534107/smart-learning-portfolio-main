@@ -2,8 +2,6 @@
 {% from "partials/nav.html" import masthead, footer, guide_deck with context %}
 {% set page_name = "student-dashboard" %}
 {% set add_links = {"grades": url_for("student.learning_profile_upload_page", type="transcript"), "credential": url_for("student.learning_profile_upload_page", type="credential")} %}
-{% set piece_colors = {"grades": "var(--year-1)", "credential": "var(--year-2)", "activity": "var(--year-3)", "competition": "var(--year-4)", "service": "var(--year-2)", "leadership": "var(--year-5)"} %}
-{% set piece_path = "M0 0H100V35A15 15 0 1 1 100 65V100H0V65A15 15 0 0 0 0 35Z" %}
 {# 五個節點的位置（viewBox 0 0 1000 200），路線依序穿過 #}
 {% set stop_xy = [(100, 140), (300, 60), (500, 140), (700, 60), (900, 140)] %}
 {% set route_d = "M100 140 C200 140 200 60 300 60 S400 140 500 140 S600 60 700 60 S800 140 900 140" %}
@@ -33,8 +31,8 @@
 <div class="page journey-home{% if show_return %} is-waiting{% endif %}" data-journey-home>
   {# 五年路線：畫到「你在這裡」 #}
   <section class="route-map" aria-labelledby="route-title" data-tour="這條路是你的五年，小人物站在今年。" data-tour-order="1">
-    <h1 id="route-title" class="route-map__title" tabindex="-1">{{ home.grade_label }}，你在這裡。</h1>
-    <svg class="route-map__svg" viewBox="0 0 1000 360" role="img" aria-label="專一到專五的路線，目前在{{ home.grade_label }}">
+    <h1 id="route-title" class="route-map__title" tabindex="-1">{% if user.display_name %}<span class="route-map__name">{{ user.display_name }}</span>・{% endif %}{{ home.grade_label }}，你在這裡。</h1>
+    <svg class="route-map__svg" viewBox="0 0 1000 360" role="group" aria-label="專一到專五的路線，目前在{{ home.grade_label }}">
       {% for key, label, href, cx, cy, color in places %}
       <a href="{{ href }}" class="place" data-place="{{ key }}" data-x="{{ cx }}" data-y="{{ cy - 6 }}" style="--c: {{ color }}; --p: {{ loop.index0 }};">
         <line class="place__branch" x1="{{ cx }}" y1="{{ cy - 30 }}" x2="{{ cx }}" y2="{{ 150 if loop.index0 % 2 == 0 else 120 }}"/>
@@ -103,6 +101,12 @@
   {# 今天先完成哪一步（Canva 第 11 頁；放在拼圖前面，登入就看得到下一步）：最多三件事＋一行概況 #}
   <section class="today" aria-labelledby="today-title" data-tour="不知道做什麼？從這三件事開始。" data-tour-order="2">
     <h2 id="today-title" class="today__title">今天先完成哪一步</h2>
+    <p class="small">先新增或上傳學習歷程資料 → 核對辨識內容 → 查看校系建議。確認後資料才計入拼圖與推薦；之後可繼續新增或重複上傳。</p>
+    <div class="record-card__actions">
+      <a class="button button--small button--line" href="{{ url_for('student.learning_profile_upload_page', type='transcript') }}">1 上傳成績單</a>
+      <a class="button button--small button--line" href="{{ url_for('student.learning_profile') }}">2 核對資料</a>
+      <a class="button button--small button--line" href="{{ url_for('student.matching') }}">3 查看校系建議</a>
+    </div>
     <p class="today__stats">
       <span>五年累積 <b>{{ home.summary.percent }}%</b> <small>只是累積比例，不是錄取機率</small></span>
       <span>待處理 <b>{{ home.summary.pending }}</b></span>
@@ -170,88 +174,148 @@
     </div>
   </details>
 
-  {# 今年的拼圖：一張插畫切成六片，每片是一類資料。有資料的拼在圖上，沒有的是洞，
-     那一片散在旁邊，拖回洞裡就拼上並打開新增（直接點也可以）。 #}
+  {# 五年桌板（試用版）：一筆資料＝一片拼圖，散在桌子四邊；六片以上的每一片都是同一張圖（學期照片或預設風景）的一部分。
+     上面六個按鈕做新的一片；回到首頁時新的片從上面落到桌上；按「請小助手拼好拼圖」所有片飛到中間拼成整張圖，再去自傳頁。 #}
+  {% set table = home.table %}
+  {% set maker_icons = {
+    "grades": "M5 2.5h7l3 3v12H5z M8 9h5 M8 12h5 M8 15h3",
+    "credential": "M10 2.5a5 5 0 1 1 0 10a5 5 0 1 1 0-10z M7 11.5l-1.5 6l4.5-2l4.5 2l-1.5-6",
+    "activity": "M5 18V2.5 M5 3.5h10l-2.5 3.5l2.5 3.5H5",
+    "competition": "M6 3h8v4a4 4 0 0 1-8 0z M6 5H3.5a2.5 2.5 0 0 0 2.5 3 M14 5h2.5a2.5 2.5 0 0 1-2.5 3 M10 11v4 M6.5 17.5h7",
+    "service": "M10 17s-6-3.6-6-8a3.2 3.2 0 0 1 6-1.6a3.2 3.2 0 0 1 6 1.6c0 4.4-6 8-6 8z",
+    "leadership": "M10 3a3 3 0 1 1 0 6a3 3 0 1 1 0-6z M4 17.5c.5-3.5 3-5.5 6-5.5s5.5 2 6 5.5",
+  } %}
   <section class="year-puzzle" aria-labelledby="puzzle-title">
-    <h2 id="puzzle-title" class="year-puzzle__title" data-board-title>{% if home.blanks %}還差 {{ home.blanks }} 片，就拼完{{ home.grade_label }}。{% else %}{{ home.grade_label }}拼完了。{% endif %}</h2>
-    {% if home.blanks %}<p class="year-puzzle__hint">把旁邊的拼圖拖回洞裡。</p>{% endif %}
+    <h2 id="puzzle-title" class="year-puzzle__title">五年拼圖桌</h2>
+    <p class="small muted">先用下方按鈕新增或上傳；核對完成的資料才成為拼圖。已收集的類別仍可繼續新增或重複上傳。</p>
 
-    {# 整張插畫與六片的形狀，只定義一次，下面的圖和散落的片都拿來用 #}
-    <svg class="jig-defs" width="0" height="0" aria-hidden="true" style="--year: var(--year-{{ home.grade }});">
+    <nav class="maker-row" aria-label="做一片新的拼圖" data-tour="每留下一筆資料，就做出一片拼圖。" data-tour-order="4">
+      {% for maker in home.makers %}
+      <a class="button button--line button--small maker" href="{{ maker.href }}" data-make-piece="{{ maker.key }}" style="--cat: var(--cat-{{ maker.key }});">
+        <svg class="maker__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="{{ maker_icons[maker.key] }}"/></svg>
+        <span>＋{{ maker.label }}</span>
+        <small class="maker__status">{{ "待確認" if maker.pending else ("已完成・可再新增" if maker.complete else "待新增") }}</small>
+      </a>
+      {% endfor %}
+    </nav>
+
+    {# 拼好後的整張圖：只定義一次，每一片用 <use> 取自己那一塊 #}
+    <svg class="table-defs" width="0" height="0" aria-hidden="true" focusable="false">
       <defs>
-        <linearGradient id="scene-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#dfe7fb"/><stop offset="1" stop-color="#fbf6ea"/></linearGradient>
-        {% for piece in home.pieces %}<clipPath id="jp-{{ loop.index0 }}"><path d="{{ piece.d }}"/></clipPath>{% endfor %}
-        <symbol id="year-scene" viewBox="0 0 600 400" overflow="visible">
+        <linearGradient id="ts-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7f90a3"/><stop offset=".55" stop-color="#bfc0bc"/><stop offset="1" stop-color="#ddd2bf"/></linearGradient>
+        <radialGradient id="ts-sun" cx=".7" cy=".42" r=".45"><stop offset="0" stop-color="#f3e2c4" stop-opacity=".95"/><stop offset="1" stop-color="#f1e6d2" stop-opacity="0"/></radialGradient>
+        <linearGradient id="ts-far" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7d8a99"/><stop offset="1" stop-color="#a2a9ae"/></linearGradient>
+        <linearGradient id="ts-mid" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#55626e"/><stop offset="1" stop-color="#6e7a7c"/></linearGradient>
+        <linearGradient id="ts-near" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4f5c55"/><stop offset="1" stop-color="#353e3b"/></linearGradient>
+        <linearGradient id="ts-lake" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9aa6ad"/><stop offset="1" stop-color="#56636c"/></linearGradient>
+        <radialGradient id="ts-vignette" cx=".5" cy=".5" r=".75"><stop offset=".6" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".28"/></radialGradient>
+        <filter id="ts-grain" x="0" y="0" width="100%" height="100%">
+          <feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" stitchTiles="stitch"/>
+          <feColorMatrix values="0 0 0 0 .5  0 0 0 0 .5  0 0 0 0 .5  0 0 0 .16 0"/>
+        </filter>
+        <clipPath id="ts-whole"><rect x="0" y="0" width="{{ table.scene_w }}" height="{{ table.scene_h }}"/></clipPath>
+        <g id="year-scene">
           {% if photo_url %}
-          {# 學生自己上傳的這學期照片（已裁成 3:2）；外圈補底色，讓凸出的拼圖邊不是空的 #}
-          <rect x="-40" y="-40" width="680" height="480" fill="#d9d2c3"/>
-          <image href="{{ photo_url }}" x="0" y="0" width="600" height="400" preserveAspectRatio="xMidYMid slice"/>
+          {# 學生自己上傳的這學期照片：拼好就是這張 #}
+          <rect x="-40" y="-40" width="{{ table.scene_w + 80 }}" height="{{ table.scene_h + 80 }}" fill="#6f7479"/>
+          <image href="{{ photo_url }}" x="-30" y="-30" width="{{ table.scene_w + 60 }}" height="{{ table.scene_h + 60 }}" preserveAspectRatio="xMidYMid slice"/>
           {% else %}
-          <rect x="-40" y="-40" width="680" height="480" fill="url(#scene-sky)"/>
-          <circle cx="470" cy="95" r="46" fill="#f3c55b"/>
-          <path d="M-40 260 Q90 190 220 245 T470 230 T640 215 V440 H-40 Z" fill="#b9d8c9"/>
-          <path d="M-40 300 Q130 250 300 290 T640 270 V440 H-40 Z" fill="#8fc0a9"/>
-          {# 學校 #}
-          <rect x="70" y="150" width="190" height="120" fill="#fffdf8" stroke="#1c2230" stroke-width="4"/>
-          <path d="M55 152 L165 95 L275 152 Z" fill="var(--year)" stroke="#1c2230" stroke-width="4"/>
-          {% for wx in [95, 140, 185, 225] %}<rect x="{{ wx }}" y="180" width="22" height="26" fill="#cfe0f7" stroke="#1c2230" stroke-width="3"/>{% endfor %}
-          <rect x="148" y="222" width="34" height="48" fill="var(--year)" stroke="#1c2230" stroke-width="3"/>
-          {# 往前的路 #}
-          <path d="M165 400 C200 330 330 330 360 280 S470 230 520 200" fill="none" stroke="#fffdf8" stroke-width="34" stroke-linecap="round"/>
-          <path d="M165 400 C200 330 330 330 360 280 S470 230 520 200" fill="none" stroke="#1c2230" stroke-width="3" stroke-dasharray="14 12"/>
-          {# 樹 #}
-          <circle cx="330" cy="215" r="30" fill="#4e9f7d" stroke="#1c2230" stroke-width="3"/><rect x="325" y="240" width="10" height="28" fill="#1c2230"/>
-          <circle cx="560" cy="250" r="24" fill="#4e9f7d" stroke="#1c2230" stroke-width="3"/><rect x="555" y="270" width="10" height="22" fill="#1c2230"/>
-          <text x="520" y="350" text-anchor="middle" font-size="64" font-weight="900" fill="var(--year)" stroke="#1c2230" stroke-width="2" font-family="Noto Serif TC, serif">{{ home.grade_label }}</text>
+          {# 預設的圖：低飽和的湖邊校園風景，加細噪點，像一張照片 #}
+          <svg x="-30" y="-30" width="{{ table.scene_w + 60 }}" height="{{ table.scene_h + 60 }}" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice" overflow="hidden">
+            <rect width="1600" height="1000" fill="url(#ts-sky)"/>
+            <rect width="1600" height="1000" fill="url(#ts-sun)"/>
+            <path d="M0 520 L140 430 L260 470 L420 360 L560 450 L700 390 L860 470 L1010 380 L1160 455 L1320 400 L1460 460 L1600 420 V700 H0Z" fill="url(#ts-far)" opacity=".85"/>
+            <path d="M0 600 C160 520 300 560 420 520 S700 470 820 540 S1100 500 1240 545 S1480 520 1600 560 V720 H0Z" fill="url(#ts-mid)"/>
+            {# 湖邊的校舍 #}
+            <g fill="#5d676c">
+              <rect x="980" y="520" width="300" height="80"/><rect x="1040" y="480" width="150" height="40"/>
+              <rect x="1300" y="545" width="120" height="55"/><rect x="1232" y="470" width="4" height="60" fill="#4b5458"/>
+            </g>
+            <g fill="#c9c6bd" opacity=".55">
+              {% for wx in range(995, 1270, 26) %}<rect x="{{ wx }}" y="538" width="12" height="9"/><rect x="{{ wx }}" y="562" width="12" height="9"/>{% endfor %}
+              {% for wx in range(1055, 1185, 26) %}<rect x="{{ wx }}" y="492" width="12" height="9"/>{% endfor %}
+            </g>
+            <rect y="600" width="1600" height="400" fill="url(#ts-lake)"/>
+            <g fill="#e6e2d8" opacity=".35">
+              <rect x="1050" y="640" width="260" height="3"/><rect x="980" y="680" width="380" height="2"/><rect x="1100" y="730" width="200" height="3"/>
+              <rect x="300" y="660" width="220" height="2"/><rect x="200" y="760" width="160" height="2"/><rect x="1180" y="800" width="120" height="2"/>
+            </g>
+            <path d="M0 640 C180 610 300 660 460 700 S760 820 900 1000 H0Z" fill="url(#ts-near)"/>
+            <g fill="#3c4644">
+              {% for tx, th in [(40, 210), (110, 260), (180, 200), (250, 240), (330, 180), (400, 150), (90, 170), (470, 120)] %}
+              <path d="M{{ tx }} {{ 720 - th }} L{{ tx - 34 }} {{ 730 }} H{{ tx + 34 }}Z"/>
+              {% endfor %}
+            </g>
+            <path d="M1600 760 C1460 780 1380 840 1340 1000 H1600Z" fill="#4a5452"/>
+            <rect width="1600" height="1000" fill="url(#ts-vignette)"/>
+          </svg>
           {% endif %}
-        </symbol>
+        </g>
       </defs>
     </svg>
 
-    <div class="jig" data-board data-grade="{{ home.grade }}" data-tour="缺的片拖回洞裡，就去補那一類資料。" data-tour-order="4">
-      <svg class="jig__board" viewBox="-30 -30 660 460" role="img" aria-label="{{ home.grade_label }}的拼圖，{{ 6 - home.blanks }} 片已拼上">
-        <rect x="0" y="0" width="600" height="400" class="jig__frame"/>
-        {% for piece in home.pieces %}
-        {% if piece.filled %}
-        <g class="jig__piece" data-piece="{{ piece.key }}" data-filled style="--n: {{ loop.index0 }};">
-          <g clip-path="url(#jp-{{ loop.index0 }})"><use href="#year-scene" width="600" height="400"/></g>
-          <path class="jig__edge" d="{{ piece.d }}"/>
-          <text class="jig__tag" x="{{ piece.x + 100 }}" y="{{ piece.y + 186 }}" text-anchor="middle">{{ piece.label }}</text>
-        </g>
-        {% else %}
-        <a class="jig__hole" data-piece="{{ piece.key }}" data-hole="{{ piece.key }}" href="{{ piece.href }}" aria-label="補上{{ piece.full_label }}">
-          <path d="{{ piece.d }}"/>
-          <text x="{{ piece.x + 100 }}" y="{{ piece.y + 110 }}" text-anchor="middle">＋{{ piece.label }}</text>
-        </a>
-        {% endif %}
-        {% endfor %}
-      </svg>
+    {# 桌子：深灰毛氈；片的位置是伺服器依每筆資料的 id 算好的（重新整理不會亂跳） #}
+    <div class="ptable{% if not table.count %} is-empty{% endif %}" data-ptable
+         data-scene-w="{{ table.scene_w }}" data-scene-h="{{ table.scene_h }}"
+         data-tour="五年的資料都在桌上，點一片看它是什麼。" data-tour-order="5"
+         role="group" aria-label="五年拼圖桌，已收集 {{ table.count }} 片">
+      {% for piece in table.pieces %}
+      <button type="button" class="tp" data-table-piece="{{ piece.id }}" data-cx="{{ piece.cx }}" data-cy="{{ piece.cy }}" data-bw="{{ piece.box_w }}"
+              data-tip="{{ piece.label }}・{{ piece.grade_label }}" data-tip-title="{{ piece.title }}"
+              style="--x: {{ piece.x }}%; --y: {{ piece.y }}%; --mx: {{ piece.mx }}%; --my: {{ piece.my }}%; --r: {{ piece.turn }}deg; --kw: {{ (piece.box_w / 160) | round(3) }}; --cat: var(--cat-{{ piece.key }});"
+              aria-label="{{ piece.label }}，{{ piece.grade_label }}：{{ piece.title }}">
+        <svg class="tp__svg" viewBox="{{ piece.box }}" aria-hidden="true" focusable="false">
+          <clipPath id="tp-{{ loop.index0 }}"><path d="{{ piece.d }}"/></clipPath>
+          <g clip-path="url(#tp-{{ loop.index0 }})">
+            <use href="#year-scene"/>
+            <path class="tp__light" d="{{ piece.d }}" transform="translate(-1.6 -1.6)"/>
+            <path class="tp__dark" d="{{ piece.d }}" transform="translate(1.6 1.6)"/>
+            <path class="tp__cat" d="{{ piece.d }}"/>
+          </g>
+          <path class="tp__edge" d="{{ piece.d }}"/>
+        </svg>
+      </button>
+      {% endfor %}
 
-      {% if home.blanks %}
-      <div class="jig__tray" aria-label="還沒拼上的拼圖">
-        {% for piece in home.pieces if not piece.filled %}
-        <a class="jig__loose" href="{{ piece.href }}" data-loose="{{ piece.key }}" data-x="{{ piece.x }}" data-y="{{ piece.y }}"
-           style="--r: {{ [-12, 9, -6, 14, -10, 7][loop.index0] }}deg; --n: {{ loop.index0 }};" aria-label="補上{{ piece.full_label }}">
-          <svg data-drag-piece viewBox="{{ piece.x - 30 }} {{ piece.y - 30 }} 260 260" aria-hidden="true">
-            <g clip-path="url(#jp-{{ home.pieces.index(piece) }})"><use href="#year-scene" width="600" height="400"/></g>
-            <path class="jig__edge" d="{{ piece.d }}"/>
-          </svg>
-          <span>{{ piece.label }}</span>
-        </a>
-        {% endfor %}
+      {% if not table.count %}<p class="ptable__empty">按上面的按鈕，做出第一片拼圖</p>{% endif %}
+      <p class="ptable__count">已收集 <b class="mono">{{ table.count }}</b> 片</p>
+      <div class="ptable__tip" data-table-tip role="status" hidden></div>
+      <div class="ptable__frame" data-assembled-frame aria-hidden="true">
+        <svg viewBox="0 0 {{ table.scene_w }} {{ table.scene_h }}" preserveAspectRatio="none"><g clip-path="url(#ts-whole)"><use href="#year-scene"/></g><rect width="{{ table.scene_w }}" height="{{ table.scene_h }}" filter="url(#ts-grain)"/></svg>
       </div>
+      <p class="ptable__helper" data-table-helper hidden><span class="assistant__dot" aria-hidden="true"></span>資管科小助手：我來幫你拼！</p>
+    </div>
+
+    <div class="ptable-actions">
+      {% if autobiography_note %}
+      <span class="button is-disabled" role="link" aria-disabled="true">請小助手拼好拼圖、生成自傳</span>
+      <p class="small muted" data-autobiography-locked>{{ autobiography_note }}</p>
+      {% elif not table.count %}
+      <span class="button is-disabled" role="link" aria-disabled="true">請小助手拼好拼圖、生成自傳</span>
+      <p class="small muted">先做出至少一片拼圖，小助手才能幫你拼。</p>
+      {% else %}
+      <a class="button" href="{{ url_for('student.autobiography') }}" data-assemble>請小助手拼好拼圖、生成自傳</a>
       {% endif %}
     </div>
 
-    {# 換成自己的照片：只有自己看得到 #}
-    <form class="jig-photo" data-tour="換成這學期最快樂的照片，只有你看得到。" data-tour-order="5" method="post" action="{{ url_for('main.semester_photo_upload') }}" enctype="multipart/form-data" data-photo-form>
+    {# 「做拼圖」按鈕飛出來的那一片（components.js 複製來用） #}
+    <template data-make-template>
+      <svg class="make-fly" viewBox="-30 -30 160 160" aria-hidden="true">
+        <clipPath id="make-fly-clip"><path d="{{ home.sample_piece }}"/></clipPath>
+        <g clip-path="url(#make-fly-clip)"><use href="#year-scene"/><path class="tp__light" d="{{ home.sample_piece }}" transform="translate(-1.6 -1.6)"/><path class="tp__dark" d="{{ home.sample_piece }}" transform="translate(1.6 1.6)"/></g>
+        <path class="tp__edge" d="{{ home.sample_piece }}"/>
+      </svg>
+    </template>
+
+    {# 換成自己的照片：拼好的圖就是這張；只有自己看得到 #}
+    <form class="jig-photo" method="post" action="{{ url_for('main.semester_photo_upload') }}" enctype="multipart/form-data" data-photo-form>
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label class="jig-photo__pick">
         <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" required data-photo-input>
         <span>{% if photo_url %}換一張{{ semester_label }}的照片{% else %}放上{{ semester_label }}最快樂的照片{% endif %}</span>
       </label>
       <button class="button button--small" type="submit" data-photo-submit>上傳</button>
-      <small>只有你自己看得到。</small>
+      <small>拼好的圖會換成這張，只有你自己看得到。</small>
     </form>
   </section>
 </div>

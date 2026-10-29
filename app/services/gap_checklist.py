@@ -33,7 +33,7 @@ def download_checklist(student, program, gap, review, autobiography):
         + CredentialRecord.query.filter(CredentialRecord.student_id == student.id,
                                         CredentialRecord.confirmation_status != "confirmed").count()
     )
-    pending_portfolio = Portfolio.query.filter(
+    pending_portfolio = Portfolio.active().filter(
         Portfolio.student_id == student.id,
         ~Portfolio.status.in_(("confirmed", "submitted")),
     ).count()

@@ -15,6 +15,9 @@
     <article class="work-metric"><span>科辦帳號</span><strong>{{ staff_count }}</strong><small>可登錄共同審查結論</small></article>
     <article class="work-metric"><span>全部送件</span><strong>{{ submission_count }}</strong><small>包含各版本的送審紀錄</small></article>
   </div>
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>操作紀錄</h2><p>誰在什麼時候登入、確認、送審、刪除或上傳；不記內容與個資。</p></div><a class="button button--small" href="{{ url_for('admin.audit_logs') }}">查看操作紀錄</a></div>
+  </section>
   <section class="work-panel" data-tour="最近送件只顯示流程摘要；帳號與規則從上方導覽管理。" data-tour-order="3">
     <div class="work-panel__head"><div><h2>最近送件動態</h2><p>快速確認目前有哪些成果正在系統內流動。</p></div></div>
     <ul class="work-list">

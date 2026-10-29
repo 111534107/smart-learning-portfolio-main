@@ -25,7 +25,7 @@ def app():
         db.session.add(user)
         db.session.flush()
         db.session.add(StudentProfile(user_id=user.id, student_no="s1",
-                                      admission_year=academic_year_of(date.today()) - 2))
+                                      admission_year=academic_year_of(date.today()) - 4))
         db.session.commit()
         yield app
 

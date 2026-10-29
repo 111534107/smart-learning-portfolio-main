@@ -51,7 +51,7 @@
     {% if transfer_credit.submitted_on %}<p>申請日期：{{ transfer_credit.submitted_on.isoformat() }}</p>{% endif %}
     {% if transfer_credit.missing_documents %}<p>待補資料：{{ transfer_credit.missing_documents }}</p>{% endif %}
     {% if transfer_credit.note %}<p>備註：{{ transfer_credit.note }}</p>{% endif %}
-    {% if transfer_credit.teacher_confirmed %}<p class="notice">你已於 {{ transfer_credit.teacher_confirmed_at.strftime("%Y-%m-%d") }} 確認看過。</p>{% else %}
+    {% if transfer_credit.teacher_confirmed %}<p class="notice">你已於 {{ transfer_credit.teacher_confirmed_at|taipei_time("%Y-%m-%d") }} 確認看過。</p>{% else %}
     <form method="post" action="{{ url_for('transfer_credit.confirm_transfer_credit', student_id=student.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button class="button button--line" type="submit" name="confirmed" value="1">確認看過這筆紀錄</button>
@@ -79,9 +79,9 @@
     {% set snap = target.review.snapshot_json if target.review else none %}
     {% if snap %}
     <div class="snapshot-box mt-1">
-      <p class="small"><b>送審內容</b>：{{ target.review.requested_at.strftime("%Y-%m-%d %H:%M") }} 送出時的資料{% if snap.autobiography %}，自傳依據第 {{ snap.autobiography.version }} 版{% if target.current_version and target.current_version != snap.autobiography.version %}（目前第 {{ target.current_version }} 版）{% endif %}{% else %}，當時還沒有自傳{% endif %}。學生之後再改，這份內容不會變。</p>
+      <p class="small"><b>送審內容</b>：{{ target.review.requested_at|taipei_time("%Y-%m-%d %H:%M") }} 送出時的資料{% if snap.autobiography %}，自傳依據第 {{ snap.autobiography.version }} 版{% if target.current_version and target.current_version != snap.autobiography.version %}（目前第 {{ target.current_version }} 版）{% endif %}{% else %}，當時還沒有自傳{% endif %}。學生之後再改，這份內容不會變。</p>
       {% if target.diff %}
-      <p class="small mt-1"><b>和你 {{ target.previous.reviewed_at.strftime("%Y-%m-%d") if target.previous.reviewed_at else "" }} 確認的版本相比：</b></p>
+      <p class="small mt-1"><b>和你 {{ target.previous.reviewed_at|taipei_time("%Y-%m-%d") if target.previous.reviewed_at else "" }} 確認的版本相比：</b></p>
       <ul class="diff-list">
         {% for text in target.diff.added %}<li class="diff-list__add">新增：{{ text }}</li>{% endfor %}
         {% for text in target.diff.removed %}<li class="diff-list__remove">移除：{{ text }}</li>{% endfor %}

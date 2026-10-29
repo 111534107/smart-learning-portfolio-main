@@ -21,7 +21,7 @@
           <tr>
             <td>{{ cert.student.display_name }} <span class="muted small mono">{{ cert.student.student_profile.student_no if cert.student.student_profile else "" }}</span></td>
             <td>{{ cert.portfolio.title }}</td>
-            <td class="small">{{ cert.created_at.strftime("%Y-%m-%d") }}</td>
+            <td class="small">{{ cert.created_at|taipei_time("%Y-%m-%d") }}</td>
             <td><a class="button button--small" href="{{ url_for('certificate.staff_review', cert_id=cert.id) }}">審核</a></td>
           </tr>
           {% endfor %}

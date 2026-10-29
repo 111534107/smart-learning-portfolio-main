@@ -19,7 +19,8 @@ import webbrowser
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-ENV_FILE = PROJECT_ROOT / ".env"
+# 一般用專案自己的 .env；想沿用別處已設定好的 .env（例如另一個資料夾），設 SLP_ENV_FILE 指過去，不必複製金鑰
+ENV_FILE = Path(os.getenv("SLP_ENV_FILE") or PROJECT_ROOT / ".env")
 PLACEHOLDERS = {
     "SECRET_KEY": "change-this-in-production",
     "DB_PASSWORD": "change-this-password",
@@ -127,11 +128,18 @@ def main():
     sys.path.insert(0, str(PROJECT_ROOT))
     if not ENV_FILE.exists():
         fail("找不到 .env，請先執行 start_system.bat（會從 .env.example 複製）。")
-    fill_placeholder_secrets()
+    # 借用別處的 .env 時只讀不寫：那份設定的密碼可能正被 MySQL 使用，改掉就登不進去（10-27 實際發生過）
+    if not os.getenv("SLP_ENV_FILE"):
+        fill_placeholder_secrets()
 
     from dotenv import load_dotenv
 
     load_dotenv(ENV_FILE, override=False)
+    # 正式版不能停在假辨識：.env 沒設或設成 fake 時，這次啟動改用本機 RapidOCR（只改這個行程，不寫回 .env）
+    from real_ocr import real_ocr_provider
+
+    os.environ["DOCUMENT_ANALYSIS_PROVIDER"] = real_ocr_provider(os.getenv("DOCUMENT_ANALYSIS_PROVIDER", ""))
+    print(f"OCR 模式：{os.environ['DOCUMENT_ANALYSIS_PROVIDER']}")
     from app.config import Config
 
     port = int(os.getenv("APP_PORT", "5013"))

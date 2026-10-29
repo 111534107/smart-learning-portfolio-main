@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "admin-match-filters" %}
+
+{% block title %}排行篩選選項｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "排行篩選選項") }}{% endblock %}
+
+{% block content %}
+<section class="work-shell" data-work-role="admin">
+  <header class="work-heading">
+    <div><h1>排行篩選選項</h1><p>維護學生端校系排行頁可選的篩選條件。停用的選項不會顯示給學生。</p></div>
+  </header>
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>新增選項</h2></div></div>
+    <form class="admin-inline-form" method="post" action="{{ url_for('admin.match_filters') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>類別<select name="category">{% for key, name in category_labels.items() %}<option value="{{ key }}">{{ name }}</option>{% endfor %}</select></label>
+      <label>顯示名稱<input name="label" required></label>
+      <label>值<input name="value" required></label>
+      <label>排序<input type="number" name="sort_order" value="0"></label>
+      <button class="button" type="submit">新增選項</button>
+    </form>
+    <p class="muted small">「是否可報」的值只能填：{% for code, name in eligible_values.items() %}<span class="mono">{{ code }}</span>（{{ name }}）{{ "、" if not loop.last }}{% endfor %}。</p>
+    <p class="muted small">「學制」的值要與簡章的招生類別完全相同，目前校系有：{% if level_values %}{% for v in level_values %}<span class="mono">{{ v }}</span>{{ "、" if not loop.last }}{% endfor %}{% else %}（尚無）{% endif %}。</p>
+    <p class="muted small">「地區」學生端尚未提供篩選，新增後暫時不會顯示。</p>
+  </section>
+  <section class="work-panel">
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>類別</th><th>顯示名稱</th><th>值</th><th>排序</th><th>狀態</th><th>操作</th></tr></thead>
+        <tbody>
+          {% for option in options %}
+          <tr>
+            <td>{{ category_labels.get(option.category, option.category) }}</td><td><form id="edit-{{ option.id }}" method="post" action="{{ url_for('admin.edit_match_filter', option_id=option.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input name="label" value="{{ option.label }}" maxlength="100" required aria-label="顯示名稱"></form></td><td class="mono">{{ option.value }}</td><td><input form="edit-{{ option.id }}" type="number" name="sort_order" value="{{ option.sort_order }}" aria-label="排序"></td>
+            <td><span class="tag {{ 'tag--ok' if option.is_active else '' }}">{{ "啟用" if option.is_active else "停用" }}</span></td>
+            <td><button class="button button--small" type="submit" form="edit-{{ option.id }}">儲存</button> <form style="display:inline" method="post" action="{{ url_for('admin.toggle_match_filter', option_id=option.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small button--quiet" type="submit">{{ "停用" if option.is_active else "啟用" }}</button></form></td>
+          </tr>
+          {% else %}
+          <tr class="empty-row"><td colspan="6">尚無選項。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</section>
+{% endblock %}

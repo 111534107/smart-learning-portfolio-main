@@ -20,10 +20,13 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 
 from app import create_app  # noqa: E402
+from real_ocr import real_ocr_provider  # noqa: E402
 from app.extensions import db  # noqa: E402
 from app.services.admission_service import import_seed_programs  # noqa: E402
+from app.services.transfer_exam import import_transfer_programs  # noqa: E402
 from app.services import certificate_service, review_snapshot_service  # noqa: E402
 from app.models import (  # noqa: E402
     AdmissionProgram,
@@ -39,6 +42,19 @@ from app.models import (  # noqa: E402
 
 DEMO_PASSWORD = "demo1234"
 
+# 登入頁「Demo 快速登入」列出的帳號，和 seed() 建立的帳號一致
+DEMO_ACCOUNTS = [
+    {"role": "student", "label": "學生", "username": "111534105", "password": DEMO_PASSWORD,
+     "name": "王小明", "note": "還沒選目標校系"},
+    {"role": "student", "label": "學生", "username": "111534107", "password": DEMO_PASSWORD,
+     "name": "林小美", "note": "已送導師確認"},
+    {"role": "teacher", "label": "導師", "username": "teacher01", "password": DEMO_PASSWORD,
+     "name": "陳導師", "note": "負責資管科三甲"},
+    {"role": "staff", "label": "科辦", "username": "staff01", "password": DEMO_PASSWORD,
+     "name": "林科助", "note": "核准電子獎狀"},
+    {"role": "admin", "label": "管理者", "username": "admin", "password": DEMO_PASSWORD, "name": "系統管理者"},
+]
+
 
 def seed():
     student = User(username="111534105", display_name="王小明", role="student")
@@ -53,7 +69,7 @@ def seed():
 
     courses = [
         (1, "上", "計算機概論", 3, 88), (1, "下", "程式設計（一）", 3, 91), (1, "下", "國文", 2, 82),
-        (2, "上", "資料庫管理", 3, 85), (2, "下", "網頁設計", 3, 93), (3, "上", "系統分析", 3, 79),
+        (2, "上", "資料庫管理實務(SQL)", 3, 85), (2, "下", "網頁設計", 3, 93), (3, "上", "系統分析與設計", 3, 79),
     ]
     for year, semester, name, credits, score in courses:
         db.session.add(LearningCourseRecord(
@@ -81,6 +97,8 @@ def seed():
     # 展示用：再補上 PDF 裡所有國立校系，讓「選很多校系」的畫面有足夠的資料
     import_seed_programs(PROJECT_ROOT / "app" / "content" / "admission_demo_national_116.csv")
     import_seed_programs(PROJECT_ROOT / "app" / "content" / "admission_demo_dayapply_115.csv")
+    # 插大（轉學考）：北中南資訊相關科系的示範資料（官方簡章，見 CSV 的出處欄）
+    import_transfer_programs()
     db.session.add(ClassAdvisor(teacher_id=teacher.id, class_name="資管科三甲", school_year=115))
     classmate = User(username="111534107", display_name="林小美", role="student")
     classmate.set_password(DEMO_PASSWORD)
@@ -89,6 +107,10 @@ def seed():
     db.session.add(StudentProfile(user_id=classmate.id, student_no="111534107", class_name="資管科三甲", admission_year=113))
     db.session.add(LearningCourseRecord(student_id=classmate.id, school_year=1, semester="上", course_name="計算機概論",
                                         normalized_course_name="計算機概論", credits=3, score=90))
+    # 113 學年度課綱的資訊類專業科目各一門，學群才判斷得出來（只有計算機概論時對不到課綱，推薦排序會亂）
+    for year, semester, name, score in ((1, "下", "程式設計", 88), (2, "上", "網頁設計", 85), (2, "下", "管理資訊系統", 82)):
+        db.session.add(LearningCourseRecord(student_id=classmate.id, school_year=year, semester=semester, course_name=name,
+                                            normalized_course_name=name, credits=3, score=score))
     db.session.add(CredentialRecord(student_id=classmate.id, credential_name="電腦軟體應用丙級", level="丙級",
                                     issuing_organization="勞動部", issue_date=date(2025, 4, 12)))
     db.session.add(Portfolio(student_id=classmate.id, category="competition", school_year=2, semester=2,
@@ -124,8 +146,12 @@ def main():
     app = create_app({
         "SQLALCHEMY_DATABASE_URI": f"sqlite:///{demo_db.as_posix()}",
         "UPLOAD_FOLDER": str(PROJECT_ROOT / "instance" / "demo-uploads"),
-        "DEMO_ACCOUNTS": True,  # 登入頁顯示展示帳號；正式環境不要設定
+        "DEMO_ACCOUNTS": DEMO_ACCOUNTS,  # 登入頁顯示展示帳號；正式環境不要設定
+        # 瀏覽器的 cookie 只分主機、不分埠：同時開 5020、5021 會互相蓋掉登入（10-27 實測問題 6）
+        "SESSION_COOKIE_NAME": f"demo_session_{port}",
     })
+    app.config["DOCUMENT_ANALYSIS_PROVIDER"] = real_ocr_provider(app.config["DOCUMENT_ANALYSIS_PROVIDER"])
+    print(f"OCR 模式：{app.config['DOCUMENT_ANALYSIS_PROVIDER']}")
     with app.app_context():
         db.create_all()
         seed()

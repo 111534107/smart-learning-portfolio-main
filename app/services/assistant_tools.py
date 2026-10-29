@@ -84,7 +84,7 @@ def _consistency(student, program):
     if not draft:
         return {"autobiography": None, "note": "這個校系還沒有自傳草稿，請先用「自傳小幫手」寫。"}
     facts = build_facts(student, program)["items"]
-    records = Portfolio.query.filter_by(student_id=student.id).all()
+    records = Portfolio.active().filter_by(student_id=student.id).all()
     return {
         "autobiography_paragraphs": [{"title": p["title"], "text": p["text"]} for p in draft.content_json["paragraphs"]],
         "confirmed_facts": [f["text"] for f in facts],

@@ -29,7 +29,7 @@ CHAPTERS = [
 
 def analyze_gap(student, program, journey=None):
     journey = journey or build_journey(student)
-    totals = journey["totals"]
+    totals = journey.get("confirmed_totals", journey["totals"])
     items = []
     weighted, counted_weight = 0.0, 0
     for item in program.items:

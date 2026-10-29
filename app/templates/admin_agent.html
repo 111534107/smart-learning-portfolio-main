@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% from "partials/nav.html" import masthead with context %}
 {% set page_name = "admin-agent" %}
-{% set task_names = {"admission_source_check": "檢查來源", "admission_extract": "擷取加權"} %}
-{% set task_status = {"succeeded": ("成功", "tag--ok"), "failed": ("失敗", "tag--danger"), "running": ("執行中", "tag--warn"), "pending": ("等待中", "tag")} %}
+{% set task_names = {"admission_source_check": "檢查來源", "admission_extract": "擷取加權", "agent_patrol": "升學 Agent 巡查"} %}
+{% set task_status = {"stopped": ("已停止", "tag--warn"), "succeeded": ("成功", "tag--ok"), "failed": ("失敗", "tag--danger"), "running": ("執行中", "tag--warn"), "pending": ("等待中", "tag")} %}
 
 {% block title %}招生資料 Agent｜資管科智慧學習歷程系統{% endblock %}
 
@@ -25,6 +25,11 @@
   </ol>
 
   <section class="work-panel">
+    <div class="work-panel__head"><div><h2>升學 Agent 巡查</h2><p>Agent 會檢查全部官方來源，把有更新的簡章擷取成候選校系；有設定 AI 時由 AI 決定步驟，沒有時走固定流程。結果仍要你核准。排程執行：<span class="mono">flask agent-patrol</span>。</p></div></div>
+    <form method="post" action="{{ url_for('admin.agent_patrol') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit" data-busy-text="Agent 巡查中…（約 10 秒～1 分鐘）">讓 Agent 巡查一次</button></form>
+  </section>
+
+  <section class="work-panel">
     <div class="work-panel__head"><div><h2>官方來源</h2><p>只擷取科系名稱含「{{ keywords|join("、") }}」的校系（可在 .env 的 AGENT_PROGRAM_KEYWORDS 修改）。</p></div></div>
     {% if sources %}
     <div class="table-wrap">
@@ -36,7 +41,7 @@
           <tr>
             <td><b>{{ source.name }}</b></td>
             <td class="small">{% if source.source_type == "url" %}<a href="{{ source.url }}" target="_blank" rel="noopener noreferrer">{{ source.url|truncate(48, True, "…") }}</a>{% else %}手動上傳：{{ source.url[9:] }}{% endif %}</td>
-            <td class="mono small">{{ snap.fetched_at.strftime("%Y-%m-%d %H:%M") if snap else "還沒抓過" }}</td>
+            <td class="mono small">{{ snap.fetched_at|taipei_time("%Y-%m-%d %H:%M") if snap else "還沒抓過" }}</td>
             <td>{% if source.source_type == "url" %}
               <form method="post" action="{{ url_for('admin.agent_check_source', source_id=source.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small" type="submit" data-busy-text="檢查中…">立即檢查</button></form>
             {% endif %}</td>
@@ -74,7 +79,7 @@
         <tbody>
           {% for change, snap, source in changes %}
           <tr>
-            <td class="mono small">{{ snap.fetched_at.strftime("%Y-%m-%d %H:%M") }}</td>
+            <td class="mono small">{{ snap.fetched_at|taipei_time("%Y-%m-%d %H:%M") }}</td>
             <td>{{ source.name }}</td>
             <td>{{ "第一次抓取" if change.change_type == "first" else "內容有變" }} <span class="muted small">{{ (change.diff_json.size / 1024)|round|int }} KB</span></td>
             <td><span class="tag {{ 'tag--ok' if change.status == 'extracted' else 'tag--warn' }}">{{ "已擷取" if change.status == "extracted" else "待擷取" }}</span></td>
@@ -94,14 +99,45 @@
     {% endif %}
   </section>
 
+  {% if schedule_groups %}
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>候選招生日程</h2><p>Agent 從官方日程表擷取的日程。<b>請對照原文</b>，整組核准後才會取代招生時程頁的日程；退回不會影響目前的日程。</p></div></div>
+    {% for group in schedule_groups %}
+    <h3>{{ group.year }} 學年度{{ group.label }}（{{ group.rows|length }} 項）{% if group.source %}<span class="small">：<a href="{{ group.source }}" target="_blank" rel="noopener noreferrer">原文</a></span>{% endif %}</h3>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>項目</th><th>候選日期</th><th>和目前日程比</th></tr></thead>
+        <tbody>
+          {% for row in group.rows %}
+          {% set event = row.event %}
+          <tr>
+            <td><b>{{ event.name }}</b>{% if event.note %}<br><span class="small muted">{{ event.note }}</span>{% endif %}</td>
+            <td class="mono small">{{ event.start_at.strftime("%Y-%m-%d %H:%M") }}{% if event.end_at %} ～ {{ event.end_at.strftime("%m-%d %H:%M") }}{% endif %}</td>
+            <td><span class="tag {{ {'相同': 'tag--ok', '日期不同': 'tag--warn', '新增': 'tag--info'}[row.mark] }}">{{ row.mark }}</span>
+              {% if row.mark == "日期不同" %}<br><span class="small muted">目前：{{ row.current.start.strftime("%Y-%m-%d %H:%M") }}{% if row.current.end %} ～ {{ row.current.end.strftime("%m-%d %H:%M") }}{% endif %}</span>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if group.missing %}<p class="small">目前日程有、這次沒擷取到：{{ group.missing|join("、") }}（核准後這些項目會從招生時程頁消失，請確認原文真的沒有）。</p>{% endif %}
+    <div class="record-card__actions mb-1">
+      <form method="post" action="{{ url_for('admin.agent_schedule_decide', channel=group.channel, year=group.year, decision='approve') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small" type="submit">核准這一組（取代目前的日程）</button></form>
+      <form method="post" action="{{ url_for('admin.agent_schedule_decide', channel=group.channel, year=group.year, decision='reject') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small button--quiet" type="submit">退回</button></form>
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
   <section class="work-panel">
     <div class="work-panel__head"><div><h2>執行紀錄</h2><p>最近 15 次。排程執行：<span class="mono">flask agent-check</span>（可用 Windows 工作排程器每月跑一次）。</p></div></div>
     <ul class="rule-item-list">
       {% for task in tasks %}
       {% set label, cls = task_status.get(task.status, (task.status, "tag")) %}
       <li><strong>{{ task_names.get(task.task_type, task.task_type) }} <span class="tag {{ cls }}">{{ label }}</span></strong>
-        <span class="mono small">{{ task.created_at.strftime("%Y-%m-%d %H:%M") }}</span>
+        <span class="mono small">{{ task.created_at|taipei_time("%Y-%m-%d %H:%M") }}</span>
         {% if task.error_message %}<span class="small">{{ task.error_message }}</span>
+        {% elif task.task_type == "agent_patrol" and task.result_json %}<span class="small">{{ task.result_json.summary }}</span>
         {% elif task.result_json and task.result_json.created is defined %}<span class="small">新增 {{ task.result_json.created|length }} 個候選，略過 {{ task.result_json.skipped|length }} 個</span>
         {% elif task.result_json %}<span class="small">{{ "有更新" if task.result_json.changed else "沒有更新" }}</span>{% endif %}
       </li>

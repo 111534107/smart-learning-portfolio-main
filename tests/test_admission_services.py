@@ -1,15 +1,12 @@
 from datetime import date
-import json
 
 import pytest
 
 from app import create_app
 from app.extensions import db
 from app.models import (
-    AdmissionEligibilityRule,
     AdmissionProgram,
     AdmissionRequirementItem,
-    AuditLog,
     ClassAdvisor,
     CredentialRecord,
     LearningCourseRecord,
@@ -40,14 +37,6 @@ def make_student(username="stu", class_name="資管科三甲"):
     return student
 
 
-def make_admin():
-    admin = User(username="admin", display_name="管理者", role="admin")
-    admin.set_password("pw")
-    db.session.add(admin)
-    db.session.flush()
-    return admin
-
-
 def make_program(items):
     program = AdmissionProgram(program_code="999001", admission_year=115, school_name="測試大學",
                                department_name="資管系", status="published")
@@ -72,95 +61,6 @@ def test_seed_import_creates_published_programs_once(app):
     certificate = next(item for item in program.items if item.source_item_name == "證照證明")
     assert certificate.category_keys == ["credential"]
     assert certificate.mapping_status == "confirmed"
-
-
-def test_admin_can_confirm_a_valid_eligibility_rule_with_source(app):
-    admin = make_admin()
-    program = make_program([])
-    rule = AdmissionEligibilityRule(
-        rule_version_id=program.id, rule_group=1, condition_type="unresolved", operator="unresolved",
-        value_json=None, description="請核對簡章資格", source_url=program.source_url,
-        mapping_status="pending", source_location="待填",
-    )
-    db.session.add(rule)
-    db.session.commit()
-    client = app.test_client()
-    client.post("/login", data={"username": admin.username, "password": "pw"})
-
-    response = client.post(f"/admin/eligibility-rules/{rule.id}", data={
-        "rule_group": "2", "condition_type": "credential", "operator": "has_credential",
-        "value_json": json.dumps({"name": "電腦軟體應用", "min_level": "乙級"}, ensure_ascii=False),
-        "description": "取得電腦軟體應用乙級以上技術士證", "source_url": "https://example.edu.tw/rules.pdf",
-        "source_location": "第 3 頁、報名資格", "mapping_status": "confirmed", "is_required": "on",
-    })
-
-    assert response.status_code == 302
-    assert rule.mapping_status == "confirmed"
-    assert rule.rule_group == 2
-    assert rule.condition_type == "credential"
-    assert rule.value_json == {"name": "電腦軟體應用", "min_level": "乙級"}
-    assert rule.source_url == "https://example.edu.tw/rules.pdf"
-    assert AuditLog.query.filter_by(action="admission.eligibility_rule_updated", target_id=rule.id).count() == 1
-
-
-def test_admin_cannot_confirm_invalid_or_untraceable_eligibility_rule(app):
-    admin = make_admin()
-    program = make_program([])
-    rule = AdmissionEligibilityRule(
-        rule_version_id=program.id, rule_group=1, condition_type="unresolved", operator="unresolved",
-        value_json=None, description="請核對簡章資格", mapping_status="pending",
-    )
-    db.session.add(rule)
-    db.session.commit()
-    client = app.test_client()
-    client.post("/login", data={"username": admin.username, "password": "pw"})
-
-    response = client.post(f"/admin/eligibility-rules/{rule.id}", data={
-        "rule_group": "1", "condition_type": "credential", "operator": "has_credential",
-        "value_json": json.dumps({"name": "電腦軟體應用", "min_level": "未知級別"}, ensure_ascii=False),
-        "description": "資格條件", "source_url": "https://example.edu.tw/rules.pdf",
-        "source_location": "第 3 頁", "mapping_status": "confirmed",
-    })
-
-    assert response.status_code == 400
-    assert rule.mapping_status == "pending"
-
-
-def test_students_cannot_update_eligibility_rules(app):
-    student = make_student()
-    program = make_program([])
-    rule = AdmissionEligibilityRule(
-        rule_version_id=program.id, rule_group=1, condition_type="unresolved", operator="unresolved",
-        description="資格", mapping_status="pending",
-    )
-    db.session.add(rule)
-    db.session.commit()
-    client = app.test_client()
-    client.post("/login", data={"username": student.username, "password": "pw"})
-
-    response = client.post(f"/admin/eligibility-rules/{rule.id}", data={"mapping_status": "confirmed"})
-
-    assert response.status_code in (302, 403)
-    assert rule.mapping_status == "pending"
-
-
-def test_admin_programs_page_renders_eligibility_review_form(app):
-    admin = make_admin()
-    program = make_program([])
-    db.session.add(AdmissionEligibilityRule(
-        rule_version_id=program.id, rule_group=1, condition_type="unresolved", operator="unresolved",
-        description="請管理者核對簡章資格", source_url=program.source_url,
-        mapping_status="pending", source_location="第 3 頁",
-    ))
-    db.session.commit()
-    client = app.test_client()
-    client.post("/login", data={"username": admin.username, "password": "pw"})
-
-    response = client.get("/admin/programs")
-
-    assert response.status_code == 200
-    assert "報名資格條件" in response.get_data(as_text=True)
-    assert "請管理者核對簡章資格" in response.get_data(as_text=True)
 
 
 def test_gap_marks_complete_partial_missing_and_documents(app):

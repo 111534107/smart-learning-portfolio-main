@@ -415,4 +415,47 @@ def test_editable_course_fields_save_without_javascript(tmp_path):
     with app.app_context():
         course = LearningCourseRecord.query.one()
         assert (course.course_name, course.credits, course.score, course.semester, course.grade_level) == ("Edited", 0, None, "第二學期", "5年級")
-        assert course.school_year == 115 and course.status_mark == "抵"
+        assert course.school_year == 5 and course.status_mark == "抵"
+
+
+def test_unconfirmed_document_excluded_from_ai_input(tmp_path):
+    """全域規則：未經學生確認的 OCR 資料不得進入 AI 分析；按下確認後才會出現。"""
+    from types import SimpleNamespace
+
+    from app.services import agent_file_tool, autobiography_service
+
+    draft_course = "草稿限定課名甲乙丙"
+    draft_credential = "草稿限定證照丁戊己"
+    app, document_id = learning_profile_app(tmp_path)
+    with app.app_context():
+        document = db.session.get(SourceDocument, document_id)
+        document.extraction.result_json = {
+            "courses": [{"course_name": draft_course, "credits": 3, "score": 88, "grade_level": "二年級"}],
+            "credentials": [{"credential_name": draft_credential, "level": "乙級"}],
+        }
+        db.session.commit()
+
+    def ai_inputs():
+        """回傳兩個 AI 輸入入口的文字：升學 Agent 取檔工具、自傳事實清單。"""
+        student = User.query.filter_by(username="student_demo").one()
+        tool = {t.name: t for t in agent_file_tool.document_tools(student)}["get_my_document"]
+        agent_text = repr(tool.run(document_id=str(document_id)))
+        facts = autobiography_service.build_facts(student, SimpleNamespace(id=1, items=[]))
+        return agent_text, repr(facts)
+
+    with app.app_context():
+        for text in ai_inputs():
+            assert draft_course not in text and draft_credential not in text
+
+    client = app.test_client()
+    login(client)
+    response = client.post(f"/student/learning-profile/documents/{document_id}/review/confirm", data={
+        "scores_unlocked": "1",
+        "courses_json": json.dumps([{"course_name": draft_course, "credits": 3, "score": 88, "grade_level": "二年級"}]),
+        "credentials_json": json.dumps([{"credential_name": draft_credential, "level": "乙級"}]),
+    })
+    assert response.status_code == 302
+
+    with app.app_context():
+        for text in ai_inputs():
+            assert draft_course in text and draft_credential in text

@@ -480,8 +480,6 @@ document.querySelectorAll("[data-walker]").forEach((walker) => {
   place(current);
 
   const end = lengthAtX(stops[grade - 1]);
-  let seen = false;
-  try { seen = sessionStorage.getItem("journey-walked") === "1"; } catch (e) { /* 讀不到就當沒看過 */ }
   const finish = () => {
     walker.classList.remove("is-walking");
     current = route.getPointAtLength(end);
@@ -489,7 +487,7 @@ document.querySelectorAll("[data-walker]").forEach((walker) => {
     notifyWalked();
   };
   const walk = () => {
-    if (reduce || seen || grade === 1) { finish(); return; }
+    if (reduce || grade === 1) { finish(); return; }
     walker.classList.add("is-walking");
     const start = performance.now();
     const duration = 900 + (grade - 1) * 450;
@@ -501,7 +499,6 @@ document.querySelectorAll("[data-walker]").forEach((walker) => {
       if (t < 1) requestAnimationFrame(step); else finish();
     };
     requestAnimationFrame(step);
-    try { sessionStorage.setItem("journey-walked", "1"); } catch (e) { /* 存不了也沒關係 */ }
   };
   // 「好久不見」播放中就等它關掉再走
   if (home && home.classList.contains("is-waiting")) {
@@ -533,108 +530,166 @@ document.querySelectorAll("[data-walker]").forEach((walker) => {
   });
 });
 
-// 拼圖：把旁邊散落的那片拖回圖上的洞裡（或直接點），拼上後打開新增
-document.querySelectorAll("[data-board]").forEach((board) => {
-  const boardSvg = board.querySelector(".jig__board");
-  // 洞在畫面上的寬度：整張圖 viewBox 寬 660，每片的 viewBox 寬 260。
-  // 散落的片平常只有洞的四成多（區塊才不會很長），拖起來再放大到和洞一樣
-  const holeWidth = () => (boardSvg ? boardSvg.getBoundingClientRect().width / 660 * 260 : 0);
-  const resize = () => {
-    if (!boardSvg) return;
-    board.querySelectorAll("[data-loose]").forEach((loose) => loose.style.setProperty("--size", `${holeWidth() * 0.45}px`));
-  };
-  resize();
-  window.addEventListener("resize", resize);
+// ---------- 五年拼圖桌（試用版） ----------
+// 一筆資料＝一片拼圖，位置與角度由伺服器依資料 id 算好；這裡只負責：點一片看說明、新的片落下、
+// 「做拼圖」按鈕的動畫，以及小助手把所有片拼到中間再去自傳頁。
+(() => {
+  const table = document.querySelector("[data-ptable]");
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const plainClick = (event) => !(event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button > 0);
 
-  board.querySelectorAll("[data-loose]").forEach((loose) => {
-    const piece = loose.querySelector("[data-drag-piece]");
-    const hole = board.querySelector(`[data-hole="${loose.dataset.loose}"]`);
-    let start = null;
-    let moved = false;
-    let grow = 1;  // 拖曳時放大幾倍才和洞一樣大
-    const measureGrow = () => { grow = holeWidth() / (loose.getBoundingClientRect().width || 1); };
-    // 這片在畫面上應該到的位置（洞的左上角，含拼圖凸出的留白）
-    const target = () => {
-      const box = boardSvg.getBoundingClientRect();
-      const scale = box.width / 660;
-      return { x: box.left + (Number(loose.dataset.x) + 30 - 30) * scale, y: box.top + (Number(loose.dataset.y) + 30 - 30) * scale };
-    };
-    const snap = () => {
-      measureGrow();
-      // 直接點（沒拖）時先放大，量到放大後的位置再移過去
-      if (!piece.classList.contains("is-dragging")) piece.classList.add("is-dragging");
-      if (!/scale\(/.test(piece.style.transform)) piece.style.transform = `translate(0px, 0px) scale(${grow})`;
-      const now = piece.getBoundingClientRect();
-      const goal = target();
-      const base = piece.style.transform.match(/translate\(([-\d.]+)px, ([-\d.]+)px\)/);
-      const bx = base ? Number(base[1]) : 0;
-      const by = base ? Number(base[2]) : 0;
-      piece.classList.remove("is-dragging");
-      piece.classList.add("is-snapped");
-      piece.style.transform = `translate(${bx + goal.x - now.left}px, ${by + goal.y - now.top}px) scale(${grow})`;
-      setTimeout(() => { window.location.href = loose.getAttribute("href"); }, 320);
-    };
-    piece.addEventListener("pointerdown", (event) => {
+  // 「做拼圖」：從按鈕彈出一片，轉正、放大飛向桌子，約 0.8 秒後才去填寫頁
+  const template = document.querySelector("[data-make-template]");
+  document.querySelectorAll("[data-make-piece]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      if (reduce || !template || !plainClick(event) || !button.animate) return;
       event.preventDefault();
-      piece.setPointerCapture(event.pointerId);
-      start = { x: event.clientX, y: event.clientY };
-      moved = false;
-      measureGrow();
-      // 以按下的那一點為中心放大，片才會一直在手指下面
-      const box = piece.getBoundingClientRect();
-      piece.style.transformOrigin = `${event.clientX - box.left}px ${event.clientY - box.top}px`;
-      piece.classList.add("is-dragging");
+      const href = button.getAttribute("href");
+      const fly = template.content.firstElementChild.cloneNode(true);
+      document.body.appendChild(fly);
+      const from = button.getBoundingClientRect();
+      const box = (table || button).getBoundingClientRect();
+      const size = 84;
+      const sx = from.left + from.width / 2 - size / 2;
+      const sy = from.top + from.height / 2 - size / 2;
+      // 目標：桌子中間（桌子不在畫面內就停在按鈕下方一點）
+      const visible = table && box.top < window.innerHeight && box.bottom > 0;
+      const ex = visible ? box.left + box.width / 2 - size / 2 : sx;
+      const ey = visible ? Math.min(box.top + box.height / 2, window.innerHeight - size) - size / 2 : sy + 120;
+      fly.animate([
+        { transform: `translate(${sx}px, ${sy}px) scale(.25) rotate(-35deg)`, opacity: 0 },
+        { transform: `translate(${sx}px, ${sy - 46}px) scale(.8) rotate(-12deg)`, opacity: 1, offset: 0.3 },
+        { transform: `translate(${ex}px, ${ey}px) scale(1.35) rotate(0deg)`, opacity: 1 },
+      ], { duration: 800, easing: "cubic-bezier(.3,.7,.2,1)", fill: "forwards" });
+      setTimeout(() => { window.location.href = href; }, 820);
     });
-    piece.addEventListener("pointermove", (event) => {
-      if (!start) return;
-      const dx = event.clientX - start.x;
-      const dy = event.clientY - start.y;
-      if (Math.abs(dx) + Math.abs(dy) > 4) moved = true;
-      piece.style.transform = `translate(${dx}px, ${dy}px) scale(${grow})`;
-      if (hole) {
-        const a = piece.getBoundingClientRect();
-        const goal = target();
-        hole.classList.toggle("is-near", Math.hypot(a.left - goal.x, a.top - goal.y) < a.width * 0.35);
-      }
-    });
-    piece.addEventListener("pointerup", () => {
-      if (!start) return;
-      start = null;
-      if (hole) hole.classList.remove("is-near");
-      const a = piece.getBoundingClientRect();
-      const goal = target();
-      if (!moved || Math.hypot(a.left - goal.x, a.top - goal.y) < a.width * 0.35) { snap(); return; }
-      piece.classList.remove("is-dragging");
-      piece.style.transform = "";
-      piece.style.transformOrigin = "";
-    });
-    // 拖到一半被系統打斷（來電、手勢）：放回原位
-    piece.addEventListener("pointercancel", () => {
-      start = null;
-      if (hole) hole.classList.remove("is-near");
-      piece.classList.remove("is-dragging");
-      piece.style.transform = "";
-      piece.style.transformOrigin = "";
-    });
-    // 滑鼠或手指放開後瀏覽器還會送一次 click，交給上面處理；鍵盤 Enter 的 click（detail 為 0）照常換頁
-    loose.addEventListener("click", (event) => { if (event.detail !== 0) event.preventDefault(); });
   });
 
-  // 回到首頁時：比對上次看到的拼圖，新拼上的那片跳一下，標題變成「又留下了一塊。」
-  const key = `journey-pieces-${board.dataset.grade}`;
-  const filled = [...board.querySelectorAll("[data-filled]")].map((el) => el.dataset.piece);
+  if (!table) return;
+  const pieces = [...table.querySelectorAll("[data-table-piece]")];
+
+  // 點一片：小浮層顯示類別、年級、資料標題（不跳頁）
+  const tip = table.querySelector("[data-table-tip]");
+  let active = null;
+  const hideTip = () => {
+    if (active) active.classList.remove("is-active");
+    active = null;
+    if (tip) tip.hidden = true;
+  };
+  pieces.forEach((piece) => {
+    piece.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (!tip || table.classList.contains("is-assembling")) return;
+      if (active === piece) { hideTip(); return; }
+      hideTip();
+      active = piece;
+      piece.classList.add("is-active");
+      tip.innerHTML = "";
+      const head = document.createElement("small");
+      head.textContent = piece.dataset.tip;
+      const title = document.createElement("b");
+      title.textContent = piece.dataset.tipTitle || "（沒有標題）";
+      tip.append(head, title);
+      const t = table.getBoundingClientRect();
+      const p = piece.getBoundingClientRect();
+      tip.hidden = false;
+      // 依浮層實際寬度的一半夾住水平位置，才不會被桌邊切掉
+      const half = Math.min(tip.offsetWidth / 2 + 8, t.width / 2);
+      const x = Math.min(Math.max(p.left + p.width / 2 - t.left, half), t.width - half);
+      const below = p.top - t.top < t.height * 0.3;
+      tip.style.left = `${x}px`;
+      tip.style.top = `${(below ? p.bottom : p.top) - t.top}px`;
+      tip.classList.toggle("is-below", below);
+    });
+  });
+  document.addEventListener("click", hideTip);
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape") hideTip(); });
+
+  // 新的片落下：和這個分頁上次看到的 id 清單比對（第一次來不播，只記下來）
+  const KEY = "journey-table";
+  const ids = pieces.map((piece) => piece.dataset.tablePiece);
   let before = null;
-  try { before = JSON.parse(sessionStorage.getItem(key) || "null"); } catch (e) { before = null; }
-  if (Array.isArray(before)) {
-    const fresh = filled.filter((piece) => !before.includes(piece));
+  try { before = JSON.parse(sessionStorage.getItem(KEY) || "null"); } catch (e) { before = null; }
+  try { sessionStorage.setItem(KEY, JSON.stringify(ids)); } catch (e) { /* 存不了也沒關係 */ }
+  if (Array.isArray(before) && !reduce) {
+    const fresh = pieces.filter((piece) => !before.includes(piece.dataset.tablePiece));
     if (fresh.length) {
-      fresh.forEach((piece) => board.querySelector(`[data-piece="${piece}"]`)?.classList.add("is-new"));
-      const title = document.querySelector("[data-board-title]");
-      if (title) title.textContent = "又留下了一塊。";
+      // 一片一片落下，但全部最多約 1.5 秒播完（片很多時間隔縮短）
+      const step = Math.min(110, 1500 / fresh.length);
+      fresh.forEach((piece, n) => { piece.style.setProperty("--delay", `${Math.round(n * step)}ms`); piece.classList.add("is-waiting"); });
+      const drop = () => fresh.forEach((piece) => {
+        piece.classList.remove("is-waiting");
+        piece.classList.add("is-dropping");
+        piece.addEventListener("animationend", () => piece.classList.remove("is-dropping"), { once: true });
+      });
+      // 等桌子捲進畫面才落下，免得在看不到的地方播完
+      if ("IntersectionObserver" in window) {
+        const watch = new IntersectionObserver((entries) => {
+          if (entries.some((entry) => entry.isIntersecting)) { watch.disconnect(); setTimeout(drop, 150); }
+        }, { threshold: 0.35 });
+        watch.observe(table);
+      } else {
+        drop();
+      }
     }
   }
-  try { sessionStorage.setItem(key, JSON.stringify(filled)); } catch (e) { /* 存不了也沒關係 */ }
-});
+
+  // 小助手拼好拼圖：所有片依序飛到桌子中央排成長方形，整塊發光，再去自傳頁
+  const assemble = document.querySelector("[data-assemble]");
+  if (!assemble) return;
+  // 按鈕本身是連到自傳頁的連結：沒有 JS、減少動態效果或動畫出錯時，照常換頁
+  assemble.addEventListener("click", (event) => {
+    if (reduce || !pieces.length || !plainClick(event)) return;
+    event.preventDefault();
+    const href = assemble.getAttribute("href");
+    const go = () => { window.location.href = href; };
+    try {
+      if (assemble.dataset.busy) return;
+      assemble.dataset.busy = "1";
+      assemble.setAttribute("aria-disabled", "true");
+      hideTip();
+      const helper = table.querySelector("[data-table-helper]");
+      if (helper) helper.hidden = false;
+      table.scrollIntoView({ block: "center", behavior: "smooth" });
+
+      const sceneW = Number(table.dataset.sceneW);
+      const sceneH = Number(table.dataset.sceneH);
+      const rect = table.getBoundingClientRect();
+      const unit = Math.min(rect.width * 0.64 / sceneW, rect.height * 0.62 / sceneH);  // 圖上 1 單位＝幾 px
+      if (!(unit > 0)) { go(); return; }
+      const ox = rect.width / 2 - sceneW * unit / 2;
+      const oy = rect.height / 2 - sceneH * unit / 2;
+      const frame = table.querySelector("[data-assembled-frame]");
+      if (frame) Object.assign(frame.style, { left: `${ox}px`, top: `${oy}px`, width: `${sceneW * unit}px`, height: `${sceneH * unit}px` });
+
+      // 全部片在 1.5～2.5 秒內飛完：片越多間隔越短
+      const move = 600;
+      const stagger = Math.min(160, Math.max(6, (1700 - move) / Math.max(pieces.length - 1, 1)));
+      setTimeout(() => {
+        try {
+          table.classList.add("is-assembling");
+          pieces.forEach((piece, i) => {
+            // 片的中心點在 left/top（CSS 用 translate(-50%,-50%) 置中），算出要移多少、放大幾倍
+            const dx = ox + Number(piece.dataset.cx) * unit - piece.offsetLeft;
+            const dy = oy + Number(piece.dataset.cy) * unit - piece.offsetTop;
+            const scale = Number(piece.dataset.bw) * unit / (piece.offsetWidth || 1);
+            piece.style.transitionDelay = `${i * stagger}ms`;
+            piece.style.zIndex = String(2 + Math.min(i, 97));  // 上限 99：整張圖（200）和小助手泡泡（210）永遠在最上面
+            piece.style.transform = `translate(${dx}px, ${dy}px) translate(-50%, -50%) scale(${scale}) rotate(0deg)`;
+            piece.classList.add("is-placed");
+          });
+          const done = 300 + (pieces.length - 1) * stagger + move;
+          setTimeout(() => table.classList.add("is-assembled"), done - 250);
+          setTimeout(go, done + 900);
+        } catch (error) {
+          go();
+        }
+      }, 350);
+    } catch (error) {
+      go();
+    }
+  });
+})();
 
 // 學期照片：選好檔案就直接上傳
 document.querySelectorAll("[data-photo-form]").forEach((form) => {

@@ -1,8 +1,6 @@
 """獎懲記錄匯入：上傳 → AI 逐列讀出 → 學生確認 → 寫進「活動與經歷」。規則見 services/award_record_service.py。"""
 
 from hashlib import sha256
-from pathlib import Path
-from uuid import uuid4
 
 from flask import Blueprint, abort, current_app, redirect, render_template, request, url_for
 
@@ -10,7 +8,7 @@ from app.extensions import db
 from app.models import DocumentExtraction, Portfolio, SourceDocument
 from app.routes.main import get_current_user, role_required
 from app.security import validate_upload_filename
-from app.services import ai_quota_service, award_record_service
+from app.services import ai_quota_service, award_record_service, storage_service
 from app.services.journey_service import CATEGORY_LABELS, EXPERIENCE_CATEGORIES, grade_for
 
 award_bp = Blueprint("award", __name__)
@@ -66,14 +64,11 @@ def award_upload():
     if not file_bytes:
         return "檔案是空的", 400
 
-    folder = Path(current_app.config["UPLOAD_FOLDER"]) / "learning-profile" / str(user.id)
-    folder.mkdir(parents=True, exist_ok=True)
-    stored_path = folder / f"{uuid4().hex}_{safe_name}"
-    stored_path.write_bytes(file_bytes)
+    location = storage_service.save(file_bytes, owner_id=user.id, folder="learning-profile", filename=safe_name)
     try:
-        rows, warnings = _read_rows(user, stored_path, safe_name)
+        rows, warnings = _read_rows(user, storage_service.local_path(location), safe_name)
         document = SourceDocument(owner_id=user.id, document_type=DOCUMENT_TYPE, display_name=safe_name,
-                                  file_path=str(stored_path), sha256=sha256(file_bytes).hexdigest(), status="extracted")
+                                  file_path=location, sha256=sha256(file_bytes).hexdigest(), status="extracted")
         db.session.add(document)
         db.session.flush()
         db.session.add(DocumentExtraction(
@@ -83,7 +78,7 @@ def award_upload():
         db.session.commit()
     except Exception:
         db.session.rollback()
-        stored_path.unlink(missing_ok=True)
+        storage_service.discard(location)
         raise
     return redirect(url_for("award.award_review", document_id=document.id))
 
@@ -128,6 +123,7 @@ def award_confirm(document_id):
     added = 0
     for _, row in chosen:
         title = row["reason"].strip()[:150]
+        # 刻意不排除已刪除的：學生刪掉的匯入紀錄，再匯入一次也不要冒回來
         exists = Portfolio.query.filter_by(student_id=user.id, source="award_record", title=title).first()
         if exists:
             continue

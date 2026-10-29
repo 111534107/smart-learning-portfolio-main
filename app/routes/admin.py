@@ -1,13 +1,10 @@
-from datetime import date
-import json
-from urllib.parse import urlparse
+from datetime import date, datetime, timezone
 
 from flask import Blueprint, abort, current_app, redirect, render_template, request, session, url_for
 
 from app.extensions import db
 from app.security import validate_upload_filename
 from app.models import (
-    AdmissionEligibilityRule,
     AdmissionProgram,
     AgentTask,
     AuditLog,
@@ -17,6 +14,7 @@ from app.models import (
     AdmissionRequirementItem,
     ClassAdvisor,
     CourseRule,
+    MatchFilterOption,
     ProjectType,
     RequirementItem,
     RequirementTemplate,
@@ -24,11 +22,11 @@ from app.models import (
     User,
 )
 from app.services import admission_agent_service as agent
-from app.services.admission_service import import_seed_programs
-from app.services.admission_eligibility_service import validate_eligibility_condition
+from app.services.admission_service import import_seed_programs, published_programs
 from app.services.gemini_client import ai_ready
 from app.services.gap_service import ALL_LABELS
 from app.services.journey_service import academic_year_of
+from app.models.match_filter import MATCH_FILTER_CATEGORIES
 from app.routes.main import get_current_user, role_required
 
 
@@ -87,6 +85,86 @@ def toggle_course_rule_active(rule_id):
     rule.is_active = not rule.is_active
     db.session.commit()
     return redirect(url_for("admin.course_rules"))
+
+
+MATCH_FILTER_CATEGORY_LABELS = {"department": "科系", "region": "地區（尚未啟用）", "level": "學制", "eligible": "是否可報"}
+
+
+MATCH_FILTER_ELIGIBLE_VALUES = {"eligible": "可報", "needs_check": "需確認", "ineligible": "不可報"}
+
+
+def _check_match_filter_label(label):
+    limit = MatchFilterOption.label.type.length
+    if len(label) > limit:
+        abort(400, description=f"顯示名稱不可超過 {limit} 個字")
+
+
+@admin_bp.route("/admin/match-filters", methods=["GET", "POST"])
+@role_required("admin")
+def match_filters():
+    if request.method == "POST":
+        category = request.form.get("category", "").strip()
+        label = request.form.get("label", "").strip()
+        value = request.form.get("value", "").strip()
+        try:
+            sort_order = int(request.form.get("sort_order", "").strip() or 0)
+        except ValueError:
+            abort(400, description="Sort order must be a number")
+        if category not in MATCH_FILTER_CATEGORIES or not label or not value:
+            abort(400, description="Category, label, and value are required")
+        _check_match_filter_label(label)
+        if len(value) > MatchFilterOption.value.type.length:
+            abort(400, description=f"值不可超過 {MatchFilterOption.value.type.length} 個字")
+        if category == "eligible" and value not in MATCH_FILTER_ELIGIBLE_VALUES:
+            abort(400, description="「是否可報」的值只能是 eligible、needs_check、ineligible")
+        if MatchFilterOption.query.filter_by(category=category, value=value).first():
+            abort(400, description="This filter option already exists")
+        db.session.add(MatchFilterOption(
+            category=category, label=label, value=value, sort_order=sort_order, is_active=True,
+        ))
+        db.session.commit()
+        return redirect(url_for("admin.match_filters"))
+    return render_template(
+        "admin_match_filters.html",
+        user=get_current_user(),
+        options=MatchFilterOption.query.order_by(
+            MatchFilterOption.category.asc(), MatchFilterOption.sort_order.asc(), MatchFilterOption.id.asc()
+        ).all(),
+        category_labels=MATCH_FILTER_CATEGORY_LABELS,
+        eligible_values=MATCH_FILTER_ELIGIBLE_VALUES,
+        level_values=sorted({p.admission_category for p in published_programs() if p.admission_category}),
+    )
+
+
+@admin_bp.post("/admin/match-filters/<int:option_id>/edit")
+@role_required("admin")
+def edit_match_filter(option_id):
+    option = db.session.get(MatchFilterOption, option_id)
+    if not option:
+        abort(404)
+    label = request.form.get("label", "").strip()
+    if not label:
+        abort(400, description="顯示名稱不可空白")
+    _check_match_filter_label(label)
+    try:
+        sort_order = int(request.form.get("sort_order", "").strip() or 0)
+    except ValueError:
+        abort(400, description="Sort order must be a number")
+    option.label = label
+    option.sort_order = sort_order
+    db.session.commit()
+    return redirect(url_for("admin.match_filters"))
+
+
+@admin_bp.post("/admin/match-filters/<int:option_id>/toggle-active")
+@role_required("admin")
+def toggle_match_filter(option_id):
+    option = db.session.get(MatchFilterOption, option_id)
+    if not option:
+        abort(404)
+    option.is_active = not option.is_active
+    db.session.commit()
+    return redirect(url_for("admin.match_filters"))
 
 
 @admin_bp.get("/admin/accounts")
@@ -292,80 +370,6 @@ def program_item_update(item_id):
     return redirect(url_for("admin.programs") + f"#program-{item.rule_version_id}")
 
 
-@admin_bp.post("/admin/eligibility-rules/<int:rule_id>")
-@role_required("admin")
-def admission_eligibility_rule_update(rule_id):
-    rule = db.session.get(AdmissionEligibilityRule, rule_id)
-    if not rule:
-        abort(404)
-    try:
-        rule_group = int(request.form.get("rule_group", ""))
-    except (TypeError, ValueError):
-        abort(400, description="資格條件群組必須是正整數。")
-    if rule_group < 1:
-        abort(400, description="資格條件群組必須是正整數。")
-
-    condition_type = request.form.get("condition_type", "").strip()
-    operator = request.form.get("operator", "").strip()
-    description = request.form.get("description", "").strip()
-    source_url = request.form.get("source_url", "").strip() or None
-    source_location = request.form.get("source_location", "").strip() or None
-    mapping_status = request.form.get("mapping_status", "pending")
-    if not description or len(description) > 2000:
-        abort(400, description="請填寫資格原文或清楚的待核對說明（最多 2000 字）。")
-    if mapping_status not in {"pending", "confirmed"}:
-        abort(400, description="資格規則狀態不正確。")
-    try:
-        value_json = json.loads(request.form.get("value_json", "").strip() or "null")
-    except (json.JSONDecodeError, TypeError):
-        abort(400, description="條件內容必須是有效的 JSON。")
-
-    if mapping_status == "confirmed":
-        validation_error = validate_eligibility_condition(condition_type, operator, value_json)
-        parsed_url = urlparse(source_url or "")
-        if validation_error:
-            abort(400, description=validation_error)
-        if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
-            abort(400, description="確認資格規則前，請填寫官方簡章網址。")
-        if not source_location:
-            abort(400, description="確認資格規則前，請填寫頁碼或章節位置。")
-
-    before = {
-        "condition_type": rule.condition_type,
-        "operator": rule.operator,
-        "mapping_status": rule.mapping_status,
-        "source_url": rule.source_url,
-        "source_location": rule.source_location,
-    }
-    rule.rule_group = rule_group
-    rule.condition_type = condition_type or "unresolved"
-    rule.operator = operator or "unresolved"
-    rule.value_json = value_json
-    rule.description = description
-    rule.source_url = source_url
-    rule.source_location = source_location
-    rule.mapping_status = mapping_status
-    rule.is_required = request.form.get("is_required") == "on"
-    db.session.add(AuditLog(
-        user_id=get_current_user().id,
-        action="admission.eligibility_rule_updated",
-        target_type="admission_eligibility_rule",
-        target_id=rule.id,
-        detail_json={
-            "before": before,
-            "after": {
-                "condition_type": rule.condition_type,
-                "operator": rule.operator,
-                "mapping_status": rule.mapping_status,
-                "source_url": rule.source_url,
-                "source_location": rule.source_location,
-            },
-        },
-    ))
-    db.session.commit()
-    return redirect(url_for("admin.programs") + f"#eligibility-rule-{rule.id}")
-
-
 # ---------- 招生資料 Agent（系統亮點第二、三階段） ----------
 
 @admin_bp.get("/admin/agent")
@@ -380,10 +384,12 @@ def agent_home():
                .join(PublicSourceSnapshot, PublicSourceChange.snapshot_id == PublicSourceSnapshot.id)
                .join(PublicSource, PublicSourceSnapshot.source_id == PublicSource.id)
                .order_by(PublicSourceChange.id.desc()).limit(20).all())
-    tasks = (AgentTask.query.filter(AgentTask.task_type.in_(["admission_source_check", "admission_extract"]))
+    tasks = (AgentTask.query.filter(AgentTask.task_type.in_(["admission_source_check", "admission_extract", "agent_patrol"]))
              .order_by(AgentTask.id.desc()).limit(15).all())
+    from app.services.admission_schedule import schedule_groups
     return render_template(
         "admin_agent.html",
+        schedule_groups=schedule_groups(),
         user=get_current_user(),
         sources=sources,
         latest=latest,
@@ -427,6 +433,39 @@ def agent_check_source(source_id):
         return redirect(url_for("admin.agent_home", error=task.error_message))
     text = "內容有更新，已建立變更，可以擷取加權" if task.result_json["changed"] else "內容和上次一樣，沒有更新"
     return redirect(url_for("admin.agent_home", message=f"「{source.name}」：{text}"))
+
+
+@admin_bp.post("/admin/agent/patrol")
+@role_required("admin")
+def agent_patrol():
+    from app.services.agent_patrol import run_patrol
+    result = run_patrol(get_current_user())
+    return redirect(url_for("admin.agent_home", message=result["summary"]))
+
+
+@admin_bp.post("/admin/agent/schedule/<channel>/<int:year>/<decision>")
+@role_required("admin")
+def agent_schedule_decide(channel, year, decision):
+    """候選日程整組核准（取代目前的日程）或退回。"""
+    from app.models import AdmissionScheduleEvent
+    if decision not in ("approve", "reject"):
+        abort(404)
+    candidates = AdmissionScheduleEvent.query.filter_by(channel=channel, admission_year=year, status="candidate").all()
+    if not candidates:
+        abort(404)
+    actor, now = get_current_user(), datetime.now(timezone.utc)
+    if decision == "approve":
+        retired = AdmissionScheduleEvent.query.filter_by(channel=channel, admission_year=year, status="published").all()
+        for event in retired:
+            event.status = "retired"
+    for event in candidates:
+        event.status = "published" if decision == "approve" else "rejected"
+        event.reviewed_by, event.reviewed_at = actor.id, now
+    db.session.add(AuditLog(user_id=actor.id, action=f"admission_schedule.{decision}", target_type="admission_schedule",
+                            target_id=year, detail_json={"channel": channel, "year": year, "count": len(candidates)}))
+    db.session.commit()
+    text = "已核准，招生時程頁改用這一組日程" if decision == "approve" else "已退回這一組候選日程"
+    return redirect(url_for("admin.agent_home", message=f"{year} 學年度：{text}（{len(candidates)} 項）。"))
 
 
 @admin_bp.post("/admin/agent/changes/<int:change_id>/extract")
@@ -499,7 +538,7 @@ def ocr_settings_page():
             ocr_settings.save_device(request.form.get("device", ""),
                                      request.form.get("dml_device_id", type=int, default=-1),
                                      get_current_user())
-            return redirect(url_for("admin.ocr_settings_page"))
+            return redirect(url_for("admin.ocr_settings_page", saved=1))
         except ValueError as exc:
             error = str(exc)
     device, dml_device_id = ocr_settings.current_device()
@@ -513,3 +552,25 @@ def ocr_settings_page():
         provider=current_app.config.get("DOCUMENT_ANALYSIS_PROVIDER"),
         error=error,
     ), (400 if error else 200)
+
+
+@admin_bp.get("/admin/audit-logs")
+@role_required("admin")
+def audit_logs():
+    """操作紀錄（規格 M11）：最近 200 筆，可依動作篩選。只顯示角色與使用者編號，不顯示姓名與學號。"""
+    from app.services import audit_service
+
+    action = request.args.get("action", "").strip()
+    query = AuditLog.query
+    if action:
+        query = query.filter_by(action=action)
+    logs = query.order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).limit(200).all()
+    known = {row[0] for row in db.session.query(AuditLog.action).distinct()}
+    return render_template(
+        "admin_audit_logs.html",
+        user=get_current_user(),
+        logs=logs,
+        action=action,
+        actions=sorted(known | set(audit_service.ACTION_LABELS)),
+        label=audit_service.label,
+    )

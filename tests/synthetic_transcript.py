@@ -28,14 +28,20 @@ def _right(draw, x_right, y, text, font):
     draw.text((x_right - width - 8, y), text, fill="black", font=font)
 
 
-def render(path, years=SYNTHETIC_YEARS):
-    """畫出合成成績單並存檔；回傳期望的課程列表（年級、學期、課名、學分、成績）。"""
+def render(path, years=SYNTHETIC_YEARS, *, student_line=False):
+    """畫出合成成績單並存檔；回傳期望的課程列表（年級、學期、課名、學分、成績）。
+
+    student_line：仿照正式成績單在表格正上方印一行班級與學號（假資料），
+    這行文字緊貼各學年表頭，用來檢查年級表頭不會被頁首文字干擾。
+    """
     big = ImageFont.truetype(MSJH_FONT, 34)
     font = ImageFont.truetype(MSJH_FONT, 30)
     small = ImageFont.truetype(MSJH_FONT, 22)
     image = Image.new("RGB", PAGE, "white")
     draw = ImageDraw.Draw(image)
     draw.text((900, 120), "合成測試學校　學生歷年成績單（假資料）", fill="black", font=big)
+    if student_line:
+        draw.text((700, TOP_RULE - 50), "四年忠班　　學號：000000000　　姓名：測試學生", fill="black", font=font)
     expected = []
     for panel_index in range(5):
         left = 120 + panel_index * (PANEL + 30)

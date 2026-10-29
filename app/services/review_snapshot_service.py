@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 from app.extensions import db
 from app.models import AuditLog, PackageReview
-from app.services import autobiography_service
+from app.services import audit_service, autobiography_service
 from app.services.gap_service import analyze_gap
 from app.services.package_service import latest_review
 
@@ -39,8 +39,31 @@ def request_review(student, program):
     review.snapshot_json = snapshot
     review.readiness_percent = snapshot["readiness"]
     review.requested_at = datetime.now(timezone.utc)
+    db.session.flush()
+    audit_service.record(student, "package_review.request", "package_review", review.id,
+                         detail={"program_id": program.id})
     db.session.commit()
     return review
+
+
+# 送審過的經歷不能刪（規格 M10）；學生看到的說明
+LOCKED_MESSAGE = "這筆已經送導師確認，不能刪除；如果內容有誤，請修改後再送一次。"
+
+
+def submitted_portfolio_ids(student_id):
+    """出現在這位學生任何一份送審快照裡的經歷編號（不論導師確認了沒有）。"""
+    ids = set()
+    for review in PackageReview.query.filter_by(student_id=student_id):
+        for fact in (review.snapshot_json or {}).get("facts", []):
+            kind, _, value = str(fact.get("evidence_id", "")).partition(":")
+            if kind == "portfolio" and value.isdigit():
+                ids.add(int(value))
+    return ids
+
+
+def is_submitted(portfolio):
+    """經歷送審過（導師確認快照，或舊流程的 PortfolioSubmission）就不能刪；它的佐證也一樣。"""
+    return bool(portfolio.submissions) or portfolio.id in submitted_portfolio_ids(portfolio.student_id)
 
 
 def snapshot_diff(new, old):

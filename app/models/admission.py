@@ -36,10 +36,6 @@ class AdmissionProgram(db.Model):
         "AdmissionRequirementItem", back_populates="program", cascade="all, delete-orphan",
         order_by="AdmissionRequirementItem.sort_order",
     )
-    eligibility_rules = db.relationship(
-        "AdmissionEligibilityRule", back_populates="program", cascade="all, delete-orphan",
-        order_by="AdmissionEligibilityRule.sort_order",
-    )
 
     @property
     def total_weight(self):
@@ -72,30 +68,30 @@ class AdmissionRequirementItem(db.Model):
         return [key for key in (self.mapped_categories or "").split(",") if key]
 
 
-class AdmissionEligibilityRule(db.Model):
-    """一筆招生版本的報名資格條件與官方來源定位。"""
+class AdmissionScheduleEvent(db.Model):
+    """招生重要日程的一個項目（例如「網路報名」）。
 
-    __tablename__ = "admission_eligibility_rules"
-    __table_args__ = (
-        db.Index("ix_admission_eligibility_rule_version_status", "rule_version_id", "mapping_status"),
-    )
+    status：candidate（Agent 擷取的候選）／published（管理員核准，招生時程頁使用）／
+            retired（被新核准的版本取代）／rejected（管理員退回）
+    同一個招生管道、同一個學年度核准後，會整組取代 app/content/admission_schedule.csv 的日程。
+    """
+
+    __tablename__ = "admission_schedule_events"
 
     id = db.Column(db.Integer, primary_key=True)
-    rule_version_id = db.Column(
-        db.Integer, db.ForeignKey("admission_rule_versions.id"), nullable=False, index=True
-    )
-    rule_group = db.Column(db.Integer, nullable=False, default=1)
-    condition_type = db.Column(db.String(40), nullable=False)
-    operator = db.Column(db.String(30), nullable=False)
-    value_json = db.Column(db.JSON, nullable=True)
-    description = db.Column(db.Text, nullable=False)
+    channel = db.Column(db.String(30), nullable=False, index=True)
+    admission_year = db.Column(db.Integer, nullable=False, index=True)
+    name = db.Column(db.String(100), nullable=False)
+    start_at = db.Column(db.DateTime, nullable=False)
+    end_at = db.Column(db.DateTime, nullable=True)
+    note = db.Column(db.String(255), nullable=True)
     source_url = db.Column(db.String(500), nullable=True)
-    source_location = db.Column(db.String(150), nullable=True)
-    mapping_status = db.Column(db.String(20), nullable=False, default="pending", index=True)
-    is_required = db.Column(db.Boolean, nullable=False, default=True)
-    sort_order = db.Column(db.Integer, nullable=False, default=0)
-
-    program = db.relationship("AdmissionProgram", back_populates="eligibility_rules")
+    status = db.Column(db.String(20), nullable=False, default="candidate", index=True)
+    data_origin = db.Column(db.String(20), nullable=False, default="agent")
+    change_id = db.Column(db.Integer, db.ForeignKey("public_source_changes.id"), nullable=True)
+    reviewed_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    reviewed_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=_utcnow)
 
 
 class StudentTarget(db.Model):

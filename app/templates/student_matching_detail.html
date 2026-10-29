@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% from "partials/matching_detail.html" import matching_detail %}
+{% set page_name = "student-matching-detail" %}
+
+{% block title %}{{ row.program.school_name }} {{ row.program.department_name }}｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "目標校系") }}{% endblock %}
+
+{% block content %}
+{{ page_band("推薦排序細項") }}
+<div class="page page--banded">
+  <div class="record-card__actions mb-1">
+    <a class="button button--small button--quiet" href="{{ url_for('student.matching') }}">← 回推薦排序</a>
+  </div>
+  <div class="sheet mb-1">
+    <div class="sheet__head">
+      <h2>{{ row.program.school_name }} {{ row.program.department_name }}</h2>
+      <span class="tag">{{ row.channel_label }}</span>
+      <span class="tag {{ {'eligible': 'tag--info', 'needs_check': 'tag--warn', 'ineligible': 'tag--danger'}[row.status] }}">{{ row.status_label }}</span>
+    </div>
+    <p class="muted small">{{ row.program.admission_year }} 學年度</p>
+    {{ matching_detail(row, category_labels) }}
+    {% if row.reasons %}
+    <h3>建議依據</h3>
+    <ul>{% for reason in row.reasons %}<li>{{ reason }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% if row.links %}
+    <p class="small">招生資訊：{% for link in row.links %}<a href="{{ link.url }}" target="_blank" rel="noopener noreferrer">{{ link.label }}</a>{% if not loop.last %}／{% endif %}{% endfor %}</p>
+    {% endif %}
+    <p class="small"><a href="{{ url_for('student.schedule') }}">查看招生時程 →</a></p>
+    {% if row.status != "ineligible" %}
+      {% if row.program.id in selected %}
+      <p class="mt-1"><a class="button button--small" href="{{ url_for('student.target_gap', program_id=row.program.id) }}">已是目標校系，看還缺什麼 →</a></p>
+      {% else %}
+      <form method="post" action="{{ url_for('student.target_list') }}" class="mt-1">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="program_id" value="{{ row.program.id }}">
+        <button class="button button--small" type="submit">設為目標校系</button>
+      </form>
+      {% endif %}
+    {% endif %}
+  </div>
+  <p class="muted small mt-1">準備度是依你已確認的資料和簡章加權算的建議值，不是錄取機率；能不能報與錄取結果以當年度招生簡章正式審核為準。</p>
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

@@ -30,6 +30,7 @@
   <section class="work-panel">
     <div class="work-panel__head"><div><h2>切換</h2></div></div>
     {% if error %}<p class="alert mb-1" role="alert">{{ error }}</p>{% endif %}
+    {% if request.args.get("saved") and not error %}<p class="notice mb-1" role="status">已儲存，下一份上傳的檔案就會用新的設定辨識。</p>{% endif %}
     <form class="admin-inline-form" method="post">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <fieldset class="field">

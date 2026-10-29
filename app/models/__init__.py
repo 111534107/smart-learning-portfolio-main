@@ -23,9 +23,9 @@ from app.models.learning_profile import (
 )
 from app.models.user import StudentProfile, User
 from app.models.admission import (
-    AdmissionEligibilityRule,
     AdmissionProgram,
     AdmissionRequirementItem,
+    AdmissionScheduleEvent,
     ClassAdvisor,
     PackageReview,
     StudentTarget,
@@ -44,6 +44,7 @@ from app.models.p0_workbench import (
 from app.models.transfer_credit import TransferCreditRecord
 from app.models.system_setting import SystemSetting
 from app.models.google_doc import AutobiographyGoogleDoc
+from app.models.match_filter import MatchFilterOption
 
 __all__ = [
     "AiDailyUsage",
@@ -83,12 +84,13 @@ __all__ = [
     "PublicSourceChange",
     "PublicSourcePublication",
     "AdmissionProgram",
-    "AdmissionEligibilityRule",
     "AdmissionRequirementItem",
+    "AdmissionScheduleEvent",
     "StudentTarget",
     "ClassAdvisor",
     "PackageReview",
     "TransferCreditRecord",
     "SystemSetting",
     "AutobiographyGoogleDoc",
+    "MatchFilterOption",
 ]

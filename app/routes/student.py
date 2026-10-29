@@ -1,4 +1,3 @@
-from pathlib import Path
 from hashlib import sha256
 from io import BytesIO
 import json
@@ -9,16 +8,18 @@ from urllib.parse import urlparse
 from uuid import uuid4
 from urllib.parse import urlparse
 
-from flask import Blueprint, abort, current_app, redirect, render_template, request, send_file, url_for
+from flask import Blueprint, abort, current_app, jsonify, redirect, render_template, request, send_file, url_for
 
 from app.extensions import db
 from app.models import (
     AdmissionProgram,
+    AgentTask,
     AuditLog,
     CredentialRecord,
     DocumentExtraction,
     LearningCourseRecord,
     LearningProfileOutput,
+    MatchFilterOption,
     Portfolio,
     PortfolioEvidence,
     SourceDocument,
@@ -35,14 +36,18 @@ from app.services.flow import flash_done, readiness, safe_next, target_program
 from app.services.document_analysis_service import ALLOWED_DOCUMENT_TYPES, analyze_document, score_band
 from app.services.learning_profile_docx_service import output_to_docx_bytes
 from app.services.learning_profile_service import generate_learning_profile_outputs
+from app.services.activity_fit import build_activity_fit
 from app.services.admission_service import published_programs
 from app.services.gap_service import ALL_LABELS, analyze_gap, chapter_order
+from app.services.admission_links import admission_links, load_school_links
+from app.services.admission_schedule import CHECKED_ON, channel_label, latest_timeline, timeline
+from app.services.matching_service import rank_programs
 from app.services.gap_checklist import download_checklist, review_timeline
 from app.services.journey_service import CATEGORY_LABELS, EXPERIENCE_CATEGORIES, build_journey
 from app.services.package_service import build_package_docx, latest_review
 from app.services.file_preview import inline_file
 from app.services.record_status import learning_profile_state, portfolio_state
-from app.services import ai_quota_service, autobiography_review, autobiography_service, ocr_queue, review_snapshot_service, student_rules
+from app.services import ai_quota_service, audit_service, autobiography_backup, autobiography_review, autobiography_service, ocr_queue, review_snapshot_service, storage_service, student_rules
 from app.services.gemini_client import AIUnavailable, ai_ready
 from app.services.course_review_presentation import (
     build_course_review_groups,
@@ -60,21 +65,28 @@ def learning_profile_document_upload():
     user = get_current_user()
     document_type = request.form.get("document_type", "").strip()
     uploaded = request.files.get("file")
+
+    def upload_error(message):
+        # 留在上傳頁、用中文說明，不要整頁只剩英文錯誤（10-27 實測問題 4）
+        return render_template("learning_profile_upload.html", user=user,
+                               document_type=document_type if document_type in ALLOWED_DOCUMENT_TYPES else "transcript",
+                               next_path=safe_next(request.form.get("next")), error=message), 400
+
     if document_type not in ALLOWED_DOCUMENT_TYPES:
-        return "unsupported document type", 400
+        return upload_error("請先選擇要上傳的是成績單還是證照。")
     if not uploaded or not uploaded.filename:
-        return "file is required", 400
+        return upload_error("請先選擇要上傳的檔案。")
     try:
         safe_name = validate_upload_filename(
             uploaded.filename,
             current_app.config["LEARNING_PROFILE_ALLOWED_EXTENSIONS"],
         )
-    except ValueError as exc:
-        return str(exc), 400
+    except ValueError:
+        return upload_error("只接受 PNG、JPG 圖片或 PDF 檔，請換一個檔案再上傳。")
 
     file_bytes = uploaded.read()
     if not file_bytes:
-        return "file is empty", 400
+        return upload_error("這個檔案是空的，請換一個檔案再上傳。")
     # 成績單圖片太小時 OCR 只會產生亂字：不存檔，直接請學生改傳
     from app.services.upload_quality import resolution_check
     resolution = resolution_check(document_type, file_bytes, safe_name)
@@ -82,24 +94,24 @@ def learning_profile_document_upload():
         return render_template("learning_profile_upload.html", user=user, document_type=document_type,
                                next_path=safe_next(request.form.get("next")),
                                error=resolution["message"]), 400
-    folder = Path(current_app.config["UPLOAD_FOLDER"]) / "learning-profile" / str(user.id)
-    folder.mkdir(parents=True, exist_ok=True)
-    stored_path = folder / f"{uuid4().hex}_{safe_name}"
-    stored_path.write_bytes(file_bytes)
+    location = storage_service.save(file_bytes, owner_id=user.id, folder="learning-profile", filename=safe_name)
     try:
         document = SourceDocument(
             owner_id=user.id,
             document_type=document_type,
             display_name=safe_name,
-            file_path=str(stored_path),
+            file_path=location,
             sha256=sha256(file_bytes).hexdigest(),
             status="queued",
         )
         db.session.add(document)
+        db.session.flush()
+        audit_service.record(user, "learning_profile.document_upload", "source_document", document.id,
+                             detail={"document_type": document_type})
         db.session.commit()
     except Exception:
         db.session.rollback()
-        stored_path.unlink(missing_ok=True)
+        storage_service.discard(location)
         raise
     # 辨識要 7～30 秒：先跳「辨識中」頁，背景跑完再自動進確認頁；從校系頁來的會帶著 next
     ocr_queue.enqueue(current_app._get_current_object(), document.id)
@@ -170,7 +182,7 @@ def learning_profile_document_retry(document_id):
     document = _owned_source_document(document_id)
     if document.status != "analysis_failed":
         abort(409, description="這份文件不是辨識失敗的狀態，不需要重新辨識。")
-    if not Path(document.file_path).is_file():
+    if not storage_service.exists(document.file_path):
         abort(409, description="找不到原始檔案，請重新上傳。")
     document.status = "queued"
     db.session.commit()
@@ -338,9 +350,7 @@ def learning_profile_document_reanalyze(document_id):
     started_revision = (extraction.result_json or {}).get("draft_revision") if extraction else None
     provider = current_app.config["DOCUMENT_ANALYSIS_PROVIDER"]
     try:
-        source_path = Path(document.file_path)
-        if not source_path.is_file():
-            raise RuntimeError("source unavailable")
+        source_path = storage_service.local_path(document.file_path)
         result = analyze_document(document.document_type, source_path, provider)
         if not isinstance(result, dict) or any(
             not isinstance(result.get(key, []), list)
@@ -404,8 +414,8 @@ def learning_profile_document_reanalyze(document_id):
 @role_required("student")
 def learning_profile_document_source(document_id):
     document = _owned_source_document(document_id)
-    source_path = Path(document.file_path)
-    if not source_path.is_file():
+    source_path = storage_service.local_path_or_none(document.file_path)
+    if source_path is None:
         abort(404)
     response = send_file(source_path.resolve(), as_attachment=True, download_name=document.display_name)
     response.headers["Cache-Control"] = "private, no-store"
@@ -468,7 +478,7 @@ def _source_crop_response(document, page_number, bbox, rotation=0, padding=0):
 
     pages = None
     try:
-        pages = load_document_pages(document.file_path)
+        pages = load_document_pages(storage_service.local_path(document.file_path))
         for number, page in enumerate(pages, start=1):
             try:
                 if number != page_number:
@@ -526,6 +536,33 @@ def _course_integer(value, label, upper=None):
         raise ValueError(f"{label}必須介於 0 至 {upper}")
     return value
 
+
+
+SEMESTER_WORDS = {"一": "上", "1": "上", "上": "上", "二": "下", "2": "下", "下": "下"}
+
+
+def _course_semester(value):
+    """成績單印「一」「二」或 1、2，系統統一存「上」「下」（10-27 實測問題 3）。"""
+    text = str(value or "").strip()
+    return SEMESTER_WORDS.get(text, text or None)
+
+
+def _course_grade(user, school_year, grade_level):
+    """課程放在幾年級（1～5）。學生在確認頁填的年級優先；辨識草稿帶的是民國學年度（例如 115）時，
+    用入學年度換算成年級，換不出來就留空，不把 115 當成年級存進去。"""
+    typed = grade_number(grade_level)
+    if typed:
+        return typed
+    try:
+        year = int(school_year)
+    except (TypeError, ValueError):
+        return None
+    if 1 <= year <= 5:
+        return year
+    profile = user.student_profile
+    if profile and profile.admission_year and 1 <= year - profile.admission_year + 1 <= 5:
+        return year - profile.admission_year + 1
+    return None
 
 @student_bp.post("/student/learning-profile/documents/<int:document_id>/review/confirm")
 @role_required("student")
@@ -639,7 +676,7 @@ def learning_profile_document_confirm(document_id):
             item.update(course_name=course_name, credits=credits, score=score,
                         grade_level=grade_level, makeup_season=makeup_season,
                         score_band=score_band(score))
-            course_year = int(item["school_year"]) if item.get("school_year") else None
+            course_year = _course_grade(user, item.get("school_year"), grade_level)
             if student_rules.grade_block_reason(user) is None:
                 # 組員確認頁只填年級（grade_level）時，也要檢查不能填比現在高的年級
                 student_rules.check_record_year(
@@ -648,7 +685,7 @@ def learning_profile_document_confirm(document_id):
                 student_id=user.id,
                 source_document_id=document.id,
                 school_year=course_year,
-                semester=str(item.get("semester") or "").strip() or None,
+                semester=_course_semester(item.get("semester")),
                 grade_level=grade_level,
                 course_name=course_name,
                 normalized_course_name=normalized_name,
@@ -688,6 +725,8 @@ def learning_profile_document_confirm(document_id):
             **result, "courses": courses, "credentials": credentials, "draft_revision": uuid4().hex,
         }
         document.status = "confirmed"
+        audit_service.record(user, "learning_profile.document_confirm", "source_document", document.id,
+                             detail={"course_count": len(courses), "credential_count": len(credentials)})
         db.session.commit()
     except (TypeError, ValueError) as exc:
         db.session.rollback()
@@ -742,6 +781,7 @@ def _render_record_form(user, portfolio=None, values=None, error=None, next_path
         category_labels=CATEGORY_LABELS,
         error=error,
         next_path=next_path,
+        locked_message=review_snapshot_service.LOCKED_MESSAGE,
     ), (400 if error else 200)
 
 
@@ -762,7 +802,7 @@ def portfolio_list():
         db.session.commit()
         flash_done(f"已新增「{values['title']}」。", user, program, before)
         return redirect(next_path or url_for("student.portfolio_list", added=values["category"]))
-    records = Portfolio.query.filter_by(student_id=user.id).order_by(Portfolio.created_at.desc()).all()
+    records = Portfolio.active().filter_by(student_id=user.id).order_by(Portfolio.created_at.desc()).all()
     return render_template(
         "student_portfolio.html",
         user=user,
@@ -772,6 +812,7 @@ def portfolio_list():
         categories=EXPERIENCE_CATEGORIES,
         category_labels=CATEGORY_LABELS,
         record_state=portfolio_state,
+        fit=build_activity_fit(user, [r for r in records if r.category in EXPERIENCE_CATEGORIES]),
     )
 
 
@@ -806,9 +847,11 @@ def portfolio_edit(portfolio_id):
 @role_required("student")
 def portfolio_confirm(portfolio_id):
     """學生確認這筆經歷內容正確；確認過的經歷才會被 AI 寫進自傳。"""
-    portfolio = owned_portfolio(portfolio_id, get_current_user())
+    user = get_current_user()
+    portfolio = owned_portfolio(portfolio_id, user)
     if portfolio.status == "draft":
         portfolio.status = "confirmed"
+        audit_service.record(user, "portfolio.confirm", "portfolio", portfolio.id)
         db.session.commit()
     return redirect(url_for("student.portfolio_list", confirmed=1))
 
@@ -816,13 +859,23 @@ def portfolio_confirm(portfolio_id):
 @student_bp.post("/student/portfolio/<int:portfolio_id>/delete")
 @role_required("student")
 def portfolio_delete(portfolio_id):
-    portfolio = owned_portfolio(portfolio_id, get_current_user())
-    file_paths = [Path(item.file_path) for item in portfolio.evidence_items if item.file_path]
-    db.session.delete(portfolio)
+    """刪除先標記 deleted_at，資料列與檔案都保留（規格 M10）；送審過的不能刪。"""
+    user = get_current_user()
+    portfolio = owned_portfolio(portfolio_id, user)
+    if review_snapshot_service.is_submitted(portfolio):
+        audit_service.record(user, "portfolio.delete_blocked", "portfolio", portfolio.id, commit=True)
+        return redirect(url_for("student.portfolio_edit", portfolio_id=portfolio.id, locked=1))
+    now = datetime.now(timezone.utc)
+    evidence = list(portfolio.evidence_items)
+    for item in evidence:
+        item.deleted_at = now
+    portfolio.deleted_at = now
+    audit_service.record(user, "portfolio.delete", "portfolio", portfolio.id)
     db.session.commit()
-    for file_path in file_paths:
-        file_path.unlink(missing_ok=True)
-    return redirect(url_for("student.portfolio_list"))
+    for item in evidence:  # 檔案也只標記，不直接永久刪除（V2 第 7 頁）
+        if item.file_path:
+            storage_service.mark_deleted(item.file_path, reason="student_deleted_portfolio")
+    return redirect(url_for("student.portfolio_list", deleted=1))
 
 
 @student_bp.post("/student/portfolio/<int:portfolio_id>/submit")
@@ -846,12 +899,15 @@ def evidence_upload(portfolio_id):
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             return "連結必須是 http 或 https 網址", 400
         link_name = request.form.get("link_name", "").strip() or external_url
-        db.session.add(PortfolioEvidence(
+        link = PortfolioEvidence(
             portfolio_id=portfolio.id,
             evidence_type="link",
             display_name=link_name,
             external_url=external_url,
-        ))
+        )
+        db.session.add(link)
+        db.session.flush()
+        audit_service.record(get_current_user(), "evidence.upload", "portfolio_evidence", link.id)
         db.session.commit()
         return redirect(url_for("student.portfolio_edit", portfolio_id=portfolio.id))
     uploaded = request.files.get("file")
@@ -861,23 +917,23 @@ def evidence_upload(portfolio_id):
         safe_name = validate_upload_filename(uploaded.filename, current_app.config["ALLOWED_UPLOAD_EXTENSIONS"])
     except ValueError as exc:
         return str(exc), 400
-    folder = Path(current_app.config["UPLOAD_FOLDER"]) / str(get_current_user().id)
-    folder.mkdir(parents=True, exist_ok=True)
-    stored_path = folder / f"{uuid4().hex}_{safe_name}"
-    uploaded.save(stored_path)
-    db.session.add(PortfolioEvidence(portfolio_id=portfolio.id, evidence_type="file", display_name=safe_name, file_path=str(stored_path)))
+    location = storage_service.save(uploaded.read(), owner_id=get_current_user().id, folder="", filename=safe_name)
+    evidence = PortfolioEvidence(portfolio_id=portfolio.id, evidence_type="file", display_name=safe_name, file_path=location)
+    db.session.add(evidence)
+    db.session.flush()
+    audit_service.record(get_current_user(), "evidence.upload", "portfolio_evidence", evidence.id)
     db.session.commit()
     return redirect(url_for("student.portfolio_edit", portfolio_id=portfolio.id))
 
 
 def _owned_evidence_or_404(evidence_id):
     evidence = db.session.get(PortfolioEvidence, evidence_id)
-    if not evidence:
+    if not evidence or evidence.deleted_at:
         abort(404)
     owned_portfolio(evidence.portfolio_id, get_current_user())
     if evidence.external_url:
         return redirect(evidence.external_url)
-    if not evidence.file_path or not Path(evidence.file_path).is_file():
+    if not storage_service.exists(evidence.file_path):
         abort(404)
     return evidence
 
@@ -886,7 +942,8 @@ def _owned_evidence_or_404(evidence_id):
 @role_required("student")
 def evidence_download(evidence_id):
     evidence = _owned_evidence_or_404(evidence_id)
-    return send_file(evidence.file_path, as_attachment=True, download_name=evidence.display_name)
+    return send_file(storage_service.local_path(evidence.file_path).resolve(), as_attachment=True,
+                     download_name=evidence.display_name)
 
 
 @student_bp.get("/student/evidence/<int:evidence_id>/view")
@@ -900,15 +957,19 @@ def evidence_view(evidence_id):
 @student_bp.post("/student/evidence/<int:evidence_id>/delete")
 @role_required("student")
 def evidence_delete(evidence_id):
+    user = get_current_user()
     evidence = db.session.get(PortfolioEvidence, evidence_id)
-    if not evidence:
+    if not evidence or evidence.deleted_at:
         abort(404)
-    portfolio = owned_portfolio(evidence.portfolio_id, get_current_user())
-    file_path = evidence.file_path
-    db.session.delete(evidence)
+    portfolio = owned_portfolio(evidence.portfolio_id, user)
+    if review_snapshot_service.is_submitted(portfolio):
+        audit_service.record(user, "evidence.delete_blocked", "portfolio_evidence", evidence.id, commit=True)
+        return redirect(url_for("student.portfolio_edit", portfolio_id=portfolio.id, locked=1))
+    evidence.deleted_at = datetime.now(timezone.utc)  # 只標記，資料列保留（規格 M10）
+    audit_service.record(user, "evidence.delete", "portfolio_evidence", evidence.id)
     db.session.commit()
-    if file_path:
-        Path(file_path).unlink(missing_ok=True)
+    if evidence.file_path:
+        storage_service.mark_deleted(evidence.file_path, reason="student_deleted_evidence")
     return redirect(url_for("student.portfolio_edit", portfolio_id=portfolio.id))
 
 
@@ -956,12 +1017,15 @@ def target_list():
                 error = f"目標校系同時最多 {slots['limit']} 所，請先取消一所再加入新的。"
             else:
                 db.session.add(StudentTarget(student_id=user.id, rule_version_id=program.id))
+                audit_service.record(user, "student_target.add", "admission_program", program.id)
                 db.session.commit()
         if not error:
             return redirect(url_for("student.target_gap", program_id=program.id))
     journey = build_journey(user)
     selected = {t.rule_version_id for t in StudentTarget.query.filter_by(student_id=user.id).all()}
-    programs = published_programs()
+    # 已選的目標放最上面，其他照原本順序（10-27 實測問題 14）
+    programs = sorted(published_programs(), key=lambda p: p.id not in selected)
+    school_links = load_school_links()
     return render_template(
         "student_targets.html",
         user=user,
@@ -970,16 +1034,134 @@ def target_list():
         slots=student_rules.target_slots(user),
         cancelled_programs=_cancelled_autobiography_programs(user),
         gaps={p.id: analyze_gap(user, p, journey) for p in programs},
+        links={p.id: admission_links(p, school_links) for p in programs},
         focus=focus_view(user, journey),
         error=error,
     ), (400 if error else 200)
+
+
+@student_bp.get("/student/matching")
+@role_required("student")
+def matching():
+    """A3 媒合排序：全部正式校系依可不可報與契合度排序，每一間都寫理由。可用科系、學制、是否可報篩選。"""
+    user = get_current_user()
+    journey = build_journey(user)
+    has_confirmed_data = any(journey["confirmed_totals"].values())
+    selected = {t.rule_version_id for t in StudentTarget.query.filter_by(student_id=user.id).all()}
+    active_filters = {key: request.args.get(key, "").strip() for key in ("department", "level", "eligible")}
+    rows = rank_programs(user, published_programs(), journey=journey)
+    total = len(rows)
+    if active_filters["department"]:
+        rows = [r for r in rows if active_filters["department"] in (r["program"].department_name or "")]
+    if active_filters["level"]:
+        rows = [r for r in rows if r["program"].admission_category == active_filters["level"]]
+    if active_filters["eligible"]:
+        rows = [r for r in rows if r["status"] == active_filters["eligible"]]
+    # 同一報考狀態內以已確認資料算出的準備度排序；同校校系收在一起。
+    rows.sort(key=lambda r: ({"eligible": 0, "needs_check": 1, "ineligible": 2}[r["status"]],
+                             r["fit"] is None, -(r["fit"] or 0)))
+    school_groups = []
+    by_school = {}
+    for row in rows:
+        name = row["program"].school_name
+        if name not in by_school:
+            group = {"name": name, "rows": [], "best": row}
+            by_school[name] = group
+            school_groups.append(group)
+        by_school[name]["rows"].append(row)
+    filters = {category: MatchFilterOption.active_options(category) for category in ("department", "level", "eligible")}
+    chart = "column" if request.args.get("chart") == "column" else "bar"
+    return render_template(
+        "student_matching.html",
+        user=user,
+        rows=rows,
+        school_groups=school_groups,
+        total=total,
+        selected=selected,
+        category_labels=ALL_LABELS,
+        filters=filters,
+        active_filters={k: v for k, v in active_filters.items() if v},
+        chart=chart,
+        has_confirmed_data=has_confirmed_data,
+    )
+
+
+@student_bp.get("/student/matching/<int:program_id>")
+@role_required("student")
+def matching_detail(program_id):
+    """排序細項整頁（手機用）：一律以登入者為準，不接受網址帶學生編號。"""
+    user = get_current_user()
+    program = _published_program_or_404(program_id)
+    row = rank_programs(user, [program])[0]
+    selected = {t.rule_version_id for t in StudentTarget.query.filter_by(student_id=user.id).all()}
+    return render_template(
+        "student_matching_detail.html",
+        user=user,
+        row=row,
+        selected=selected,
+        category_labels=ALL_LABELS,
+    )
+
+
+@student_bp.get("/student/schedule")
+@role_required("student")
+def schedule():
+    """招生時程：二技技優甄審的全國日程，以及每個目標校系該看哪裡。"""
+    user = get_current_user()
+    targets = StudentTarget.query.filter_by(student_id=user.id).order_by(StudentTarget.selected_at).all()
+    school_links = load_school_links()
+    return render_template(
+        "student_schedule.html",
+        user=user,
+        skill=latest_timeline("skill_review"),
+        checked_on=CHECKED_ON,
+        targets=[{"program": t.program, "schedule": timeline(t.program), "channel_label": channel_label(t.program),
+                  "links": admission_links(t.program, school_links)} for t in targets],
+    )
+
+
+@student_bp.post("/student/agent/advise")
+@role_required("student")
+def agent_advise():
+    """升學 Agent：排序校系，並為已選的目標校系準備自傳草稿。背景執行，結果頁邊做邊顯示每一步。"""
+    from app.services.agent_advisor import start_advisor
+    config = current_app.config
+    # 測試與 5013 記憶體展示站（所有請求共用一條 SQLite 連線）照舊同步執行
+    background = config.get("AGENT_BACKGROUND", not (current_app.testing or config.get("LOCAL_DEMO_MODE")))
+    task_id = start_advisor(get_current_user(), background=background)
+    return redirect(url_for("student.agent_run", task_id=task_id))
+
+
+def _own_agent_task(task_id):
+    task = db.session.get(AgentTask, task_id)
+    if not task or task.requester_id != get_current_user().id or task.task_type != "agent_advisor":
+        abort(404)
+    return task
+
+
+@student_bp.get("/student/agent/runs/<int:task_id>")
+@role_required("student")
+def agent_run(task_id):
+    from app.services.agent_advisor import TOOL_LINEUP
+    from app.services.agent_engine import expire_if_stale
+    task = expire_if_stale(_own_agent_task(task_id))
+    return render_template("student_agent_run.html", user=get_current_user(), task=task, run=task.result_json or {},
+                           lineup=TOOL_LINEUP)
+
+
+@student_bp.get("/student/agent/runs/<int:task_id>/progress")
+@role_required("student")
+def agent_run_progress(task_id):
+    from app.services.agent_engine import progress
+    return jsonify(progress(_own_agent_task(task_id)))
 
 
 @student_bp.post("/student/targets/<int:program_id>/remove")
 @role_required("student")
 def target_remove(program_id):
     user = get_current_user()
-    StudentTarget.query.filter_by(student_id=user.id, rule_version_id=program_id).delete()
+    if StudentTarget.query.filter_by(student_id=user.id, rule_version_id=program_id).delete():
+        audit_service.record(user, "student_target.remove", "admission_program", program_id)
     db.session.commit()
     return redirect(url_for("student.target_list"))
 
@@ -1070,8 +1252,10 @@ def _render_autobiography(user, program, targets, error=None, answers=None, stat
         answers=answers or (draft.content_json.get("answers", {}) if draft else {}),
         facts=autobiography_service.build_facts(user, program) if program else None,
         version=autobiography_service.version_of(draft) if draft else None,
+        backup_label=autobiography_backup.status_label(draft) if draft else None,
         paragraph_reviews=paragraph_reviews,
         school_turns=ai_quota_service.remaining(user) if ai_ready() else None,
+        review_note=student_rules.review_open_note(user),
         error=error,
         stale=stale,
     ), (409 if stale else status if error else 200)
@@ -1092,7 +1276,7 @@ def autobiography_generate():
     program, targets = _autobiography_program(user, request.form.get("program_id", type=int))
     if not program:
         return redirect(url_for("student.target_list"))
-    reason = student_rules.review_block_reason(user)
+    reason = student_rules.autobiography_block_reason(user)
     if reason:
         return _blocked(user, reason)
     answers = {key: request.form.get(key, "") for key, _, _ in autobiography_service.QUESTIONS}
@@ -1103,7 +1287,10 @@ def autobiography_generate():
         # 學校金鑰每人每天有次數限制；先扣，AI 失敗時 rollback 就會退回
         if not own_key and ai_ready():
             ai_quota_service.consume(user)
-        autobiography_service.generate_draft(user, program, answers, api_key=own_key)
+        output = autobiography_service.generate_draft(user, program, answers, api_key=own_key)
+        audit_service.record(user, "autobiography.generate", "learning_profile_output", output.id,
+                             detail={"program_id": program.id, "provider": output.content_json.get("provider")},
+                             commit=True)
     except ai_quota_service.QuotaExceeded as exc:
         return _render_autobiography(user, program, targets, error=str(exc), answers=answers, status=429)
     except AIUnavailable as exc:
@@ -1127,11 +1314,12 @@ def autobiography_save(output_id):
     count = len(output.content_json.get("paragraphs", []))
     texts = [request.form.get(f"paragraph_{i}", "") for i in range(count)]
     try:
-        autobiography_service.save_edits(output, texts, user)
+        saved = autobiography_service.save_edits(output, texts, user)
     except autobiography_service.StaleVersion as exc:
         program, targets = _autobiography_program(user, output.content_json["program_id"])
         return _render_autobiography(user, program, targets, stale={"message": str(exc), "texts": texts,
                                                                     "paragraphs": output.content_json["paragraphs"]})
+    audit_service.record(user, "autobiography.save", "learning_profile_output", saved.id, commit=True)
     return redirect(url_for("student.autobiography", program_id=output.content_json["program_id"], saved=1))
 
 
@@ -1180,4 +1368,5 @@ def _version_view(student, program, selected_id):
         "diff": autobiography_service.version_diff(selected, previous),
         "editors": editors,
         "version_of": autobiography_service.version_of,
+        "backup_label": autobiography_backup.status_label,
     }

@@ -136,7 +136,7 @@ def test_without_api_key_route_gives_friendly_message(app):
     response = client.post("/assistant/ask", data={"message": "畢業門檻？", "history": "[]"})
 
     assert response.status_code == 200
-    assert "尚未啟用" in response.get_json()["answer"]
+    assert "沒有開啟" in response.get_json()["answer"]
 
 
 def test_admin_cannot_use_assistant_route(app):
