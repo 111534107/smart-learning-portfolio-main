@@ -310,6 +310,7 @@ def staff_dashboard():
         user=user,
         staff_pending_submissions=pending_submissions,
         staff_pending_certificates=AwardCertificate.query.filter_by(status="pending").count(),
+        category_labels=CATEGORY_LABELS,
         staff_feedback_by_submission=feedback_by_submission(
             [item.id for item in pending_submissions]
         ),

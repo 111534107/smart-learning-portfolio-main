@@ -18,6 +18,46 @@ def test_local_demo_app_uses_isolated_synthetic_data_and_demo_ocr():
     assert "Drive 尚未設定" in response.get_data(as_text=True)
 
 
+def test_local_demo_uses_its_own_upload_folder():
+    # 示範學生編號固定是 1；共用 instance/uploads 會拿到磁碟上別人留下的照片（10-29 瀏覽器驗收發現）
+    from pathlib import Path
+
+    first, second = create_local_demo_app(), create_local_demo_app()
+
+    assert Path(first.config["UPLOAD_FOLDER"]).resolve() != Path("instance/uploads").resolve()
+    assert first.config["UPLOAD_FOLDER"] != second.config["UPLOAD_FOLDER"]
+
+
+def test_local_demo_student_can_generate_autobiography_right_away():
+    from app.services import student_rules
+    from app.services.journey_home import board_progress
+    from app.services.journey_service import build_journey
+
+    app = create_local_demo_app()
+    with app.app_context():
+        student = User.query.filter_by(username="student_demo").one()
+        total, filled = board_progress(build_journey(student))
+
+        assert total == filled == 30
+        assert student_rules.autobiography_block_reason(student) is None
+        assert StudentTarget.query.filter_by(student_id=student.id).count() == 1
+
+
+def test_local_demo_staff_has_submissions_and_a_certificate_to_review():
+    # 10-29 驗收：科辦兩頁原本都是 0 件，展示時沒東西可審
+    client = create_local_demo_app().test_client()
+    client.post("/login", data={"username": "staff_demo", "password": "demo2026"})
+
+    dashboard = client.get("/staff/dashboard").get_data(as_text=True)
+    certificates = client.get("/staff/certificates").get_data(as_text=True)
+
+    assert "2 件待處理" in dashboard
+    assert "【測試】競賽5" in dashboard and "【測試】活動5" in dashboard
+    assert "· activity ·" not in dashboard and "· 活動 ·" in dashboard  # 類別顯示中文，不是程式代碼
+    assert "【測試】服務4" in certificates
+    assert "目前沒有待核准的申請" not in certificates
+
+
 def test_local_demo_forces_external_ai_off_even_if_local_environment_enables_it(monkeypatch):
     from app.config import Config
 

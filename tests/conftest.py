@@ -18,3 +18,10 @@ def no_real_google(monkeypatch):
     monkeypatch.setattr(Config, "GOOGLE_OAUTH_REDIRECT_URI", "")
     monkeypatch.setattr(Config, "GOOGLE_STORAGE_REDIRECT_URI", "")
     monkeypatch.setattr(Config, "STORAGE_BACKEND", "local")
+
+
+@pytest.fixture(autouse=True)
+def no_real_ocr(monkeypatch):
+    """測試預設用假辨識，不吃 .env 的 DOCUMENT_ANALYSIS_PROVIDER；要測真實 OCR 的測試自己在 create_app 指定。
+    10-29 有人把 .env 改成 rapidocr 後，沒指定的 5 個測試拿 4 個位元組的假檔去真辨識而失敗。"""
+    monkeypatch.setattr(Config, "DOCUMENT_ANALYSIS_PROVIDER", "fake")

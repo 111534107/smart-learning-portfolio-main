@@ -1,5 +1,91 @@
 # 開發日誌
 
+## 2026-10-30 科辦示範送件；送件卡片類別改顯示中文
+
+日期：2026-10-30（台灣時間）
+
+開發者：Claude（直接在 `D:\democase\ai-wt-story` 修改；未提交、未推送）
+
+目標：使用者要求「補科辦示範送件」。10-29 驗收時科辦「待處理送件」與「電子獎狀」兩頁都是 0 件，展示時沒有東西可審。
+
+修改檔案：
+- `app/demo.py`：`_seed_journey_board()` 改為回傳建立的成果；新增 `_seed_staff_queue()`：用 `create_submission_snapshot()` 送審「【測試】活動5」「【測試】競賽5」兩筆成果（與學生按送審走同一段程式），並把「【測試】服務4」標成從學校獎懲記錄匯入（`source="award_record"`），開一張待核准的服務證明電子獎狀，內文用 `certificate_service.default_body()` 產生。
+- `app/routes/main.py`、`app/templates/dashboard.html`：科辦送件卡片與導師審查清單原本直接印出類別代碼（例如 `activity`），改用 `CATEGORY_LABELS` 顯示「活動」「競賽」等中文；科辦工作台補傳 `category_labels`。
+- `tests/test_local_demo.py`：新增 `test_local_demo_staff_has_submissions_and_a_certificate_to_review`（2 件待處理、獎狀出現、類別顯示中文）。
+
+驗證結果：
+- `tests/test_local_demo.py`：11 passed。
+- 完整測試第一次 5 failed（`test_course_grade_level.py` 2 個、`test_student_records.py` 3 個）。原因不是本次改動：`.env` 在 10-29 16:49 被改成 `DOCUMENT_ANALYSIS_PROVIDER=rapidocr`，這 5 個測試沒有自己指定辨識方式，拿 4 個位元組的假檔去真辨識，結果是空的。已在 `tests/conftest.py` 新增 `no_real_ocr`，測試預設用假辨識（寫法同既有的 `no_real_ai`、`no_real_google`）；需要真實 OCR 的測試本來就自己在 `create_app` 指定，不受影響。
+- 修正後完整測試 `D:\democase\ai\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp=logs/test-runs/full-after-ocr-fix`：**951 passed, 2 skipped**，0 失敗。
+- 瀏覽器（展示站 5031、375px）：科辦工作台顯示「2 件待處理」「待核准電子獎狀 1」，兩張卡片類別為「活動」「競賽」；電子獎狀清單有「【測試】服務4」；審核頁回 200，標題「服務證明」、內文與發證單位已預填，有「核准並產出獎狀」「退回」；三頁 `scrollWidth` 皆為 375。沒有按核准，示範資料保留給展示。
+
+已知限制：示範獎狀沒有附獎懲記錄原始檔，所以審核頁不會出現「對照學生上傳的獎懲記錄」按鈕；送件也沒有教師意見，卡片顯示「目前還沒有教師意見」。
+
+下一步：全部改動等使用者決定是否提交。
+
+## 2026-10-29 瀏覽器驗收發現的修正：照片 500、展示站上傳資料夾、示範目標校系
+
+日期：2026-10-29（台灣時間）
+
+開發者：Claude（直接在 `D:\democase\ai-wt-story` 修改；未提交、未推送）
+
+目標：使用者要求做瀏覽器驗收。驗收過程發現 4 個問題並修正；完整驗收結果見 `docs/03_開發紀錄/browser-check-2026-10-29.md` 最上面一節。
+
+修改檔案：
+- `app/services/photo_service.py`：`photo_path()` 改回傳絕對路徑。原本相對路徑在 `send_file` 會以 `app\` 為基準而找不到，學期照片回 500；正式版預設設定也會遇到。
+- `app/demo.py`：展示站改用自己的暫存上傳資料夾（`tempfile.mkdtemp`），不再共用 `instance\uploads`，以免示範學生（編號 1）拿到磁碟上別人留下的照片或備份；示範資料標題改中文；示範學生預設選一個資管相關目標校系，自傳頁才能直接生成。
+- `tests/test_semester_photo.py`：新增相對路徑 `UPLOAD_FOLDER` 的照片測試（先失敗後通過）。
+- `tests/test_local_demo.py`：新增展示站上傳資料夾獨立、示範學生能直接生成自傳的測試。
+
+驗證結果：
+- 相關測試（`tests/test_local_demo.py`、`tests/test_semester_photo.py`、`tests/test_autobiography_google_docs.py`）：39 passed。
+- 完整測試 `D:\democase\ai\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp=logs/test-runs/browser-fix-full`：**950 passed, 2 skipped**，0 失敗（上一次 947，新增 3 個測試）。
+- 瀏覽器：375px 學生首頁 30 片、生成自傳成功、Tab 順序與焦點框正常、導師導覽正常；科辦工作台與導覽補驗通過（示範資料沒有送件，0 件）；減少動態效果未實測。
+
+下一步：決定要不要處理磁碟上 `instance\uploads\semester-photos\1\` 的舊照片。
+
+## 2026-10-29 示範帳號補拼圖資料：student_demo 可生成自傳
+
+日期：2026-10-29（台灣時間）
+
+開發者：Claude（直接在 `D:\democase\ai-wt-story` 修改；未提交、未推送）
+
+目標：使用者決定「補示範資料」。原本 `student_demo` 是專五但拼圖 0 格，展示時按不了生成自傳。現在展示站與示範用的資料庫啟動時，會替示範學生補滿五年 × 六類的已確認合成資料。
+
+修改檔案：
+- `app/demo.py`：新增 `_seed_journey_board()`，為每個已走過的年級補上 1 筆成績（`LearningCourseRecord`）、1 筆證照（`CredentialRecord`）、活動／競賽／服務／幹部各 1 筆（`Portfolio`），狀態皆為 `confirmed`，標題前綴「【測試】」。`create_local_demo_app()` 在建立學生檔案後呼叫它。
+
+驗證結果：
+- 啟動展示站的同一套建立流程後，`board_progress` 為 30／30（專五 × 六類全部有資料），`autobiography_block_reason` 為 `None`，自傳頁可生成。
+- 完整測試 `D:\democase\ai\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp=logs/test-runs/demo-seed`：**947 passed, 2 skipped**，0 失敗（1 個既有的 `cache_dir` 設定警告）。
+- 未做瀏覽器實測；展示站的登入後畫面與生成自傳按鈕還沒在瀏覽器確認。
+
+下一步：用瀏覽器確認 `student_demo` 首頁拼圖桌為 30 格全亮、生成自傳可按；若要讓學生首頁的草稿有真實感，可再決定示範自傳內容。
+
+## 2026-10-29 用語改準備度：轉學考與算不出時的說明
+
+日期：2026-10-29（台灣時間）
+
+開發者：Claude（直接在 `D:\democase\ai-wt-story` 修改；未提交、未推送）
+
+目標：使用者規格要求用「準備度」，不用「契合度」。`matching_service.py` 第 46、157 行（轉學考校系的說明、算不出時的說明）仍寫「契合度」，這次一併改掉。算法沒有改。
+
+修改檔案：
+- `app/services/matching_service.py`：`NO_FIT_TRANSFER` 改為「依考試成績，不算準備度」；`_fit_reasons` 算不出時的說明改為「……系統還算不出準備度。」
+- `tests/test_transfer_exam.py`：三處斷言同步更新（只考筆試的插大、推薦排序頁卡片、AI 推薦工具說明）。
+
+驗證：
+- 先改測試，確認 3 個測試失敗（對應舊字樣），再改程式。
+- 完整測試 `pytest -q -p no:cacheprovider --basetemp=logs/test-runs/fit-wording`：**947 passed, 2 skipped**，0 失敗。（任務基準寫 927，實際數字是 947；測試數量已多於當時基準，全綠。）
+
+追加修改：`app/services/agent_advisor.py` 第 31、32、140 行（AI 指示與工具說明）的「契合度」改為「準備度」；`tests/` 只剩模組說明文字，沒有斷言。完整測試重跑：**947 passed, 2 skipped**。
+
+已知未處理（不在本次範圍）：
+- `app/routes/student.py` 等的註解與文件仍有「契合度」，不影響畫面。
+- `docs/05_交接與專案管理/checklist.md` 第 31 行 C4 仍寫「第 46、157 行待處理」，需要改為已完成。
+
+下一步：更新 checklist C4 狀態；使用者確認後再提交。
+
 ## 2026-10-28 自傳兩邊都存：學校端 Word 備份＋學生自己的 Google 文件
 
 日期：2026-10-28（台灣時間）
@@ -154,6 +240,22 @@
 - 程式盤點（只讀）：拼圖在 `app/static/js/components.js` 約 536–623 行，資料表 `puzzle_pieces` 在 `app/models/p0_workbench.py`；校系比對在 `app/services/matching_service.py`；OCR 核對頁在 `app/templates/ocr_acceptance.html`。
 
 下一步：使用者確認 Q1–Q7 的回聽或詢問方式後，依任務清單開新視窗分工；F4 回聽錄音最適合先做。
+
+## 2026-10-27 新增試用任務單與試用紀錄表
+
+日期：2026-10-27（台灣時間）
+
+開發者：Claude（分支 `feat/google-docs-autobiography`）
+
+目標：「畢業專題驗收與展示策略」對話的結論指出，目前缺「有人實際用過」的證據。準備讓 3～5 位學生、1～2 位老師試用的文件。只改文件，沒有改程式。
+
+- 新增 `docs/05_交接與專案管理/試用任務單_2026-10-27.md`：給試用者看，學生任務 A1～A7（另有選做 A8 升學 Agent），導師任務 B1～B4。題目只寫要做到的事，不寫按哪裡。
+- 新增 `docs/05_交接與專案管理/試用紀錄表_2026-10-27.md`：主持人流程（5020 埠固定流程、每人前重啟、三級提示）、逐題紀錄、10 題易用性量表與計分方式、跟現在做法的比較題、彙整表、寫進報告的方式。
+- 導師任務依 `app/templates/teacher_student.html` 核對：只有待確認時可以選確認或需要修改，已確認後才可以撤回，所以 B3 寫成確認、B4 寫成撤回。
+
+驗證：任務內容對照 `系統完整測試手冊.md` 的 S-03、S-11、S-22、S-23、S-33a、S-39、S-42、S-44、T-01～T-05a；沒有實際找人試用。
+
+下一步：組員找試用者並照紀錄表進行；結果填進彙整表，再把問題分給 GPT（用詞、小畫面）和 Claude（流程）。
 
 ## 2026-10-27 系統完整測試手冊依實測修正
 

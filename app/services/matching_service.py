@@ -43,7 +43,7 @@ DEPARTMENT_DEFAULT_GROUPS = {"資管科": "資訊"}
 
 STATUS_ORDER = {"eligible": 0, "needs_check": 1, "ineligible": 2}
 STATUS_LABELS = {"eligible": "可報", "needs_check": "需確認", "ineligible": "不可報"}
-NO_FIT_TRANSFER = "依考試成績，不算契合度"
+NO_FIT_TRANSFER = "依考試成績，不算準備度"
 
 
 def load_conditions(path=None):
@@ -154,7 +154,7 @@ def _labels(keys):
 def _fit_reasons(gap):
     counted = [item for item in gap["items"] if item["fraction"] is not None]
     if not counted:
-        return ["這個校系的評分項目都要自己準備（例如自傳、專題），系統還算不出契合度。"]
+        return ["這個校系的評分項目都要自己準備（例如自傳、專題），系統還算不出準備度。"]
     reasons = []
     for item in sorted(counted, key=lambda item: -item["weight"]):
         if item["status"] == "complete":

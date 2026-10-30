@@ -26,7 +26,9 @@ def current_semester(today=None):
 
 
 def photo_path(user_id, grade, semester):
-    return Path(current_app.config["UPLOAD_FOLDER"]) / "semester-photos" / str(user_id) / f"{grade}-{semester}.jpg"
+    # 轉成絕對路徑：預設 UPLOAD_FOLDER 是相對路徑，send_file 會改以 app 資料夾為基準去找而回 500
+    folder = Path(current_app.config["UPLOAD_FOLDER"]).resolve()
+    return folder / "semester-photos" / str(user_id) / f"{grade}-{semester}.jpg"
 
 
 def has_photo(user_id, grade, semester):
