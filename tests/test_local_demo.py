@@ -58,17 +58,18 @@ def test_local_demo_staff_has_submissions_and_a_certificate_to_review():
     assert "目前沒有待核准的申請" not in certificates
 
 
-def test_local_demo_forces_external_ai_off_even_if_local_environment_enables_it(monkeypatch):
+def test_local_demo_follows_environment_ai_setting(monkeypatch):
+    # 10-30 起展示站的 AI 與 Google 沿用 .env（每個版本功能都要真的能用），不再強制關閉
     from app.config import Config
 
     monkeypatch.setattr(Config, "AI_ENABLED", True)
-    monkeypatch.setattr(Config, "AI_API_KEY", "local-env-key-must-not-be-used")
+    monkeypatch.setattr(Config, "AI_API_KEY", "fake-key-for-test")
 
     app = create_local_demo_app()
 
     assert app.config["LOCAL_DEMO_MODE"] is True
-    assert app.config["AI_ENABLED"] is False
-    assert app.config["AI_API_KEY"] == ""
+    assert app.config["AI_ENABLED"] is True
+    assert app.config["AI_API_KEY"] == "fake-key-for-test"
 
 
 def test_local_demo_accounts_open_only_their_role_workspaces():

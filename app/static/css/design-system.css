@@ -755,6 +755,19 @@ fieldset.field legend { padding: 0; margin-bottom: .35rem; }
 .award-table input[name="reason"] { width: 100%; min-width: 18rem; }
 .award-table input[name="school_year"], .award-table input[name="semester"] { width: 4.5rem; }
 .award-table__include { text-align: center; }
+.award-table th:first-child { white-space: nowrap; width: 4.5rem; }
+/* 手機：每列變成一張卡片，欄位名稱在左、輸入框在右，不需要左右捲動 */
+@media (max-width: 720px) {
+  .award-table thead { display: none; }
+  .award-table, .award-table tbody, .award-table tr, .award-table td { display: block; width: 100%; }
+  .award-table tr { border: 1px solid var(--line); background: var(--sheet); padding: .6rem .8rem; margin-bottom: .8rem; }
+  .award-table td { display: grid; grid-template-columns: 6rem 1fr; gap: .5rem; align-items: center; padding: .3rem 0; border: 0; }
+  .award-table td::before { content: attr(data-label); color: var(--muted); font-size: .92rem; }
+  .award-table__include { text-align: left; }
+  .award-table input:not([type="checkbox"]), .award-table select { width: 100%; min-height: 2.75rem; font-size: 1rem; }
+  .award-table input[type="checkbox"] { width: 1.5rem; height: 1.5rem; }
+  .award-table input[name="school_year"], .award-table input[name="semester"] { width: 100%; }
+}
 @media (max-width: 720px) {
   .award-table input[name="reason"] { min-width: 12rem; }
 }

@@ -62,8 +62,8 @@
         <button class="button button--line" type="button" data-step-prev>← 上一題</button>
         <button class="button button--line" type="button" data-step-next>下一題 →</button>
         <button class="button" type="submit" data-step-submit{% if review_note %} disabled{% endif %}
-                data-busy-text="{{ '正在整理本機示範草稿…' if config.LOCAL_DEMO_MODE else 'AI 正在寫草稿…（約 10～30 秒）' }}">
-          {{ "產生示範草稿" if config.LOCAL_DEMO_MODE else "請 AI 寫草稿" }}
+                data-busy-text="{{ 'AI 正在寫草稿…（約 10～30 秒）' if ai_on else '正在整理示範草稿…' }}">
+          {{ "請 AI 寫草稿" if ai_on else "產生示範草稿" }}
         </button>
       </div>
     </form>

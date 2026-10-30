@@ -1240,6 +1240,7 @@ def _render_autobiography(user, program, targets, error=None, answers=None, stat
         paragraph_reviews=paragraph_reviews,
         school_turns=ai_quota_service.remaining(user) if ai_ready() else None,
         review_note=student_rules.review_open_note(user),
+        ai_on=ai_ready(),
         error=error,
         stale=stale,
     ), (409 if stale else status if error else 200)

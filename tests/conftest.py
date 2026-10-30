@@ -14,6 +14,9 @@ def no_real_ai(monkeypatch):
 @pytest.fixture(autouse=True)
 def no_real_google(monkeypatch):
     """測試一律不讀 .env 裡真的 Google OAuth 設定；需要時由測試自己傳假值與替身。"""
+    monkeypatch.setattr(Config, "GOOGLE_DRIVE_PREVIEW_ENABLED", False)
+    monkeypatch.setattr(Config, "GOOGLE_OAUTH_CLIENT_ID", "")
+    monkeypatch.setattr(Config, "GOOGLE_PICKER_API_KEY", "")
     monkeypatch.setattr(Config, "GOOGLE_OAUTH_CLIENT_SECRET", "")
     monkeypatch.setattr(Config, "GOOGLE_OAUTH_REDIRECT_URI", "")
     monkeypatch.setattr(Config, "GOOGLE_STORAGE_REDIRECT_URI", "")

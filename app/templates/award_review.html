@@ -34,17 +34,17 @@
         <tbody>
           {% for row in rows %}
           <tr>
-            <td class="award-table__include"><input type="checkbox" name="include" value="{{ loop.index0 }}" checked aria-label="匯入第 {{ loop.index }} 列"></td>
-            <td><input name="reason" value="{{ row.reason }}" aria-label="第 {{ loop.index }} 列事由"></td>
-            <td>
+            <td class="award-table__include" data-label="匯入"><input type="checkbox" name="include" value="{{ loop.index0 }}" checked aria-label="匯入第 {{ loop.index }} 列"></td>
+            <td data-label="事由"><input name="reason" value="{{ row.reason }}" aria-label="第 {{ loop.index }} 列事由"></td>
+            <td data-label="類別">
               <select name="category" aria-label="第 {{ loop.index }} 列類別">
                 <option value=""{% if not row.category %} selected{% endif %}>請選擇</option>
                 {% for key in categories %}<option value="{{ key }}"{% if row.category == key %} selected{% endif %}>{{ category_labels[key] }}</option>{% endfor %}
               </select>
             </td>
-            <td><input name="school_year" value="{{ row.school_year }}" inputmode="numeric" aria-label="第 {{ loop.index }} 列學年度"></td>
-            <td><input name="semester" value="{{ row.semester }}" inputmode="numeric" aria-label="第 {{ loop.index }} 列學期（1 或 2）"></td>
-            <td><input name="detail" value="{{ row.detail }}" aria-label="第 {{ loop.index }} 列日期與獎勵"></td>
+            <td data-label="學年度"><input name="school_year" value="{{ row.school_year }}" inputmode="numeric" aria-label="第 {{ loop.index }} 列學年度"></td>
+            <td data-label="學期"><input name="semester" value="{{ row.semester }}" inputmode="numeric" aria-label="第 {{ loop.index }} 列學期（1 或 2）"></td>
+            <td data-label="日期與獎勵"><input name="detail" value="{{ row.detail }}" aria-label="第 {{ loop.index }} 列日期與獎勵"></td>
           </tr>
           {% endfor %}
         </tbody>
