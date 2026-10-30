@@ -63,10 +63,23 @@ def test_matching_detail_shows_have_and_missing(site):
     html = _login(site).get(f"/student/matching/{pid}").get_data(as_text=True)
     have, missing = _columns(html)
 
-    assert "證照證明" in have and "證照證明" not in missing
+    # 10-30 新規則：證照 1 筆只算一半 → 50×0.5 + 30×0 + 20×0.25 = 30%
+    assert "證照證明（部分）" in have
     assert "競賽成果" in missing and "競賽成果" not in have
-    assert "準備度 60%（建議值）" in html
+    assert "準備度 30%（建議值）" in html
     assert "錄取保證" not in html
+
+
+def test_matching_detail_orders_missing_items_by_gain_with_links(site):
+    pid = site.config["_ids"]["program"]
+    html = _login(site).get(f"/student/matching/{pid}").get_data(as_text=True)
+    _, missing = _columns(html)
+
+    # 補滿可加：競賽 30% ＞ 證照 25% ＞ 綜合 15%，第一條標「先做這個」
+    assert "先做這個：</b>競賽成果" in missing
+    assert missing.index("競賽成果") < missing.index("證照證明") < missing.index("綜合成果")
+    assert "補滿可加 30%" in missing
+    assert "去補 →" in missing and "/student/portfolio/new?category=competition" in missing
 
 
 def test_matching_detail_marks_partial_items_in_have_column(site):
@@ -74,7 +87,7 @@ def test_matching_detail_marks_partial_items_in_have_column(site):
     have, missing = _columns(_login(site).get(f"/student/matching/{pid}").get_data(as_text=True))
 
     assert "綜合成果（部分）" in have
-    assert "證照證明（部分）" not in have
+    assert "證照證明（部分）" in have  # 只有 1 張證照，還沒滿
     assert "綜合成果" in missing  # 還缺的競賽仍列在缺少
 
 
@@ -96,8 +109,8 @@ def test_matching_detail_owner_only(site):
     # 帶別人（什麼都沒有）的學生編號，仍只看到登入者自己的證照：證照證明在已符合、準備度 60%
     html = client.get(f"/student/matching/{ids['program']}?student_id={ids['other']}").get_data(as_text=True)
     have, missing = _columns(html)
-    assert "證照證明" in have and "證照證明" not in missing
-    assert "準備度 60%（建議值）" in html
+    assert "證照證明（部分）" in have
+    assert "準備度 30%（建議值）" in html
     assert "準備度 0%" not in html
 
 

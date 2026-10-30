@@ -38,7 +38,7 @@ from app.services.learning_profile_docx_service import output_to_docx_bytes
 from app.services.learning_profile_service import generate_learning_profile_outputs
 from app.services.activity_fit import build_activity_fit
 from app.services.admission_service import published_programs
-from app.services.gap_service import ALL_LABELS, analyze_gap, chapter_order
+from app.services.gap_service import ALL_LABELS, analyze_gap, chapter_order, student_evidence
 from app.services.admission_links import admission_links, load_school_links
 from app.services.admission_schedule import CHECKED_ON, channel_label, latest_timeline, timeline
 from app.services.matching_service import rank_programs
@@ -1022,6 +1022,7 @@ def target_list():
         if not error:
             return redirect(url_for("student.target_gap", program_id=program.id))
     journey = build_journey(user)
+    evidence = student_evidence(user, journey)
     selected = {t.rule_version_id for t in StudentTarget.query.filter_by(student_id=user.id).all()}
     # 已選的目標放最上面，其他照原本順序（10-27 實測問題 14）
     programs = sorted(published_programs(), key=lambda p: p.id not in selected)
@@ -1033,7 +1034,7 @@ def target_list():
         selected=selected,
         slots=student_rules.target_slots(user),
         cancelled_programs=_cancelled_autobiography_programs(user),
-        gaps={p.id: analyze_gap(user, p, journey) for p in programs},
+        gaps={p.id: analyze_gap(user, p, journey, evidence) for p in programs},
         links={p.id: admission_links(p, school_links) for p in programs},
         focus=focus_view(user, journey),
         error=error,
@@ -1239,8 +1240,8 @@ def _render_autobiography(user, program, targets, error=None, answers=None, stat
         backup_label=autobiography_backup.status_label(draft) if draft else None,
         paragraph_reviews=paragraph_reviews,
         school_turns=ai_quota_service.remaining(user) if ai_ready() else None,
-        review_note=student_rules.review_open_note(user),
         ai_on=ai_ready(),
+        review_note=student_rules.review_open_note(user),
         error=error,
         stale=stale,
     ), (409 if stale else status if error else 200)

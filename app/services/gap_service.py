@@ -1,13 +1,27 @@
-"""缺件比對：用目標校系的備審加權，對照學生已確認的六類學習資料。
+"""缺件比對：用目標校系的備審加權，對照學生的學習資料與備審文件。
 
-規則（寫在這裡，方便報告時說明）：
-- 每個簡章項目對應到幾個資料類別。六類學習資料以外的類別（自傳與讀書計畫、專題作品）
-  屬於備審資料要自己準備的章節，不列入完成度計算。
-- 項目完成比例 = 有資料的類別數 ÷ 對應的學習資料類別數。
-- 整體準備度 = Σ（項目加權 × 完成比例）÷ Σ（列入計算的項目加權）。
+規則（寫在這裡，方便報告時說明；10-30 改版，原本只看「有沒有」，一筆證照就整類滿分）：
+- 每個簡章項目對應到幾個資料類別，每個類別給一個 0～1 的完成度：
+  - 成績：已確認科目平均 85 分以上＝1、75 以上＝0.75、60 以上＝0.5、未滿 60＝0.25；有科目但沒分數＝0.5。
+  - 證照、競賽、活動、服務、幹部：1 筆＝0.5、2 筆以上＝1。
+    外語類項目只採計語言檢定（規則在 app/content/readiness_rules.csv）。
+  - 自傳與讀書計畫：有草稿＝0.5、學生自己改過（第 2 版以上）＝1。
+  - 專題作品：標題含「專題」或「作品」的經歷，筆數算法同上。
+- 項目完成比例 = 各類完成度的平均。
+- 整體準備度 = Σ（項目加權 × 完成比例）÷ Σ（項目加權）。文件項目也列入，所以文件沒寫不會顯示 100%。
+- 每個項目的「補滿可加」= 項目加權 ×（1 − 完成比例）÷ 總加權，給學校引導頁排先後。
 """
 
+import csv
+import re
+from functools import lru_cache
+from pathlib import Path
+
+from app.models import CredentialRecord, LearningCourseRecord, Portfolio
 from app.services.journey_service import CATEGORY_KEYS, CATEGORY_LABELS, build_journey
+
+RULES_FILE = Path(__file__).resolve().parent.parent / "content" / "readiness_rules.csv"
+PROJECT_PATTERN = re.compile(r"專題|作品")
 
 DOCUMENT_LABELS = {"autobiography": "自傳與讀書計畫", "project": "專題作品"}
 ALL_LABELS = {**CATEGORY_LABELS, **DOCUMENT_LABELS}
@@ -27,24 +41,87 @@ CHAPTERS = [
 ]
 
 
-def analyze_gap(student, program, journey=None):
+@lru_cache(maxsize=1)
+def _credential_rules():
+    """（項目名稱規則, 認可證照規則）清單；讀 CSV，方便老師或組員直接改。"""
+    with RULES_FILE.open(encoding="utf-8-sig") as handle:
+        return [(re.compile(row["項目關鍵字"]), re.compile(row["認可證照關鍵字"], re.IGNORECASE))
+                for row in csv.DictReader(handle)]
+
+
+def _count_level(count):
+    return 0.0 if count == 0 else (0.5 if count == 1 else 1.0)
+
+
+def _grade_level(scores, course_count):
+    if not course_count:
+        return 0.0
+    if not scores:
+        return 0.5
+    average = sum(scores) / len(scores)
+    return 1.0 if average >= 85 else 0.75 if average >= 75 else 0.5 if average >= 60 else 0.25
+
+
+def student_evidence(student, journey=None):
+    """學生的資料一次查好；排行一次比對幾十間校系時重複使用，不要每間都查一次資料庫。"""
     journey = journey or build_journey(student)
-    totals = journey["totals"]
+    courses = LearningCourseRecord.query.filter_by(student_id=student.id).all()
+    return {
+        "totals": journey["totals"],
+        "scores": [course.score for course in courses if course.score is not None],
+        "course_count": len(courses),
+        "credential_names": [c.credential_name or "" for c in CredentialRecord.query.filter_by(student_id=student.id)],
+        "project_count": sum(1 for record in Portfolio.active().filter_by(student_id=student.id)
+                             if PROJECT_PATTERN.search(record.title or "")),
+    }
+
+
+def _autobiography_level(student, program):
+    from app.services.autobiography_service import latest_draft, version_of  # 互相引用，放函式裡
+    draft = latest_draft(student, program)
+    return 0.0 if not draft else (1.0 if version_of(draft) >= 2 else 0.5)
+
+
+def _key_level(key, item_name, evidence, student, program):
+    totals = evidence["totals"]
+    if key == "grades":
+        return _grade_level(evidence["scores"], evidence["course_count"])
+    if key == "credential":
+        for item_rule, credential_rule in _credential_rules():
+            if item_rule.search(item_name or ""):
+                return _count_level(sum(1 for name in evidence["credential_names"] if credential_rule.search(name)))
+        return _count_level(totals.get(key, 0))
+    if key == "autobiography":
+        return _autobiography_level(student, program)
+    if key == "project":
+        return _count_level(evidence["project_count"])
+    return _count_level(totals.get(key, 0))
+
+
+def analyze_gap(student, program, journey=None, evidence=None):
+    evidence = evidence or student_evidence(student, journey)
+    totals = evidence["totals"]
     items = []
-    weighted, counted_weight = 0.0, 0
+    weighted, total_weight = 0.0, 0
     for item in program.items:
         keys = item.category_keys
         record_keys = [key for key in keys if key in CATEGORY_KEYS]
         documents = [key for key in keys if key not in CATEGORY_KEYS]
-        have = [key for key in record_keys if totals.get(key, 0) > 0]
-        missing = [key for key in record_keys if totals.get(key, 0) == 0]
-        if not record_keys:
-            status, fraction = "prepare", None
+        levels = {key: _key_level(key, item.source_item_name, evidence, student, program) for key in keys}
+        have = [key for key in record_keys if levels[key] > 0]
+        missing = [key for key in record_keys if levels[key] == 0]
+        if not keys:
+            fraction, status = None, "prepare"  # 簡章項目還沒對應到資料類別：不列入
         else:
-            fraction = len(have) / len(record_keys)
-            status = "complete" if fraction == 1 else ("partial" if fraction > 0 else "missing")
+            fraction = sum(levels.values()) / len(keys)
+            total_weight += item.weight_percent
             weighted += item.weight_percent * fraction
-            counted_weight += item.weight_percent
+            if fraction == 1:
+                status = "complete"
+            elif not record_keys:
+                status = "prepare"  # 只有自傳、專題等要自己準備的文件
+            else:
+                status = "partial" if fraction > 0 else "missing"
         items.append({
             "id": item.id,
             "name": item.source_item_name,
@@ -55,14 +132,20 @@ def analyze_gap(student, program, journey=None):
             "have": have,
             "missing": missing,
             "documents": documents,
+            "levels": levels,
+            # 這個項目最該先補的類別：完成度最低的那一個（全滿時為 None）
+            "next_key": min((key for key in keys if levels[key] < 1), key=lambda key: levels[key], default=None),
             "counts": {key: totals.get(key, 0) for key in record_keys},
             "mapping_pending": item.mapping_status != "confirmed",
         })
-    readiness = round(weighted / counted_weight * 100) if counted_weight else None
+    for entry in items:
+        open_part = 0 if entry["fraction"] is None else 1 - entry["fraction"]
+        entry["gain"] = round(entry["weight"] * open_part / total_weight * 100) if total_weight else 0
+    readiness = round(weighted / total_weight * 100) if total_weight else None
     missing_keys = sorted({key for item in items for key in item["missing"]}, key=CATEGORY_KEYS.index)
-    # 最該先補的項目：還沒滿、加權最大的那一個
-    open_items = [item for item in items if item["status"] in ("missing", "partial")]
-    priority = max(open_items, key=lambda item: item["weight"], default=None)
+    # 最該先補的項目：補滿可加最多的那一個
+    open_items = [item for item in items if item["gain"] > 0]
+    priority = max(open_items, key=lambda item: item["gain"], default=None)
     return {
         "program": program,
         "priority_id": priority["id"] if priority else None,

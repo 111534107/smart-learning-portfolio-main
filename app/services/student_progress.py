@@ -60,8 +60,10 @@ def student_progress(user):
         action = {"text": "選一個想申請的目標校系", "href": url_for("student.target_list")}
     elif not done[2] and gap["priority_id"]:
         item = next(item for item in gap["items"] if item["id"] == gap["priority_id"])
-        category = item["missing"][0]
-        action = {"text": f"補上{ALL_LABELS[category]}（{item['name']} 佔 {item['weight']}%）", "href": _add_link(category)}
+        category = item["next_key"]
+        href = (url_for("student.autobiography", program_id=program.id) if category == "autobiography"
+                else _add_link(category))
+        action = {"text": f"補上{ALL_LABELS[category]}（{item['name']} 佔 {item['weight']}%）", "href": href}
     elif not review or review.status == "needs_revision":
         action = {"text": "請導師確認備審內容" if not review else "依導師建議修改後再送出", "href": gap_url + "#review"}
     elif review.status == "pending":

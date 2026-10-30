@@ -81,19 +81,60 @@ def test_gap_marks_complete_partial_missing_and_documents(app):
     skill = next(item for item in gap["items"] if item["name"] == "專業技能")
     assert skill["missing"] == ["competition"]
     assert skill["documents"] == ["autobiography"]
-    # 30×1 + 50×(1/2) + 20×0 = 55
-    assert gap["readiness"] == 55
+    # 成績平均 90＝1；證照 1 筆＝0.5、競賽 0、自傳 0 → 專業技能 0.5/3
+    # 30×1 + 50×(1/6) + 20×0 = 38.3
+    assert gap["readiness"] == 38
+    assert skill["gain"] == 42  # 50×(5/6)÷100
     assert gap["priority_id"] == skill["id"]
 
 
-def test_gap_item_with_only_documents_needs_preparation(app):
+def test_gap_item_with_only_documents_counts_toward_readiness(app):
+    # 10-28 人工檢查：文件項目原本不算分母，只有成績的學生在文件佔 60% 的校系也顯示 100%
     student = make_student()
-    program = make_program([("自傳", 100, "autobiography")])
+    db.session.add(LearningCourseRecord(student_id=student.id, school_year=1, course_name="程式設計",
+                                        normalized_course_name="程式設計", score=90))
+    program = make_program([("歷年成績", 40, "grades"), ("自傳", 60, "autobiography")])
 
     gap = analyze_gap(student, program)
 
-    assert gap["items"][0]["status"] == "prepare"
-    assert gap["readiness"] is None
+    assert gap["items"][1]["status"] == "prepare"
+    assert gap["readiness"] == 40
+
+
+def test_one_record_is_half_and_two_records_are_full(app):
+    student = make_student()
+    program = make_program([("競賽成果", 100, "competition")])
+    db.session.add(Portfolio(student_id=student.id, title="校內競賽", category="competition", status="confirmed"))
+    db.session.flush()
+    assert analyze_gap(student, program)["readiness"] == 50
+
+    db.session.add(Portfolio(student_id=student.id, title="全國競賽", category="competition", status="confirmed"))
+    db.session.flush()
+    assert analyze_gap(student, program)["readiness"] == 100
+
+
+def test_language_item_only_counts_language_certificates(app):
+    # 10-27 測試報告問題 2：只有資訊證照，外語能力項目卻顯示「已有證照資料」
+    student = make_student()
+    for name in ("電腦軟體應用丙級", "網頁設計乙級"):
+        db.session.add(CredentialRecord(student_id=student.id, credential_name=name, issue_date=date(2025, 3, 1)))
+    program = make_program([("外語能力", 100, "credential")])
+
+    assert analyze_gap(student, program)["readiness"] == 0
+
+    db.session.add(CredentialRecord(student_id=student.id, credential_name="全民英檢中級", issue_date=date(2025, 5, 1)))
+    db.session.flush()
+    assert analyze_gap(student, program)["readiness"] == 50
+
+
+def test_lower_average_score_lowers_grade_readiness(app):
+    student = make_student()
+    for score in (62, 70):
+        db.session.add(LearningCourseRecord(student_id=student.id, school_year=1, course_name=f"科目{score}",
+                                            normalized_course_name=f"科目{score}", score=score))
+    program = make_program([("歷年成績", 100, "grades")])
+
+    assert analyze_gap(student, program)["readiness"] == 50  # 平均 66 分
 
 
 def test_chapter_order_puts_heaviest_items_first_after_fixed_chapters(app):

@@ -63,7 +63,8 @@ def test_fit_is_the_same_number_as_gap_readiness(app):
 
     ranked = rank_programs(student, [program], conditions={})
 
-    assert ranked[0]["fit"] == analyze_gap(student, program)["readiness"] == 40
+    # 10-30 新規則：證照 1 筆＝一半 → 40×0.5 + 60×0 = 20
+    assert ranked[0]["fit"] == analyze_gap(student, program)["readiness"] == 20
 
 
 def test_graduate_cannot_apply_to_fresh_graduate_only_program_and_is_listed_last(app):
@@ -144,13 +145,14 @@ def test_every_program_gets_a_reason_naming_its_heaviest_item(app):
     assert "歷年成績" in reasons  # 還缺的項目也要說
 
 
-def test_program_with_only_self_prepared_items_has_no_fit_but_still_a_reason(app):
+def test_program_with_only_self_prepared_items_counts_unwritten_documents_as_zero(app):
+    # 10-30 起文件項目列入準備度：還沒寫自傳就是 0%，不再顯示「無法計算」
     student = make_student()
     program = make_program("900001", [("自傳", 100, "autobiography")])
 
     ranked = rank_programs(student, [program], conditions={})
 
-    assert ranked[0]["fit"] is None
+    assert ranked[0]["fit"] == 0
     assert ranked[0]["reasons"]
 
 
@@ -180,7 +182,8 @@ def test_related_departments_rank_before_unrelated_ones_with_higher_fit(app):
     assert [row["program"].department_name for row in ranked] == ["資訊管理系", "模具工程系"]
     assert any("資訊類專業科目 4 科" in reason and "資訊學群" in reason for reason in ranked[0]["reasons"])
     assert any("關聯較低" in reason for reason in ranked[1]["reasons"])
-    assert ranked[1]["status"] == "eligible"  # 不相關不代表不能報
+    # 不相關不代表不能報：機械類只提醒學生對照統測類別（10-30 起），不判不可報
+    assert ranked[1]["status"] == "needs_check"
 
 
 def test_accounting_information_is_not_ranked_as_information_group(app):
@@ -198,6 +201,33 @@ def test_accounting_information_is_not_ranked_as_information_group(app):
     assert by_name["會計資訊系"]["related"] is False
     assert by_name["醫護教育暨數位學習系"]["related"] is False
     assert any("商管學群" in reason for reason in by_name["會計資訊系"]["reasons"])
+
+
+def test_unrelated_program_with_other_admission_category_needs_check(app):
+    # 10-27 測試報告：護理系對資管學生也標「可報」。10-30 使用者：不寫死不可報，照招生類別提醒學生自己確認
+    student = make_student()
+    add_info_courses(student)
+    nursing = set_department(make_program("900001", [("證照", 100, "credential")]), "護理系", "護理類一")
+    accounting = set_department(make_program("900002", [("證照", 100, "credential")]), "會計資訊系", "管理類二")
+    open_all = set_department(make_program("900003", [("證照", 100, "credential")]), "航運技術系", "不限類別")
+
+    by_name = {row["program"].department_name: row for row in rank_programs(student, [nursing, accounting, open_all],
+                                                                            conditions={})}
+
+    assert by_name["護理系"]["status"] == "needs_check"
+    assert any("護理類一" in reason and "統測類別" in reason for reason in by_name["護理系"]["reasons"])
+    assert by_name["會計資訊系"]["status"] == "eligible"  # 資管科學生考的就是管理類
+    assert by_name["航運技術系"]["status"] == "eligible"  # 不限類別
+
+
+def test_transfer_exam_is_not_checked_by_admission_category(app):
+    student = make_student()
+    add_info_courses(student)
+    transfer = set_department(make_program("TRF-001", []), "護理系", "插大（轉學考）")
+
+    ranked = rank_programs(student, [transfer], conditions={}, transfer={})
+
+    assert not any("統測類別" in reason for reason in ranked[0]["reasons"])
 
 
 def test_student_without_course_data_gets_needs_check_relation(app):

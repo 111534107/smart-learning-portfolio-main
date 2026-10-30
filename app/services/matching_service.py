@@ -29,7 +29,7 @@ from app.models import CredentialRecord
 from app.services.admission_links import admission_links, load_school_links
 from app.services.admission_schedule import channel_label, load_schedule, timeline
 from app.services.eligibility_service import department_groups, load_department_groups, summarize_student_groups
-from app.services.gap_service import ALL_LABELS, analyze_gap
+from app.services.gap_service import ALL_LABELS, analyze_gap, student_evidence
 from app.services.journey_service import build_journey
 from app.services.transfer_exam import is_transfer, load_transfer_details
 
@@ -147,6 +147,19 @@ def _check_conditions(student, program, conditions):
     return status, reasons
 
 
+# 資管科學生考統測多為商業與管理群，報二技對應「管理類」；這些類別不另外提醒（10-30 使用者：別寫死不可報）
+HOME_CATEGORY_PREFIXES = ("管理類",)
+
+
+def _category_check(program, related):
+    """二技校系的招生類別寫明其他群類、且和學生修過的課不相關時，提醒學生自己對照簡章；不直接判不可報。"""
+    category = (program.admission_category or "").strip()
+    if (is_transfer(program) or related is not False or "類" not in category or "不限" in category
+            or category.startswith(HOME_CATEGORY_PREFIXES)):
+        return None
+    return "needs_check", f"此系招生類別為「{category}」，請確認你的統測類別能否報考（請對照簡章）。"
+
+
 def _labels(keys):
     return "、".join(ALL_LABELS.get(key, key) for key in keys)
 
@@ -219,10 +232,11 @@ def rank_programs(student, programs, journey=None, conditions=None, transfer=Non
     schedule = load_schedule()
     student_groups = summarize_student_groups(student)
     department_table = load_department_groups()
+    evidence = student_evidence(student, journey)
     fallback = None if student_groups["main_group"] else _department_default(student)
     rows = []
     for program in programs:
-        gap = analyze_gap(student, program, journey)
+        gap = analyze_gap(student, program, journey, evidence)
         details = transfer.get(program.program_code) if is_transfer(program) else None
         program_conditions = list(conditions.get(program.program_code, []))
         if details:
@@ -230,6 +244,11 @@ def rank_programs(student, programs, journey=None, conditions=None, transfer=Non
                                        "source": details["source"]})
         status, condition_reasons = _check_conditions(student, program, program_conditions)
         related = is_related(program, student_groups, department_table)
+        category_result = _category_check(program, related)
+        if category_result:
+            if STATUS_ORDER[category_result[0]] > STATUS_ORDER[status]:
+                status = category_result[0]
+            condition_reasons.append(category_result[1])
         exam_only = is_transfer(program) and not program.items
         relation = [_relation_reason(related, student_groups, program, department_table)]
         tentative = None
