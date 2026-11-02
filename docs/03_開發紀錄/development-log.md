@@ -1,5 +1,48 @@
 # 開發日誌
 
+## 2026-11-02 Drive 文件或資料夾被刪後重建
+
+日期：2026-11-02（台灣時間）
+
+開發者：GPT（分支 `feat/google-docs-autobiography`）
+
+目標：學生在自己的 Drive 刪除系統建立的文件或資料夾後，能依需要重建並保留系統內的自傳版本。
+
+修改檔案：
+- `app/services/google_docs_service.py`：區分 404，檢查文件或資料夾是否已刪除或移入垃圾桶（交接已有的修改）。
+- `app/routes/google_docs.py`：有權杖時檢查舊文件；失效時重建並更新原紀錄，檢查失敗仍開原連結；取回遇 404 顯示重建提示。資料夾失效時更新原編號。
+- `tests/test_autobiography_google_docs.py`：涵蓋文件、資料夾重建、授權後重建、檢查失敗、取回 404 和 HTTP 404／垃圾桶。
+- `docs/05_交接與專案管理/handoff.md`、`docs/05_交接與專案管理/Drive重建_任務清單_2026-11-02.md`：記錄本次進度與待驗收事項。
+
+驗證結果：相關測試 32 項通過；完整測試 `--basetemp=logs/test-runs/gpt-drive-full-20261102-01` 為 976 項通過、2 項略過。測試使用假資料與 Google 替身，未連真實 Google。
+
+下一步：由使用者親自登入 Google，實際驗收兩個校系的資料夾及刪除後重建；勿以自動測試取代實機驗收。
+
+## 2026-11-02 多校備審第一期：帶入上一份回答、Google 文件放校系資料夾、導師說明
+
+日期：2026-11-02（台灣時間）
+
+開發者：Claude（分支 `feat/google-docs-autobiography`；計畫書 `rosy-honking-cosmos.md` 第一期第 2～4 步）
+
+目標：一位學生做好幾份備審資料給不同學校，回答只打一次，雲端自動分資料夾。
+
+修改檔案：
+- `app/services/autobiography_service.py`：新增 `carried_answers`。已確認 `generate_draft` 會把 4 題回答存進 `content_json["answers"]`；新校系還沒有草稿時，帶入學生最近一份草稿的回答。
+- `app/routes/student.py`：自傳頁沒有該校系草稿時改用 `carried_answers` 預填。
+- `app/models/google_doc.py`、`app/models/__init__.py`：新增 `StudentDriveFolder`（資料表 `student_drive_folders`，記「備審資料」與各校系資料夾的 Drive 編號）。
+- `migrations/versions/c9e1a7d43b58_add_student_drive_folders.py`：新增資料庫遷移，接在 `e5b9d1c3a826` 後面。
+- `app/services/google_docs_service.py`：HTTP 用戶端新增 `create_folder`；`create_document` 可指定放進哪個資料夾。
+- `app/routes/google_docs.py`：建立 Google 文件前先找或建「備審資料／校名_科系」；資料夾只建一次，之後重用。
+- 目標校系的「5 所」殘留文字：`app/templates/student_targets.html`（沒有上限時改寫「不限所數」，有上限時導覽文字用實際上限）、`app/content/help.py`、`app/services/guide_service.py`。使用者在展示站看到「已選 2／5」，原因是 5013 埠上跑的是 10:48 啟動的舊伺服器（在「不限所數」提交之前），但新程式在沒有上限時仍寫「最多保留 5 所」，一併修正。
+- 文件：`docs/02_需求與設計/01_目前有效/AI_多校備審理想流程_導師說明_2026-11-02.md`（給導師的一頁說明，11/4 討論用）。
+- 測試：`tests/test_autobiography.py` 新增第二所學校帶入回答；`tests/test_autobiography_google_docs.py` 替身加 `create_folder`，新增兩所學校各一個資料夾、根資料夾只建一次；`tests/test_assistant_confirm_versions.py` 檢查目標校系頁不再出現「5 所」。
+
+驗證結果：完整測試 970 通過、2 略過（改「5 所」文字前）；改文字後相關 6 個測試檔 116 通過，完整測試重跑結果見交接文件。
+
+未完成：真實 Google 帳號驗收。5013 埠被舊的展示站佔用，AI 沒有權限停止不是自己啟動的程式，需使用者先關掉舊伺服器，再重開展示站、由使用者自己登入 Google。
+
+已知限制：學生若在 Drive 手動刪掉系統建的資料夾，系統記的編號會失效，建立文件會顯示「Google 暫時無法使用」；之後可改成失效時重建。
+
 ## 2026-11-02 目標校系預設不限所數
 
 日期：2026-11-02（台灣時間）

@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from flask import Blueprint, abort, current_app, redirect, request, session, url_for
 
 from app.extensions import db
-from app.models import AdmissionProgram, AutobiographyGoogleDoc, LearningProfileOutput
+from app.models import AdmissionProgram, AutobiographyGoogleDoc, LearningProfileOutput, StudentDriveFolder
 from app.routes.main import get_current_user, role_required
 from app.services import autobiography_service, google_docs_service as gdocs
 
@@ -20,6 +20,7 @@ MESSAGES = {
     "denied": ("warn", "沒有完成 Google 授權，請先在系統內編輯；要用 Google 文件時再按一次。"),
     "expired": ("warn", "Google 授權已過期，請重新連結 Google；這段期間可以先在系統內編輯。"),
     "unavailable": ("warn", "Google 暫時無法使用，請先在系統內編輯，稍後再試。你的自傳都還在系統裡。"),
+    "doc_gone": ("warn", "Google 文件找不到了，請按『在 Google 文件中編輯』重建一份。"),
     "no_doc": ("warn", "還沒有建立 Google 文件，請先按「在 Google 文件中編輯」。"),
     "no_titles": ("warn", "取回失敗：Google 文件裡找不到「## 標題」開頭的段落，請保留每段的標題行再取回。系統內的版本沒有變。"),
     "pulled": ("ok", "已從 Google 文件取回，存成新的一版（舊版不動）。請檢查下面每段的來源提示。"),
@@ -108,9 +109,7 @@ def callback():
         # 11-02 實測：授權完還要再按一次才會建立文件，學生以為已經好了。這裡直接接著建立
         output = _owned_draft_or_abort(user, pending_output)
         existing = AutobiographyGoogleDoc.query.filter_by(student_id=user.id, program_id=output.content_json["program_id"]).first()
-        if existing:
-            return redirect(existing.web_view_link)
-        return _create_document(user, output, output.content_json["program_id"], token["access_token"])
+        return _open_or_create(user, output, output.content_json["program_id"], token["access_token"], existing)
     return _back(program_id, "connected")
 
 
@@ -130,31 +129,75 @@ def open_document(output_id):
     if not gdocs.configured(current_app.config):
         return _back(program_id, "unconfigured")
     link = AutobiographyGoogleDoc.query.filter_by(student_id=user.id, program_id=program_id).first()
-    if link:
-        return redirect(link.web_view_link)
     token = _token(user)
     if not token:
+        if link:
+            return redirect(link.web_view_link)
         session[PENDING_OPEN] = output_id
         return _ask_for_authorization(program_id)
-    return _create_document(user, output, program_id, token)
+    return _open_or_create(user, output, program_id, token, link)
 
 
-def _create_document(user, output, program_id, token):
-    """把最新草稿建立成學生自己的 Google 文件，記下連結後轉過去。"""
+def _open_or_create(user, output, program_id, token, link):
+    if link:
+        try:
+            if gdocs.client_for(current_app).file_usable(token, link.google_file_id):
+                return redirect(link.web_view_link)
+        except gdocs.GoogleDocsError:
+            return redirect(link.web_view_link)
+    return _create_document(user, output, program_id, token, link)
+
+
+def _drive_folder_id(user, folder_key, name, parent_id, token):
+    """找出或建立一個資料夾：編號記在資料庫，只建一次，之後重用。
+
+    重用前先問 Google 還在不在：學生把資料夾刪掉或丟進垃圾桶，就重建一個並更新編號。
+    """
+    client = gdocs.client_for(current_app)
+    saved = StudentDriveFolder.query.filter_by(student_id=user.id, folder_key=folder_key).first()
+    if saved and client.file_usable(token, saved.google_folder_id):
+        return saved.google_folder_id
+    folder_id = client.create_folder(token, name, parent_id)
+    if saved:
+        saved.google_folder_id = folder_id
+    else:
+        db.session.add(StudentDriveFolder(student_id=user.id, folder_key=folder_key, google_folder_id=folder_id))
+    db.session.commit()
+    return folder_id
+
+
+def _school_folder_id(user, program, token):
+    """學生雲端硬碟的「備審資料／校名_科系」，回傳該校系資料夾的編號。"""
+    root_id = _drive_folder_id(user, "root", "備審資料", None, token)
+    school_name = f"{program.school_name}_{program.department_name}".replace("/", "／")
+    return _drive_folder_id(user, f"program:{program.id}", school_name, root_id, token)
+
+
+def _create_document(user, output, program_id, token, existing=None):
+    """把最新草稿建立成學生自己的 Google 文件（放進「備審資料／校名_科系」），記下連結後轉過去。"""
     draft = autobiography_service.latest_draft(user, db.session.get(AdmissionProgram, program_id)) or output
     program = db.session.get(AdmissionProgram, program_id)
     label = f"{program.school_name} {program.department_name}"
     text = gdocs.document_text(label, autobiography_service.version_of(draft), draft.content_json.get("paragraphs", []))
     try:
-        file_id = gdocs.client_for(current_app).create_document(token, f"自傳草稿－{label}", text)
+        folder_id = _school_folder_id(user, program, token)
+        file_id = gdocs.client_for(current_app).create_document(token, f"自傳草稿－{label}", text, folder_id=folder_id)
         web_view_link = gdocs.doc_link(file_id)
     except gdocs.GoogleDocsAuthExpired:
         _forget_token()
         return _back(program_id, "expired")
     except gdocs.GoogleDocsError:
         return _back(program_id, "unavailable")
-    db.session.add(AutobiographyGoogleDoc(student_id=user.id, program_id=program_id, google_file_id=file_id,
-                                          web_view_link=web_view_link, based_on_output_id=draft.id))
+    if existing:
+        existing.google_file_id = file_id
+        existing.web_view_link = web_view_link
+        existing.based_on_output_id = draft.id
+        existing.created_at = datetime.now(timezone.utc)
+        existing.last_pulled_at = None
+        existing.last_pulled_output_id = None
+    else:
+        db.session.add(AutobiographyGoogleDoc(student_id=user.id, program_id=program_id, google_file_id=file_id,
+                                              web_view_link=web_view_link, based_on_output_id=draft.id))
     db.session.commit()
     return redirect(web_view_link)
 
@@ -175,6 +218,8 @@ def pull_document(output_id):
         return _ask_for_authorization(program_id)
     try:
         text = gdocs.client_for(current_app).export_text(token, link.google_file_id)
+    except gdocs.GoogleDocsNotFound:
+        return _back(program_id, "doc_gone")
     except gdocs.GoogleDocsAuthExpired:
         _forget_token()
         return _back(program_id, "expired")

@@ -148,6 +148,21 @@ def test_page_shows_questions_after_target_chosen(app):
     assert 'name="motivation"' in html
 
 
+def test_second_school_carries_answers_from_latest_draft(app):
+    with app.app_context():
+        other_id = AdmissionProgram.query.filter(AdmissionProgram.program_code != "208003").first().id
+    client = login(app)
+    choose_target(app, client)
+    client.post("/student/autobiography/generate", data={"program_id": program(app), **ANSWERS})
+    client.post("/student/targets", data={"program_id": other_id})
+
+    html = client.get(f"/student/autobiography?program_id={other_id}").get_data(as_text=True)
+
+    assert "專二做網頁設計時發現自己喜歡把需求變成系統。" in html
+    assert "黑客松時負責後端 API。" in html
+    assert "想學資料分析。" in html
+
+
 def test_student_edits_are_saved_and_go_into_word(app):
     client = login(app)
     choose_target(app, client)

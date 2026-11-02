@@ -1258,7 +1258,7 @@ def _render_autobiography(user, program, targets, error=None, answers=None, stat
         draft=draft,
         asking=asking,
         questions=autobiography_service.QUESTIONS,
-        answers=answers or (draft.content_json.get("answers", {}) if draft else {}),
+        answers=answers or (draft.content_json.get("answers", {}) if draft else autobiography_service.carried_answers(user)),
         facts=autobiography_service.build_facts(user, program) if program else None,
         version=autobiography_service.version_of(draft) if draft else None,
         backup_label=autobiography_backup.status_label(draft) if draft else None,

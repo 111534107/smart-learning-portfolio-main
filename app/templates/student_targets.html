@@ -16,10 +16,10 @@
   </div>
   {% endif %}
   {% if slots.limit %}
-  <p class="muted mb-1" data-tour="五年級最多選 5 所，換學校自傳要重寫。" data-tour-order="0">先選最想上的 {{ slots.limit }} 所，看準備度。換掉學校，寫好的自傳要重寫。</p>
+  <p class="muted mb-1" data-tour="五年級最多選 {{ slots.limit }} 所，換學校自傳要重寫。" data-tour-order="0">先選最想上的 {{ slots.limit }} 所，看準備度。換掉學校，寫好的自傳要重寫。</p>
   <p class="mb-1"><span class="tag {{ 'tag--warn' if slots.used >= slots.limit else 'tag--info' }}">已選 {{ slots.used }}／{{ slots.limit }}</span></p>
   {% else %}
-  <p class="muted mb-1" data-tour="想去哪裡都可以選，隨時可以換。" data-tour-order="0">目標校系隨時可以更換。五年級準備備審資料時最多保留 5 所。</p>
+  <p class="muted mb-1" data-tour="想去哪裡都可以選，隨時可以換。" data-tour-order="0">目標校系不限所數，隨時可以更換；每個校系各寫一份自傳。</p>
   {% endif %}
   {% if focus %}{% include "partials/focus.html" %}{% endif %}
   <div class="record-card__actions mb-1"><a class="button button--small button--line" href="{{ url_for('student.matching') }}">看全部校系的推薦排序 →</a><a class="button button--small button--quiet" href="{{ url_for('student.schedule') }}">招生時程</a></div>

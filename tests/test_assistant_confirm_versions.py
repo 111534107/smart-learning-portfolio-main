@@ -211,6 +211,9 @@ def test_fifth_year_can_choose_more_than_five_targets_by_default(app):
 
     assert target_count(app) == 6
     assert "最多 5 所" not in response.get_data(as_text=True)
+    page = client.get("/student/targets").get_data(as_text=True)
+    assert "5 所" not in page and "已選 6／" not in page
+    assert "不限所數" in page
 
 
 def test_third_year_can_choose_more_than_five(app):

@@ -24,6 +24,8 @@ class FakeGoogle:
 
     def __init__(self):
         self.created = []
+        self.folders = []
+        self.gone = set()  # 學生在 Drive 刪掉或丟進垃圾桶的檔案／資料夾 ID
         self.exports = {}
         self.fail = None
 
@@ -32,11 +34,21 @@ class FakeGoogle:
             raise self.fail
         return {"access_token": f"fake-token-{code}", "expires_in": 3600}
 
-    def create_document(self, access_token, title, text):
+    def create_folder(self, access_token, name, parent_id=None):
+        if self.fail:
+            raise self.fail
+        folder_id = f"folder{len(self.folders) + 1}"
+        self.folders.append({"name": name, "parent": parent_id, "id": folder_id})
+        return folder_id
+
+    def file_usable(self, access_token, file_id):
+        return file_id not in self.gone
+
+    def create_document(self, access_token, title, text, folder_id=None):
         if self.fail:
             raise self.fail
         file_id = f"doc{len(self.created) + 1}"
-        self.created.append({"token": access_token, "title": title, "text": text, "id": file_id})
+        self.created.append({"token": access_token, "title": title, "text": text, "id": file_id, "folder": folder_id})
         self.exports[file_id] = text
         return file_id
 
@@ -465,3 +477,108 @@ def test_connecting_without_open_button_still_returns_to_autobiography(app, fake
 
     assert "google=connected" in response.headers["Location"]
     assert fake_google.created == []
+
+
+def test_documents_go_into_one_school_folder_under_parent_and_folders_are_reused(app, fake_google):
+    from app.models import StudentDriveFolder
+
+    client, first_id = login_with_draft(app)
+    with app.app_context():
+        student = User.query.filter_by(username="stu").one()
+        other = AdmissionProgram.query.filter(AdmissionProgram.program_code != "208003").first()
+        second_id = generate_draft(student, other, ANSWERS).id
+        first = AdmissionProgram.query.filter_by(program_code="208003").one()
+        first_name = f"{first.school_name}_{first.department_name}"
+        second_name = f"{other.school_name}_{other.department_name}"
+    authorize(client)
+
+    client.post(f"/student/autobiography/{first_id}/google/open", data={"csrf_token": csrf(client)})
+    client.post(f"/student/autobiography/{second_id}/google/open", data={"csrf_token": csrf(client)})
+
+    assert fake_google.folders[0] == {"name": "備審資料", "parent": None, "id": "folder1"}
+    assert fake_google.folders[1]["name"] == first_name and fake_google.folders[1]["parent"] == "folder1"
+    assert fake_google.folders[2]["name"] == second_name and fake_google.folders[2]["parent"] == "folder1"
+    assert len(fake_google.folders) == 3  # 根目錄只建一次
+    assert fake_google.created[0]["folder"] == "folder2"
+    assert fake_google.created[1]["folder"] == "folder3"
+    with app.app_context():
+        assert StudentDriveFolder.query.count() == 3
+
+
+def test_deleted_document_recreated_on_open_in_same_row(app, fake_google):
+    client, output_id = login_with_draft(app)
+    authorize(client)
+    client.post(f"/student/autobiography/{output_id}/google/open", data={"csrf_token": csrf(client)})
+    fake_google.gone.add("doc1")
+    with app.app_context():
+        original_id = AutobiographyGoogleDoc.query.one().id
+    response = client.post(f"/student/autobiography/{output_id}/google/open", data={"csrf_token": csrf(client)})
+    assert response.headers["Location"].endswith("/doc2/edit")
+    with app.app_context():
+        assert AutobiographyGoogleDoc.query.count() == 1
+        assert AutobiographyGoogleDoc.query.one().id == original_id
+        assert AutobiographyGoogleDoc.query.one().google_file_id == "doc2"
+
+
+def test_deleted_document_recreated_after_authorization(app, fake_google):
+    client, output_id = login_with_draft(app)
+    authorize(client)
+    client.post(f"/student/autobiography/{output_id}/google/open", data={"csrf_token": csrf(client)})
+    fake_google.gone.add("doc1")
+    with client.session_transaction() as session:
+        session.pop("google_docs_token_ref")
+        session["google_oauth_open_output"] = output_id
+    response = authorize(client)
+    assert response.headers["Location"].endswith("/doc2/edit")
+    with app.app_context():
+        assert AutobiographyGoogleDoc.query.count() == 1
+
+
+def test_check_failure_preserves_existing_link(app, fake_google, monkeypatch):
+    client, output_id = login_with_draft(app)
+    authorize(client)
+    client.post(f"/student/autobiography/{output_id}/google/open", data={"csrf_token": csrf(client)})
+    def fail(*args):
+        raise google_docs_service.GoogleDocsUnavailable("timeout")
+    monkeypatch.setattr(fake_google, "file_usable", fail)
+    response = client.post(f"/student/autobiography/{output_id}/google/open", data={"csrf_token": csrf(client)})
+    assert response.headers["Location"].endswith("/doc1/edit")
+    assert len(fake_google.created) == 1
+
+
+def test_deleted_folder_is_recreated_without_recreating_root(app, fake_google):
+    from app.models import StudentDriveFolder
+    client, output_id = login_with_draft(app)
+    authorize(client)
+    client.post(f"/student/autobiography/{output_id}/google/open", data={"csrf_token": csrf(client)})
+    fake_google.gone.update({"folder2", "doc1"})
+    client.post(f"/student/autobiography/{output_id}/google/open", data={"csrf_token": csrf(client)})
+    assert [f["id"] for f in fake_google.folders] == ["folder1", "folder2", "folder3"]
+    assert fake_google.folders[-1]["parent"] == "folder1"
+    with app.app_context():
+        assert StudentDriveFolder.query.filter_by(folder_key="root").one().google_folder_id == "folder1"
+        assert StudentDriveFolder.query.filter_by(folder_key=f"program:{program_id(app)}").one().google_folder_id == "folder3"
+
+
+def test_pull_missing_document_shows_rebuild_message(app, fake_google):
+    client, output_id = login_with_draft(app)
+    authorize(client)
+    client.post(f"/student/autobiography/{output_id}/google/open", data={"csrf_token": csrf(client)})
+    fake_google.fail = google_docs_service.GoogleDocsNotFound("404")
+    response = client.post(f"/student/autobiography/{output_id}/google/pull", data={"csrf_token": csrf(client)})
+    assert "google=doc_gone" in response.headers["Location"]
+    assert "Google 文件找不到了" in client.get(response.headers["Location"]).get_data(as_text=True)
+    with app.app_context():
+        assert LearningProfileOutput.query.count() == 1
+
+
+def test_http_file_usable_handles_404_and_trashed(monkeypatch):
+    import io
+    from urllib.error import HTTPError
+    def missing(request, timeout):
+        raise HTTPError(request.full_url, 404, "missing", {}, io.BytesIO(b""))
+    monkeypatch.setattr(google_docs_service, "urlopen", missing)
+    client = google_docs_service.HttpGoogleDocsClient(GOOGLE_SETTINGS)
+    assert client.file_usable("token", "doc1") is False
+    monkeypatch.setattr(google_docs_service, "urlopen", lambda request, timeout: FakeResponse(b'{"id":"doc1","trashed":true}'))
+    assert client.file_usable("token", "doc1") is False

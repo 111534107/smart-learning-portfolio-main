@@ -190,6 +190,20 @@ def generate_draft(student, program, answers, generate=None, api_key=None):
     return output
 
 
+def carried_answers(student):
+    """新校系還沒有草稿時，帶入學生最近一份草稿存的 4 題回答；沒有就回傳空字典。
+
+    回答只打一次：第二所學校不用重打，學生再依該校系修改。
+    """
+    outputs = (LearningProfileOutput.query.filter_by(student_id=student.id, output_type=OUTPUT_TYPE)
+               .order_by(LearningProfileOutput.id.desc()).all())
+    for output in outputs:
+        answers = output.content_json.get("answers") or {}
+        if any(answers.values()):
+            return {key: answers.get(key, "") for key, _, _ in QUESTIONS}
+    return {}
+
+
 def versions(student, program):
     """同一位學生、同一個校系的所有自傳版本（舊到新）。"""
     outputs = (LearningProfileOutput.query.filter_by(student_id=student.id, output_type=OUTPUT_TYPE)

@@ -20,6 +20,7 @@ SCOPE = "https://www.googleapis.com/auth/drive.file"
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 DOC_MIME = "application/vnd.google-apps.document"
+FOLDER_MIME = "application/vnd.google-apps.folder"
 
 _FILE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 _MD_ESCAPE_RE = re.compile(r"\\([\\`*_{}\[\]()#+\-.!|>~])")
@@ -38,6 +39,10 @@ class GoogleDocsUnavailable(GoogleDocsError):
 
 class GoogleDocsAuthExpired(GoogleDocsError):
     """授權過期或被撤銷（401／403），要重新登入 Google。"""
+
+
+class GoogleDocsNotFound(GoogleDocsUnavailable):
+    """Google 找不到這個檔案或資料夾（404），例如學生把它永久刪除了。"""
 
 
 def configured(config):
@@ -192,10 +197,37 @@ class HttpGoogleDocsClient:
             raise GoogleDocsAuthExpired("使用者沒有同意 drive.file")
         return {"access_token": payload["access_token"], "expires_in": payload.get("expires_in", 3600)}
 
-    def create_document(self, access_token, title, text):
-        """上傳 Markdown 並要求轉成 Google 文件（「##」變成真正的標題），放在學生 My Drive 根目錄。"""
+    def create_folder(self, access_token, name, parent_id=None):
+        """在學生 My Drive 建一個資料夾（parent_id 沒有就放在根目錄）；drive.file 只看得到本系統建的。"""
+        metadata = {"name": name, "mimeType": FOLDER_MIME}
+        if parent_id:
+            metadata["parents"] = [parent_id]
+        payload = self._json(Request(
+            "https://www.googleapis.com/drive/v3/files?fields=id", data=json.dumps(metadata, ensure_ascii=False).encode(),
+            method="POST", headers=self._auth(access_token, "application/json; charset=UTF-8")))
+        file_id = payload.get("id")
+        if not _FILE_ID_RE.fullmatch(file_id or ""):
+            raise GoogleDocsUnavailable("Google 回傳的資料夾 ID 格式不對")
+        return file_id
+
+    def file_usable(self, access_token, file_id):
+        """系統建的文件或資料夾還能不能用：被永久刪除（404）或丟進垃圾桶都算不能用，要重建。"""
+        if not _FILE_ID_RE.fullmatch(file_id or ""):
+            return False
+        url = f"https://www.googleapis.com/drive/v3/files/{quote(file_id, safe='')}?fields=id,trashed"
+        try:
+            payload = self._json(Request(url, method="GET", headers=self._auth(access_token)))
+        except GoogleDocsNotFound:
+            return False
+        return not payload.get("trashed")
+
+    def create_document(self, access_token, title, text, folder_id=None):
+        """上傳 Markdown 並要求轉成 Google 文件（「##」變成真正的標題）；folder_id 沒有就放在 My Drive 根目錄。"""
         boundary = "autobiography-" + uuid.uuid4().hex
-        metadata = json.dumps({"name": title, "mimeType": DOC_MIME}, ensure_ascii=False)
+        metadata = {"name": title, "mimeType": DOC_MIME}
+        if folder_id:
+            metadata["parents"] = [folder_id]
+        metadata = json.dumps(metadata, ensure_ascii=False)
         body = (f"--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{metadata}\r\n"
                 f"--{boundary}\r\nContent-Type: text/markdown; charset=UTF-8\r\n\r\n{text}\r\n--{boundary}--\r\n").encode()
         payload = self._json(Request(
@@ -225,6 +257,8 @@ class HttpGoogleDocsClient:
         except HTTPError as error:
             if error.code in (401, 403):
                 raise GoogleDocsAuthExpired(f"Google 回應 {error.code}") from error
+            if error.code == 404:
+                raise GoogleDocsNotFound("Google 回應 404") from error
             raise GoogleDocsUnavailable(f"Google 回應 {error.code}") from error
         except (URLError, TimeoutError, OSError) as error:
             raise GoogleDocsUnavailable("連不上 Google") from error
