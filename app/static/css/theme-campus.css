@@ -80,9 +80,10 @@
 @media (prefers-reduced-motion: reduce) {
   [data-theme="campus"] .quick-dock__label { transition: none; }
 }
-/* 手機：改成右下角一排小鈕，頁面底部留空，避免擋住送出鈕 */
-@media (max-width: 480px) {
-  [data-theme="campus"] .quick-dock { top: auto; bottom: .75rem; right: .75rem; grid-auto-flow: column; }
+/* 內容（最寬 1200px）兩側放不下右側標籤時（2026-11-02 實測 800px 寬會蓋住時程文字）：
+   改成左下角一排小圓鈕（右下角是資管科小助手），頁面底部留空，避免擋住送出鈕 */
+@media (max-width: 1360px) {
+  [data-theme="campus"] .quick-dock { top: auto; right: auto; bottom: .75rem; left: .75rem; grid-auto-flow: column; }
   [data-theme="campus"] .quick-dock__item { border-left: 0; border-radius: 50%; width: 2.75rem; justify-content: center; padding: 0; }
   [data-theme="campus"] .quick-dock__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   [data-theme="campus"] main { padding-bottom: 4.5rem; }

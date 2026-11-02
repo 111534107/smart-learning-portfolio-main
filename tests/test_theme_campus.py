@@ -100,4 +100,4 @@ def test_quick_dock_is_not_printed_and_respects_small_screens():
     text = THEME_CSS.read_text(encoding="utf-8")
 
     assert "@media print" in text and ".quick-dock" in text
-    assert "@media (max-width: 480px)" in text
+    assert "@media (max-width: 1360px)" in text  # 放不下右側標籤時改到左下角，不蓋內容
