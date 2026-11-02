@@ -1,5 +1,10 @@
 # 專題交接（新對話從這裡開始）
 
+## 2026-11-02 Claude：校園招生風主題（另一個分支）
+
+- 分支 `feat/campus-theme`（工作資料夾 `D:\democase\_worktrees\ai-wt-campus-theme`），從 `bfbaa58` 開出，未推送、未合併。內容與驗證見開發日誌同名一節與計畫書 `docs/superpowers/plans/2026-11-02-campus-theme.md`。
+- 合併時機：等 GPT 在 `feat/google-docs-autobiography` 的修改提交後再合併；`base.html` 只加了兩處，樣式都在新檔 `theme-campus.css`。
+
 ## 2026-11-02 GPT：二技與插大目標校系分流
 
 - 使用者反映目標校系混在一起太亂；已以頁籤分開二技與插大，已選、探索、篩選與聚焦建議均按管道顯示，從校系細項回清單保留管道。
