@@ -115,6 +115,7 @@ def test_portfolio_form_error_offers_a_button_back_to_required_fields(consistenc
 
 
 def test_target_empty_and_limit_error_states_offer_next_actions(consistency_app):
+    consistency_app.config["TARGET_LIMIT"] = 5  # 預設不限；這裡測學校有設定上限時的錯誤畫面
     client = login(consistency_app)
     empty_html = client.get("/student/targets").get_data(as_text=True)
 

@@ -129,6 +129,7 @@ def test_r4_internal_code_not_shown_as_official(app):
 
 # R5：升五年級後超過 5 所，要引導縮減，送審前要先收斂
 def test_r5_fifth_year_over_limit_gets_trim_card_and_review_blocked(app):
+    app.config["TARGET_LIMIT"] = 5  # 預設不限；這裡測學校有設定上限時的行為
     with app.test_request_context():
         user = make_student(5)
         programs = [make_program(f"50000{n}", [("歷年成績", 100, "grades", "confirmed")]) for n in range(6)]

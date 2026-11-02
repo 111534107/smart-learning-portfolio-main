@@ -1,5 +1,22 @@
 # 開發日誌
 
+## 2026-11-02 目標校系預設不限所數
+
+日期：2026-11-02（台灣時間）
+
+開發者：Claude（分支 `feat/google-docs-autobiography`；多校備審計畫第一期第 1 步）
+
+目標：使用者 11-02 指出「沒有規定只能選五所」。原本依規格 10.7，專五最多 5 所目標校系，超過就不能加入、也不能送導師確認。
+
+修改檔案：
+- `app/config.py`：`TARGET_LIMIT` 預設改為 0＝不限；學校日後要限制再在 `.env` 設數字（機制保留）。
+- `app/services/student_rules.py`：`target_slots` 在 `TARGET_LIMIT` 為 0 時回傳不限。
+- 測試：`tests/test_assistant_confirm_versions.py` 改為「專五預設可以加第六所」；`tests/test_student_page_consistency.py`、`tests/test_ui01_fixes.py` 明確設定 `TARGET_LIMIT=5` 再測上限機制。
+
+驗證結果：相關測試 60 passed；完整測試尚未跑（交給下一個工作階段一起跑）。
+
+待確認：規格 10.7 的「最多 5 所」要不要在正式規格書改掉，請使用者和組員確認。
+
 ## 2026-11-02 Google 文件真實驗收與修正：真正的標題、授權完直接開文件、台灣時間
 
 日期：2026-11-02（台灣時間）

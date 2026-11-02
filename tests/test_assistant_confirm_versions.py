@@ -194,7 +194,8 @@ def target_count(app):
         return StudentTarget.query.filter_by(student_id=user_id(app, "stu")).count()
 
 
-def test_sixth_target_is_refused_in_fifth_year(app):
+def test_fifth_year_can_choose_more_than_five_targets_by_default(app):
+    # 11-02 使用者：沒有規定只能選五所，預設不限（學校要限制再設 TARGET_LIMIT）
     with app.app_context():
         profile = StudentProfile.query.filter_by(student_no="111534100").one()
         profile.admission_year = GRADE3_ADMISSION_YEAR - 2
@@ -208,8 +209,8 @@ def test_sixth_target_is_refused_in_fifth_year(app):
 
     response = client.post("/student/targets", data={"program_id": add_programs(app, 1)[0]})
 
-    assert target_count(app) == 5
-    assert "最多 5 所" in response.get_data(as_text=True)
+    assert target_count(app) == 6
+    assert "最多 5 所" not in response.get_data(as_text=True)
 
 
 def test_third_year_can_choose_more_than_five(app):
