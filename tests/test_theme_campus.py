@@ -77,3 +77,27 @@ def test_sheet_heads_become_bands_with_white_links():
 def test_band_colours_pass_contrast_with_white_text():
     for hex_colour in ("#1f3a5f", "#2c5282", "#94652a", "#9c6a2c"):
         assert contrast_with_white(hex_colour) >= 4.5, hex_colour
+
+
+def test_student_pages_show_quick_dock():
+    html = login(ui_app(), "ui-student").get("/student/targets").get_data(as_text=True)
+
+    assert 'class="quick-dock"' in html
+    assert 'href="/student/schedule"' in html
+    assert 'href="/student/autobiography"' in html
+    assert 'href="#main-content"' in html
+
+
+def test_quick_dock_hidden_on_home_and_for_teachers():
+    student = login(ui_app(), "ui-student")
+    assert 'class="quick-dock"' not in student.get("/student/dashboard").get_data(as_text=True)
+    teacher = login(ui_app(), "ui-teacher")
+    assert 'class="quick-dock"' not in teacher.get("/teacher/dashboard").get_data(as_text=True)
+    assert 'class="quick-dock"' not in ui_app().test_client().get("/login").get_data(as_text=True)
+
+
+def test_quick_dock_is_not_printed_and_respects_small_screens():
+    text = THEME_CSS.read_text(encoding="utf-8")
+
+    assert "@media print" in text and ".quick-dock" in text
+    assert "@media (max-width: 480px)" in text

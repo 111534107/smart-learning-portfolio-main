@@ -23,6 +23,7 @@
       {% endif %}{% endwith %}
       {% block content %}{% endblock %}
     </main>
+    {% if page_name|default('workspace') not in ('student-dashboard', 'public-home') and user is defined and user and user.role == "student" %}{% include "partials/quick_dock.html" %}{% endif %}
     {% block footer %}{% endblock %}
     {% if user is defined and user and user.role in ("student", "teacher") %}{% include "partials/assistant.html" %}{% endif %}
     <script src="{{ url_for('static', filename='js/motion.js') }}" defer></script>
