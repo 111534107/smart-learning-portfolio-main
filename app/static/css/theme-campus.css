@@ -18,3 +18,41 @@
 }
 
 [data-theme="campus"] .sheet { border-radius: var(--radius-card); }
+
+/* 白卡第一個子元素是 .sheet__head 時，變成貼齊卡片上緣的標題帶（深藍、焦糖交替） */
+[data-theme="campus"] .sheet { --sheet-pad: clamp(1.1rem, 2.5vw, 1.75rem); padding: var(--sheet-pad); overflow: hidden; }
+[data-theme="campus"] .sheet > .sheet__head:first-child {
+  align-items: center;
+  margin: calc(-1 * var(--sheet-pad)) calc(-1 * var(--sheet-pad)) 1rem;
+  padding: .9rem var(--sheet-pad);
+  background: var(--band-navy);
+  color: #fff;
+}
+[data-theme="campus"] .sheet:nth-of-type(even) > .sheet__head:first-child { background: var(--band-caramel); }
+[data-theme="campus"] .sheet > .sheet__head:first-child :is(h2, h3, h4, p, .muted, .small) { color: #fff; }
+[data-theme="campus"] .sheet > .sheet__head:first-child a { color: #fff; text-decoration-color: rgb(255 255 255 / 60%); }
+[data-theme="campus"] .sheet > .sheet__head:first-child a:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+[data-theme="campus"] .sheet > .sheet__head:first-child .button { border-color: #fff; background: transparent; color: #fff; }
+
+/* 區塊標題前一小段焦糖橫線（標題帶裡的不加） */
+[data-theme="campus"] .page-head h1::before,
+[data-theme="campus"] .sheet__head:not(.sheet > .sheet__head:first-child) h2::before {
+  content: "";
+  display: inline-block;
+  width: 1.2em;
+  height: 3px;
+  margin-right: .5em;
+  vertical-align: middle;
+  background: var(--accent-warm);
+}
+
+/* 紀錄卡、校系卡：大圓角、淡陰影，滑過時上浮一點 */
+[data-theme="campus"] :is(.record-card, .program-card) {
+  border-radius: var(--radius-card);
+  border-color: var(--line);
+  box-shadow: var(--shadow-card);
+}
+[data-theme="campus"] :is(.record-card, .program-card):hover { transform: translateY(-2px); }
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="campus"] :is(.record-card, .program-card):hover { transform: none; }
+}

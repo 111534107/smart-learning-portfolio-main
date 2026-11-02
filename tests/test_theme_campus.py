@@ -53,3 +53,27 @@ def test_theme_css_has_balanced_braces_and_scoped_rules():
     assert text.count("{") == text.count("}")
     assert '[data-theme="campus"]' in text
     assert "--paper: #fdf3e2" in text
+
+
+def contrast_with_white(hex_colour):
+    """WCAG 相對亮度：白字在這個底色上的對比值。"""
+    def channel(value):
+        value /= 255
+        return value / 12.92 if value <= 0.03928 else ((value + 0.055) / 1.055) ** 2.4
+
+    r, g, b = (int(hex_colour[i:i + 2], 16) for i in (1, 3, 5))
+    luminance = 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+    return 1.05 / (luminance + 0.05)
+
+
+def test_sheet_heads_become_bands_with_white_links():
+    text = THEME_CSS.read_text(encoding="utf-8")
+
+    assert '[data-theme="campus"] .sheet > .sheet__head:first-child' in text
+    assert "var(--band-navy)" in text and "var(--band-caramel)" in text
+    assert '[data-theme="campus"] .sheet > .sheet__head:first-child a' in text  # 標題帶裡的連結要白字
+
+
+def test_band_colours_pass_contrast_with_white_text():
+    for hex_colour in ("#1f3a5f", "#2c5282", "#94652a", "#9c6a2c"):
+        assert contrast_with_white(hex_colour) >= 4.5, hex_colour
