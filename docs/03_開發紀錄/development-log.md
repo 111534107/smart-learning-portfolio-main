@@ -20,7 +20,7 @@
 驗證結果：
 - 相關測試：A1 148 passed、A2 37 passed、A3／A4 47 passed。
 - 瀏覽器（`scripts/run_demo.py`，埠 5032，示範學生王小明，41 間二技＋4 間插大）：二技準備度分布 42%～90%，沒有一間 100%；27 間可報、14 間需確認（護理、餐旅、電機、設計等類別）；先列 20 間並有「看更多」；搜尋「北商 資訊」剩 3 間；375px 排行、搜尋、細項頁 `scrollWidth` 都是 375；細項頁顯示「先做這個：專業成果…補滿可加 30%」。
-- 完整測試 `D:democasei.venvScriptspython.exe -m pytest -q -p no:cacheprovider --basetemp=logs/test-runs/a34-full`：**961 passed, 2 skipped**，0 失敗。
+- 完整測試 `D:\democase\ai\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp=logs/test-runs/a34-full`：**961 passed, 2 skipped**，0 失敗。
 
 已知限制：「補滿可加」只看系統裡的資料，統測、面試等考試項目不在內；語言檢定規則只有一條（外語），其他項目沿用類別判斷，規則可直接改 CSV。
 
