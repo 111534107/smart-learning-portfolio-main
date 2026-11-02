@@ -482,6 +482,44 @@ body[data-page="student-matching"] progress { display: block; width: 100%; max-w
    主線後半：目標校系、缺件比對、導師確認
    ========================================================= */
 .program-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.25rem; }
+.target-filter { display: flex; flex-wrap: wrap; align-items: end; gap: .75rem 1rem; margin: 0 0 1.25rem; padding: 1rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--sheet); }
+.target-filter label { display: grid; gap: .4rem; min-width: 12rem; flex: 1 1 12rem; font-weight: 700; }
+.target-filter label:nth-child(2) { flex: 2 1 18rem; }
+.target-filter select { width: 100%; min-height: 2.8rem; padding: .55rem .7rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--sheet); color: var(--ink); font: inherit; }
+.target-ranking { margin-bottom: 1.5rem; padding: 1.25rem; border: 1px solid var(--line); background: var(--sheet); }
+.target-ranking__group + .target-ranking__group { margin-top: 1.1rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.target-ranking__group h3 { margin: 0 0 .5rem; font-size: 1rem; }
+.target-group-heading { grid-column: 1 / -1; margin-top: .3rem; }
+.target-group-heading h2, .target-group-heading p { margin: 0; }
+.target-ranking__head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: .25rem 1rem; margin-bottom: .75rem; }
+.target-ranking__head h2, .target-ranking__head p { margin: 0; }
+.target-ranking__list { display: grid; gap: .4rem; margin: 0; padding: 0; list-style: none; }
+.target-ranking__row { display: grid; grid-template-columns: minmax(0, 1fr) 5rem; gap: .35rem 1rem; padding: .4rem .55rem; color: var(--ink); text-decoration: none; }
+.target-ranking__row:hover, .target-ranking__row:focus-visible { background: var(--paper-deep); }
+.target-ranking__name { min-width: 0; font-weight: 700; }
+.target-ranking__channel { display: inline-block; margin-left: .3rem; padding: .08rem .4rem; border: 1px solid var(--line); border-radius: 1rem; color: var(--ink-soft); font-size: .78rem; font-weight: 500; white-space: nowrap; }
+.target-ranking__number { color: var(--accent); }
+.target-ranking__value { text-align: right; white-space: nowrap; }
+.target-ranking__bar { grid-column: 1 / -1; height: .8rem; overflow: hidden; background: var(--paper-deep); border: 1px solid var(--ink); }
+.target-ranking__bar > span { display: block; height: 100%; background: var(--accent); }
+.my-targets { border-left: 4px solid var(--accent); }
+.target-explorer__head { display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: .75rem 1rem; margin: 2rem 0 1rem; }
+.target-explorer__head h2, .target-explorer__head p { margin: 0; }
+.target-explorer .target-ranking__list { gap: 0; }
+.target-program { border-bottom: 1px solid var(--line); }
+.target-program__summary { cursor: pointer; list-style: none; padding: .8rem .5rem; }
+.target-program__summary::-webkit-details-marker { display: none; }
+.target-program__summary:hover, .target-program__summary:focus-visible, .target-program[open] > .target-program__summary { background: var(--paper-deep); }
+.target-program__hint { grid-column: 1 / -1; color: var(--accent); font-size: .82rem; font-weight: 700; }
+.target-program[open] .target-program__hint { visibility: hidden; height: 0; }
+.target-program__detail { display: grid; grid-template-columns: minmax(0, 1fr) minmax(12rem, .45fr); gap: 1rem 2rem; padding: 1rem 1.25rem 1.25rem; background: var(--sheet); }
+.target-program__detail h4 { margin: .65rem 0 .4rem; }
+.target-program__weights { max-width: 42rem; margin: 0; padding: 0; list-style: none; }
+.target-program__weights li { display: flex; justify-content: space-between; gap: 1rem; padding: .35rem 0; border-bottom: 1px solid var(--line); }
+.target-program__weights strong { white-space: nowrap; }
+.target-program__actions { display: flex; flex-direction: column; align-items: start; gap: .7rem; }
+.target-program__actions p { margin: .25rem 0 0; }
+@media (max-width: 700px) { .target-program__detail { grid-template-columns: 1fr; } }
 .program-card { position: relative; display: grid; gap: .8rem; padding: 1.25rem; background: var(--sheet); border: 1.5px solid var(--ink); transition: transform .2s ease, box-shadow .2s ease; }
 .program-card:hover { transform: translate(-3px, -3px); box-shadow: 6px 6px 0 var(--accent); }
 .program-card--selected { box-shadow: 6px 6px 0 var(--ink); }

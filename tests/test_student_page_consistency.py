@@ -135,7 +135,7 @@ def test_target_empty_and_limit_error_states_offer_next_actions(consistency_app)
     html = response.get_data(as_text=True)
     assert response.status_code == 400
     assert "目標校系同時最多 5 所" in html
-    assert 'href="#target-programs"' in html
+    assert 'href="#my-targets"' in html
     assert "查看已選目標校系" in html
 
 

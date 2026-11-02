@@ -2,7 +2,7 @@
 
 ① 收集資料：至少有一筆已確認的成績（成績單是備審的基礎）
 ② 選目標校系：選了至少一個
-③ 補齊缺件：第一個目標校系的準備度達到 100%
+③ 補齊缺件：第一個目標校系的準備度達到 100%，或送審內容經導師確認
 ④ 導師確認與下載：第一個目標校系的導師確認狀態為「已確認」
 
 每一步是否完成是各自判斷的；「目前」是第一個還沒完成的步驟。
@@ -38,7 +38,7 @@ def student_progress(user):
     done = [
         journey["totals"]["grades"] > 0,
         program is not None,
-        bool(gap) and gap["readiness"] == 100,
+        bool(gap) and (gap["readiness"] == 100 or bool(review) and review.status == "confirmed"),
         bool(review) and review.status == "confirmed",
     ]
     gap_url = url_for("student.target_gap", program_id=program.id) if program else url_for("student.target_list")
@@ -60,8 +60,11 @@ def student_progress(user):
         action = {"text": "選一個想申請的目標校系", "href": url_for("student.target_list")}
     elif not done[2] and gap["priority_id"]:
         item = next(item for item in gap["items"] if item["id"] == gap["priority_id"])
-        category = item["missing"][0]
-        action = {"text": f"補上{ALL_LABELS[category]}（{item['name']} 佔 {item['weight']}%）", "href": _add_link(category)}
+        if item["missing"]:
+            category = item["missing"][0]
+            action = {"text": f"補上{ALL_LABELS[category]}（{item['name']} 佔 {item['weight']}%）", "href": _add_link(category)}
+        else:
+            action = {"text": f"準備{item['name']}文件（佔 {item['weight']}%）", "href": gap_url}
     elif not review or review.status == "needs_revision":
         action = {"text": "請導師確認備審內容" if not review else "依導師建議修改後再送出", "href": gap_url + "#review"}
     elif review.status == "pending":

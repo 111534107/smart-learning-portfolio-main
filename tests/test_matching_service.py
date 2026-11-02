@@ -94,14 +94,14 @@ def test_unconfirmed_portfolio_does_not_raise_recommendation_readiness(app):
     assert analyze_gap(student, program)["readiness"] == 100
 
 
-def test_readiness_currently_excludes_document_only_requirements(app):
+def test_readiness_keeps_document_only_requirements_in_total_weight(app):
     student = make_student()
     db.session.add(LearningCourseRecord(student_id=student.id, course_name="測試課程",
                                         normalized_course_name="測試課程", school_year=1,
                                         confirmation_status="confirmed"))
     program = make_program("900012", [("自傳", 60, "autobiography"), ("成績", 40, "grades")])
     result = analyze_gap(student, program)
-    assert result["readiness"] == 100
+    assert result["readiness"] == 40
     assert result["items"][0]["fraction"] is None
 
 

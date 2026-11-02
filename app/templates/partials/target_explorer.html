@@ -1,0 +1,86 @@
+{% if all_program_count %}
+<section class="target-explorer" aria-labelledby="target-explorer-title">
+  <div class="target-explorer__head">
+    <div>
+      <h2 id="target-explorer-title">探索校系</h2>
+      <p class="small muted">比較其他校系的準備度，展開一列再看採計比例與加入目標。</p>
+    </div>
+    <a class="button button--small button--quiet" href="{{ url_for('student.matching') }}">查看推薦依據 →</a>
+  </div>
+  <form class="target-filter" method="get" action="{{ url_for('student.target_list') }}" aria-label="校系排行篩選">
+    <label>校系類別
+      <select name="major" id="target-major-filter">
+        <option value="all"{% if major_filter == 'all' %} selected{% endif %}>全部校系</option>
+        {% if major_known %}<option value="home"{% if major_filter == 'home' %} selected{% endif %}>本科系（資訊管理）</option><option value="other"{% if major_filter == 'other' %} selected{% endif %}>非本科系</option>{% endif %}
+      </select>
+    </label>
+    <label>選擇校系
+      <select name="program_id" id="target-program-filter">
+        <option value="">全部校系</option>
+        {% for option in program_options %}<option value="{{ option.id }}"{% if program_filter == option.id|string %} selected{% endif %}>{{ option.school_name }} {{ option.department_name }}（{{ channels[option.id] }}{% if option.admission_category and option.admission_category != channels[option.id] %} · {{ option.admission_category }}{% endif %}{% if entry_grades[option.id] %} · {{ entry_grades[option.id] }}{% endif %}）</option>{% endfor %}
+      </select>
+    </label>
+    <button class="button button--small" type="submit">顯示排行</button>
+    {% if major_filter != 'all' or program_filter %}<a class="button button--small button--quiet" href="{{ url_for('student.target_list') }}#target-programs">清除篩選</a>{% endif %}
+  </form>
+
+  {% if programs %}
+  <p class="small muted mb-1">本科系與非本科系分開排列，各組依準備度由高到低排序；目前無法計算的校系列在各組最後。自傳、專題等尚無法自動核對的文件會先視為待準備。補上並確認資料後，重新開啟本頁即可看到更新的順序。</p>
+  <section class="target-ranking" id="target-programs" aria-labelledby="target-ranking-title" data-tour="展開校系列查看採計比例，再決定是否加入目標。" data-tour-order="2">
+    <div class="target-ranking__head">
+      <h2 id="target-ranking-title">準備度排行</h2>
+      <p class="small muted">點開校系看細節；百分比是資料準備度，並非錄取機率。</p>
+    </div>
+    {% for group in program_groups %}
+    <div class="target-ranking__group">
+      <h3>{{ group.label }} <span class="muted small">{{ group.programs|length }} 個校系</span></h3>
+      {% if group.programs %}<ol class="target-ranking__list">
+      {% for program in group.programs %}
+      {% set gap = gaps[program.id] %}
+      {% set chosen = program.id in selected %}
+      <li>
+        <details class="target-program" id="target-program-{{ program.id }}"{% if program_filter == program.id|string %} open{% endif %}>
+          <summary class="target-ranking__row target-program__summary">
+            <span class="target-ranking__name"><span class="target-ranking__number">{{ loop.index }}.</span> {{ program.school_name }} {{ program.department_name }} <span class="target-ranking__channel">{{ channels[program.id] }}{% if program.admission_category and program.admission_category != channels[program.id] %} · {{ program.admission_category }}{% endif %}{% if entry_grades[program.id] %} · {{ entry_grades[program.id] }}{% endif %}</span>{% if chosen %} <span class="tag tag--info">已選</span>{% endif %}</span>
+            <strong class="target-ranking__value">{{ gap.readiness ~ '%' if gap.readiness is not none else '無法計算' }}</strong>
+            <span class="target-ranking__bar" role="img" aria-label="{{ program.school_name }} {{ program.department_name }} {{ channels[program.id] }}準備度 {{ gap.readiness ~ '%' if gap.readiness is not none else '無法計算' }}"><span style="width: {{ gap.readiness or 0 }}%"></span></span>
+            <span class="target-program__hint">查看採計與操作 ↓</span>
+          </summary>
+          <div class="target-program__detail">
+            <div>
+              <p class="muted small">{{ program.admission_year }} 學年度 · {{ channels[program.id] }}{% if program.admission_category and program.admission_category != channels[program.id] %} · {{ program.admission_category }}{% endif %}{% if entry_grades[program.id] %} · {{ entry_grades[program.id] }}{% endif %}{% if program.program_code.isdigit() %} · 志願代碼 {{ program.program_code }}{% endif %}</p>
+              {% if program.admission_category == "日間部申請入學" %}<p class="small muted">下列為書審內部比例，另計統測。</p>{% endif %}
+              <h4>採計項目</h4>
+              {% if gap["items"] %}
+              <ul class="target-program__weights">
+                {% for item in gap["items"] %}<li><span>{{ item.name }}</span><strong>{{ item.weight }}%</strong></li>{% endfor %}
+              </ul>
+              {% else %}<p class="small muted">此校系以自傳等文件為主，需自行準備。</p>{% endif %}
+            </div>
+            <div class="target-program__actions">
+              {% if chosen %}
+              <a class="button button--small" href="{{ url_for('student.target_gap', program_id=program.id) }}">看還缺什麼 →</a>
+              <form method="post" action="{{ url_for('student.target_remove', program_id=program.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small button--quiet" type="submit">取消目標校系</button></form>
+              {% else %}
+              <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="program_id" value="{{ program.id }}"><button class="button button--small button--line" type="submit">設為目標校系</button></form>
+              {% endif %}
+              {% if links[program.id] %}<p class="small">{% for link in links[program.id] %}<a href="{{ link.url }}" target="_blank" rel="noopener noreferrer">{{ link.label }}</a>{% if not loop.last %}／{% endif %}{% endfor %}</p>{% endif %}
+            </div>
+          </div>
+        </details>
+      </li>
+      {% endfor %}
+      </ol>{% else %}<p class="small muted">目前沒有這類校系。</p>{% endif %}
+    </div>
+    {% endfor %}
+  </section>
+  {% else %}
+  <div class="paper-empty" id="target-programs"><p>沒有符合目前篩選條件的校系。</p><a class="button button--small" href="{{ url_for('student.target_list') }}">查看全部校系</a></div>
+  {% endif %}
+</section>
+{% else %}
+<div class="paper-empty" id="target-programs">
+  <p>目前還沒有公開的目標校系資料。你可以先整理自己的資料。</p>
+  <div class="record-card__actions"><a class="button button--small" href="{{ url_for('main.student_dashboard') }}">先整理我的資料</a></div>
+</div>
+{% endif %}

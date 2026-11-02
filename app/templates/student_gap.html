@@ -36,7 +36,7 @@
       <span>此校系項目都需要自己準備文件</span>
       {% endif %}
       <small class="readiness__note">準備度只看你確認過的資料，不是錄取機率</small>
-      {% if gap.documents %}<small class="readiness__note">未計入準備度：{% for key in gap.documents %}{{ labels.get(key, key) }}{% if not loop.last %}、{% endif %}{% endfor %}。請自行確認這些文件是否備妥。</small>{% endif %}
+      {% if gap.documents %}<small class="readiness__note">以下文件已列入準備度計算，目前系統尚無法自動核對，先視為待準備：{% for key in gap.documents %}{{ labels.get(key, key) }}{% if not loop.last %}、{% endif %}{% endfor %}。</small>{% endif %}
     </div>
   </header>
 

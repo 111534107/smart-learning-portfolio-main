@@ -116,6 +116,36 @@
     {% if not has_transfer_record %}<p class="today__transfer small"><a href="{{ url_for('transfer_credit.student_transfer_credit') }}">轉學生？填寫抵免進度 →</a></p>{% endif %}
   </section>
 
+  <section class="target-ranking" id="home-target-ranking" aria-labelledby="home-target-ranking-title">
+    <div class="target-ranking__head">
+      <h2 id="home-target-ranking-title">已選目標校系排行</h2>
+      <a class="button button--small button--line" href="{{ url_for('student.target_list') }}">查看全部校系與調整目標 →</a>
+    </div>
+    {% if target_groups %}
+    <p class="small muted">依本科系與非本科系分組，各組按準備度由高到低排列。百分比是資料準備度，並非錄取機率。</p>
+    {% for group in target_groups %}
+    <div class="target-ranking__group">
+      <h3>{{ group.label }}</h3>
+      <ol class="target-ranking__list">
+        {% for target in group.targets %}
+        {% set program = target.program %}
+        <li>
+          <a class="target-ranking__row" href="{{ url_for('student.target_gap', program_id=program.id) }}">
+            <span class="target-ranking__name"><span class="target-ranking__number">{{ loop.index }}.</span> {{ program.school_name }} {{ program.department_name }} <span class="target-ranking__channel">{{ target.channel }}</span></span>
+            <strong class="target-ranking__value">{{ target.readiness ~ '%' if target.readiness is not none else '無法計算' }}</strong>
+            <span class="target-ranking__bar" role="img" aria-label="{{ program.school_name }} {{ program.department_name }} {{ target.channel }}準備度 {{ target.readiness ~ '%' if target.readiness is not none else '無法計算' }}"><span style="width: {{ target.readiness or 0 }}%"></span></span>
+          </a>
+        </li>
+        {% endfor %}
+      </ol>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p>尚未選擇目標校系。先查看校系建議，再把想準備的校系加入目標。</p>
+    <a class="button button--small" href="{{ url_for('student.target_list') }}">選擇目標校系 →</a>
+    {% endif %}
+  </section>
+
   {# 五年資料夾：收起來，點路線上的節點才打開；放在拼圖前面，不用捲過拼圖才找得到 #}
   <details class="folders-drawer" id="folders" data-folders-drawer data-tour="五年所有資料都收在這裡。" data-tour-order="3">
     <summary>打開五年資料夾</summary>
@@ -164,7 +194,7 @@
           {% for target in targets %}
           <a class="paper-item" href="{{ url_for('student.target_gap', program_id=target.program.id) }}">
             <b>{{ target.program.school_name|replace("國立", "") }} {{ target.program.department_name }}</b>
-            <small>準備度 {{ target.readiness if target.readiness is not none else "—" }}%</small>
+            <small>準備度 {{ target.readiness ~ '%' if target.readiness is not none else "無法計算" }}</small>
           </a>
           {% else %}
           <a class="paper-item" href="{{ url_for('student.target_list') }}"><b>還沒選</b><small>去看學校 →</small></a>

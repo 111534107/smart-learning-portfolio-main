@@ -8,6 +8,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.extensions import db
 from app.models import AuditLog, AwardCertificate, PortfolioSubmission, SourceDocument, StudentTarget, SubmissionAssignment, TeacherReviewFeedback, User
 from app.services.gap_service import analyze_gap
+from app.services.admission_schedule import channel_label
 from app.services.guide_service import CARD_IDS, guide_cards
 from app.services.journey_home import journey_home
 from app.services import photo_service, student_rules
@@ -126,9 +127,31 @@ def student_dashboard():
     user = get_current_user()
     journey = build_journey(user)
     targets = [
-        {"program": target.program, "readiness": analyze_gap(user, target.program, journey)["readiness"]}
+        {"program": target.program,
+         "readiness": analyze_gap(user, target.program, journey)["readiness"],
+         "channel": channel_label(target.program)}
         for target in StudentTarget.query.filter_by(student_id=user.id).order_by(StudentTarget.selected_at).all()
     ]
+    class_name = user.student_profile.class_name if user.student_profile else ""
+    major_known = any(name in (class_name or "") for name in ("資管科", "資訊管理科"))
+
+    def is_home_major(row):
+        department = (row["program"].department_name or "").split("（", 1)[0].split("(", 1)[0].replace(" ", "")
+        return major_known and department in {"資管系", "資訊管理系", "資訊管理學系"}
+
+    targets.sort(key=lambda row: (
+        not is_home_major(row) if major_known else False,
+        row["readiness"] is None,
+        -(row["readiness"] or 0),
+        row["program"].school_name,
+        row["program"].department_name,
+        row["program"].id,
+    ))
+    target_groups = ([
+        {"label": "本科系（資訊管理）", "targets": [row for row in targets if is_home_major(row)]},
+        {"label": "非本科系", "targets": [row for row in targets if not is_home_major(row)]},
+    ] if major_known else [{"label": "已選校系", "targets": targets}])
+    target_groups = [group for group in target_groups if group["targets"]]
     home = journey_home(user, journey)
     semester = photo_service.current_semester()
     photo = photo_service.photo_path(user.id, home["grade"], semester)
@@ -147,6 +170,7 @@ def student_dashboard():
         photo_url=photo_url,
         semester_label="上學期" if semester == 1 else "下學期",
         targets=targets,
+        target_groups=target_groups,
         category_keys=CATEGORY_KEYS,
         category_labels=CATEGORY_LABELS,
         experience_categories=EXPERIENCE_CATEGORIES,

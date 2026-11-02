@@ -1023,17 +1023,71 @@ def target_list():
             return redirect(url_for("student.target_gap", program_id=program.id))
     journey = build_journey(user)
     selected = {t.rule_version_id for t in StudentTarget.query.filter_by(student_id=user.id).all()}
-    # 已選的目標放最上面，其他照原本順序（10-27 實測問題 14）
-    programs = sorted(published_programs(), key=lambda p: p.id not in selected)
+    programs = published_programs()
+    all_program_count = len(programs)
+    program_options = sorted(programs, key=lambda p: (p.school_name, p.department_name, p.admission_category or ""))
+    channels = {p.id: channel_label(p) for p in programs}
+    entry_grades = {
+        p.id: {"2": "二年級", "3": "三年級"}.get((p.program_code or "").rsplit("-", 1)[-1], "")
+        if p.admission_category == "插大（轉學考）" else ""
+        for p in programs
+    }
+    gaps = {p.id: analyze_gap(user, p, journey) for p in programs}
+    # 資管科學生先看本科系；兩組各依準備度排序。科別不明時不猜測本科系。
+    class_name = user.student_profile.class_name if user.student_profile else ""
+    major_known = any(name in (class_name or "") for name in ("資管科", "資訊管理科"))
+
+    def is_home_major(program):
+        department = (program.department_name or "").split("（", 1)[0].split("(", 1)[0].replace(" ", "")
+        return major_known and department in {"資管系", "資訊管理系", "資訊管理學系"}
+
+    def readiness_order(program):
+        return (not is_home_major(program) if major_known else False,
+                gaps[program.id]["readiness"] is None,
+                -(gaps[program.id]["readiness"] or 0),
+                program.school_name, program.department_name, program.id)
+
+    selected_programs = sorted((p for p in program_options if p.id in selected), key=readiness_order)
+
+    major_filter = request.args.get("major", "all")
+    if major_filter not in {"all", "home", "other"} or not major_known:
+        major_filter = "all"
+    program_filter = request.args.get("program_id", "")
+    program_filter = program_filter if program_filter.isdigit() and any(str(p.id) == program_filter for p in programs) else ""
+    if major_filter == "home":
+        programs = [p for p in programs if is_home_major(p)]
+    elif major_filter == "other":
+        programs = [p for p in programs if not is_home_major(p)]
+    if program_filter:
+        programs = [p for p in programs if str(p.id) == program_filter]
+
+    programs.sort(key=readiness_order)
+    if major_known:
+        program_groups = []
+        if major_filter in ("all", "home"):
+            program_groups.append({"label": "本科系（資訊管理）", "programs": [p for p in programs if is_home_major(p)]})
+        if major_filter in ("all", "other"):
+            program_groups.append({"label": "非本科系", "programs": [p for p in programs if not is_home_major(p)]})
+    else:
+        program_groups = [{"label": "全部校系（本科科別待確認）", "programs": programs}]
     school_links = load_school_links()
     return render_template(
         "student_targets.html",
         user=user,
         programs=programs,
+        all_program_count=all_program_count,
+        program_options=program_options,
+        channels=channels,
+        entry_grades=entry_grades,
+        major_known=major_known,
+        major_filter=major_filter,
+        program_filter=program_filter,
+        program_groups=program_groups,
         selected=selected,
+        selected_programs=selected_programs,
         slots=student_rules.target_slots(user),
         cancelled_programs=_cancelled_autobiography_programs(user),
-        gaps={p.id: analyze_gap(user, p, journey) for p in programs},
+        gaps=gaps,
         links={p.id: admission_links(p, school_links) for p in programs},
         focus=focus_view(user, journey),
         error=error,

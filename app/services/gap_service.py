@@ -2,9 +2,10 @@
 
 規則（寫在這裡，方便報告時說明）：
 - 每個簡章項目對應到幾個資料類別。六類學習資料以外的類別（自傳與讀書計畫、專題作品）
-  屬於備審資料要自己準備的章節，不列入完成度計算。
-- 項目完成比例 = 有資料的類別數 ÷ 對應的學習資料類別數。
-- 整體準備度 = Σ（項目加權 × 完成比例）÷ Σ（列入計算的項目加權）。
+  尚無自動確認狀態，先視為待準備，不能從分母排除。
+- 項目完成比例 = 已確認且有資料的類別數 ÷ 對應的全部類別數。
+- 整體準備度 = Σ（項目加權 × 完成比例）÷ Σ（全部項目加權）；
+  若全部都是無法由系統確認的文件類，則不顯示數字。
 """
 
 from app.services.journey_service import CATEGORY_KEYS, CATEGORY_LABELS, build_journey
@@ -31,8 +32,10 @@ def analyze_gap(student, program, journey=None):
     journey = journey or build_journey(student)
     totals = journey.get("confirmed_totals", journey["totals"])
     items = []
-    weighted, counted_weight = 0.0, 0
+    weighted, total_weight = 0.0, 0
+    has_record_item = False
     for item in program.items:
+        total_weight += item.weight_percent
         keys = item.category_keys
         record_keys = [key for key in keys if key in CATEGORY_KEYS]
         documents = [key for key in keys if key not in CATEGORY_KEYS]
@@ -41,10 +44,10 @@ def analyze_gap(student, program, journey=None):
         if not record_keys:
             status, fraction = "prepare", None
         else:
-            fraction = len(have) / len(record_keys)
+            has_record_item = True
+            fraction = len(have) / (len(record_keys) + len(documents))
             status = "complete" if fraction == 1 else ("partial" if fraction > 0 else "missing")
             weighted += item.weight_percent * fraction
-            counted_weight += item.weight_percent
         items.append({
             "id": item.id,
             "name": item.source_item_name,
@@ -58,10 +61,10 @@ def analyze_gap(student, program, journey=None):
             "counts": {key: totals.get(key, 0) for key in record_keys},
             "mapping_pending": item.mapping_status != "confirmed",
         })
-    readiness = round(weighted / counted_weight * 100) if counted_weight else None
+    readiness = round(weighted / total_weight * 100) if total_weight and has_record_item else None
     missing_keys = sorted({key for item in items for key in item["missing"]}, key=CATEGORY_KEYS.index)
     # 最該先補的項目：還沒滿、加權最大的那一個
-    open_items = [item for item in items if item["status"] in ("missing", "partial")]
+    open_items = [item for item in items if item["status"] in ("missing", "partial", "prepare")]
     priority = max(open_items, key=lambda item: item["weight"], default=None)
     return {
         "program": program,

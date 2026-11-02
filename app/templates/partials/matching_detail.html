@@ -7,7 +7,7 @@
   {% if row.fit is not none %}<strong>準備度 {{ row.fit }}%（建議值）</strong>{% else %}準備度：以自傳等文件為主，系統算不出來{% endif %}
   <span class="muted">· 只列你自己的資料，不是錄取機率</span>
 </p>
-{% if row.gap.documents %}<p class="muted small">未計入準備度：{% for key in row.gap.documents %}{{ category_labels.get(key, key) }}{% if not loop.last %}、{% endif %}{% endfor %}。請自行確認這些文件是否備妥。</p>{% endif %}
+{% if row.gap.documents %}<p class="muted small">以下文件已列入準備度計算，目前系統尚無法自動核對，先視為待準備：{% for key in row.gap.documents %}{{ category_labels.get(key, key) }}{% if not loop.last %}、{% endif %}{% endfor %}。</p>{% endif %}
 <div class="match-detail">
   <section class="match-detail__col">
     <h3>已符合</h3>
@@ -24,7 +24,7 @@
     {% if missing_items or prepare_items %}
     <ul>
       {% for item in missing_items %}
-      <li>{{ item.name }}（占 {{ item.weight }}%）<span class="muted small">：還缺 {% for key in item.missing %}{{ category_labels.get(key, key) }}{% if not loop.last %}、{% endif %}{% endfor %}</span></li>
+      <li>{{ item.name }}（占 {{ item.weight }}%）<span class="muted small">：還缺 {% for key in item.missing + item.documents %}{{ category_labels.get(key, key) }}{% if not loop.last %}、{% endif %}{% endfor %}</span></li>
       {% endfor %}
       {% for item in prepare_items %}
       <li>{{ item.name }}（占 {{ item.weight }}%）<span class="muted small">：需要自己準備的文件</span></li>

@@ -81,8 +81,8 @@ def test_gap_marks_complete_partial_missing_and_documents(app):
     skill = next(item for item in gap["items"] if item["name"] == "專業技能")
     assert skill["missing"] == ["competition"]
     assert skill["documents"] == ["autobiography"]
-    # 30×1 + 50×(1/2) + 20×0 = 55
-    assert gap["readiness"] == 55
+    # 自傳仍待準備：30×1 + 50×(1/3) + 20×0 ≈ 47
+    assert gap["readiness"] == 47
     assert gap["priority_id"] == skill["id"]
 
 
@@ -94,6 +94,29 @@ def test_gap_item_with_only_documents_needs_preparation(app):
 
     assert gap["items"][0]["status"] == "prepare"
     assert gap["readiness"] is None
+
+
+def test_gap_document_weight_does_not_turn_grades_only_into_full_readiness(app):
+    student = make_student()
+    db.session.add(LearningCourseRecord(student_id=student.id, school_year=1, course_name="程式設計",
+                                        normalized_course_name="程式設計", score=90))
+    program = make_program([("歷年成績", 40, "grades"), ("自傳與作品", 60, "autobiography,project")])
+
+    gap = analyze_gap(student, program)
+
+    assert gap["readiness"] == 40
+
+
+def test_gap_mixed_item_keeps_document_part_pending(app):
+    student = make_student()
+    db.session.add(LearningCourseRecord(student_id=student.id, school_year=1, course_name="程式設計",
+                                        normalized_course_name="程式設計", score=90))
+    program = make_program([("學習表現與自傳", 100, "grades,autobiography")])
+
+    gap = analyze_gap(student, program)
+
+    assert gap["readiness"] == 50
+    assert gap["items"][0]["status"] == "partial"
 
 
 def test_chapter_order_puts_heaviest_items_first_after_fixed_chapters(app):
