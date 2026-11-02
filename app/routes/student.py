@@ -42,6 +42,8 @@ from app.services.gap_service import ALL_LABELS, analyze_gap, chapter_order, stu
 from app.services.admission_links import admission_links, load_school_links
 from app.services.admission_schedule import CHECKED_ON, channel_label, latest_timeline, timeline
 from app.services.matching_service import rank_programs
+from app.services.transfer_exam import is_transfer
+
 from app.services.gap_checklist import download_checklist, review_timeline
 from app.services.journey_service import CATEGORY_LABELS, EXPERIENCE_CATEGORIES, build_journey
 from app.services.package_service import build_package_docx, latest_review
@@ -55,6 +57,8 @@ from app.services.course_review_presentation import (
     traditionalize_course_name,
 )
 
+
+MATCHING_PAGE_SIZE = 20  # 推薦排序一次先列幾間，按「看更多」再多這麼多間
 
 student_bp = Blueprint("student", __name__)
 
@@ -1044,12 +1048,24 @@ def target_list():
 @student_bp.get("/student/matching")
 @role_required("student")
 def matching():
-    """A3 媒合排序：全部正式校系依可不可報與契合度排序，每一間都寫理由。可用科系、學制、是否可報篩選。"""
+    """A3 媒合排序：校系依可不可報與準備度排成一張排行，點進去看細項（10-28 導師建議）。
+    二技、插大分兩個分頁；可用關鍵字（學校或科系）搜尋，再加科系、學制、是否可報篩選；先列前 20 間，按「看更多」再載入。"""
     user = get_current_user()
     selected = {t.rule_version_id for t in StudentTarget.query.filter_by(student_id=user.id).all()}
-    active_filters = {key: request.args.get(key, "").strip() for key in ("department", "level", "eligible")}
-    rows = rank_programs(user, published_programs())
+    active_filters = {key: request.args.get(key, "").strip() for key in ("department", "level", "eligible", "q")}
+    track = "transfer" if request.args.get("track") == "transfer" else "twotech"
+    try:
+        show = max(MATCHING_PAGE_SIZE, int(request.args.get("show", MATCHING_PAGE_SIZE)))
+    except ValueError:
+        show = MATCHING_PAGE_SIZE
+    ranked = rank_programs(user, published_programs())
+    track_counts = {"twotech": sum(1 for r in ranked if not is_transfer(r["program"])),
+                    "transfer": sum(1 for r in ranked if is_transfer(r["program"]))}
+    rows = [r for r in ranked if is_transfer(r["program"]) == (track == "transfer")]
     total = len(rows)
+    if active_filters["q"]:
+        words = active_filters["q"].split()
+        rows = [r for r in rows if all(word in f"{r['program'].school_name}{r['program'].department_name}" for word in words)]
     if active_filters["department"]:
         rows = [r for r in rows if active_filters["department"] in (r["program"].department_name or "")]
     if active_filters["level"]:
@@ -1061,8 +1077,13 @@ def matching():
     return render_template(
         "student_matching.html",
         user=user,
-        rows=rows,
+        rows=rows[:show],
+        matched=len(rows),
+        more=len(rows) > show,
+        show=show,
         total=total,
+        track=track,
+        track_counts=track_counts,
         selected=selected,
         category_labels=CATEGORY_LABELS,
         filters=filters,
@@ -1079,11 +1100,14 @@ def matching_detail(program_id):
     program = _published_program_or_404(program_id)
     row = rank_programs(user, [program])[0]
     selected = {t.rule_version_id for t in StudentTarget.query.filter_by(student_id=user.id).all()}
+    upcoming = (row["schedule"] or {}).get("next")
+    days_left = (upcoming["start"].date() - date.today()).days if upcoming and upcoming.get("start") else None
     return render_template(
         "student_matching_detail.html",
         user=user,
         row=row,
         selected=selected,
+        days_left=days_left,
         category_labels=CATEGORY_LABELS,
     )
 

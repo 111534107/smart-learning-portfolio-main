@@ -206,11 +206,14 @@ def login(app):
     return client
 
 
-def test_matching_page_shows_skill_review_and_transfer_cards_side_by_side(site):
-    html = login(site).get("/student/matching").get_data(as_text=True)
+def test_matching_page_shows_skill_review_and_transfer_in_separate_tabs(site):
+    # 10-30 起二技、插大分兩個分頁（使用者：混在一頁要一直滑）
+    client = login(site)
+    twotech = client.get("/student/matching").get_data(as_text=True)
+    html = client.get("/student/matching?track=transfer").get_data(as_text=True)
 
-    assert "二技大學" in html and "測試大學" in html
-    assert "二技技優甄審" in html and "插大（轉學考）" in html
+    assert "二技大學" in twotech and "二技技優甄審" in twotech and "測試大學" not in twotech
+    assert "測試大學" in html and "插大（轉學考）" in html and "二技大學" not in html
     assert "依考試成績，不算準備度" in html
     assert "計算機概論×1、英文×1" in html
     assert "專科畢業可報二或三年級" in html

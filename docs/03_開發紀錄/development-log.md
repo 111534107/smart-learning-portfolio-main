@@ -1,5 +1,31 @@
 # 開發日誌
 
+## 2026-10-30 推薦排序改版：準備度有高低、二技／插大分頁、搜尋、學校引導頁
+
+日期：2026-10-30（台灣時間）
+
+開發者：Claude（分支 `feat/google-docs-autobiography`；計畫書 `C:\Users\lisa2\.claude\plans\rosy-honking-cosmos.md`，使用者核准）
+
+目標：10-28 導師建議「排成一張排行、點進去看細節」；使用者指出二技與插大混在一頁、沒有搜尋、只說準備了多少卻沒引導學生怎麼進這所學校；10-27 測試報告準備度幾乎全是 100%、護理等群類也標可報。不做爬錄取名單、不算錄取機率（維持 10-23 決定）。
+
+修改檔案：
+- `app/services/gap_service.py`、新增 `app/content/readiness_rules.csv`：準備度改為有高低。成績看平均分（85／75／60 分級）、其他類 1 筆算一半 2 筆算滿、外語項目只認語言檢定、自傳（有草稿＝一半、改過＝滿）與專題列入分母。每個項目算「補滿可加幾 %」與最該先補的類別。新增 `student_evidence()` 讓排行只查一次學生資料。
+- `app/services/matching_service.py`：二技招生類別寫明其他群類（不是管理類、不是不限類別）且和學生學群不相關時標「需確認」並寫「請確認你的統測類別能否報考」；插大不看群類。不直接判不可報（使用者：真實資料沒有資管只能選資訊相關）。
+- `app/services/student_progress.py`：下一步提示改用最該先補的類別。
+- `app/routes/student.py`、`app/templates/student_matching.html`：二技／插大分頁（附數量）、關鍵字搜尋（學校或科系，可多個詞）、先列前 20 間＋「看更多」；排行每列有可報狀態並連到細項；各校理由收進「逐間看理由與細項」；只考筆試的插大顯示「依考試成績，不算準備度」。
+- `app/templates/partials/matching_detail.html`、`student_matching_detail.html`：細項頁改為「怎麼進這所學校」：缺少的項目依補滿可加 % 排，第一條「先做這個」、每條「去補 →」；靠考試的項目另外說明；報名時程倒數、招生資訊、設為目標校系。
+- `app/static/css/design-system.css`：分頁、排行狀態標籤、手機版排行。
+- 測試：`tests/test_admission_services.py`、`tests/test_matching_service.py`、`tests/test_matching_page.py`、`tests/test_transfer_exam.py`（舊規則斷言改為新規則，並新增語言檢定、成績分級、群類需確認、分頁、搜尋、看更多、細項頁測試）。
+
+驗證結果：
+- 相關測試：A1 148 passed、A2 37 passed、A3／A4 47 passed。
+- 瀏覽器（`scripts/run_demo.py`，埠 5032，示範學生王小明，41 間二技＋4 間插大）：二技準備度分布 42%～90%，沒有一間 100%；27 間可報、14 間需確認（護理、餐旅、電機、設計等類別）；先列 20 間並有「看更多」；搜尋「北商 資訊」剩 3 間；375px 排行、搜尋、細項頁 `scrollWidth` 都是 375；細項頁顯示「先做這個：專業成果…補滿可加 30%」。
+- 完整測試 `D:democasei.venvScriptspython.exe -m pytest -q -p no:cacheprovider --basetemp=logs/test-runs/a34-full`：**961 passed, 2 skipped**，0 失敗。
+
+已知限制：「補滿可加」只看系統裡的資料，統測、面試等考試項目不在內；語言檢定規則只有一條（外語），其他項目沿用類別判斷，規則可直接改 CSV。
+
+下一步：同學試用問題單；B4 拼圖一學期一片（另開任務卡）；報告書第五章。
+
 ## 2026-10-30 科辦示範送件；送件卡片類別改顯示中文
 
 日期：2026-10-30（台灣時間）

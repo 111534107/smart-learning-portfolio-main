@@ -223,3 +223,57 @@ def test_matching_chart_defaults_to_bars_and_toggles_to_columns(site):
     assert "match-chart--column" in column
     assert "準備度" in default and "建議值" in default
     assert "錄取保證" not in default
+
+
+def _make_programs(app, specs):
+    with app.app_context():
+        for code, school, department, category in specs:
+            program = _program(code, school, "published", [("證照證明", 100, "credential")])
+            program.department_name, program.admission_category = department, category
+        db.session.commit()
+
+
+def test_matching_separates_twotech_and_transfer_tabs(site):
+    _make_programs(site, [("TRF-901", "轉學大學", "資訊管理學系", "插大（轉學考）")])
+    client = _login(site)
+
+    twotech = client.get("/student/matching").get_data(as_text=True)
+    transfer = client.get("/student/matching?track=transfer").get_data(as_text=True)
+
+    assert "公開大學" in twotech and "轉學大學" not in twotech
+    assert "轉學大學" in transfer and "公開大學" not in transfer
+    assert "二技（1）" in twotech and "插大（1）" in twotech
+
+
+def test_matching_keyword_search_matches_school_or_department(site):
+    _make_programs(site, [("900101", "北商大學", "企業管理系", "管理類二"),
+                          ("900102", "南方科大", "資訊管理系", "管理類二")])
+    client = _login(site)
+
+    by_school = client.get("/student/matching?q=北商").get_data(as_text=True)
+    by_both = client.get("/student/matching?q=南方 資訊").get_data(as_text=True)
+
+    assert "北商大學" in by_school and "南方科大" not in by_school
+    assert "南方科大" in by_both and "北商大學" not in by_both
+
+
+def test_matching_lists_first_twenty_then_show_more(site):
+    _make_programs(site, [(f"9002{n:02d}", f"測試{n:02d}大學", "資管系", "管理類二") for n in range(25)])
+    client = _login(site)
+
+    first = client.get("/student/matching").get_data(as_text=True)
+    more = client.get("/student/matching?show=40").get_data(as_text=True)
+
+    assert first.count('class="match-chart__item"') == 20
+    assert "看更多" in first and "show=40" in first
+    assert more.count('class="match-chart__item"') == 26  # 25 間＋原本的公開大學
+    assert "看更多" not in more
+
+
+def test_matching_detail_page_offers_reasons_schedule_and_add_target(site):
+    pid = site.config["_ids"]["program"]
+    html = _login(site).get(f"/student/matching/{pid}").get_data(as_text=True)
+
+    assert "怎麼進這所學校" in html
+    assert "設為目標校系" in html
+    assert "看招生時程 →" in html

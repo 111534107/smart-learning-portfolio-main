@@ -998,7 +998,7 @@ body[data-page="student-welcome"] .assistant { display: none; }
 .ptable-actions p { margin: 0; }
 /* 「做拼圖」：從按鈕做出一片，轉正、放大，飛向桌子 */
 .make-fly { position: fixed; left: 0; top: 0; z-index: 1200; width: 84px; height: 84px; pointer-events: none; filter: drop-shadow(0 6px 10px rgb(0 0 0 / .35)); }
-@media (max-width: 640px) {
+@media (max-width: 720px) {
   .maker-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .maker { padding: .45rem .3rem; }
   .ptable { --ps: 15%; aspect-ratio: 3 / 4; }
@@ -1024,7 +1024,7 @@ body[data-page="student-welcome"] .assistant { display: none; }
 
 /* 手機版的五年路線：直的列表＋四個大按鈕 */
 .route-list, .place-grid { display: none; }
-@media (max-width: 640px) {
+@media (max-width: 720px) {
   .route-map__svg { display: none; }
   .route-list { display: grid; gap: 0; list-style: none; margin: 1rem auto 1.25rem; padding: 0; max-width: 22rem; text-align: left; }
   .route-list__stop a { display: grid; grid-template-columns: 2.6rem auto 1fr; align-items: center; gap: .75rem; padding: .35rem 0; color: var(--ink); text-decoration: none; font-size: 1.1rem; position: relative; }
@@ -1070,7 +1070,7 @@ body[data-page="student-welcome"] .assistant { display: none; }
 .help__answer { margin: 0 0 .8rem; }
 .help__item .button { margin-bottom: .9rem; }
 .tour [hidden] { display: none !important; }
-@media (max-width: 640px) {
+@media (max-width: 720px) {
   .route-list__stop a { grid-template-columns: 2.6rem auto 1fr auto; }
   .route-list__here, .route-list__word { white-space: nowrap; }
 }
@@ -1222,7 +1222,7 @@ body[data-page="student-welcome"] .assistant { display: none; }
 [data-page="public-home"] .cover__copy { z-index: 30; }
 /* 封面自成一個圖層：裡面的 z-index 只在封面內比較，捲動時整個封面都在刊頭（z-index 20）下面 */
 [data-page="public-home"] .cover.story-scene--scatter { isolation: isolate; }
-@media (max-width: 640px) {
+@media (max-width: 720px) {
   /* 手機：標語改上下兩行、夾著小人物，避免右邊被切掉 */
   [data-page="public-home"] .cover__title { grid-template-columns: 1fr; gap: 5.2rem; bottom: 12%; font-size: clamp(2rem, 10vw, 2.6rem); }
   [data-page="public-home"] .cover__title span:first-child, [data-page="public-home"] .cover__title span:last-child { text-align: center; }
@@ -1537,4 +1537,18 @@ body[data-page="student-welcome"] .assistant { display: none; }
   .match-chart--bar .match-chart__item { grid-template-columns: minmax(0, 1fr) auto; }
   .match-chart--bar .match-chart__track { grid-column: 1 / -1; grid-row: 2; }
   .match-chart--column .match-chart__item { width: calc(33.333% - .4rem); }
+}
+
+/* 10-30 推薦排序改版：二技／插大分頁、排行每列加可報狀態，理由收進「逐間看理由與細項」 */
+.match-tabs { display: flex; flex-wrap: wrap; gap: .4rem; }
+.match-filter__field input[type="search"] { min-width: 12rem; max-width: 100%; }
+.match-chart--bar .match-chart__item { grid-template-columns: minmax(0, 1.2fr) auto minmax(0, 2fr) auto; }
+.match-chart__item .tag { font-size: .72rem; white-space: nowrap; }
+.match-cards > summary { cursor: pointer; font-weight: 600; }
+.match-detail__todo { padding-left: 1.2rem; }
+.match-detail__todo li { margin-bottom: .35rem; }
+@media (max-width: 720px) {
+  .match-chart--bar .match-chart__item { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .match-chart--bar .match-chart__track { grid-column: 1 / -1; grid-row: 2; }
+  .match-filter__field, .match-filter__field input[type="search"] { width: 100%; min-width: 0; }
 }
