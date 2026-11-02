@@ -1016,13 +1016,9 @@ def target_list():
         if reason:
             return _blocked(user, reason)
         if not StudentTarget.query.filter_by(student_id=user.id, rule_version_id=program.id).first():
-            slots = student_rules.target_slots(user)
-            if slots["limit"] is not None and slots["used"] >= slots["limit"]:
-                error = f"目標校系同時最多 {slots['limit']} 所，請先取消一所再加入新的。"
-            else:
-                db.session.add(StudentTarget(student_id=user.id, rule_version_id=program.id))
-                audit_service.record(user, "student_target.add", "admission_program", program.id)
-                db.session.commit()
+            db.session.add(StudentTarget(student_id=user.id, rule_version_id=program.id))
+            audit_service.record(user, "student_target.add", "admission_program", program.id)
+            db.session.commit()
         if not error:
             return redirect(url_for("student.target_gap", program_id=program.id))
     journey = build_journey(user)
@@ -1205,7 +1201,7 @@ def target_gap(program_id):
 def target_request_review(program_id):
     user = get_current_user()
     program = _selected_target_or_404(user, program_id)
-    reason = student_rules.review_block_reason(user) or student_rules.over_limit_reason(user)
+    reason = student_rules.review_block_reason(user)
     if reason:
         return _blocked(user, reason)
     review_snapshot_service.request_review(user, program)

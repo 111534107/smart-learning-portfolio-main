@@ -127,27 +127,24 @@ def test_r4_internal_code_not_shown_as_official(app):
     assert "當年度二技技優甄審簡章" not in page
 
 
-# R5：升五年級後超過 5 所，要引導縮減，送審前要先收斂
-def test_r5_fifth_year_over_limit_gets_trim_card_and_review_blocked(app):
-    app.config["TARGET_LIMIT"] = 5  # 預設不限；這裡測學校有設定上限時的行為
+# 目標校系沒有數量上限，舊設定也不能阻擋送審。
+def test_fifth_year_six_targets_do_not_block_review(app):
+    app.config["TARGET_LIMIT"] = 5
     with app.test_request_context():
         user = make_student(5)
         programs = [make_program(f"50000{n}", [("歷年成績", 100, "grades", "confirmed")]) for n in range(6)]
         target(user, *programs)
-        slots = student_rules.target_slots(user)
-        assert slots["used"] == 6 and slots["limit"] == 5
-        assert "trim-targets" in [card["id"] for card in guide_cards(user)]
-        assert student_rules.over_limit_reason(user)
+        assert student_rules.target_slots(user)["used"] == 6
+        assert "trim-targets" not in [card["id"] for card in guide_cards(user)]
         program_id = programs[0].id
-
     client = app.test_client()
     client.post("/login", data={"username": "stu", "password": "pw"})
     page = client.get("/student/targets").get_data(as_text=True)
-    assert "取消 1 所" in page
+    assert "已選 6 所" in page and "取消 1 所" not in page
     response = client.post(f"/student/targets/{program_id}/review")
-    assert "取消 1 所" in response.get_data(as_text=True)
+    assert response.status_code == 302
     with app.app_context():
-        assert StudentTarget.query.count() == 6  # 不自動刪
+        assert StudentTarget.query.count() == 6
 
 
 # R6：做完的卡片要消失

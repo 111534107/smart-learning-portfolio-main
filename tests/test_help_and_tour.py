@@ -247,15 +247,9 @@ def test_first_home_tour_waits_for_walker_with_six_second_fallback():
 
 def test_student_visible_copy_uses_preparing_application_materials(monkeypatch):
     from app.content.help import HELP
-    from app.services import student_rules
-
     help_text = repr(HELP["student"])
-    monkeypatch.setattr(student_rules, "target_slots", lambda student: {"limit": 5, "used": 6})
-    limit_message = student_rules.over_limit_reason(object())
     assert "做備審" not in help_text
     assert "準備備審資料" in help_text
-    assert "做備審" not in limit_message
-    assert "準備備審資料" in limit_message
 
 
 @pytest.mark.parametrize("url, minimum", [

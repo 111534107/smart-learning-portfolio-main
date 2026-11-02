@@ -1,5 +1,19 @@
 # 開發日誌
 
+## 2026-11-02 取消目標校系數量限制
+
+日期：2026-11-02（台灣時間）
+
+開發者：GPT
+
+目標：使用者確認本來沒有五所規定，目標校系一律不限數量。
+
+修改檔案：`app/config.py`、`app/routes/student.py`、`app/services/student_rules.py`、`app/services/guide_service.py`、`app/templates/student_targets.html`：移除可設定上限、加入與送審限制、縮減提示及上限文案；目標清單顯示已選數量。`tests/test_assistant_confirm_versions.py`、`tests/test_ui01_fixes.py`、`tests/test_student_page_consistency.py`、`tests/test_help_and_tour.py`：更新回歸測試，確認舊設定不再生效、六所可加入及送審。
+
+驗證結果：相關測試 71 項通過；完整測試 976 項通過、2 項略過（`logs/test-runs/gpt-no-limit-full-20261102`）。
+
+下一步：舊版展示站關閉後，以新版重新開啟實際畫面；舊設計文件記載的五所上限已被使用者本次決定取代，招生管道的正式規則仍依當年度簡章。
+
 ## 2026-11-02 Drive 文件或資料夾被刪後重建
 
 日期：2026-11-02（台灣時間）

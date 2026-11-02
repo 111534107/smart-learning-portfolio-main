@@ -1,10 +1,9 @@
-"""學生端的使用限制：年級（看得到但不能用）與目標校系上限。規格第 10.4、10.5 節。
+"""學生端的使用限制：年級（看得到但不能用）。規格第 10.4、10.5 節。
 
 - 沒有入學學年度就不知道年級：擋下並請學生先補，不猜年級。
 - 不能填寫比目前年級更高的成績或經歷。
 - 送審與送審相關的 AI（自傳）要到 MIN_REVIEW_GRADE 年級才能用；更低年級只能看。
-- 目標校系：預設不限所數（11-02 使用者：沒有規定只能選五所）。學校若設定 TARGET_LIMIT，五年級準備備審時同時最多那麼多所（規格 10.7）。
-  只算最新學年度的校系；舊學年度的另外列出，可以刪除。
+- 目標校系不限所數；最新學年度與舊學年度分開列出。
 """
 
 from datetime import date
@@ -86,23 +85,12 @@ def check_record_year(student, school_year, today=None):
         raise ValueError(f"{school_year} 學年度還沒到，請確認學年度。")
 
 
-def over_limit_reason(student):
-    """五年級目標超過上限（例如四年級選了 6 所後升上來）：送導師確認前要先縮減。不會自動刪除。"""
-    slots = target_slots(student)
-    if slots["limit"] is None or slots["used"] <= slots["limit"]:
-        return None
-    return (f"五年級準備備審資料，目標校系最多 {slots['limit']} 所。你現在有 {slots['used']} 所，"
-            f"請先取消 {slots['used'] - slots['limit']} 所，再送導師確認。")
-
-
 def target_slots(student):
-    """目前占名額的目標（最新學年度）與舊學年度的目標。"""
+    """最新學年度與舊學年度的目標。"""
     newest = {program.id for program in published_programs()}
     targets = StudentTarget.query.filter_by(student_id=student.id).order_by(StudentTarget.selected_at).all()
     current = [t for t in targets if t.rule_version_id in newest]
     return {
-        # None 代表不限
-        "limit": (current_app.config.get("TARGET_LIMIT") or None) if grade_of(student) == 5 else None,
         "used": len(current),
         "current": current,
         "old": [t for t in targets if t.rule_version_id not in newest],

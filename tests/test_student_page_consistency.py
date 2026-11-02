@@ -114,8 +114,8 @@ def test_portfolio_form_error_offers_a_button_back_to_required_fields(consistenc
     assert "回到必填欄位" in html
 
 
-def test_target_empty_and_limit_error_states_offer_next_actions(consistency_app):
-    consistency_app.config["TARGET_LIMIT"] = 5  # 預設不限；這裡測學校有設定上限時的錯誤畫面
+def test_target_empty_and_more_than_five_targets(consistency_app):
+    consistency_app.config["TARGET_LIMIT"] = 5  # 舊設定不再生效
     client = login(consistency_app)
     empty_html = client.get("/student/targets").get_data(as_text=True)
 
@@ -133,11 +133,10 @@ def test_target_empty_and_limit_error_states_offer_next_actions(consistency_app)
         db.session.commit()
 
     response = client.post("/student/targets", data={"program_id": program_ids[5]})
-    html = response.get_data(as_text=True)
-    assert response.status_code == 400
-    assert "目標校系同時最多 5 所" in html
-    assert 'href="#target-programs"' in html
-    assert "查看已選目標校系" in html
+    assert response.status_code == 302
+    html = client.get("/student/targets").get_data(as_text=True)
+    assert "已選 6 所" in html
+    assert "目標校系同時最多" not in html
 
 
 def test_blocked_page_has_one_clear_button_to_the_next_step(consistency_app):

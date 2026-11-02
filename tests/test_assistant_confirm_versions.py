@@ -195,7 +195,8 @@ def target_count(app):
 
 
 def test_fifth_year_can_choose_more_than_five_targets_by_default(app):
-    # 11-02 使用者：沒有規定只能選五所，預設不限（學校要限制再設 TARGET_LIMIT）
+    # 舊設定即使仍在環境中，也不能重新啟用數量限制。
+    app.config["TARGET_LIMIT"] = 5
     with app.app_context():
         profile = StudentProfile.query.filter_by(student_no="111534100").one()
         profile.admission_year = GRADE3_ADMISSION_YEAR - 2

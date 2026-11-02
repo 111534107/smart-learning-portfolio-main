@@ -49,9 +49,7 @@ class Config:
     # 招生資料 Agent 只擷取科系名稱含這些字的校系（逗號分隔）
     AGENT_PROGRAM_KEYWORDS = [k.strip() for k in os.getenv("AGENT_PROGRAM_KEYWORDS", "資訊管理,資管,資訊應用,資訊工程").split(",") if k.strip()]
     AGENT_SOURCE_FOLDER = os.getenv("AGENT_SOURCE_FOLDER", "instance/agent-sources")
-    # 資管科小助手（規格第 10 節）：目標校系同時最多幾所、學校金鑰每人每天幾次、幾年級起可以送審
-    # 目標校系上限：0＝不限（11-02 使用者：沒有規定只能選五所）；學校日後要限制再在 .env 設數字
-    TARGET_LIMIT = int(os.getenv("TARGET_LIMIT", "0"))
+    # 資管科小助手：學校金鑰額度與送審年級
     SCHOOL_AI_DAILY_LIMIT = int(os.getenv("SCHOOL_AI_DAILY_LIMIT", "5"))
     MIN_REVIEW_GRADE = int(os.getenv("MIN_REVIEW_GRADE", "2"))
     # 生成自傳要到這個年級才開放（專一到專四只收集拼圖）；送審仍看 MIN_REVIEW_GRADE

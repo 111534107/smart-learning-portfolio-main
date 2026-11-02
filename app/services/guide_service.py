@@ -22,7 +22,7 @@ SNOOZE_HOURS = 24
 CARD_IDS = (
     "welcome", "meet-schools", "first-save", "confirm-docs", "upload-grades",
     "each-term", "certificates", "see-requirements", "internship",
-    "target-five", "write-bio", "grad-next", "competition", "trim-targets",
+    "target-five", "write-bio", "grad-next", "competition",
 )
 
 
@@ -92,13 +92,8 @@ def guide_cards(user, snoozed=None, now=None):
         if not has_target:
             cards.append(_card("see-requirements", "明年就要申請了，先看各校要求。", "看各校要求", url_for("student.target_list")))
     else:
-        slots = student_rules.target_slots(user)
-        if slots["limit"] is not None and slots["used"] > slots["limit"]:
-            cards.append(_card("trim-targets", f"五年級最多留 {slots['limit']} 所，先取消 {slots['used'] - slots['limit']} 所。",
-                               "整理目標校系", url_for("student.target_list"), "todo"))
         if not has_target:
-            limit_note = f"，最多 {slots['limit']} 所" if slots["limit"] is not None else ""
-            cards.append(_card("target-five", f"選出最想申請的學校{limit_note}。", "選校系", url_for("student.target_list"), "todo"))
+            cards.append(_card("target-five", "選出最想申請的學校。", "選校系", url_for("student.target_list"), "todo"))
         cards.append(_card("grad-next", progress["next"]["text"] + "。", "前往", progress["next"]["href"], "todo"))
 
     # 沒有成績的非一年級學生，仍以上傳成績單為主
