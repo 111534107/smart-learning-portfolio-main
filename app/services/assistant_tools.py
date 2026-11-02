@@ -82,7 +82,7 @@ def _gap(student, program):
 def _consistency(student, program):
     draft = latest_draft(student, program)
     if not draft:
-        return {"autobiography": None, "note": "這個校系還沒有自傳草稿，請先用「自傳小幫手」寫。"}
+        return {"autobiography": None, "note": "這個校系還沒有自傳草稿，請先用「小助手寫自傳」寫。"}
     facts = build_facts(student, program)["items"]
     records = Portfolio.active().filter_by(student_id=student.id).all()
     return {

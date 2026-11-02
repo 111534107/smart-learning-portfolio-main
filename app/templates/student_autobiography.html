@@ -2,20 +2,20 @@
 {% from "partials/nav.html" import masthead, footer, page_band with context %}
 {% set page_name = "student-autobiography" %}
 
-{% block title %}自傳小幫手｜資管科智慧學習歷程系統{% endblock %}
+{% block title %}小助手寫自傳｜資管科智慧學習歷程系統{% endblock %}
 
 {% block navigation %}{{ masthead(user, "備審資料") }}{% endblock %}
 
 {% block content %}
 {% set crumbs = [("備審資料", url_for('student.target_gap', program_id=program.id))] if program else [] %}
-{{ page_band("自傳小幫手", crumbs, note=(program.school_name ~ " " ~ program.department_name) if program else "") }}
+{{ page_band("小助手寫自傳", crumbs, note=(program.school_name ~ " " ~ program.department_name) if program else "") }}
 <div class="page page--banded">
 
   {% if not program %}
   {# 還沒選目標校系：自傳要針對校系寫 #}
   <section class="sheet narrow">
     <h2 class="mb-1">先選一個目標校系</h2>
-    <p class="muted mb-1">每個校系看重的項目不同，自傳小幫手會依校系的加權調整重點。</p>
+    <p class="muted mb-1">每個校系看重的項目不同，小助手會依校系的加權調整自傳重點。</p>
     <a class="button" href="{{ url_for('student.target_list') }}">選目標校系 →</a>
   </section>
 

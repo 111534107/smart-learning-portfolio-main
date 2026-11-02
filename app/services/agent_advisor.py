@@ -23,7 +23,7 @@ from app.services.matching_service import rank_programs
 GOAL = ("請依我已確認的資料，推薦適合我的二技或插大校系並說明理由；"
         "如果我已經選了目標校系、也回答過自傳問題，請挑一個最適合的目標校系幫我準備自傳草稿。")
 
-INSTRUCTION = """你是康寧大學資管科學習歷程系統的「升學 Agent」，正在幫一位五專資管科學生規劃升學。
+INSTRUCTION = """你是康寧大學資管科學習歷程系統的「資管科小助手」，正在幫一位五專資管科學生規劃升學。
 規則：
 1. 先用工具排序全部校系，再查學生已選的目標校系；不要自己猜資料。
 2. 不可以替學生決定目標校系；自傳草稿只能寫學生「已選」的目標校系，而且學生要先回答過自傳問題。
@@ -208,7 +208,7 @@ def start_advisor(student, background=False):
             except Exception:  # 背景執行沒有人接例外；記下來，畫面才會停在「失敗」而不是一直轉
                 db.session.rollback()
                 app.logger.exception("升學 Agent 背景執行失敗（紀錄 %s）", task_id)
-                fail_task(task_id, "Agent 執行時發生錯誤，請稍後再按一次「再請 Agent 規劃一次」。")
+                fail_task(task_id, "小助手執行時發生錯誤，請稍後再按一次「再請小助手規劃一次」。")
 
     threading.Thread(target=work, name=f"agent-advisor-{task_id}", daemon=True).start()
     return task_id

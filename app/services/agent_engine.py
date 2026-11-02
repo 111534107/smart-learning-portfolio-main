@@ -124,7 +124,7 @@ def fail_task(task_id, message):
 
 
 STALE_AFTER = timedelta(minutes=5)  # 一次執行通常 1 分鐘內；超過就當成網站重開或卡住而中斷
-INTERRUPTED = "這次執行被中斷了（網站重新啟動或等太久），請再按一次「再請 Agent 規劃一次」。"
+INTERRUPTED = "這次執行被中斷了（網站重新啟動或等太久），請再按一次「再請小助手規劃一次」。"
 
 
 def expire_if_stale(task):

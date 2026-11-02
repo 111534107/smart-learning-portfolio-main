@@ -68,7 +68,7 @@
       <ul class="piece-list">
         {% for key in item.have %}<li class="piece piece--have"><b>{{ labels[key] }}</b><small>已有 {{ item.counts[key] }} 筆</small></li>{% endfor %}
         {% for key in item.missing %}<li class="piece piece--missing"><b>{{ labels[key] }}</b><a class="small" href="{{ add_links.get(key, url_for('student.portfolio_new', category=key, next=request.path)) }}">去新增 →</a></li>{% endfor %}
-        {% for key in item.documents %}<li class="piece piece--doc"><b>{{ labels[key] }}</b>{% if key == "autobiography" %}<a class="small" href="{{ url_for('student.autobiography', program_id=program.id) }}">{{ "看自傳草稿 →" if autobiography else "用自傳小幫手寫 →" }}</a>{% else %}<small>寫在備審資料裡，產出的 Word 已留好位置</small>{% endif %}</li>{% endfor %}
+        {% for key in item.documents %}<li class="piece piece--doc"><b>{{ labels[key] }}</b>{% if key == "autobiography" %}<a class="small" href="{{ url_for('student.autobiography', program_id=program.id) }}">{{ "看自傳草稿 →" if autobiography else "用小助手寫自傳寫 →" }}</a>{% else %}<small>寫在備審資料裡，產出的 Word 已留好位置</small>{% endif %}</li>{% endfor %}
       </ul>
     </div>
     {% endfor %}

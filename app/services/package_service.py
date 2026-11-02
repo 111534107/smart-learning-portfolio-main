@@ -72,7 +72,7 @@ def _chapter_body(document, student, chapter, program):
                 if paragraph.get("text"):
                     document.add_paragraph(paragraph["text"])
             return
-        document.add_paragraph("請在此撰寫。可用系統的「自傳小幫手」產生草稿，或參考「我的五年」中的活動、競賽與幹部經歷。")
+        document.add_paragraph("請在此撰寫。可用系統的「小助手寫自傳」產生草稿，或參考「我的五年」中的活動、競賽與幹部經歷。")
         return
     if "autobiography" in codes:
         document.add_paragraph("請在此撰寫讀書計畫：進二技後的學習目標、想修的課程與畢業後規劃。")

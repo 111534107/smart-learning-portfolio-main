@@ -21,7 +21,7 @@
   </div>
   {% if request.args.get("imported") is not none %}<p class="notice mb-1" role="status">已從獎懲記錄匯入 {{ request.args.get("imported") }} 筆（已經匯入過的不會重複）。</p>{% endif %}
   {% if request.args.get("deleted") %}<p class="notice mb-1" role="status">已刪除這筆經歷。</p>{% endif %}
-  {% if request.args.get("confirmed") %}<p class="notice mb-1" role="status">已確認，這筆經歷之後可以被自傳小幫手引用。</p>{% endif %}
+  {% if request.args.get("confirmed") %}<p class="notice mb-1" role="status">已確認，這筆經歷之後可以在小助手寫自傳時引用。</p>{% endif %}
   {% if unconfirmed_count %}<p class="notice notice--warn mb-1">有 {{ unconfirmed_count }} 筆經歷還沒確認。<b>確認過的經歷才會被 AI 寫進自傳、送給導師確認。</b></p>{% endif %}
   {% if request.args.get("added") %}<p class="notice mb-1" role="status">已新增一筆{{ category_labels.get(request.args.get("added"), "") }}。</p>{% endif %}
 
