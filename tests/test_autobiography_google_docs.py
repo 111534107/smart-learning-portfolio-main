@@ -169,7 +169,7 @@ def test_open_creates_doc_with_source_marks_and_records_link(app, fake_google):
     assert response.headers["Location"] == "https://docs.google.com/document/d/doc1/edit"
     created = fake_google.created[0]
     assert created["token"] == "fake-token-abc"
-    assert "## 學習歷程與具體經驗 [來源 F1]" in created["text"]
+    assert "## 學習歷程與具體經驗\n\n（來源 F1）" in created["text"]
     assert "黑客松時負責後端 API。" in created["text"]
     with app.app_context():
         link = AutobiographyGoogleDoc.query.one()
@@ -380,3 +380,88 @@ def test_local_demo_keeps_google_off_by_default():
     from app.demo import create_local_demo_app
 
     assert google_docs_service.configured(create_local_demo_app().config) is False
+
+
+def test_document_text_has_no_empty_brackets_and_uses_markdown_headings():
+    # 11-02 實測：Google 文件裡出現「## 困難與成長 []」，學生看到一堆符號
+    paragraphs = [{"title": "學習動機", "text": "內容", "sources": []},
+                  {"title": "未來規劃", "text": "想學資料分析。", "sources": ["F1"]}]
+    text = google_docs_service.document_text("測試校系", 1, paragraphs)
+
+    assert "[]" not in text
+    # 11-02 實測：來源編號太長會把標題撐成三行，改放在標題下一行
+    assert "## 學習動機\n" in text and "## 未來規劃\n\n（來源 F1）\n" in text
+
+
+def test_parser_reads_markdown_export_with_escaped_brackets():
+    # Google 匯出 Markdown 會把方括號跳脫成 \[ \]
+    exported = "## 學習動機\n\n我改寫了動機。\n\n## 未來規劃 \[來源 F1 F2\]\n\n想學資料分析。\n"
+    parsed = google_docs_service.parse_document_text(exported)
+
+    assert [(p["title"], p["text"], p["sources"]) for p in parsed] == [
+        ("學習動機", "我改寫了動機。", []), ("未來規劃", "想學資料分析。", ["F1", "F2"])]
+
+
+def test_http_client_uploads_and_exports_markdown(monkeypatch):
+    sent = []
+
+    def fake_urlopen(request, timeout):
+        sent.append(request)
+        return FakeResponse(b'{"id": "doc42"}' if "upload" in request.full_url else "## 標題\n內容".encode())
+
+    monkeypatch.setattr(google_docs_service, "urlopen", fake_urlopen)
+    client = google_docs_service.HttpGoogleDocsClient(GOOGLE_SETTINGS)
+    client.create_document("token", "自傳草稿", "## 學習動機\n內容")
+    client.export_text("token", "doc42")
+
+    assert "Content-Type: text/markdown" in sent[0].data.decode("utf-8")  # 轉成 Google 文件時「##」變成真的標題
+    assert "mimeType=text%2Fmarkdown" in sent[1].full_url
+
+
+def test_parser_reads_sources_line_under_heading():
+    exported = "## 學習歷程\n\n（來源 F1 F9）\n\n黑客松時我負責後端 API。\n"
+    parsed = google_docs_service.parse_document_text(exported)
+
+    assert [(p["title"], p["text"], p["sources"]) for p in parsed] == [("學習歷程", "黑客松時我負責後端 API。", ["F1", "F9"])]
+
+
+def test_google_doc_times_are_shown_in_taipei_time(app, fake_google):
+    # 11-02 實測：頁面寫「建立於 02:44」，其實台灣時間是 10:44（直接印了資料庫的 UTC）
+    from datetime import datetime
+    from app.services.agent_engine import taipei_time
+
+    client, output_id = login_with_draft(app)
+    authorize(client)
+    client.post(f"/student/autobiography/{output_id}/google/open", data={"csrf_token": csrf(client)})
+    with app.app_context():
+        link = AutobiographyGoogleDoc.query.one()
+        link.created_at = datetime(2026, 11, 2, 2, 44)  # 資料庫存 UTC
+        db.session.commit()
+        program_id = link.program_id
+
+    page = client.get(f"/student/autobiography?program_id={program_id}").get_data(as_text=True)
+
+    assert "建立於 2026-11-02 10:44" in page
+    assert taipei_time(datetime(2026, 11, 2, 2, 44)) == "2026-11-02 10:44"
+
+
+def test_after_authorizing_from_open_button_the_doc_is_created_without_second_click(app, fake_google):
+    # 11-02 實測：授權完回到自傳頁，還要再按一次「在 Google 文件中編輯」才會建立文件
+    client, output_id = login_with_draft(app)
+    first = client.post(f"/student/autobiography/{output_id}/google/open", data={"csrf_token": csrf(client)})
+    assert first.headers["Location"].endswith("/student/google/connect")
+
+    response = authorize(client)
+
+    assert response.status_code == 302
+    assert response.headers["Location"] == "https://docs.google.com/document/d/doc1/edit"
+    assert len(fake_google.created) == 1
+
+
+def test_connecting_without_open_button_still_returns_to_autobiography(app, fake_google):
+    client, _ = login_with_draft(app)
+
+    response = authorize(client)
+
+    assert "google=connected" in response.headers["Location"]
+    assert fake_google.created == []

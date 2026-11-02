@@ -4,7 +4,8 @@
 1. Google 只當外部編輯工具；自傳的正式版本仍存在系統資料庫，每次取回都存成新的一版。
 2. 只要 drive.file 權限：系統只能碰「自己建立的」那份文件，看不到學生 Drive 裡其他檔案。
 3. 權杖只放在伺服器記憶體（TokenStore），瀏覽器 cookie 只有一個隨機編號；伺服器重啟或過期就要重新授權，不長期保存。
-4. 文件格式：每段一行「## 標題 [來源 F1 F2]」，下面是內文。取回時依這個格式拆段，並重新檢查來源編號。
+4. 文件格式：用 Markdown 上傳與匯出（11-02 起）。每段一行「## 標題 [來源 F1 F2]」，下面是內文；上傳時「##」轉成 Google 文件
+   的真正標題，學生看不到符號；匯出時又變回「##」，取回依這個格式拆段，並重新檢查來源編號。沒有來源的段落不加方括號。
 """
 import json
 import re
@@ -21,8 +22,10 @@ TOKEN_URL = "https://oauth2.googleapis.com/token"
 DOC_MIME = "application/vnd.google-apps.document"
 
 _FILE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+_MD_ESCAPE_RE = re.compile(r"\\([\\`*_{}\[\]()#+\-.!|>~])")
 _HEADING_RE = re.compile(r"^##\s*(?P<title>.*?)\s*(?:\[(?P<marks>[^\]]*)\])?\s*$")
 _SOURCE_RE = re.compile(r"F\d+")
+_SOURCE_LINE_RE = re.compile(r"^[（(]來源\s*([^）)]*)[）)]$")
 
 
 class GoogleDocsError(Exception):
@@ -108,15 +111,22 @@ def token_store(app):
 # ---------- 文件內容：草稿 ⇄ 純文字 ----------
 
 def document_text(program_label, version, paragraphs):
+    # 每行之間空一行：Markdown 會把相鄰的行併成同一段（11-02 實測說明文字擠成一大段）
     lines = [
         f"自傳草稿｜{program_label}（系統第 {version} 版）",
-        "說明：每段第一行「## 標題 [來源 F1 F2]」請保留；方括號裡是這段引用的資料編號，可以刪減，但不要自己編新的。",
+        "",
+        "說明：每段的標題請保留；標題下面的（來源 F1 F2）是這段引用的資料編號，可以刪減，但不要自己編新的。",
+        "",
         "改完後回到系統按「從 Google 文件取回」，系統會存成新的一版並重新檢查來源。",
         "",
     ]
     for paragraph in paragraphs:
         marks = " ".join(paragraph.get("sources", []))
-        lines.append(f"## {paragraph.get('title', '')} [{'來源 ' + marks if marks else ''}]")
+        lines.append(f"## {paragraph.get('title', '')}")  # 來源放下一行，標題才不會被一長串編號撐成好幾行
+        lines.append("")
+        if marks:
+            lines.append(f"（來源 {marks}）")
+            lines.append("")
         lines.append(paragraph.get("text", ""))
         lines.append("")
     return "\n".join(lines)
@@ -125,6 +135,7 @@ def document_text(program_label, version, paragraphs):
 def parse_document_text(text):
     """把匯出的純文字拆回段落；第一個「## 」之前的說明文字不要。"""
     text = (text or "").replace("﻿", "").replace("\r\n", "\n").replace("\r", "\n")
+    text = _MD_ESCAPE_RE.sub(r"\1", text)  # Google 匯出 Markdown 會把 [ ] 等符號跳脫成 \[ \]
     paragraphs, current = [], None
     for line in text.split("\n"):
         match = _HEADING_RE.match(line.strip()) if line.strip().startswith("##") else None
@@ -133,7 +144,11 @@ def parse_document_text(text):
                        "lines": []}
             paragraphs.append(current)
         elif current is not None:
-            current["lines"].append(line.rstrip())
+            marks = _SOURCE_LINE_RE.match(line.strip())
+            if marks and not any(l.strip() for l in current["lines"]):
+                current["sources"] += _SOURCE_RE.findall(marks.group(1))  # 標題下一行的（來源 …）
+            else:
+                current["lines"].append(line.rstrip())
     return [{"title": p["title"], "text": "\n".join(p["lines"]).strip(), "sources": list(dict.fromkeys(p["sources"]))}
             for p in paragraphs]
 
@@ -178,11 +193,11 @@ class HttpGoogleDocsClient:
         return {"access_token": payload["access_token"], "expires_in": payload.get("expires_in", 3600)}
 
     def create_document(self, access_token, title, text):
-        """上傳純文字並要求轉成 Google 文件，放在學生 My Drive 根目錄。"""
+        """上傳 Markdown 並要求轉成 Google 文件（「##」變成真正的標題），放在學生 My Drive 根目錄。"""
         boundary = "autobiography-" + uuid.uuid4().hex
         metadata = json.dumps({"name": title, "mimeType": DOC_MIME}, ensure_ascii=False)
         body = (f"--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{metadata}\r\n"
-                f"--{boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n{text}\r\n--{boundary}--\r\n").encode()
+                f"--{boundary}\r\nContent-Type: text/markdown; charset=UTF-8\r\n\r\n{text}\r\n--{boundary}--\r\n").encode()
         payload = self._json(Request(
             "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id", data=body, method="POST",
             headers=self._auth(access_token, f"multipart/related; boundary={boundary}")))
@@ -193,7 +208,7 @@ class HttpGoogleDocsClient:
     def export_text(self, access_token, file_id):
         doc_link(file_id)
         url = (f"https://www.googleapis.com/drive/v3/files/{quote(file_id, safe='')}/export?"
-               + urlencode({"mimeType": "text/plain"}))
+               + urlencode({"mimeType": "text/markdown"}))
         return self._read(Request(url, method="GET", headers=self._auth(access_token))).decode("utf-8")
 
     @staticmethod

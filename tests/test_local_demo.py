@@ -128,7 +128,7 @@ def test_local_autobiography_page_labels_the_draft_as_local_simulation():
 
     page = client.get("/student/autobiography").get_data(as_text=True)
 
-    assert "本機展示模式不呼叫外部 AI" in page
+    assert "本機展示站目前沒有設定 AI 金鑰" in page  # 測試環境 AI 關閉時才顯示（11-02 起 AI 開啟時不再誤稱不呼叫）
     assert 'name="own_api_key"' not in page
     assert "產生示範草稿" in page
 

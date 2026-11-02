@@ -28,6 +28,7 @@ MESSAGES = {
 TOKEN_REF = "google_docs_token_ref"
 STATE = "google_oauth_state"
 PENDING_PROGRAM = "google_oauth_program"
+PENDING_OPEN = "google_oauth_open_output"  # 按「在 Google 文件中編輯」才去授權的話，授權完直接建立文件
 
 
 def _back(program_id, status):
@@ -91,6 +92,7 @@ def callback():
     if not expected or request.args.get("state") != expected:
         abort(400, description="Google 授權狀態不符，請回到自傳頁重新連結。")
     program_id = session.pop(PENDING_PROGRAM, None)
+    pending_output = session.pop(PENDING_OPEN, None)  # 授權失敗也要清掉，免得下次連線意外建立文件
     code = request.args.get("code")
     if request.args.get("error") or not code:
         return _back(program_id, "denied")
@@ -102,6 +104,13 @@ def callback():
         return _back(program_id, "unavailable")
     _forget_token()
     session[TOKEN_REF] = gdocs.token_store(current_app).put(user.id, token["access_token"], token.get("expires_in"))
+    if pending_output:
+        # 11-02 實測：授權完還要再按一次才會建立文件，學生以為已經好了。這裡直接接著建立
+        output = _owned_draft_or_abort(user, pending_output)
+        existing = AutobiographyGoogleDoc.query.filter_by(student_id=user.id, program_id=output.content_json["program_id"]).first()
+        if existing:
+            return redirect(existing.web_view_link)
+        return _create_document(user, output, output.content_json["program_id"], token["access_token"])
     return _back(program_id, "connected")
 
 
@@ -125,7 +134,13 @@ def open_document(output_id):
         return redirect(link.web_view_link)
     token = _token(user)
     if not token:
+        session[PENDING_OPEN] = output_id
         return _ask_for_authorization(program_id)
+    return _create_document(user, output, program_id, token)
+
+
+def _create_document(user, output, program_id, token):
+    """把最新草稿建立成學生自己的 Google 文件，記下連結後轉過去。"""
     draft = autobiography_service.latest_draft(user, db.session.get(AdmissionProgram, program_id)) or output
     program = db.session.get(AdmissionProgram, program_id)
     label = f"{program.school_name} {program.department_name}"

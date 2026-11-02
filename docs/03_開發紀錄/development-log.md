@@ -1,5 +1,31 @@
 # 開發日誌
 
+## 2026-11-02 Google 文件真實驗收與修正：真正的標題、授權完直接開文件、台灣時間
+
+日期：2026-11-02（台灣時間）
+
+開發者：Claude（分支 `feat/google-docs-autobiography`；使用者用自己的測試 Google 帳號登入授權，Claude 不代填帳密）
+
+目標：使用者要求用 `.env` 的 Google 設定實測 Google 文件編輯。展示站 `scripts/run_local_demo.py` 開在 `localhost:5013`（`.env` 的導回網址），合成學生 `student_demo`。
+
+實測流程與結果：
+- 真實 Gemini 寫自傳：通過（第 1 版 688～841 字，本機 Word 備份成功）。今天共用了 4 次學校 AI 額度。
+- 按「在 Google 文件中編輯」→ Google 登入與授權 → 建立文件：通過，用戶端 ID 與導回網址有效。
+- 在 Google 文件加字 → 回系統「從 Google 文件取回」：通過，存成第 2 版，中英文修改都取回，30 個來源編號保留、沒有不存在的來源。
+
+發現並修正的問題：
+1. **Google 文件裡出現「## 困難與成長 []」等符號**：原本以純文字上傳。改成用 Markdown 上傳與匯出，「##」在 Google 文件裡變成真正的標題；沒有來源的段落不再加空的「[]」；來源編號改放在標題下一行「（來源 F1 F2）」（AI 引用 30 筆時原本會把標題撐成三行）；說明文字每行之間空一行。取回時能讀新格式、Google 的跳脫符號（`\[`），也仍能讀舊格式。（`app/services/google_docs_service.py`）
+2. **授權完還要再按一次才會建立文件**：按「在 Google 文件中編輯」才去授權的話，授權回來直接建立並打開文件；授權失敗會清掉這個記錄；已有文件則直接打開舊的。（`app/routes/google_docs.py`）
+3. **建立／取回時間顯示 UTC**（頁面寫 02:44，台灣時間是 10:44）：改用既有的 `taipei_time`。（`app/templates/student_autobiography.html`）
+4. **AI 已開啟卻寫「本機展示模式不呼叫外部 AI」**：只在沒有 AI 金鑰時顯示，文字改為「本機展示站目前沒有設定 AI 金鑰…」。
+
+測試：`tests/test_autobiography_google_docs.py` 新增 6 個（Markdown 上傳與匯出、無空方括號、來源行、跳脫符號、台灣時間、授權後自動建立與未按按鈕時不建立）；`tests/test_local_demo.py` 更新提示文字斷言。完整測試 `D:\democase\ai\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp=logs/test-runs/gdoc-full`：**968 passed, 2 skipped**，0 失敗。修正 1、2、3、4 都已在真實 Google 帳號上再驗一次。
+
+已知限制與待決定：
+- 每次授權都要選帳號（`prompt=select_account`，為了共用電腦），伺服器重啟後要重新授權（權杖只放記憶體，原設計）。使用者問是否有解，已說明三種做法，建議維持現狀。
+- 學校端備份到 Google 雲端硬碟要在 5021 埠由管理員連線（`GOOGLE_STORAGE_REDIRECT_URI`），這次沒測。
+- 示範學生的資料只有「【測試】競賽1」這類標題、沒有內容，AI 只能把名稱列出來，自傳讀起來像清單；11/4 展示前建議換成像真的假資料並準備示範回答，或請 AI 每段只挑 2～3 筆。
+
 ## 2026-11-02 版面統一第一刀：AI 統一叫資管科小助手、設計變數（首頁先不動）
 
 日期：2026-11-02（台灣時間）
