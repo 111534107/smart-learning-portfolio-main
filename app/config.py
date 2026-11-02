@@ -38,6 +38,7 @@ class Config:
     # 自傳在 Google 文件中編輯（後端 OAuth，只要 drive.file）：三個值都填了才會開放；權杖只放伺服器記憶體
     GOOGLE_OAUTH_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "")
     GOOGLE_OAUTH_REDIRECT_URI = os.getenv("GOOGLE_OAUTH_REDIRECT_URI", "")
+    GOOGLE_LOGIN_REDIRECT_URI = os.getenv("GOOGLE_LOGIN_REDIRECT_URI", "")
     GOOGLE_PICKER_API_KEY = os.getenv("GOOGLE_PICKER_API_KEY", "")
     # 學生上傳檔案存哪裡（app/services/storage_service.py）：local＝本機（預設）；google_drive＝Google 雲端硬碟。
     # google_drive 還要填 GOOGLE_STORAGE_REDIRECT_URI，並由管理員在「檔案存放設定」連線；沒連上一律存本機。

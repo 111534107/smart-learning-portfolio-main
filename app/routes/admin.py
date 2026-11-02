@@ -1,4 +1,5 @@
 from datetime import date, datetime, timezone
+import re
 
 from flask import Blueprint, abort, current_app, redirect, render_template, request, session, url_for
 
@@ -222,6 +223,33 @@ def toggle_account_active(user_id):
         abort(400, description="Administrators cannot disable their own account")
     account.is_active = not account.is_active
     db.session.commit()
+    return redirect(url_for("admin.accounts"))
+
+
+@admin_bp.post("/admin/accounts/<int:user_id>/school-email")
+@role_required("admin")
+def bind_school_email(user_id):
+    actor = get_current_user()
+    account = db.session.get(User, user_id)
+    if not account:
+        abort(404)
+    if account.role != "student":
+        abort(400, description="只能為學生綁定學校信箱。")
+    school_account = request.form.get("school_account", "").strip().lower()
+    student_no = (account.student_profile.student_no if account.student_profile else account.username).lower()
+    if school_account and (not re.fullmatch(r"[a-z0-9._-]+", school_account) or school_account != student_no):
+        abort(400, description="學校信箱帳號須與此學生的學號相同。")
+    email = f"{school_account}@stu.ukn.edu.tw" if school_account else ""
+    if email and User.query.filter(db.func.lower(User.email) == email, User.id != account.id).first():
+        abort(400, description="此學校信箱已綁定其他帳號。")
+    if account.email != (email or None):
+        old_email = account.email
+        account.email = email or None
+        account.google_sub = None
+        db.session.add(AuditLog(user_id=actor.id, action="student.school_email.update",
+                                target_type="user", target_id=account.id,
+                                detail_json={"from": old_email, "to": account.email}))
+        db.session.commit()
     return redirect(url_for("admin.accounts"))
 
 

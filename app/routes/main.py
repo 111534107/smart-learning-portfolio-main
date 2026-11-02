@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from functools import wraps
 
-from flask import Blueprint, abort, jsonify, redirect, render_template, request, send_file, session, url_for
+from flask import Blueprint, abort, current_app, jsonify, redirect, render_template, request, send_file, session, url_for
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -17,6 +17,7 @@ from app.services.teacher_scope import advised_classes, students_for_teacher
 from app.content.five_year_plan import FIVE_YEAR_PLAN, NEXT_STOPS
 from app.services.admission_sample import load_sample_programs
 from app.services.journey_service import GRADE_LABELS, current_grade, CATEGORY_KEYS, CATEGORY_LABELS, EXPERIENCE_CATEGORIES, build_journey
+from app.services import school_google_login as g_login
 
 main_bp = Blueprint("main", __name__)
 
@@ -68,16 +69,22 @@ def login():
     from app.services.flow import safe_next
     next_path = safe_next(request.values.get("next"))
     if request.method == "GET":
-        return render_template("login.html", next_path=next_path)
+        return render_template("login.html", next_path=next_path, google_login_enabled=g_login.configured(current_app.config))
 
     username = request.form.get("username", "").strip()
     password = request.form.get("password", "")
     user = User.query.filter_by(username=username).first()
     if not user or not user.check_password(password):
-        return render_template("login.html", error="帳號或密碼錯誤", next_path=next_path), 401
+        return render_template("login.html", error="帳號或密碼錯誤", next_path=next_path,
+                               google_login_enabled=g_login.configured(current_app.config)), 401
     if not user.is_active:  # 密碼對了才說明已停用，不讓人用來試哪些帳號存在
-        return render_template("login.html", error="這個帳號已停用，請洽系統管理員。", next_path=next_path), 403
+        return render_template("login.html", error="這個帳號已停用，請洽系統管理員。", next_path=next_path,
+                               google_login_enabled=g_login.configured(current_app.config)), 403
 
+    return _finish_login(user, next_path)
+
+
+def _finish_login(user, next_path=None):
     session.clear()
     session["user_id"] = user.id
     destinations = {
@@ -89,7 +96,8 @@ def login():
     endpoint = destinations.get(user.role)
     if not endpoint:
         session.clear()
-        return render_template("login.html", error="此帳號尚未設定可用角色"), 403
+        return render_template("login.html", error="此帳號尚未設定可用角色",
+                               google_login_enabled=g_login.configured(current_app.config)), 403
     # 每次登入都記（規格 M11）；學生首頁也用 student.login 判斷是不是很久沒來（「好久不見」那一幕）
     action = "student.login" if user.role == "student" else "user.login"
     db.session.add(AuditLog(user_id=user.id, action=action, ip_address=request.remote_addr))
@@ -97,6 +105,59 @@ def login():
     if user.role == "student" and not _welcome_done(user):
         return redirect(url_for("main.student_welcome"))
     return redirect(next_path or url_for(endpoint))  # 被登出前想看的頁面；權限照樣由那一頁檢查
+
+
+@main_bp.get("/auth/google")
+def google_login():
+    from app.services.flow import safe_next
+    if not g_login.configured(current_app.config):
+        abort(404)
+    session.clear()
+    session["google_login_state"] = g_login.new_state()
+    session["google_login_next"] = safe_next(request.args.get("next"))
+    return redirect(g_login.authorization_url(current_app.config, session["google_login_state"]))
+
+
+@main_bp.get("/auth/google/callback")
+def google_login_callback():
+    expected = session.pop("google_login_state", None)
+    next_path = session.pop("google_login_next", None)
+    if not expected or request.args.get("state") != expected:
+        enabled = g_login.configured(current_app.config)
+        message = ("請從登入頁按「使用學校 Google 帳號登入」重新開始。"
+                   if enabled else "學校 Google 登入尚未設定，請先完成 Google Cloud 設定。")
+        return render_template("login.html", error=message, google_login_enabled=enabled), 400
+    if request.args.get("error") or not request.args.get("code"):
+        return render_template("login.html", error="未完成 Google 登入，請重試。",
+                               google_login_enabled=g_login.configured(current_app.config)), 403
+    try:
+        claims = g_login.client_for(current_app).verify_code(request.args["code"])
+    except g_login.GoogleLoginError:
+        return render_template("login.html", error="Google 登入驗證失敗，請重試。",
+                               google_login_enabled=g_login.configured(current_app.config)), 403
+    identity = g_login.school_identity(claims)
+    if identity is None:
+        return render_template("login.html", error="請使用已綁定的學校學生 Google 帳號登入。",
+                               google_login_enabled=True), 403
+    email, sub = identity
+    user = User.query.filter_by(google_sub=sub).first()
+    if user is None:
+        matches = User.query.filter(db.func.lower(User.email) == email).all()
+        if len(matches) != 1 or matches[0].google_sub:
+            user = None
+        else:
+            user = matches[0]
+    if not user or not user.is_active or user.role != "student" or (user.email or "").lower() != email:
+        return render_template("login.html", error="此學校帳號尚未綁定可用的學生帳號，請洽管理員。",
+                               google_login_enabled=True), 403
+    if not user.google_sub:
+        user.google_sub = sub
+    name = claims.get("name")
+    if isinstance(name, str):
+        name = " ".join(name.split())
+        if name and len(name) <= 100 and name.isprintable():
+            user.display_name = name
+    return _finish_login(user, next_path)
 
 
 @main_bp.post("/logout")
