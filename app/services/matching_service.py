@@ -235,7 +235,9 @@ def rank_programs(student, programs, journey=None, conditions=None, transfer=Non
     evidence = student_evidence(student, journey)
     fallback = None if student_groups["main_group"] else _department_default(student)
     rows = []
+    from app.services.admission_eligibility_service import evaluate_program
     for program in programs:
+        qualification = evaluate_program(student, program) if program.eligibility_rules else None
         gap = analyze_gap(student, program, journey, evidence)
         details = transfer.get(program.program_code) if is_transfer(program) else None
         program_conditions = list(conditions.get(program.program_code, []))
@@ -243,6 +245,11 @@ def rank_programs(student, programs, journey=None, conditions=None, transfer=Non
             program_conditions.append({"type": "transfer_eligibility", "text": details["eligibility"],
                                        "source": details["source"]})
         status, condition_reasons = _check_conditions(student, program, program_conditions)
+        if qualification:
+            mapped = {"eligible": "eligible", "not_eligible": "ineligible", "needs_review": "needs_check", "insufficient_data": "needs_check"}[qualification["status"]]
+            if STATUS_ORDER[mapped] > STATUS_ORDER[status]:
+                status = mapped
+            condition_reasons.append("招生資格比對結果請參考已核對條件與來源；仍以當年度招生簡章及正式審查為準。")
         related = is_related(program, student_groups, department_table)
         category_result = _category_check(program, related)
         if category_result:
@@ -258,6 +265,7 @@ def rank_programs(student, programs, journey=None, conditions=None, transfer=Non
             relation.append(f"暫依你的科別（{fallback[0]}）把{fallback[1]}學群的科系排前面；確認成績單後會改用你修過的課判斷。")
         rows.append({
             "program": program,
+            "qualification": qualification,
             "status": status,
             "status_label": STATUS_LABELS[status],
             "channel_label": channel_label(program),

@@ -5,7 +5,7 @@ import pytest
 
 from app import create_app
 from app.extensions import db
-from app.models import AdmissionProgram, AdmissionRequirementItem, CredentialRecord, MatchFilterOption, StudentProfile, User
+from app.models import AdmissionProgram, AdmissionRequirementItem, CredentialRecord, MatchFilterOption, StudentProfile, StudentTarget, User
 
 
 @pytest.fixture()
@@ -97,6 +97,110 @@ def test_matching_list_has_inline_detail_and_link(site):
 
     assert "<details" in html and "已符合" in html and "缺少" in html
     assert f"/student/matching/{ids['program']}" in html
+
+
+def test_target_cards_sort_by_readiness_even_when_lower_one_is_selected(site):
+    with site.app_context():
+        low = _program("900003", "低準備大學", "published", [("競賽成果", 100, "competition")])
+        high = _program("900004", "高準備大學", "published", [("證照證明", 100, "credential")])
+        _program("900005", "文件大學", "published", [("自傳", 100, "autobiography")])
+        db.session.add(StudentTarget(student_id=site.config["_ids"]["mine"], rule_version_id=low.id))
+        db.session.commit()
+
+    html = _login(site).get("/student/targets").get_data(as_text=True)
+
+    assert "各組依準備度由高到低排序" in html
+    chart = html[html.index('<section class="target-ranking"'):html.index("</section>", html.index('<section class="target-ranking"'))]
+    assert chart.index("高準備大學") < chart.index("公開大學") < chart.index("低準備大學") < chart.index("文件大學")
+    assert 'aria-label="高準備大學 資管系 二技技優甄審準備度 ' in chart
+    assert 'style="width: ' in chart
+
+
+
+def test_target_ranking_groups_home_major_before_other_major(site):
+    with site.app_context():
+        other = _program("900006", "外系高分大學", "published", [("證照證明", 100, "credential")])
+        home = _program("900007", "本科低分大學", "published", [("競賽成果", 100, "competition")])
+        other.department_name = "資訊工程系"
+        home.department_name = "資訊管理學系"
+        db.session.commit()
+        other_id, home_id = other.id, home.id
+
+    html = _login(site).get("/student/targets").get_data(as_text=True)
+    chart = html[html.index('<section class="target-ranking"'):html.index("</section>", html.index('<section class="target-ranking"'))]
+
+    assert chart.index("本科系") < chart.index("本科低分大學") < chart.index("非本科系") < chart.index("外系高分大學")
+    assert html.index(f'id="target-program-{home_id}"') < html.index(f'id="target-program-{other_id}"')
+    assert 'aria-label="外系高分大學 資訊工程系' in chart
+
+
+
+def test_target_page_puts_selected_goals_first_and_collapses_exploration(site):
+    with site.app_context():
+        program_id = site.config["_ids"]["program"]
+        db.session.add(StudentTarget(student_id=site.config["_ids"]["mine"], rule_version_id=program_id))
+        db.session.commit()
+
+    html = _login(site).get("/student/targets").get_data(as_text=True)
+    assert html.index('id="my-targets"') < html.index('id="target-programs"')
+    selected = html[html.index('id="my-targets"'):html.index("</section>", html.index('id="my-targets"'))]
+    assert "公開大學" in selected and f'/student/targets/{program_id}' in selected
+    assert '<details class="target-program"' in html
+    assert '<div class="program-cards"' not in html
+
+
+
+def test_transfer_year_disambiguates_same_school_and_department(site):
+    with site.app_context():
+        second = _program("TRF-CCU-IM-2", "轉學大學", "published", [])
+        third = _program("TRF-CCU-IM-3", "轉學大學", "published", [])
+        second.admission_category = third.admission_category = "插大（轉學考）"
+        db.session.commit()
+
+    html = _login(site).get("/student/targets").get_data(as_text=True)
+    assert "轉學大學 資管系（插大（轉學考） · 二年級）" in html
+    assert "轉學大學 資管系（插大（轉學考） · 三年級）" in html
+
+
+
+def test_same_department_shows_admission_channel_in_ranking(site):
+    with site.app_context():
+        skill = _program("900009", "同校大學", "published", [("證照證明", 100, "credential")])
+        day = _program("DAY-900009", "同校大學", "published", [("歷年成績", 100, "grades")])
+        skill.admission_category = "管理類四"
+        day.admission_category = "日間部申請入學"
+        db.session.commit()
+
+    html = _login(site).get("/student/targets").get_data(as_text=True)
+    chart = html[html.index('<section class="target-ranking"'):html.index("</section>", html.index('<section class="target-ranking"'))]
+    assert "同校大學 資管系" in chart
+    assert "二技技優甄審" in chart
+    assert "日間部申請入學" in chart
+
+
+
+def test_target_dropdowns_filter_major_and_specific_program(site):
+    with site.app_context():
+        other = _program("900008", "外系大學", "published", [("證照證明", 100, "credential")])
+        other.department_name = "資訊工程系"
+        db.session.commit()
+        other_id = other.id
+
+    client = _login(site)
+    all_html = client.get("/student/targets").get_data(as_text=True)
+    assert '<select name="major"' in all_html
+    assert '<select name="program_id"' in all_html
+    assert "全部校系" in all_html and "本科系" in all_html and "非本科系" in all_html
+
+    other_html = client.get("/student/targets?major=other").get_data(as_text=True)
+    assert "外系大學" in other_html
+    assert 'id="target-program-' + str(site.config["_ids"]["program"]) + '"' not in other_html
+
+    one_html = client.get(f"/student/targets?program_id={other_id}").get_data(as_text=True)
+    assert 'id="target-program-' + str(other_id) + '"' in one_html
+    assert 'id="target-program-' + str(site.config["_ids"]["program"]) + '"' not in one_html
+
+
 
 
 def test_matching_detail_owner_only(site):
@@ -277,3 +381,17 @@ def test_matching_detail_page_offers_reasons_schedule_and_add_target(site):
     assert "怎麼進這所學校" in html
     assert "設為目標校系" in html
     assert "看招生時程 →" in html
+
+
+def test_matching_detail_shows_confirmed_qualification_with_source(site):
+    from app.models import AdmissionEligibilityRule
+    with site.app_context():
+        program = db.session.get(AdmissionProgram, site.config["_ids"]["program"])
+        program.eligibility_rules.append(AdmissionEligibilityRule(rule_group=1, condition_type="student_status", operator="in",
+            value_json={"field":"class_name", "values":["資管科五甲"]}, description="僅為測試資料：學籍條件",
+            source_url="https://example.edu.tw/rules.pdf", source_location="第 3 頁", mapping_status="confirmed", is_required=True))
+        db.session.commit()
+    html = _login(site).get(f"/student/matching/{site.config['_ids']['program']}").get_data(as_text=True)
+    assert "僅為測試資料：學籍條件" in html
+    assert "第 3 頁" in html and "學生資料符合此項學籍條件" in html
+    assert "仍以當年度招生簡章" in html

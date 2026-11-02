@@ -33,6 +33,16 @@
       <ul>{% for reason in row.reasons %}<li>{{ reason }}</li>{% endfor %}</ul>
     </details>
     {% endif %}
+    {% if row.qualification %}
+    <section class="sheet mb-1" aria-labelledby="eligibility-title">
+      <h3 id="eligibility-title">招生資格條件比對</h3>
+      <p class="small muted">以下是依已核對條件及本人已確認資料提供的參考，仍以當年度招生簡章與正式審查為準。</p>
+      <ul>{% for condition in row.qualification.conditions %}<li>
+        <strong>{{ condition.description }}</strong>：{{ condition.reason }}
+        {% if condition.source %}<a href="{{ condition.source.url }}" target="_blank" rel="noopener noreferrer">官方來源：{{ condition.source.location }}</a>{% else %}（來源待確認）{% endif %}
+      </li>{% endfor %}</ul>
+    </section>
+    {% endif %}
     {{ matching_detail(row, category_labels) }}
     {% if row.links %}
     <p class="small mt-1">招生資訊：{% for link in row.links %}<a href="{{ link.url }}" target="_blank" rel="noopener noreferrer">{{ link.label }}</a>{% if not loop.last %}／{% endif %}{% endfor %}</p>

@@ -1,5 +1,19 @@
 # 開發日誌
 
+## 2026-11-02 整合組員招生資格與校系探索
+
+日期：2026-11-02（台灣時間）
+
+開發者：GPT；組員來源 `111534107/smart-learning-portfolio-main` 的 `fd30f15`。
+
+目標：保留現有系統與首頁，整合組員的校系探索、資格條件擷取／人工核對／比對，並修正本機展示站只載入 4 個校系的問題。
+
+修改檔案：`app/routes/student.py`、`app/templates/student_targets.html`、`app/templates/partials/target_explorer.html`、`app/static/css/design-system.css`：整合已選目標、校系篩選與準備度排序，保留不限所數與既有推薦功能。`app/models/admission.py`、`app/models/__init__.py`、`migrations/versions/a20261022e01_add_admission_eligibility_rules.py`：接入資格規則模型與遷移。`app/services/admission_agent_service.py`、`app/routes/admin.py`、`app/templates/admin_programs.html`：擷取候選資格並由管理者核對來源；`app/services/admission_eligibility_service.py`、`app/services/matching_service.py`、`app/templates/student_matching_detail.html`：依已確認資料提供資格比對、理由及來源；已刪除競賽不計入，來源網址須為 HTTP(S)。`app/demo.py`：載入既有二技、日間部及插大示範資料；組員名單 27 筆均已包含於既有二技示範資料。相應測試與任務清單同步更新。
+
+驗證結果：隔離工作樹完整測試 1001 項通過、9 項略過；其中 7 項因隔離工作樹缺離線 OCR 模型，另 2 項是原本標記暫緩的測試。右側 5016 以假資料驗證目標校系畫面及 45 個示範校系（其中插大 4 筆）。`git diff --check` 待提交前再次核對。
+
+下一步：真實 Google、真實 Gemini 擷取、隔離 MySQL 遷移與當年度官方招生資料須個別驗收；示範資料並非全國完整清單。未推送。
+
 ## 2026-11-02 取消目標校系數量限制
 
 日期：2026-11-02（台灣時間）

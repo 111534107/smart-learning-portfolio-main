@@ -167,3 +167,12 @@ def test_local_demo_app_is_wrapped_to_serialize_requests():
     from app.demo import SerializedWSGI, create_local_demo_app
 
     assert isinstance(create_local_demo_app().wsgi_app, SerializedWSGI)
+
+
+def test_local_demo_loads_both_two_year_and_transfer_sample_programs():
+    app = create_local_demo_app()
+    with app.app_context():
+        programs = AdmissionProgram.query.filter_by(status="published").all()
+        assert len(programs) > 30
+        assert any(p.admission_category == "插大（轉學考）" for p in programs)
+        assert any(p.admission_category == "日間部申請入學" for p in programs)

@@ -134,6 +134,7 @@ def test_soft_delete_migration_upgrades_downgrades_and_upgrades_again(tmp_path):
     with app.app_context():
         db.create_all()
         with db.engine.begin() as connection:
+            connection.exec_driver_sql("DROP TABLE admission_eligibility_rules")
             for table in ("portfolio_evidence", "portfolios"):
                 connection.exec_driver_sql(f"ALTER TABLE {table} DROP COLUMN deleted_at")
     assert runner.invoke(args=["db", "stamp", "c4e2b7a91d05"]).exit_code == 0

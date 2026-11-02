@@ -2,6 +2,7 @@
 
 import tempfile
 from datetime import date
+from pathlib import Path
 
 from sqlalchemy.pool import StaticPool
 
@@ -11,6 +12,7 @@ from app.models import (AuditLog, AwardCertificate, ClassAdvisor, CredentialReco
                         StudentProfile, StudentTarget, User)
 from app.services import certificate_service
 from app.services.admission_service import import_seed_programs, published_programs
+from app.services.transfer_exam import import_transfer_programs
 from app.services.journey_service import EXPERIENCE_CATEGORIES, academic_year_of, current_grade
 from app.services.portfolio_service import create_submission_snapshot
 
@@ -142,6 +144,10 @@ def create_local_demo_app():
         ))
         db.session.add(AuditLog(user_id=users["student"].id, action="student.welcome_done"))
         import_seed_programs()
+        content = Path(__file__).resolve().parent / "content"
+        import_seed_programs(content / "admission_demo_national_116.csv")
+        import_seed_programs(content / "admission_demo_dayapply_115.csv")
+        import_transfer_programs()
         db.session.flush()
         # 自傳要針對目標校系寫：示範學生先選一個資管相關校系，展示時才能直接生成自傳
         programs = published_programs()
