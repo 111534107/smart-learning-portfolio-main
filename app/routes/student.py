@@ -812,7 +812,7 @@ def portfolio_list():
         user=user,
         grouped={key: [r for r in records if r.category == key] for key in EXPERIENCE_CATEGORIES},
         legacy=[r for r in records if r.category not in EXPERIENCE_CATEGORIES],
-        unconfirmed_count=sum(1 for r in records if r.status == "draft"),
+        unconfirmed_count=sum(1 for r in records if r.status != "confirmed"),
         categories=EXPERIENCE_CATEGORIES,
         category_labels=CATEGORY_LABELS,
         record_state=portfolio_state,
@@ -853,7 +853,7 @@ def portfolio_confirm(portfolio_id):
     """學生確認這筆經歷內容正確；確認過的經歷才會被 AI 寫進自傳。"""
     user = get_current_user()
     portfolio = owned_portfolio(portfolio_id, user)
-    if portfolio.status == "draft":
+    if portfolio.status != "confirmed":
         portfolio.status = "confirmed"
         audit_service.record(user, "portfolio.confirm", "portfolio", portfolio.id)
         db.session.commit()
@@ -887,7 +887,7 @@ def portfolio_delete(portfolio_id):
 def portfolio_submit(portfolio_id):
     portfolio = owned_portfolio(portfolio_id, get_current_user())
     submission = create_submission_snapshot(portfolio, get_current_user())
-    portfolio.status = "submitted"
+    # 送件狀態記在 submission；不能把草稿送出誤視為學生已確認。
     db.session.add(submission)
     db.session.commit()
     return redirect(url_for("student.portfolio_list"))

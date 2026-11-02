@@ -99,7 +99,7 @@ def test_build_facts_skips_unconfirmed_records(app):
     texts = " ".join(facts_text(app))
 
     assert "確認過的競賽" in texts
-    assert "舊流程送出的" in texts
+    assert "舊流程送出的" not in texts
     assert "程式設計" in texts
     assert "網頁設計乙級" in texts
     assert "還在寫的草稿" not in texts
@@ -886,3 +886,54 @@ def test_student_still_sees_versions_after_cancelling_target(app):
     assert "已取消" in versions.get_data(as_text=True)
     assert f"/student/autobiography/versions?program_id={pid}" in targets
     assert other.status_code in (302, 404) or "第 1 版" not in other.get_data(as_text=True)
+
+
+def test_submitted_without_confirmation_needs_student_confirmation(app):
+    record_id = add_portfolio(app, title="僅為測試資料 舊送件", status="submitted")
+    client = login(app)
+    assert "僅為測試資料 舊送件" not in " ".join(facts_text(app))
+    page = client.get("/student/portfolio").get_data(as_text=True)
+    assert "確認內容正確" in page
+    client.post(f"/student/portfolio/{record_id}/confirm")
+    with app.app_context():
+        assert db.session.get(Portfolio, record_id).status == "confirmed"
+    assert "僅為測試資料 舊送件" in " ".join(facts_text(app))
+
+
+def test_submitting_draft_does_not_confirm_it(app):
+    record_id = add_portfolio(app, title="僅為測試資料 草稿送件", status="draft")
+    client = login(app)
+    client.post(f"/student/portfolio/{record_id}/submit")
+    with app.app_context():
+        assert db.session.get(Portfolio, record_id).status == "draft"
+    assert "僅為測試資料 草稿送件" not in " ".join(facts_text(app))
+
+
+def test_assistant_overview_excludes_unconfirmed_learning_data(app):
+    from app.services.assistant_tools import _overview
+
+    with app.app_context():
+        student = User.query.filter_by(username="stu").one()
+        baseline = _overview(student)
+        db.session.add(Portfolio(student_id=student.id, title="pending competition", category="competition", school_year=3, status="draft"))
+        db.session.add(Portfolio(student_id=student.id, title="confirmed competition", category="competition", school_year=3, status="confirmed"))
+        db.session.add(CredentialRecord(student_id=student.id, credential_name="pending cert", confirmation_status="pending"))
+        db.session.add(CredentialRecord(student_id=student.id, credential_name="confirmed cert", confirmation_status="confirmed"))
+        db.session.commit()
+        overview = _overview(student)
+        assert sum(overview["record_counts"].values()) == sum(baseline["record_counts"].values()) + 2
+        assert "confirmed cert" in overview["credentials"]
+        assert "pending cert" not in overview["credentials"]
+
+
+def test_legacy_portfolio_categories_do_not_become_grades_or_credentials(app):
+    from app.services.gap_service import student_evidence
+
+    with app.app_context():
+        student = User.query.filter_by(username="stu").one()
+        before = student_evidence(student)["totals"]
+        for category in ("grades", "credential"):
+            db.session.add(Portfolio(student_id=student.id, title="legacy", category=category, school_year=3, status="confirmed"))
+        db.session.commit()
+        after = student_evidence(student)["totals"]
+        assert after == before

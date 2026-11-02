@@ -99,7 +99,7 @@
       {% else %}
       <p class="fit-line fit-line--empty">{{ fit.empty_note }}。</p>
       {% endif %}
-      {% if record.status == "draft" %}
+      {% if record.status != "confirmed" %}
       <form method="post" action="{{ url_for('student.portfolio_confirm', portfolio_id=record.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="button button--small" type="submit">確認內容正確</button>

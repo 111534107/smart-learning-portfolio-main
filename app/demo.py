@@ -87,7 +87,6 @@ def _seed_staff_queue(student, portfolios):
         portfolio = portfolios.get(key)
         if portfolio:
             db.session.add(create_submission_snapshot(portfolio, student))
-            portfolio.status = "submitted"
     service = portfolios.get(("service", 4))
     if service:
         # 電子獎狀只開給「從學校獎懲記錄匯入」的服務紀錄

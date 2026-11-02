@@ -18,7 +18,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from app.models import CredentialRecord, LearningCourseRecord, Portfolio
-from app.services.journey_service import CATEGORY_KEYS, CATEGORY_LABELS, build_journey
+from app.services.journey_service import CATEGORY_KEYS, CATEGORY_LABELS, EXPERIENCE_CATEGORIES, build_journey
 
 RULES_FILE = Path(__file__).resolve().parent.parent / "content" / "readiness_rules.csv"
 PROJECT_PATTERN = re.compile(r"專題|作品")
@@ -64,15 +64,23 @@ def _grade_level(scores, course_count):
 
 def student_evidence(student, journey=None):
     """學生的資料一次查好；排行一次比對幾十間校系時重複使用，不要每間都查一次資料庫。"""
-    journey = journey or build_journey(student)
-    courses = LearningCourseRecord.query.filter_by(student_id=student.id).all()
+    # 畫面上的五年資料夾也顯示草稿，不能直接把它的 totals 用於評估。
+    courses = LearningCourseRecord.query.filter_by(student_id=student.id, confirmation_status="confirmed").all()
+    credentials = CredentialRecord.query.filter_by(student_id=student.id, confirmation_status="confirmed").all()
+    records = (Portfolio.active().filter_by(student_id=student.id)
+               .filter_by(status="confirmed").all())
+    totals = {key: 0 for key in CATEGORY_KEYS}
+    totals["grades"] = len(courses)
+    totals["credential"] = len(credentials)
+    for record in records:
+        if record.category in EXPERIENCE_CATEGORIES:
+            totals[record.category] += 1
     return {
-        "totals": journey["totals"],
+        "totals": totals,
         "scores": [course.score for course in courses if course.score is not None],
         "course_count": len(courses),
-        "credential_names": [c.credential_name or "" for c in CredentialRecord.query.filter_by(student_id=student.id)],
-        "project_count": sum(1 for record in Portfolio.active().filter_by(student_id=student.id)
-                             if PROJECT_PATTERN.search(record.title or "")),
+        "credential_names": [credential.credential_name or "" for credential in credentials],
+        "project_count": sum(1 for record in records if PROJECT_PATTERN.search(record.title or "")),
     }
 
 

@@ -25,8 +25,8 @@ from app.services.journey_service import CATEGORY_LABELS
 
 OUTPUT_TYPE = "autobiography_ai"
 
-# 學生按過「確認」的經歷；submitted 是舊的專題送審流程，也代表學生確認過
-CONFIRMED_PORTFOLIO_STATUSES = ("confirmed", "submitted")
+# 舊 submitted 可能由草稿直接送出，無法證明學生已確認；需重新確認。
+CONFIRMED_PORTFOLIO_STATUSES = ("confirmed",)
 
 # 問題（key, 題目, 提示）。要改題目只要改這裡。
 QUESTIONS = [

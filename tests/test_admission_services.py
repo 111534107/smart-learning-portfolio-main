@@ -265,3 +265,46 @@ def test_teacher_only_sees_students_in_assigned_classes(app):
     assert can_view_student(teacher, other) is False
     assert [s.username for s in students_for_teacher(teacher)] == ["mine"]
 
+
+
+@pytest.mark.parametrize("kind", ["grades", "credential", "activity", "competition", "service", "leadership", "project"])
+def test_unconfirmed_learning_data_not_used_in_readiness_or_facts(app, kind):
+    from app.services.autobiography_service import build_facts
+    from app.services.matching_service import rank_programs
+
+    student = make_student("test_only")
+    program = make_program([("僅為測試資料", 100, kind)])
+    if kind == "grades":
+        record = LearningCourseRecord(student_id=student.id, course_name="僅為測試資料", normalized_course_name="僅為測試資料", score=90, confirmation_status="draft")
+    elif kind == "credential":
+        record = CredentialRecord(student_id=student.id, credential_name="僅為測試資料", confirmation_status="draft")
+    else:
+        record = Portfolio(student_id=student.id, title="僅為測試資料 專題" if kind == "project" else "僅為測試資料", category="activity" if kind == "project" else kind, status="draft")
+    db.session.add(record)
+    db.session.flush()
+    before = analyze_gap(student, program)
+    assert before["readiness"] == 0
+    if kind != "project":
+        assert kind in before["missing_keys"]
+    assert rank_programs(student, [program])[0]["fit"] == 0
+    assert not build_facts(student, program)["items"]
+    if kind in ("grades", "credential"):
+        record.confirmation_status = "confirmed"
+    else:
+        record.status = "confirmed"
+    db.session.flush()
+    expected = 100 if kind == "grades" else 50
+    assert analyze_gap(student, program)["readiness"] == expected
+    assert rank_programs(student, [program])[0]["fit"] == expected
+    assert len(build_facts(student, program)["items"]) == 1
+
+
+def test_legacy_submitted_without_confirmation_does_not_count(app):
+    from app.services.autobiography_service import build_facts
+    student = make_student("legacy_test")
+    program = make_program([("僅為測試資料", 100, "competition")])
+    record = Portfolio(student_id=student.id, title="僅為測試資料 舊送件", category="competition", status="submitted")
+    db.session.add(record)
+    db.session.flush()
+    assert analyze_gap(student, program)["readiness"] == 0
+    assert not build_facts(student, program)["items"]
