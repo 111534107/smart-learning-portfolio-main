@@ -1,0 +1,20 @@
+/* 校園招生風主題（2026-11-02 使用者指定參考 https://admission.nutc.edu.tw/ 的配色與版面節奏）
+   - 只借配色與版面，不用該校校徽、名稱、插圖。
+   - 只在 <body data-theme="campus"> 生效；base.html 對首頁（student-dashboard、public-home）不加這個屬性。
+   - 撤掉主題：拿掉 base.html 裡 body 的 data-theme 即可；換底色只改 --paper。
+   - 標題帶白字的對比都 ≥ 4.5:1（原站焦糖 #ca9954 只有約 2.6:1，所以標題帶用加深的焦糖）。 */
+
+[data-theme="campus"] {
+  --paper: #fdf3e2;
+  --paper-deep: #f6e6c8;
+  --sheet: #fffdf8;
+  --line: #ead9b8;
+  --radius-card: 14px;
+  --band-navy: linear-gradient(90deg, #1f3a5f, #2c5282);
+  --band-caramel: linear-gradient(90deg, #94652a, #9c6a2c);
+  --accent-warm: #ca9954;
+  --accent-terra: #cd815b;
+  --shadow-card: 0 6px 18px -12px rgb(60 40 10 / 35%);
+}
+
+[data-theme="campus"] .sheet { border-radius: var(--radius-card); }

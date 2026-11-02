@@ -10,8 +10,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700;900&display=swap">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
+    {# 校園招生風主題：只在 body 有 data-theme="campus" 時生效（首頁不加），撤掉只要拿掉下面 body 的屬性 #}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-campus.css') }}">
   </head>
-  <body data-page="{{ page_name|default('workspace') }}">
+  <body data-page="{{ page_name|default('workspace') }}"{% if page_name|default('workspace') not in ('student-dashboard', 'public-home') %} data-theme="campus"{% endif %}>
     <a class="skip-link" href="#main-content">跳到主要內容</a>
     {% block navigation %}{% endblock %}
     <main id="main-content">
