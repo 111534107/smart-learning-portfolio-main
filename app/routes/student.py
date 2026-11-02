@@ -1024,7 +1024,14 @@ def target_list():
     journey = build_journey(user)
     evidence = student_evidence(user, journey)
     selected = {t.rule_version_id for t in StudentTarget.query.filter_by(student_id=user.id).all()}
-    programs = published_programs()
+    all_programs = published_programs()
+    track = "transfer" if request.args.get("track") == "transfer" else "twotech"
+    track_counts = {"twotech": sum(not is_transfer(p) for p in all_programs),
+                    "transfer": sum(is_transfer(p) for p in all_programs)}
+    programs = [p for p in all_programs if is_transfer(p) == (track == "transfer")]
+    slots = student_rules.target_slots(user)
+    track_targets = [t for t in slots["current"] if is_transfer(t.program) == (track == "transfer")]
+    old_targets = [t for t in slots["old"] if is_transfer(t.program) == (track == "transfer")]
     all_program_count = len(programs)
     program_options = sorted(programs, key=lambda p: (p.school_name, p.department_name, p.admission_category or ""))
     channels = {p.id: channel_label(p) for p in programs}
@@ -1076,6 +1083,9 @@ def target_list():
         "student_targets.html",
         user=user,
         programs=programs,
+        track=track,
+        track_counts=track_counts,
+        old_targets=old_targets,
         all_program_count=all_program_count,
         program_options=program_options,
         channels=channels,
@@ -1087,10 +1097,11 @@ def target_list():
         selected=selected,
         selected_programs=selected_programs,
         slots=student_rules.target_slots(user),
-        cancelled_programs=_cancelled_autobiography_programs(user),
+        cancelled_programs=[p for p in _cancelled_autobiography_programs(user)
+                            if is_transfer(p) == (track == "transfer")],
         gaps=gaps,
         links={p.id: admission_links(p, school_links) for p in program_options},
-        focus=focus_view(user, journey),
+        focus=focus_view(user, journey, targets=track_targets),
         error=error,
     ), (400 if error else 200)
 
@@ -1239,6 +1250,7 @@ def target_gap(program_id):
         "student_gap.html",
         user=user,
         program=program,
+        target_track="transfer" if is_transfer(program) else "twotech",
         gap=gap,
         chapters=chapter_order(program),
         targets=[t.program for t in targets],

@@ -37,8 +37,8 @@ def _short_school(name):
     return name.replace("國立", "").replace("科技大學", "科大").replace("大學", "大")
 
 
-def focus_view(user, journey=None):
-    targets = student_rules.target_slots(user)["current"]
+def focus_view(user, journey=None, targets=None):
+    targets = student_rules.target_slots(user)["current"] if targets is None else targets
     if len(targets) < FOCUS_MIN_TARGETS:
         return None
     journey = journey or build_journey(user)

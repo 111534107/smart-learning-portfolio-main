@@ -10,13 +10,13 @@
 {% block navigation %}{{ masthead(user, "備審資料") }}{% endblock %}
 
 {% block content %}
-{{ page_band("備審資料", [("目標校系", url_for('student.target_list'))]) }}
+{{ page_band("備審資料", [("目標校系", url_for('student.target_list', track=target_track))]) }}
 <div class="page page--banded">
   <nav class="target-switch" aria-label="切換目標校系">
     {% for target in targets %}
     <a href="{{ url_for('student.target_gap', program_id=target.id) }}"{% if target.id == program.id %} aria-current="page"{% endif %}>{{ target.school_name|replace("國立", "") }} {{ target.department_name }}</a>
     {% endfor %}
-    <a class="add" href="{{ url_for('student.target_list') }}">＋ 其他校系</a>
+    <a class="add" href="{{ url_for('student.target_list', track=target_track) }}">＋ 其他校系</a>
   </nav>
 
   <header class="student-cover">

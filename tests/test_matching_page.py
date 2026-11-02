@@ -157,7 +157,7 @@ def test_transfer_year_disambiguates_same_school_and_department(site):
         second.admission_category = third.admission_category = "插大（轉學考）"
         db.session.commit()
 
-    html = _login(site).get("/student/targets").get_data(as_text=True)
+    html = _login(site).get("/student/targets?track=transfer").get_data(as_text=True)
     assert "轉學大學 資管系（插大（轉學考） · 二年級）" in html
     assert "轉學大學 資管系（插大（轉學考） · 三年級）" in html
 
@@ -395,3 +395,24 @@ def test_matching_detail_shows_confirmed_qualification_with_source(site):
     assert "僅為測試資料：學籍條件" in html
     assert "第 3 頁" in html and "學生資料符合此項學籍條件" in html
     assert "仍以當年度招生簡章" in html
+
+
+def test_targets_separate_two_year_and_transfer_tracks(site):
+    with site.app_context():
+        transfer = _program("TRF-TEST-2", "僅為測試插大", "published", [])
+        transfer.admission_category = "插大（轉學考）"
+        db.session.add(StudentTarget(student_id=site.config["_ids"]["mine"], rule_version_id=transfer.id))
+        db.session.commit()
+    client = _login(site)
+    twotech = client.get("/student/targets").get_data(as_text=True)
+    assert "二技" in twotech and "插大" in twotech
+    assert "僅為測試插大" not in twotech
+    assert "公開大學" in twotech
+    transfer_html = client.get("/student/targets?track=transfer").get_data(as_text=True)
+    assert "僅為測試插大" in transfer_html
+    assert "考試科目與資料需求請看招生簡章" in transfer_html
+    assert "此校系以自傳等文件為主" not in transfer_html
+    assert "公開大學" not in transfer_html
+    assert 'name="track" value="transfer"' in transfer_html
+    filtered = client.get("/student/targets?track=transfer&major=home").get_data(as_text=True)
+    assert "僅為測試插大" in filtered
