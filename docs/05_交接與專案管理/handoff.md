@@ -1,5 +1,11 @@
 # 專題交接（新對話從這裡開始）
 
+## 2026-11-03 Claude：學校 Google 一鍵登入（另一個分支）
+
+- 分支 `feat/school-google-login`（工作資料夾 `D:\democase\_worktrees\ai-wt-school-login`），從 `d5f3aff` 開出，未推送、未合併；完整測試 1026 通過、9 略過。內容見開發日誌同名一節與 `docs/03_開發紀錄/01_參考與環境設定/學校Google登入_設定步驟.md`。
+- 真實登入尚未通過：Google Cloud Console 要先加 `http://localhost:5013/auth/google/callback`。
+- 另一個分支 `feat/campus-theme`（校園招生風主題）也在等合併；兩個分支都改到 `base.html` 以外的不同檔案，日誌與交接最上面合併時會衝突，兩邊保留即可。
+
 ## 2026-11-02 GPT：系統組驗收進行中（接手請先讀）
 
 - 使用者決定：主任角色及統計不列本次驗收，保留後續；招生範圍為 115 學年度二技與插大，現有資料仍是示範資料，完整性與官方來源待查。真實 Google 文件驗收列入，由使用者自行登入及操作。

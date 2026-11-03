@@ -1,5 +1,29 @@
 # 開發日誌
 
+## 2026-11-03 整合組員的學校 Google 一鍵登入
+
+日期：2026-11-03（台灣時間）
+
+開發者：Claude（工作資料夾 `D:\democase\_worktrees\ai-wt-school-login`，分支 `feat/school-google-login`，從 `d5f3aff` 開出）
+
+目標：使用者要求把組員 111534107（`smart-learning-portfolio-main` 提交 `3187cb5`）的學校 Google 一鍵登入整合進來：只限 `@stu.ukn.edu.tw`、只限管理員先綁定的既有學生。
+
+修改檔案：
+- 用 `git cherry-pick -n 3187cb5` 套用組員的程式與測試：`app/services/school_google_login.py`、`app/routes/main.py`（`/auth/google`、`/auth/google/callback`）、`app/routes/admin.py`（綁定學校信箱）、`app/models/user.py`（`google_sub`）、`login.html`、`admin_accounts.html`、`tests/test_school_google_login.py`（12 項）。`admin.py` 匯入行有衝突，兩邊都保留。
+- `migrations/versions/b20261102e01_school_google_login.py`：改接本專案目前的 `a20261022e01`；`users` 表不存在或欄位已存在就跳過，用批次改表才能在 SQLite 降級。
+- `.env.example`、`README.md`：範例回呼網址改 `localhost`（和 Google 文件同一個主機名稱，不然登入狀態對不上）。
+- `scripts/run_local_demo.py`：帶入 `GOOGLE_LOGIN_REDIRECT_URI`；新增 `--student-no` 把合成學生的學號換成指定號碼（只在記憶體），才能驗收「信箱帳號必須等於學號」的綁定。
+- 新增 `docs/03_開發紀錄/01_參考與環境設定/學校Google登入_設定步驟.md`（設定、驗收、安裝了什麼、如何移除）。
+- 安裝：`google-auth[requests]==2.62.0`（PyPI 官方）到 `D:\democase\ai\.venv`，連帶 `cryptography`、`cffi`、`pycparser`、`pyasn1`、`pyasn1-modules`。
+
+驗證結果：
+- 第一次完整測試 8 項失敗，全是資料庫遷移測試：只用遷移建的空資料庫沒有 `users` 表，組員的遷移沒有檢查。加上檢查後重跑完整測試 1026 通過、9 略過。
+- 另外手動確認：有 `users` 表的資料庫升級會加上 `google_sub` 欄位與唯一索引，降級會拿掉。
+- 展示站（5013 埠，`--student-no 111534105`）：登入頁出現學校 Google 登入按鈕；`admin_demo` 在帳號管理綁定 `111534105@stu.ukn.edu.tw` 成功。
+- 真實 Google 登入：Google 回 `redirect_uri_mismatch`，因為 Google Cloud Console 還沒加 `http://localhost:5013/auth/google/callback`。等使用者加好後重測。
+
+下一步：使用者加好回呼網址後用學校帳號登入驗收；確認學校 Google Workspace 是否允許外部應用程式；教師要不要也能用 `@ukn.edu.tw` 登入待決定。未推送、未合併。
+
 ## 2026-11-02 目標校系分開二技與插大
 
 日期：2026-11-02（台灣時間）
