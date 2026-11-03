@@ -14,6 +14,7 @@ class User(db.Model):
     display_name = db.Column(db.String(100), nullable=False)
     role = db.Column(db.String(30), nullable=False, default="student", index=True)
     email = db.Column(db.String(120), nullable=True)
+    google_sub = db.Column(db.String(255), unique=True, nullable=True, index=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(
         db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
