@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from "partials/nav.html" import masthead with context %}
 {% set page_name = "admin-agent" %}
-{% set task_names = {"admission_source_check": "檢查來源", "admission_extract": "擷取加權", "agent_patrol": "升學 Agent 巡查"} %}
+{% set task_names = {"admission_source_search": "上網找來源", "admission_source_check": "檢查來源", "admission_extract": "擷取加權", "agent_patrol": "升學 Agent 巡查"} %}
 {% set task_status = {"stopped": ("已停止", "tag--warn"), "succeeded": ("成功", "tag--ok"), "failed": ("失敗", "tag--danger"), "running": ("執行中", "tag--warn"), "pending": ("等待中", "tag")} %}
 
 {% block title %}招生資料 Agent｜資管科智慧學習歷程系統{% endblock %}
@@ -26,7 +26,7 @@
 
   <section class="work-panel">
     <div class="work-panel__head"><div><h2>升學 Agent 巡查</h2><p>Agent 會檢查全部官方來源，把有更新的簡章擷取成候選校系；有設定 AI 時由 AI 決定步驟，沒有時走固定流程。結果仍要你核准。排程執行：<span class="mono">flask agent-patrol</span>。</p></div></div>
-    <form method="post" action="{{ url_for('admin.agent_patrol') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit" data-busy-text="Agent 巡查中…（約 10 秒～1 分鐘）">讓 Agent 巡查一次</button></form>
+    <form method="post" action="{{ url_for('admin.agent_patrol') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit" data-busy-text="Agent 上網找資料並巡查中…（約 1～3 分鐘）">讓 Agent 上網找資料並巡查</button></form>
   </section>
 
   <section class="work-panel">
@@ -138,6 +138,7 @@
         <span class="mono small">{{ task.created_at|taipei_time("%Y-%m-%d %H:%M") }}</span>
         {% if task.error_message %}<span class="small">{{ task.error_message }}</span>
         {% elif task.task_type == "agent_patrol" and task.result_json %}<span class="small">{{ task.result_json.summary }}</span>
+        {% elif task.task_type == "admission_source_search" and task.result_json %}<span class="small">找到 {{ task.result_json.added|length }} 個新的官方來源（已登記 {{ task.result_json.already_known }}、非官方略過 {{ task.result_json.skipped_unofficial }}）</span>
         {% elif task.result_json and task.result_json.created is defined %}<span class="small">新增 {{ task.result_json.created|length }} 個候選，略過 {{ task.result_json.skipped|length }} 個</span>
         {% elif task.result_json %}<span class="small">{{ "有更新" if task.result_json.changed else "沒有更新" }}</span>{% endif %}
       </li>

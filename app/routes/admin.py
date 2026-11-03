@@ -490,7 +490,7 @@ def agent_home():
                .join(PublicSourceSnapshot, PublicSourceChange.snapshot_id == PublicSourceSnapshot.id)
                .join(PublicSource, PublicSourceSnapshot.source_id == PublicSource.id)
                .order_by(PublicSourceChange.id.desc()).limit(20).all())
-    tasks = (AgentTask.query.filter(AgentTask.task_type.in_(["admission_source_check", "admission_extract", "agent_patrol"]))
+    tasks = (AgentTask.query.filter(AgentTask.task_type.in_(["admission_source_search", "admission_source_check", "admission_extract", "agent_patrol"]))
              .order_by(AgentTask.id.desc()).limit(15).all())
     from app.services.admission_schedule import schedule_groups
     return render_template(
