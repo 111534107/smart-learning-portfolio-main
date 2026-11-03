@@ -13,6 +13,10 @@
 - 歷史測試數字：1001 通過、9 略過來自組員整合的隔離工作樹，其中 7 項缺離線 OCR 模型、2 項原標記暫緩；1009 通過、2 略過來自後續分流版本與不同環境，兩者不是同一版本、同一環境的測試，不能直接視為矛盾。
 - 不動首頁，不推送、不合併；保留 `.claude/`、`.superpowers/` 與 10-27、10-28 未追蹤文件。
 
+## 2026-11-02 Claude：校園招生風主題（另一個分支）
+
+- 分支 `feat/campus-theme`（工作資料夾 `D:\democase\_worktrees\ai-wt-campus-theme`），從 `bfbaa58` 開出，未推送、未合併。內容與驗證見開發日誌同名一節與計畫書 `docs/superpowers/plans/2026-11-02-campus-theme.md`。
+- 合併時機：等 GPT 在 `feat/google-docs-autobiography` 的修改提交後再合併；`base.html` 只加了兩處，樣式都在新檔 `theme-campus.css`。
 
 ## 2026-11-02 GPT：二技與插大目標校系分流
 

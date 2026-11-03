@@ -1,0 +1,6 @@
+{# 學生頁右側快捷鈕（校園主題）：招生時程、小助手寫自傳、回到頂端。首頁與其他角色不顯示。 #}
+<nav class="quick-dock" aria-label="快捷功能">
+  <a class="quick-dock__item" href="{{ url_for('student.schedule') }}"><span aria-hidden="true">📅</span><span class="quick-dock__label">招生時程</span></a>
+  <a class="quick-dock__item quick-dock__item--warm" href="{{ url_for('student.autobiography') }}"><span aria-hidden="true">✎</span><span class="quick-dock__label">小助手寫自傳</span></a>
+  <a class="quick-dock__item" href="#main-content"><span aria-hidden="true">↑</span><span class="quick-dock__label">回到頂端</span></a>
+</nav>

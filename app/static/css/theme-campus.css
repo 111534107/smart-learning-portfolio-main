@@ -1,0 +1,95 @@
+/* 校園招生風主題（2026-11-02 使用者指定參考 https://admission.nutc.edu.tw/ 的配色與版面節奏）
+   - 只借配色與版面，不用該校校徽、名稱、插圖。
+   - 只在 <body data-theme="campus"> 生效；base.html 對首頁（student-dashboard、public-home）不加這個屬性。
+   - 撤掉主題：拿掉 base.html 裡 body 的 data-theme 即可；換底色只改 --paper。
+   - 標題帶白字的對比都 ≥ 4.5:1（原站焦糖 #ca9954 只有約 2.6:1，所以標題帶用加深的焦糖）。 */
+
+[data-theme="campus"] {
+  --paper: #fdf3e2;
+  --paper-deep: #f6e6c8;
+  --sheet: #fffdf8;
+  --line: #ead9b8;
+  --radius-card: 14px;
+  --band-navy: linear-gradient(90deg, #1f3a5f, #2c5282);
+  --band-caramel: linear-gradient(90deg, #94652a, #9c6a2c);
+  --accent-warm: #ca9954;
+  --accent-terra: #cd815b;
+  --shadow-card: 0 6px 18px -12px rgb(60 40 10 / 35%);
+}
+
+[data-theme="campus"] .sheet { border-radius: var(--radius-card); }
+
+/* 白卡第一個子元素是 .sheet__head 時，變成貼齊卡片上緣的標題帶（深藍、焦糖交替） */
+[data-theme="campus"] .sheet { --sheet-pad: clamp(1.1rem, 2.5vw, 1.75rem); padding: var(--sheet-pad); overflow: hidden; }
+[data-theme="campus"] .sheet > .sheet__head:first-child {
+  align-items: center;
+  margin: calc(-1 * var(--sheet-pad)) calc(-1 * var(--sheet-pad)) 1rem;
+  padding: .9rem var(--sheet-pad);
+  background: var(--band-navy);
+  color: #fff;
+}
+[data-theme="campus"] .sheet:nth-of-type(even) > .sheet__head:first-child { background: var(--band-caramel); }
+[data-theme="campus"] .sheet > .sheet__head:first-child :is(h2, h3, h4, p, .muted, .small) { color: #fff; }
+[data-theme="campus"] .sheet > .sheet__head:first-child a { color: #fff; text-decoration-color: rgb(255 255 255 / 60%); }
+[data-theme="campus"] .sheet > .sheet__head:first-child a:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+[data-theme="campus"] .sheet > .sheet__head:first-child .button { border-color: #fff; background: transparent; color: #fff; }
+
+/* 區塊標題前一小段焦糖橫線（標題帶裡的不加） */
+[data-theme="campus"] .page-head h1::before,
+[data-theme="campus"] .sheet__head:not(.sheet > .sheet__head:first-child) h2::before {
+  content: "";
+  display: inline-block;
+  width: 1.2em;
+  height: 3px;
+  margin-right: .5em;
+  vertical-align: middle;
+  background: var(--accent-warm);
+}
+
+/* 紀錄卡、校系卡：大圓角、淡陰影，滑過時上浮一點 */
+[data-theme="campus"] :is(.record-card, .program-card) {
+  border-radius: var(--radius-card);
+  border-color: var(--line);
+  box-shadow: var(--shadow-card);
+}
+[data-theme="campus"] :is(.record-card, .program-card):hover { transform: translateY(-2px); }
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="campus"] :is(.record-card, .program-card):hover { transform: none; }
+}
+
+/* 學生頁右側快捷鈕：貼齊右緣的標籤（只有左邊圓角），滑過或鍵盤聚焦時展開文字 */
+[data-theme="campus"] .quick-dock { position: fixed; right: 0; top: 40vh; z-index: 15; display: grid; gap: .4rem; }
+[data-theme="campus"] .quick-dock__item {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  min-height: 2.75rem;
+  padding: .55rem .8rem;
+  border-left: 4px solid var(--accent-terra);
+  border-radius: 12px 0 0 12px;
+  background: #1f3a5f;
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: var(--shadow-card);
+}
+[data-theme="campus"] .quick-dock__item--warm { background: #94652a; }
+[data-theme="campus"] .quick-dock__label { max-width: 0; overflow: hidden; white-space: nowrap; transition: max-width .2s ease; }
+[data-theme="campus"] .quick-dock__item:is(:hover, :focus-visible) .quick-dock__label { max-width: 8em; }
+[data-theme="campus"] .quick-dock__item:focus-visible { outline: 3px solid var(--accent-warm); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="campus"] .quick-dock__label { transition: none; }
+}
+/* 內容（最寬 1200px）兩側放不下右側標籤時（2026-11-02 實測 800px 寬會蓋住時程文字）：
+   改成左下角一排小圓鈕（右下角是資管科小助手），頁面底部留空，避免擋住送出鈕 */
+@media (max-width: 1360px) {
+  [data-theme="campus"] .quick-dock { top: auto; right: auto; bottom: .75rem; left: .75rem; grid-auto-flow: column; }
+  [data-theme="campus"] .quick-dock__item { border-left: 0; border-radius: 50%; width: 2.75rem; justify-content: center; padding: 0; }
+  [data-theme="campus"] .quick-dock__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  [data-theme="campus"] main { padding-bottom: 4.5rem; }
+}
+/* 列印（功能表、備審）：不印底色和快捷鈕 */
+@media print {
+  [data-theme="campus"] { background: #fff; }
+  [data-theme="campus"] .quick-dock { display: none; }
+}
