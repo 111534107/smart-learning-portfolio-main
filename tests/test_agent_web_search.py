@@ -149,3 +149,23 @@ def test_admin_agent_page_lists_search_tasks(app):
     html = client.get("/admin/agent").get_data(as_text=True)
     assert "上網找來源" in html and "找到 1 個新的官方來源" in html
     assert "Agent 找到：簡章" in html
+
+
+def test_resolve_url_falls_back_to_get_when_head_is_rejected(monkeypatch):
+    from urllib.error import HTTPError
+
+    methods = []
+
+    class Response(FakeResponse):
+        def geturl(self):
+            return "https://www.example.edu.tw/brochure.pdf"
+
+    def fake_urlopen(request, timeout, context=None):
+        methods.append(request.get_method())
+        if request.get_method() == "HEAD":
+            raise HTTPError(request.full_url, 405, "Method Not Allowed", {}, io.BytesIO(b""))
+        return Response(b"")
+
+    monkeypatch.setattr(agent.urllib.request, "urlopen", fake_urlopen)
+    assert agent.resolve_url("https://vertexaisearch.cloud.google.com/grounding-api-redirect/x") == "https://www.example.edu.tw/brochure.pdf"
+    assert methods == ["HEAD", "GET"]

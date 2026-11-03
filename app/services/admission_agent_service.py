@@ -133,13 +133,16 @@ def official_url(url):
 
 
 def resolve_url(uri):
-    """搜尋結果多半是 Google 的轉址連結：追到最後的真正網址（只讀標頭，不下載內容）。失敗回傳 None。"""
-    try:
-        request = urllib.request.Request(uri, headers={"User-Agent": USER_AGENT}, method="HEAD")
-        with urllib.request.urlopen(request, timeout=15, context=_ssl_context()) as response:
-            return response.geturl()
-    except Exception:  # 轉址失效、對方不接受 HEAD：這筆結果就跳過
-        return None
+    """搜尋結果多半是 Google 的轉址連結：追到最後的真正網址。先只讀標頭（HEAD）；
+    有些學校網站不接受 HEAD（實測 11-04），再改用一般請求（GET，不讀內容）。都失敗回傳 None。"""
+    for method in ("HEAD", "GET"):
+        try:
+            request = urllib.request.Request(uri, headers={"User-Agent": USER_AGENT}, method=method)
+            with urllib.request.urlopen(request, timeout=15, context=_ssl_context()) as response:
+                return response.geturl()
+        except Exception:  # 轉址失效、對方拒絕：換下一種方法，最後就跳過這筆
+            continue
+    return None
 
 
 def default_search_queries(roc_year=None):
