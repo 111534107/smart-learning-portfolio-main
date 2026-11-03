@@ -27,6 +27,10 @@
         <label class="field">密碼<input name="password" type="password" autocomplete="current-password" required></label>
         <button class="button" type="submit">登入 →</button>
       </form>
+      {% if google_login_enabled %}
+      <p class="small">學校帳號須為 @stu.ukn.edu.tw，並由管理員先綁定。</p>
+      <a class="button button--quiet" href="{{ url_for('main.google_login', next=next_path) }}">使用學校 Google 帳號登入 →</a>
+      {% endif %}
     </div>
     {% if config.get("DEMO_ACCOUNTS") and config.get("FLASK_ENV") != "production" %}
     <section class="demo-login" aria-labelledby="demo-login-title">

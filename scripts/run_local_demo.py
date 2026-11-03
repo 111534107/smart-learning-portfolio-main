@@ -27,8 +27,22 @@ if "--fake-ocr" not in args:
     app.config["DOCUMENT_ANALYSIS_PROVIDER"] = real_ocr_provider(app.config["DOCUMENT_ANALYSIS_PROVIDER"])
 # .env 有填好 Google OAuth 就直接開放（--google 保留相容）
 if all(getattr(Config, key) for key in ("GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET")):
-    for key in ("GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_REDIRECT_URI"):
+    for key in ("GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_REDIRECT_URI",
+                "GOOGLE_LOGIN_REDIRECT_URI"):
         app.config[key] = getattr(Config, key)
+# 學校 Google 登入驗收：--student-no 學號 把合成學生的學號換成本人學號（只在記憶體），
+# 管理員才能在帳號管理頁綁定「學號@stu.ukn.edu.tw」（綁定規則要求信箱帳號等於學號）
+if "--student-no" in args:
+    position = args.index("--student-no")
+    student_no = args[position + 1] if position + 1 < len(args) else ""
+    if not student_no.isalnum():
+        sys.exit("--student-no 後面要接學號（只能是英數字）")
+    with app.app_context():
+        from app.extensions import db
+        from app.models import StudentProfile, User
+        profile = StudentProfile.query.join(User).filter(User.username == "student_demo").one()
+        profile.student_no = student_no
+        db.session.commit()
 if "--gpu" in args:
     position = args.index("--gpu")
     app.config["OCR_DEVICE"] = "dml"
@@ -41,6 +55,9 @@ if __name__ == "__main__":
     from app.services.google_docs_service import configured
     if configured(app.config):
         print("Google 文件：已開放自傳在 Google 文件中編輯（只要 drive.file；權杖只放記憶體）")
+    from app.services.school_google_login import configured as login_configured
+    if login_configured(app.config):
+        print("學校 Google 登入：已開放（只限 @stu.ukn.edu.tw，且管理員要先在帳號管理綁定）")
     else:
         print("Google：不連線（.env 填好 OAuth 設定才會開放）")
     if app.config["DOCUMENT_ANALYSIS_PROVIDER"] == "rapidocr":
