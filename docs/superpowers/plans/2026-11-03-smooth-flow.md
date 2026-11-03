@@ -54,7 +54,7 @@
 
 ## 需要使用者先決定
 
-1. **目標校系頁的「探索校系／準備度排行」**（組員整合進來的）：A. 只留「我的目標」＋「找更多校系 →」到推薦排序頁（建議）；B. 保留。選 B 時 Task 6 只換骨架、不拿掉排行。
+1. ✅ **目標校系頁的「探索校系／準備度排行」**：使用者 2026-11-03 決定**拿掉，只留「我的目標」**，加「找更多校系 →」到推薦排序頁（Task 6 照 A 做）。
 2. **時機**：GPT 照現在畫面錄驗收紀錄，畫面改了要重錄；建議本計畫做完再錄。
 
 ## Review Focus
@@ -238,7 +238,7 @@ def test_search_still_works_without_javascript(student_client):
 
 **Files:**
 - Modify: `app/templates/student_targets.html`（改 `extends "layouts/flow.html"`）
-- 使用者選 A 時：Modify `app/templates/partials/target_explorer.html` 拿掉排行與篩選、`app/routes/student.py::target_list` 不再算排行；依賴舊畫面的測試（`tests/test_matching_page.py`、`tests/test_teammate_admission_eligibility.py` 斷言目標校系頁有排行的項目）改成斷言推薦排序頁。
+- Modify（使用者已選 A）： `app/templates/partials/target_explorer.html` 拿掉排行與篩選、`app/routes/student.py::target_list` 不再算排行；依賴舊畫面的測試（`tests/test_matching_page.py`、`tests/test_teammate_admission_eligibility.py` 斷言目標校系頁有排行的項目）改成斷言推薦排序頁。
 - Modify: `tests/design_budget.py`（加入 `MIGRATED_PAGES`、調低上限）
 
 - [ ] **Step 1: Write the failing test**
@@ -248,7 +248,7 @@ def test_targets_page_is_flow_layout(student_client):
     html = student_client.get("/student/targets").get_data(as_text=True)
     assert 'class="flow-steps"' in html
 
-def test_targets_page_no_longer_duplicates_ranking(student_client):  # 只有選 A 時
+def test_targets_page_no_longer_duplicates_ranking(student_client):
     html = student_client.get("/student/targets").get_data(as_text=True)
     assert "顯示排行" not in html and "準備度排行" not in html
     assert 'href="/student/matching' in html and "找更多校系" in html
