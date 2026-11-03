@@ -1,5 +1,12 @@
 # 專題交接（新對話從這裡開始）
 
+## 2026-11-03 Claude：兩個分支已合併進主開發分支（最新，先讀）
+
+- `feat/google-docs-autobiography` 最新為兩次合併（`23a1f82` 校園主題、`d8ec10e` 學校 Google 登入）加本次紀錄；完整測試 1043 通過、2 略過。未推送，未合併 `main`。
+- 下面兩節「另一個分支」的內容現在都已在本分支；工作資料夾 `D:\democase\_worktrees\ai-wt-campus-theme`、`ai-wt-school-login` 可保留或之後清理（清理前先問使用者）。
+- 展示站：`D:\democase\.claude\launch.json` 的 `story-merged-5013`（`localhost:5013`）。學校 Google 登入要用 `localhost`，管理員先在帳號管理綁定學號信箱。
+- 下一步（使用者排序）：使用者確認展示範圍 → 照 `docs/superpowers/plans/2026-11-03-smooth-flow.md` 做版型系統 → GPT 照新畫面錄驗收 → 簽名表。
+
 ## 2026-11-03 Claude：學校 Google 一鍵登入（另一個分支）
 
 - 分支 `feat/school-google-login`（工作資料夾 `D:\democase\_worktrees\ai-wt-school-login`），從 `d5f3aff` 開出，未推送、未合併；完整測試 1026 通過、9 略過。內容見開發日誌同名一節與 `docs/03_開發紀錄/01_參考與環境設定/學校Google登入_設定步驟.md`。

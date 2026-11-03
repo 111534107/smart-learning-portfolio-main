@@ -290,7 +290,7 @@ def test_assistant_button_collapses_on_phones():
     assert ".assistant__toggle" in text and "@media (max-width: 480px)" in text
 ```
 
-- [ ] **Step 2～4:** FAIL → 480px 以下縮成 56px 圓鈕（文字視覺隱藏、報讀讀得到）、`main` 底部留 5.5rem → passed
+- [ ] **Step 2～4:** FAIL → 480px 以下縮成 56px 圓鈕（文字視覺隱藏、報讀讀得到）、`main` 底部留 5.5rem → passed。同一步處理校園主題的左下角快捷鈕（`.quick-dock`）：2026-11-03 實測 800px 寬捲動中會蓋到卡片第一行，改為窄螢幕時與小助手合併成同一排底部工具列（不浮在內容上，或捲動時半透明縮小），並在測試裡斷言兩者不會同時佔用左下與右下。
 - [ ] **Step 5: Commit** `git commit -m "手機版小助手按鈕縮成圓鈕，不蓋住內容"`
 
 ### Task 9: 前後對照、實測、紀錄
