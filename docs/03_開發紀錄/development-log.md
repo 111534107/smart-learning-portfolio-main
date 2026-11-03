@@ -1,5 +1,30 @@
 # 開發日誌
 
+## 2026-11-04 升學 Agent 自己上網找官方招生來源
+
+日期：2026-11-04（台灣時間）
+
+開發者：Claude（工作資料夾 `D:\democase\_worktrees\ai-wt-agent-search`，分支 `feat/agent-web-search`，從 `fd004cc` 開出）
+
+目標：使用者指出原本的招生資料 Agent 只會檢查管理員手動登記的網址，「根本是人工作業」，設計初衷是 Agent 要能自己上網找資料。
+
+修改檔案：
+- `app/services/gemini_client.py`：新增 `search_web`，用 Gemini 內建的 Google 搜尋（`google_search` 工具），回傳摘要與來源清單；不需要新金鑰或新套件。
+- `app/services/admission_agent_service.py`：新增第一階段「上網找來源」：`default_search_queries`（今年與明年的二技技優甄審簡章、日間部二技申請入學簡章、資管系備審資料準備指引）、`resolve_url`（追 Google 轉址到真正網址，HEAD 失敗改 GET）、`official_url`（只收主機名稱結尾 `.edu.tw`、`.gov.tw`）、`discover_sources`（跳過重複，自動登記成來源，名稱前加「Agent 找到：」）。
+- `app/services/agent_patrol.py`：巡查第一步改成 `search_sources`（AI 可自己決定關鍵字，留空用預設），再檢查來源、擷取；固定流程也先搜尋；最多 12 步。
+- `app/routes/admin.py`、`app/templates/admin_agent.html`：執行紀錄顯示「上網找來源」與找到幾個；按鈕改為「讓 Agent 上網找資料並巡查」。
+- 測試：`tests/test_agent_web_search.py`（14 項）；`tests/test_agent_engine.py` 按鈕文字更新。
+
+不變的原則：搜尋只新增「要監看的來源」；擷取出的校系、日程仍是候選，管理員核准後學生才看得到（專題 `AGENTS.md` §8：AI 不得自行發布招生規則）。
+
+驗證結果：
+- 完整測試 1048 通過、9 略過（`logs/test-runs/search-full.txt`，在 HEAD 改 GET 修正前跑；修正後新測試 13 項通過）。7 項略過是本工作資料夾沒有離線 OCR 模型。
+- 真實 Gemini（`gemini-2.5-flash`、學校金鑰、記憶體資料庫不留資料）搜尋 3 組 115 學年度關鍵字：第一次找到 7 個官方來源、8 筆略過；發現部分學校網站不接受 HEAD 被誤判為非官方，改成 HEAD 失敗再用 GET 後，第二次找到 14 個官方來源、只有 2 筆真正的非官方網站略過。找到的包括技專校院招生委員會 115 簡章與日程 PDF、技專校院招生策略委員會「115 學年度二技多元入學進路指南手冊」、淡江資管系 115 書審準備指引、高科大選才專案辦公室學習準備建議頁，以及多所學校的二技簡章。
+
+已知限制：每次搜尋結果會不同；來源名稱只有網域（Gemini 給的標題就是網域）；找到的備審指引 PDF 目前會被當成簡章擷取（擷取不到校系就沒有候選），還沒做「擷取撰寫建議給自傳用」。
+
+下一步：把備審指引擷取成「各校系撰寫重點」，產生自傳時一起交給 AI；使用者確認後合併。未推送、未合併。
+
 ## 2026-11-03 合併校園主題與學校 Google 登入兩個分支
 
 日期：2026-11-03（台灣時間）
