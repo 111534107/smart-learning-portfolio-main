@@ -760,13 +760,28 @@ def _record_form_values(user):
     if semester not in (None, 1, 2):
         raise ValueError("學期只能是上學期或下學期")
     student_rules.check_record_year(user, school_year)
+    story = {}
+    for key, label, limit in STORY_FIELDS:
+        value = request.form.get(key, "").strip()
+        if len(value) > limit:
+            raise ValueError(f"{label}最多 {limit} 字")
+        story[key] = value or None
+    if story["domain_tags"]:
+        tags = [tag for tag in re.split(r"[、,，;；/\s]+", story["domain_tags"]) if tag]
+        story["domain_tags"] = "、".join(dict.fromkeys(tags))[:200] or None
     return {
         "title": title,
         "category": category,
         "school_year": school_year,
         "semester": semester,
         "description": request.form.get("description", "").strip(),
+        **story,
     }
+
+
+# 經歷的四個細節欄位（key, 名稱, 字數上限），表單與錯誤訊息共用
+STORY_FIELDS = (("role", "我負責的部分", 1000), ("achievement", "數字成果", 300),
+                 ("learned", "學到什麼", 1000), ("domain_tags", "相關領域", 200))
 
 
 def _record_status():

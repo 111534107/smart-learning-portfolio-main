@@ -21,6 +21,11 @@ class Portfolio(db.Model):
     title = db.Column(db.String(150), nullable=False)
     category = db.Column(db.String(50), nullable=False)
     description = db.Column(db.Text, nullable=True)
+    # 寫自傳用的四個細節（設計書 D-1）：各校備審指引都要求團體作品寫個人貢獻、成果與反思
+    role = db.Column(db.Text, nullable=True)  # 我負責的部分
+    achievement = db.Column(db.String(300), nullable=True)  # 數字成果（人數、名次、件數、時間）
+    learned = db.Column(db.Text, nullable=True)  # 學到什麼
+    domain_tags = db.Column(db.String(200), nullable=True)  # 相關領域，用「、」分隔（例如系統開發、醫療資訊）
     course_name = db.Column(db.String(100), nullable=True)
     school_year = db.Column(db.Integer, nullable=True)
     semester = db.Column(db.Integer, nullable=True)

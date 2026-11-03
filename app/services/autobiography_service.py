@@ -82,8 +82,12 @@ def build_facts(student, program):
         label = CATEGORY_LABELS.get(record.category)
         if label:
             source = "" if record.source == "student" else f"（來源：{record.source_label}）"
+            details = "；".join(f"{name}：{value}" for name, value in (
+                ("我負責", record.role), ("成果", record.achievement), ("學到", record.learned), ("領域", record.domain_tags))
+                if value)
             lines.append({
-                "text": f"{label}：{record.title}" + (f"—{record.description}" if record.description else "") + source,
+                "text": f"{label}：{record.title}" + (f"—{record.description}" if record.description else "")
+                        + (f"（{details}）" if details else "") + source,
                 "evidence_id": f"portfolio:{record.id}",
                 "evidence_type": "portfolio",
             })
