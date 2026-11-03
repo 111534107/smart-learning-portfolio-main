@@ -131,7 +131,11 @@ def google_login_callback():
                                google_login_enabled=g_login.configured(current_app.config)), 403
     try:
         claims = g_login.client_for(current_app).verify_code(request.args["code"])
-    except g_login.GoogleLoginError:
+    except g_login.GoogleLoginError as error:
+        # 畫面只給固定提示；伺服器紀錄留下真正原因（不含權杖），之後才查得出是哪一步失敗
+        cause = error.__cause__
+        current_app.logger.warning("學校 Google 登入驗證失敗：%s：%s", type(cause).__name__ if cause else "GoogleLoginError",
+                                   str(cause or error)[:300])
         return render_template("login.html", error="Google 登入驗證失敗，請重試。",
                                google_login_enabled=g_login.configured(current_app.config)), 403
     identity = g_login.school_identity(claims)

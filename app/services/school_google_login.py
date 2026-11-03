@@ -8,6 +8,7 @@ from urllib.request import Request, urlopen
 DOMAIN = "stu.ukn.edu.tw"
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
+CLOCK_SKEW_SECONDS = 10
 
 
 class GoogleLoginError(Exception):
@@ -55,7 +56,9 @@ class HttpGoogleLoginClient:
             token = payload["id_token"]
             from google.auth.transport.requests import Request as GoogleRequest
             from google.oauth2 import id_token
-            claims = id_token.verify_oauth2_token(token, GoogleRequest(), self.config["GOOGLE_OAUTH_CLIENT_ID"])
+            # 容許 10 秒時鐘誤差：預設 0 秒，電腦時間比 Google 慢幾秒就會「Token used too early」（2026-11-03 實測慢 5 秒）
+            claims = id_token.verify_oauth2_token(token, GoogleRequest(), self.config["GOOGLE_OAUTH_CLIENT_ID"],
+                                                  clock_skew_in_seconds=CLOCK_SKEW_SECONDS)
         except Exception as error:
             raise GoogleLoginError("Google identity verification failed") from error
         if not isinstance(claims, dict):

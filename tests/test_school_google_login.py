@@ -217,3 +217,34 @@ def test_google_button_stays_visible_after_wrong_password():
     response = app.test_client().post("/login", data={"username": "unknown", "password": "wrong"})
     assert response.status_code == 401
     assert "/auth/google" in response.get_data(as_text=True)
+
+
+def test_real_client_allows_small_clock_skew_and_keeps_cause(monkeypatch):
+    """2026-11-03 實測：電腦時間比 Google 慢 5 秒，預設 0 秒誤差就被拒絕（Token used too early）。"""
+    import io
+    import json
+    from google.oauth2 import id_token
+    from app.services import school_google_login as g_login
+
+    class Response(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    monkeypatch.setattr(g_login, "urlopen", lambda request, timeout: Response(json.dumps({"id_token": "t"}).encode()))
+    seen = {}
+
+    def fake_verify(token, request, audience, clock_skew_in_seconds=0):
+        seen["skew"] = clock_skew_in_seconds
+        if clock_skew_in_seconds < 5:
+            raise ValueError("Token used too early")
+        return {"sub": "1", "email": SCHOOL_EMAIL, "email_verified": True, "hd": "stu.ukn.edu.tw"}
+
+    monkeypatch.setattr(id_token, "verify_oauth2_token", fake_verify)
+    client = g_login.HttpGoogleLoginClient({"GOOGLE_OAUTH_CLIENT_ID": "id", "GOOGLE_OAUTH_CLIENT_SECRET": "s",
+                                            "GOOGLE_LOGIN_REDIRECT_URI": "http://localhost:5013/auth/google/callback"})
+
+    assert client.verify_code("code")["email"] == SCHOOL_EMAIL
+    assert seen["skew"] >= 10
