@@ -20,6 +20,12 @@
     <div class="auth__card" data-motion="reveal">
       <h2>登入系統</h2>
       {% if error %}<p class="alert mb-1" role="alert">{{ error }}</p>{% endif %}
+      {% if google_login_enabled %}<a class="google-login google-login--primary" href="{{ url_for('main.google_login', next=next_path) }}">{% else %}<button class="google-login google-login--primary" type="button" disabled aria-describedby="google-unavailable">{% endif %}
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 48 48"><path fill="#4285F4" d="M43.6 24.5c0-1.4-.1-2.7-.4-4H24v7.6h11c-.5 2.5-1.9 4.6-4 6v5h6.6c3.9-3.6 6-8.8 6-14.6z"/><path fill="#34A853" d="M24 44c5.4 0 10-1.8 13.4-4.9l-6.6-5c-1.8 1.2-4.2 1.9-6.8 1.9-5.2 0-9.6-3.5-11.2-8.3H6v5.2C9.3 39.5 16.1 44 24 44z"/><path fill="#FBBC05" d="M12.8 27.7a12 12 0 0 1 0-7.4v-5.2H6a20 20 0 0 0 0 17.8z"/><path fill="#EA4335" d="M24 12c2.9 0 5.5 1 7.5 3l5.6-5.6A19.2 19.2 0 0 0 24 4C16.1 4 9.3 8.5 6 15.1l6.8 5.2C14.4 15.5 18.8 12 24 12z"/></svg>
+        <span>使用學校 Google Workspace 帳號登入</span>
+      {% if google_login_enabled %}</a>{% else %}</button>{% endif %}
+      {% if google_login_enabled %}<p class="small">學生請用 @stu.ukn.edu.tw 學校帳號（第一次登入會建立你的帳號）；老師與職員請用學校信箱，帳號須由管理員建立。</p>{% else %}<p class="small" id="google-unavailable">Google 登入尚未設定，請聯絡管理員。</p>{% endif %}
+      <p class="auth__divider"><span>或用帳號密碼登入</span></p>
       <form method="post" class="form-stack">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         {% if next_path %}<input type="hidden" name="next" value="{{ next_path }}">{% endif %}
@@ -27,10 +33,6 @@
         <label class="field">密碼<input name="password" type="password" autocomplete="current-password" required></label>
         <button class="button" type="submit">登入 →</button>
       </form>
-      {% if google_login_enabled %}
-      <p class="small">學校帳號須為 @stu.ukn.edu.tw，並由管理員先綁定。</p>
-      <a class="button button--quiet" href="{{ url_for('main.google_login', next=next_path) }}">使用學校 Google 帳號登入 →</a>
-      {% endif %}
     </div>
     {% if config.get("DEMO_ACCOUNTS") and config.get("FLASK_ENV") != "production" %}
     <section class="demo-login" aria-labelledby="demo-login-title">

@@ -32,6 +32,11 @@
     <p class="ai-boundary__confirm">✓ 送出前要你自己確認</p>
   </aside>
 
+  <details class="strengths-disclosure" aria-labelledby="strengths-title"><summary id="strengths-title">已確認資料盤點</summary>
+
+    <p class="small muted">這是資料分類與數量，請根據具體經驗整理自己的核心優勢；數量不是能力評分。</p>
+    <ul>{% for group in strength_inventory %}<li>{{ group.label }}：{{ group.count }} 筆<ul>{% for item in group.evidence %}<li>{{ item.name }}</li>{% endfor %}</ul></li>{% else %}<li>尚無已確認資料。</li>{% endfor %}</ul>
+  </details>
   {% if asking %}
   {# 第一步：回答問題。有 JavaScript 時一次顯示一題 #}
   <div class="split">
@@ -62,7 +67,7 @@
         <button class="button button--line" type="button" data-step-prev>← 上一題</button>
         <button class="button button--line" type="button" data-step-next>下一題 →</button>
         <button class="button" type="submit" data-step-submit{% if review_note %} disabled{% endif %}
-                data-busy-text="{{ 'AI 正在寫草稿…（約 10～30 秒）' if ai_on else '正在整理示範草稿…' }}">
+                data-busy-text="{{ 'AI 正在寫草稿，請稍候…' if ai_on else '正在整理示範草稿…' }}">
           {{ "請 AI 寫草稿" if ai_on else "產生示範草稿" }}
         </button>
       </div>

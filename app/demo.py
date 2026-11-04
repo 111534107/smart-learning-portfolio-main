@@ -55,6 +55,14 @@ class SerializedWSGI:
 DEMO_CATEGORY_NAMES = {"activity": "活動", "competition": "競賽", "service": "服務", "leadership": "幹部"}
 
 
+# 以下情節與數字均為虛構，供展示與測試使用。
+DEMO_STORIES = {
+    "activity": ("數位學習工作坊", "協助同學練習製作簡易網頁", "規劃練習步驟並協助排除錯誤", "協助 12 位同學完成練習", "將複雜步驟拆解成容易理解的說明", "數位學習、網頁開發"),
+    "competition": ("校內程式設計挑戰", "與組員設計圖書借閱查詢原型", "負責查詢功能與測試案例", "完成 8 項查詢測試並獲示範組佳作", "透過測試及討論改善程式錯誤", "程式設計、系統開發"),
+    "service": ("校園資訊服務", "協助整理教室設備與使用說明", "檢查設備並記錄處理狀況", "整理 15 台設備的檢查紀錄", "遇到問題先記錄現象再逐步排查", "資訊維護、服務學習"),
+    "leadership": ("班級活動協調", "與同學共同籌備班級成果分享", "整理工作清單並聯絡各組進度", "協調 4 組完成分享準備", "確認需求和回報進度能減少誤解", "團隊合作、專案管理"),
+}
+
 def _seed_journey_board(student_id, admission_year):
     """補滿示範學生的拼圖桌：走過的每一年 × 六類各一筆已確認資料，讓展示時能生成自傳。
 
@@ -72,9 +80,11 @@ def _seed_journey_board(student_id, admission_year):
             issue_date=date(year + 1911, 10, 1), confirmation_status="confirmed",
         ))
         for category in EXPERIENCE_CATEGORIES:
+            title, description, role, achievement, learned, domain_tags = DEMO_STORIES[category]
             portfolio = Portfolio(
-                student_id=student_id, title=f"【測試】{DEMO_CATEGORY_NAMES[category]}{grade}", category=category,
-                school_year=grade, status="confirmed",
+                student_id=student_id, title=f"【測試】{DEMO_CATEGORY_NAMES[category]}{grade}：{title}", category=category,
+                description=f"僅為測試資料：{description}。", role=role, achievement=achievement,
+                learned=learned, domain_tags=domain_tags, school_year=grade, status="confirmed",
             )
             db.session.add(portfolio)
             portfolios[(category, grade)] = portfolio

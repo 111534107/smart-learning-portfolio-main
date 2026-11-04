@@ -18,6 +18,7 @@
     <a class="button" href="{{ url_for('student.learning_profile_upload_page', type=kind) }}" data-tour="{{ page_label }}從這裡上傳。" data-tour-order="1">＋ 上傳{{ page_label }}</a>
   </div>
 
+
     <div>
       <section class="record-group" aria-labelledby="docs-title" data-tour="上傳後按「確認」，資料才算數。" data-tour-order="2">
         <div class="record-group__head"><h2 id="docs-title">我上傳的文件</h2><span class="muted small">{{ documents|length }} 份</span></div>
@@ -49,11 +50,11 @@
         <div class="record-group__head"><h2 id="courses-title">成績與學分</h2><span class="muted small">{{ courses|length }} 門課</span></div>
         {% if courses %}
         <div class="table-wrap">
-          <table class="data-table">
+          <table class="data-table course-table">
             <thead><tr><th>年級</th><th>學期</th><th>課程</th><th>學分</th><th>分數</th><th>狀態</th></tr></thead>
             <tbody>
               {% for course in courses %}
-              <tr><td>{{ course.school_year or course.grade_level or "—" }}</td><td>{{ course.semester or "—" }}</td><td>{{ course.course_name }}</td><td>{{ course.credits if course.credits is not none else "—" }}</td><td>{{ course.score if course.score is not none else (course.status_mark or "—") }}</td><td>{{ status_chip(record_state(course)) }}</td></tr>
+              <tr><td data-label="年級">{{ course.school_year or course.grade_level or "—" }}</td><td data-label="學期">{{ course.semester or "—" }}</td><td data-label="課程">{{ course.course_name }}</td><td data-label="學分">{{ course.credits if course.credits is not none else "—" }}</td><td data-label="分數">{{ course.score if course.score is not none else (course.status_mark or "—") }}</td><td data-label="狀態">{{ status_chip(record_state(course)) }}</td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -83,6 +84,18 @@
       {% endif %}
 
     </div>
+  {% if kind == "transcript" %}
+  <details class="outputs-disclosure" aria-labelledby="outputs-title">
+    <summary id="outputs-title">學習歷程成果</summary>
+    <p>依已確認的成績與證照整理草稿；課程缺漏依輸入學年度的課程規則計算，請自行核對。</p>
+    <form method="post" action="{{ url_for('student.learning_profile_generate') }}" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="field">課程規則學年度（民國）<input name="school_year" type="number" min="1" max="999" required></label>
+      <button class="button" type="submit">產生成果草稿</button>
+    </form>
+    <ul>{% for output in outputs if output.output_type in output_labels %}<li>{{ output_labels[output.output_type] }}（{{ output.created_at|taipei_time }}） <a href="{{ url_for('student.learning_profile_output_docx', output_id=output.id) }}">下載 Word</a></li>{% else %}<li>尚未產生成果草稿。</li>{% endfor %}</ul>
+  </details>
+  {% endif %}
 </div>
 {% endblock %}
 

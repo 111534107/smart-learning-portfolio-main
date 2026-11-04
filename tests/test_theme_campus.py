@@ -79,13 +79,11 @@ def test_band_colours_pass_contrast_with_white_text():
         assert contrast_with_white(hex_colour) >= 4.5, hex_colour
 
 
-def test_student_pages_show_quick_dock():
+def test_student_pages_no_longer_show_quick_dock():
+    """2026-11-04 使用者決定拿掉左下角快捷鈕：會蓋到內文，也看不出是什麼。"""
     html = login(ui_app(), "ui-student").get("/student/targets").get_data(as_text=True)
 
-    assert 'class="quick-dock"' in html
-    assert 'href="/student/schedule"' in html
-    assert 'href="/student/autobiography"' in html
-    assert 'href="#main-content"' in html
+    assert 'class="quick-dock"' not in html
 
 
 def test_quick_dock_hidden_on_home_and_for_teachers():
@@ -101,3 +99,20 @@ def test_quick_dock_is_not_printed_and_respects_small_screens():
 
     assert "@media print" in text and ".quick-dock" in text
     assert "@media (max-width: 1360px)" in text  # 放不下右側標籤時改到左下角，不蓋內容
+
+
+def test_operational_palette_matches_five_year_home_without_recolouring_home():
+    text = THEME_CSS.read_text(encoding='utf-8')
+    assert '--paper: #f3efe6' in text
+    assert '--paper-deep: #e9e2d3' in text
+    assert '--sheet: #fffdf8' in text
+    assert '--line: #d6cdbb' in text
+    assert '--band-caramel: var(--band-navy)' in text
+    assert 'background: #f4f7fb' not in text
+
+def test_gap_progress_line_does_not_cross_labels():
+    import re
+    css = THEME_CSS.read_text(encoding="utf-8")
+    rule = re.search(r'\[data-theme="campus"\]\s+\.vessel\.is-filled::after\s*\{([^}]*)\}', css)
+    assert rule is not None
+    assert re.search(r'display\s*:\s*none\s*;', rule.group(1))

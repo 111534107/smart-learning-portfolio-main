@@ -82,8 +82,8 @@
         {% if record.description %}<p>{{ record.description }}</p>{% endif %}
       </a>
       {% if fits %}
-      <div class="fit-line">
-        <p class="fit-line__label">對這些學校的甄審有幫助</p>
+      <details class="fit-line">
+        <summary class="fit-line__label">查看適用校系（{{ fits|length }}）：對這些學校的甄審有幫助</summary>
         <ul class="fit-line__list">
           {% for entry in fits %}
           <li>
@@ -95,7 +95,7 @@
           </li>
           {% endfor %}
         </ul>
-      </div>
+      </details>
       {% else %}
       <p class="fit-line fit-line--empty">{{ fit.empty_note }}。</p>
       {% endif %}

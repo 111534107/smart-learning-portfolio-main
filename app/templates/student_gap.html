@@ -80,7 +80,7 @@
       <p class="muted small mb-1">佔分越高的章節排越前面。</p>
       <ol class="toc">
         {% for chapter in chapters %}
-        <li><span>{{ chapter.title }} <span class="mono">原 {{ chapter.code }}</span></span>{% if chapter.weight %}<span class="toc__bar" style="--w: {{ chapter.weight }};" title="相關加權 {{ chapter.weight }}%"><i></i></span>{% else %}<span class="mono">{{ "固定章節" if chapter.code in ("01", "02") else "此校系未列加權" }}</span>{% endif %}</li>
+        <li><span>{{ chapter.title }} <span class="mono">原 {{ chapter.code }}</span></span>{% if chapter.weight %}<span class="toc__bar" style="--w: {{ chapter.weight }};" title="相關加權 {{ chapter.weight }}%"><i></i></span>{% else %}<span class="mono">{{ "固定章節" if chapter.code in ("01", "02") else "此校系未列加權" }}</span>{% endif %}{% if chapter.evidence %}<ul class="toc__evidence">{% for item in chapter.evidence %}<li>{{ item.name }}</li>{% endfor %}</ul>{% endif %}</li>
         {% endfor %}
       </ol>
     </section>

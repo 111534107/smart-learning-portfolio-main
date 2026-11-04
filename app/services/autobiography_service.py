@@ -15,6 +15,7 @@ import difflib
 from datetime import datetime, timezone
 
 from markupsafe import Markup, escape
+from flask import current_app
 
 from app.extensions import db
 from app.models import AdmissionProgram, CredentialRecord, LearningCourseRecord, LearningProfileOutput, Portfolio, User
@@ -100,6 +101,41 @@ def build_facts(student, program):
     return {"items": items, "weights": weights}
 
 
+def strength_inventory(student):
+    """按現有類別盤點已確認資料；數量並非能力評分。"""
+    groups = {}
+    def add(label, name, evidence_id):
+        groups.setdefault(label, []).append({"name": name, "evidence_id": evidence_id})
+    for item in LearningCourseRecord.query.filter_by(student_id=student.id, confirmation_status="confirmed"):
+        add("已確認課程", item.course_name, f"course:{item.id}")
+    for item in CredentialRecord.query.filter_by(student_id=student.id, confirmation_status="confirmed"):
+        add("證照：" + (item.category or "未分類"), item.credential_name, f"credential:{item.id}")
+    for item in Portfolio.active().filter_by(student_id=student.id, status="confirmed"):
+        if item.category in CATEGORY_LABELS:
+            add(CATEGORY_LABELS[item.category], item.title, f"portfolio:{item.id}")
+    return [{"label": label, "count": len(items), "evidence": items} for label, items in groups.items()]
+
+def custom_contents(student, program):
+    """依加權列出已確認的具體佐證；保留資料來源供學生核對。"""
+    from app.services.gap_service import chapter_order
+
+    courses = LearningCourseRecord.query.filter_by(student_id=student.id, confirmation_status="confirmed").all()
+    credentials = CredentialRecord.query.filter_by(student_id=student.id, confirmation_status="confirmed").all()
+    records = Portfolio.active().filter_by(student_id=student.id, status="confirmed").all()
+    chapters = chapter_order(program)
+    for chapter in chapters:
+        evidence = []
+        if "grades" in chapter["keys"]:
+            evidence.extend({"name": c.course_name, "evidence_id": f"course:{c.id}"} for c in courses)
+        if "credential" in chapter["keys"]:
+            evidence.extend({"name": c.credential_name, "evidence_id": f"credential:{c.id}"} for c in credentials)
+        for record in records:
+            if record.category in chapter["keys"] or ("project" in chapter["keys"] and
+                    ("專題" in record.title or "作品" in record.title)):
+                evidence.append({"name": record.title, "evidence_id": f"portfolio:{record.id}"})
+        chapter["evidence"] = evidence
+    return chapters
+
 def build_evidence_package(student, program):
     """為指定校系整理學生已確認、可追溯來源的最小證據包。"""
     facts = build_facts(student, program)
@@ -117,7 +153,7 @@ def _prompt(student, program, facts, answers):
 2. 只能使用下面的「學生資料」和「學生回答」，不得編造任何獎項、分數、證照、職位或經歷。資料不足就少寫，不要補。
 3. 學生沒回答的題目，那一段的 text 只寫「（請補上：題目內容）」，sources 給空陣列；不要從其他資料推想他的感受、心得或經過。
 4. 依校系加權，把加權高的項目相關經驗寫得比較完整。
-5. 分成 4 段：學習動機、學習歷程與具體經驗、困難與成長、未來規劃。總長約 600～900 字。
+5. 段落標題依內容命名，長度依簡章規定；沒有規定時以約 1500～2500 字為目標，資料不足時寧可較短，不得為湊字數編造。
 6. 每段的 sources 列出這段用到的學生資料編號（例如 F2）；只用到學生回答就給空陣列。
 
 學生資料（只能引用這些）：
@@ -155,11 +191,18 @@ def generate_draft(student, program, answers, generate=None, api_key=None):
     previous = latest_draft(student, program)
     known = {fact["id"] for fact in facts["items"]}
     answers = {key: (answers.get(key) or "").strip()[:1000] for key, _, _ in QUESTIONS}
-    if generate is None and not api_key and not ai_ready():
+    use_ollama = not api_key and ollama_ready()
+    if generate is None and not api_key and not ai_ready() and not use_ollama:
         paragraphs, provider = _demo_paragraphs(facts, answers), "demo"
     else:
         prompt = _prompt(student, program, facts, answers)
-        result = generate(prompt, PARAGRAPH_SCHEMA) if generate else generate_json(prompt, PARAGRAPH_SCHEMA, api_key=api_key)
+        if generate:
+            result = generate(prompt, PARAGRAPH_SCHEMA)
+        elif use_ollama:
+            from app.services import ollama_client
+            result = ollama_client.generate_json(prompt, PARAGRAPH_SCHEMA)
+        else:
+            result = generate_json(prompt, PARAGRAPH_SCHEMA, api_key=api_key)
         paragraphs = [{
             "title": str(p.get("title", "")).strip()[:30],
             "text": str(p.get("text", "")).strip(),
@@ -167,7 +210,7 @@ def generate_draft(student, program, answers, generate=None, api_key=None):
         } for p in result.get("paragraphs", []) if str(p.get("text", "")).strip()]
         if not paragraphs:
             raise AIUnavailable("AI 沒有產生內容，請再試一次。")
-        provider = "gemini"
+        provider = "ollama" if use_ollama and generate is None else "gemini"
     content = {
         "program_id": program.id,
         "answers": answers,
@@ -192,6 +235,11 @@ def generate_draft(student, program, answers, generate=None, api_key=None):
     db.session.add(output)
     db.session.commit()
     return output
+
+
+def ollama_ready():
+    return bool(current_app.config.get("AI_ENABLED") and
+                current_app.config.get("AUTOBIOGRAPHY_AI_PROVIDER", "gemini") == "ollama")
 
 
 def carried_answers(student):

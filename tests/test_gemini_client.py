@@ -83,3 +83,54 @@ def test_rate_limit_waits_and_retries_once(monkeypatch):
         assert generate_json("x", {}, opener=opener) == {}
 
     assert calls == ["call", ("sleep", 4), "call"]
+
+
+# ---- 2026-11-04 實測：上傳獎懲記錄時 Gemini 回 503（伺服器忙），原本直接放棄 ----
+
+def _ok():
+    reply = {"candidates": [{"content": {"parts": [{"text": "{}"}]}}]}
+    return FakeResponse(json.dumps(reply).encode())
+
+
+def test_server_busy_retries_then_succeeds(monkeypatch):
+    calls = []
+    monkeypatch.setattr("app.services.gemini_client.time.sleep", lambda seconds: calls.append(("sleep", seconds)))
+
+    def opener(request, timeout):
+        calls.append("call")
+        if calls.count("call") == 1:
+            raise urllib.error.HTTPError(request.full_url, 503, "Unavailable", {}, None)
+        return _ok()
+
+    with make_app(**READY).app_context():
+        assert generate_json("x", {}, opener=opener) == {}
+
+    assert calls[0] == "call" and calls[1][0] == "sleep" and calls[2] == "call"
+
+
+def test_server_busy_switches_to_backup_model(monkeypatch):
+    monkeypatch.setattr("app.services.gemini_client.time.sleep", lambda seconds: None)
+    urls = []
+
+    def opener(request, timeout):
+        urls.append(request.full_url)
+        if "gemini-test:" in request.full_url:
+            raise urllib.error.HTTPError(request.full_url, 503, "Unavailable", {}, None)
+        return _ok()
+
+    with make_app(**READY, GEMINI_FALLBACK_MODEL="gemini-backup").app_context():
+        assert generate_json("x", {}, opener=opener) == {}
+
+    assert sum("gemini-test:" in url for url in urls) == 3  # 主要模型試 3 次
+    assert "gemini-backup:" in urls[-1]
+
+
+def test_server_busy_everywhere_gives_clear_message(monkeypatch):
+    monkeypatch.setattr("app.services.gemini_client.time.sleep", lambda seconds: None)
+
+    def opener(request, timeout):
+        raise urllib.error.HTTPError(request.full_url, 503, "Unavailable", {}, None)
+
+    with make_app(**READY, GEMINI_FALLBACK_MODEL="gemini-backup").app_context():
+        with pytest.raises(AIUnavailable, match="太忙"):
+            generate_json("x", {}, opener=opener)

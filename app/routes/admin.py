@@ -238,7 +238,7 @@ def bind_school_email(user_id):
     if not account:
         abort(404)
     if account.role != "student":
-        abort(400, description="只能為學生綁定學校信箱。")
+        return _bind_staff_email(actor, account)
     school_account = request.form.get("school_account", "").strip().lower()
     student_no = (account.student_profile.student_no if account.student_profile else account.username).lower()
     if school_account and (not re.fullmatch(r"[a-z0-9._-]+", school_account) or school_account != student_no):
@@ -255,6 +255,51 @@ def bind_school_email(user_id):
                                 detail_json={"from": old_email, "to": account.email}))
         db.session.commit()
     return redirect(url_for("admin.accounts"))
+
+
+def _bind_staff_email(actor, account):
+    """老師、科辦、管理員：填完整的學校信箱，只接受「Google 登入設定」裡的教職員網域。"""
+    from app.services import google_workspace
+    domain = google_workspace.settings()["staff_domain"]
+    if "school_email" not in request.form:
+        abort(400, description="教職員請填完整的學校信箱（學號欄位只給學生用）。")
+    email = request.form.get("school_email", "").strip().lower()
+    if email and (not re.fullmatch(r"[a-z0-9._-]+@" + re.escape(domain), email)):
+        abort(400, description=f"教職員信箱須為 @{domain}（可在「Google 登入設定」修改網域）。")
+    if email and User.query.filter(db.func.lower(User.email) == email, User.id != account.id).first():
+        abort(400, description="此學校信箱已綁定其他帳號。")
+    if account.email != (email or None):
+        old_email = account.email
+        account.email = email or None
+        account.google_sub = None
+        db.session.add(AuditLog(user_id=actor.id, action="staff.school_email.update", target_type="user",
+                                target_id=account.id, detail_json={"from": old_email, "to": account.email}))
+        db.session.commit()
+    return redirect(url_for("admin.accounts"))
+
+
+@admin_bp.route("/admin/google-workspace", methods=["GET", "POST"])
+@role_required("admin")
+def google_workspace_page():
+    """學校 Google Workspace 一鍵登入：開關、學生第一次登入自動建帳號、教職員網域；看誰用 Google 登入過。"""
+    from app.services import google_workspace, school_google_login
+    error = None
+    if request.method == "POST":
+        try:
+            google_workspace.save_settings(request.form, get_current_user())
+            return redirect(url_for("admin.google_workspace_page", saved=1))
+        except ValueError as exc:
+            error = str(exc)
+    config = current_app.config
+    oauth = {"client_id": bool(config.get("GOOGLE_OAUTH_CLIENT_ID")),
+             "client_secret": bool(config.get("GOOGLE_OAUTH_CLIENT_SECRET")),
+             "redirect_uri": config.get("GOOGLE_LOGIN_REDIRECT_URI") or ""}
+    linked = (User.query.filter(User.google_sub.isnot(None)).order_by(User.updated_at.desc()).limit(50).all())
+    auto_created = {row.target_id for row in AuditLog.query.filter_by(action="user.google_auto_create").all()}
+    return render_template("admin_google_workspace.html", user=get_current_user(), settings=google_workspace.settings(),
+                           oauth=oauth, ready=school_google_login.configured(config), linked=linked,
+                           auto_created=auto_created, student_domain=school_google_login.DOMAIN,
+                           error=error), (400 if error else 200)
 
 
 @admin_bp.route("/admin/project-types", methods=["GET", "POST"])

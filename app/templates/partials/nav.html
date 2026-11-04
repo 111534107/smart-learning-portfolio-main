@@ -5,9 +5,9 @@
   "student": [("我的五年", url_for("main.student_dashboard")), ("成績單", url_for("student.learning_profile")), ("證照", url_for("student.learning_profile_credentials")), ("活動與經歷", url_for("student.portfolio_list")), ("目標校系", url_for("student.target_list"))],
   "teacher": [("工作台", url_for("main.teacher_dashboard")), ("我的審查", url_for("review.teacher_reviews"))],
   "staff": [("電子獎狀", url_for("certificate.staff_list")), ("待處理送件", url_for("main.staff_dashboard"))],
-  "admin": [("系統總覽", url_for("main.admin_dashboard")), ("帳號管理", url_for("admin.accounts")), ("專題規則", url_for("admin.project_types")), ("課程規則", url_for("admin.course_rules")), ("排行篩選選項", url_for("admin.match_filters")), ("校系資料", url_for("admin.programs")), ("招生資料 Agent", url_for("admin.agent_home")), ("導師班級", url_for("admin.classes")), ("OCR 辨識設定", url_for("admin.ocr_settings_page")), ("檔案存放設定", url_for("storage.settings_page")), ("操作紀錄", url_for("admin.audit_logs"))],
+  "admin": [("系統總覽", url_for("main.admin_dashboard")), ("帳號管理", url_for("admin.accounts")), ("專題規則", url_for("admin.project_types")), ("課程規則", url_for("admin.course_rules")), ("排行篩選選項", url_for("admin.match_filters")), ("校系資料", url_for("admin.programs")), ("招生資料 Agent", url_for("admin.agent_home")), ("導師班級", url_for("admin.classes")), ("OCR 辨識設定", url_for("admin.ocr_settings_page")), ("檔案存放設定", url_for("storage.settings_page")), ("操作紀錄", url_for("admin.audit_logs")), ("Google 登入設定", url_for("admin.google_workspace_page"))],
 } %}
-<header class="masthead">
+<header class="masthead{% if user and user.role == 'admin' %} masthead--admin{% endif %}">
   <div class="masthead__inner">
     <a class="brand" href="{{ url_for('main.index') }}">
       <span class="brand__mark" aria-hidden="true">IM</span>
@@ -16,10 +16,24 @@
     </a>
     <nav class="masthead__links" aria-label="主要導覽">
       {% if user %}
+        {% if user.role == "admin" %}
+        {% set admin_links = links["admin"] %}
+        <a href="{{ admin_links[0][1] }}"{% if active == admin_links[0][0] %} aria-current="page"{% endif %}>系統總覽</a>
+        <div class="admin-nav-groups" role="group" aria-label="管理功能分類">
+          {% for name, indices in [("帳號與角色", [1, 11, 7]), ("課程與招生", [2, 3, 4, 5, 6]), ("系統設定", [8, 9, 10])] %}
+          <details class="admin-nav-group">
+            <summary>{{ name }}</summary>
+            <div class="admin-nav-group__links">{% for index in indices %}{% set label, href = admin_links[index] %}<a href="{{ href }}"{% if label == active %} aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}</div>
+          </details>
+          {% endfor %}
+        </div>
+        {% else %}
         {% for label, href in links.get(user.role, []) %}
         <a href="{{ href }}"{% if label == active %} aria-current="page"{% endif %}>{{ label }}</a>
         {% endfor %}
+        {% endif %}
         <button type="button" class="masthead__help" data-tour-start hidden>導覽</button>
+        {{ font_switch() }}
         <a class="masthead__help" href="{{ url_for('main.help_page') }}">❓ 怎麼操作</a>
         <span class="masthead__user">{{ user.display_name }}</span>
         <form method="post" action="{{ url_for('main.logout') }}">
@@ -28,6 +42,7 @@
         </form>
       {% else %}
         <a href="{{ url_for('main.index') }}#route">我的五年</a>
+        {{ font_switch() }}
         <a class="button button--small" href="{{ url_for('main.login') }}">登入</a>
       {% endif %}
     </nav>
@@ -59,10 +74,14 @@
       {% for label, href in items %}
       <a href="{{ href }}"{% if label == active %} aria-current="page"{% endif %}>{{ label }}</a>
       {% endfor %}
+      {# 小助手規劃的待辦：放主選單、顯示數字；有等你同意的計畫時亮一個點 #}
+      {% set todo_count = agent_todos.open if agent_todos is defined else 0 %}
+      <a class="mainnav__todo" href="{{ url_for('agent_plan.issues') }}"{% if active == "我的待辦" %} aria-current="page"{% endif %}>我的待辦{% if todo_count %} <span class="mainnav__count" aria-label="{{ todo_count }} 項未完成">{{ todo_count }}</span>{% endif %}{% if agent_todos is defined and agent_todos.pending_plan %}<span class="mainnav__dot" title="有規劃提案等你同意" aria-label="有規劃提案等你同意"></span>{% endif %}</a>
     </nav>
     <div class="masthead__links">
       <button type="button" class="masthead__help" data-tour-start hidden>導覽</button>
-      <a class="masthead__help" href="{{ url_for('main.help_page') }}">❓ 怎麼操作</a>
+      {{ font_switch() }}
+        <a class="masthead__help" href="{{ url_for('main.help_page') }}">❓ 怎麼操作</a>
       <span class="masthead__user">{{ user.display_name }}</span>
       <form method="post" action="{{ url_for('main.logout') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -126,4 +145,12 @@
     <span class="mono">展示資料皆為測試資料</span>
   </div>
 </footer>
+{% endmacro %}
+
+{# 字體大小切換（小／中／大）：改 <html data-font-size>，全站 rem 一起縮放；選擇記在這台瀏覽器（components.js）。 #}
+{% macro font_switch() %}
+<div class="font-switch" role="group" aria-label="字體大小">
+  <span class="font-switch__icon" aria-hidden="true">Aa</span>
+  {% for value, label in (("sm", "小"), ("md", "中"), ("lg", "大")) %}<button type="button" data-font-size-set="{{ value }}" aria-pressed="false" title="字體{{ label }}">{{ label }}</button>{% endfor %}
+</div>
 {% endmacro %}

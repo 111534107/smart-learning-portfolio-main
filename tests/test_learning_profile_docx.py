@@ -41,3 +41,34 @@ def test_student_can_generate_and_download_own_word_output(tmp_path):
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     )
     assert download_response.data.startswith(b"PK")
+
+
+def test_learning_profile_page_provides_generation_and_download_links(tmp_path):
+    app = learning_profile_app(tmp_path)
+    client = app.test_client()
+    client.post('/login', data={'username': 'student_demo', 'password': 'pw'})
+    page = client.get('/student/learning-profile').get_data(as_text=True)
+    assert '/student/learning-profile/generate' in page
+    assert '學習歷程成果' in page
+    client.post('/student/learning-profile/generate', data={'school_year': '115'})
+    page = client.get('/student/learning-profile').get_data(as_text=True)
+    assert '學習摘要' in page and '/docx' in page
+
+
+def test_output_generation_is_available_without_displacing_records(tmp_path):
+    app = learning_profile_app(tmp_path)
+    client = app.test_client()
+    client.post('/login', data={'username': 'student_demo', 'password': 'pw'})
+    page = client.get('/student/learning-profile').get_data(as_text=True)
+    assert page.index('id="docs-title"') < page.index('id="outputs-title"')
+    assert '<details class="outputs-disclosure"' in page
+
+
+def test_course_table_has_labels_for_mobile_cards(tmp_path):
+    app = learning_profile_app(tmp_path)
+    client = app.test_client()
+    client.post('/login', data={'username': 'student_demo', 'password': 'pw'})
+    page = client.get('/student/learning-profile').get_data(as_text=True)
+    assert 'class="data-table course-table"' in page
+    for label in ('年級', '學期', '課程', '學分', '分數', '狀態'):
+        assert f'data-label="{label}"' in page

@@ -143,3 +143,17 @@ def test_portfolio_page_shows_program_names_and_weights(app):
     assert "可放進「其他」（這個項目占 20%）" in html
     assert "最能用在" in html
     assert "目前目標校系的甄審沒有列這一類" in html
+
+
+def test_each_record_can_expand_its_school_matches(app):
+    student = make_student()
+    target = make_program('900001', '測試科大', [('活動表現', 50, 'activity')])
+    db.session.add(StudentTarget(student_id=student.id, rule_version_id=target.id))
+    add_record(student, '測試活動', 'activity')
+    db.session.commit()
+    client = app.test_client()
+    client.post('/login', data={'username': 'stu', 'password': 'pw'})
+    page = client.get('/student/portfolio').get_data(as_text=True)
+    assert '<details class="fit-line"' in page
+    assert '<summary' in page and '查看適用校系' in page
+    assert 'data-fit-pick=' in page and '測試科大' in page

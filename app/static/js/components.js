@@ -243,9 +243,16 @@ document.querySelectorAll("[data-assistant]").forEach((root) => {
   const input = form.querySelector("textarea");
   const send = form.querySelector("button[type=submit]");
   const toggles = root.querySelectorAll("[data-assistant-toggle]");
-  const KEY = "assistant-history";
+  // 對話只存在這個分頁，而且依帳號分開：同一分頁換人登入時，看不到也不會送出前一個人的對話。
+  const KEY = `assistant-history:${root.dataset.user || ""}`;
   let history = [];
-  try { history = JSON.parse(sessionStorage.getItem(KEY) || "[]"); } catch (e) { history = []; }
+  try {
+    for (let i = sessionStorage.length - 1; i >= 0; i -= 1) {
+      const name = sessionStorage.key(i);
+      if (name && name.startsWith("assistant-history") && name !== KEY) sessionStorage.removeItem(name);
+    }
+    history = JSON.parse(sessionStorage.getItem(KEY) || "[]");
+  } catch (e) { history = []; }
 
   // 把 AI 回答的簡單 Markdown（粗體、條列）轉成畫面；先跳脫 HTML，避免被插入程式碼
   const ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" };
@@ -288,6 +295,80 @@ document.querySelectorAll("[data-assistant]").forEach((root) => {
         list.append(tag);
       });
       box.append(list);
+    }
+    // 站內導引連結（伺服器白名單產生；這裡再擋一次，只接受站內相對路徑）
+    const local = (url) => typeof url === "string" && url.startsWith("/") && !url.startsWith("//");
+    if (extra.links && extra.links.length) {
+      const links = document.createElement("div");
+      links.className = "assistant__links";
+      extra.links.forEach((link) => {
+        if (!link || !local(link.url)) return;
+        const anchor = document.createElement("a");
+        anchor.className = "button button--small button--line";
+        anchor.href = link.url;
+        anchor.textContent = `${link.label || "前往下一步"} →`;
+        links.append(anchor);
+      });
+      if (links.children.length) box.append(links);
+    }
+    if (extra.todos && extra.todos.length) {
+      const done = document.createElement("p");
+      done.className = "assistant__links";
+      const anchor = document.createElement("a");
+      anchor.className = "button button--small";
+      anchor.href = "/student/agent/issues";
+      anchor.textContent = `查看 ${extra.todos.length} 項待辦 →`;
+      done.append(anchor);
+      box.append(done);
+    }
+    // 組員版的同意式計畫：學生按「同意執行」才建立待辦
+    if (extra.plan && extra.plan.status === "pending") {
+      const plan = document.createElement("section");
+      plan.className = "assistant__plan";
+      const title = document.createElement("b");
+      title.textContent = `規劃提案 #${extra.plan.id}：${extra.plan.title}`;
+      const reason = document.createElement("p");
+      reason.textContent = extra.plan.reason || "";
+      const steps = document.createElement("ol");
+      (extra.plan.preview_todos || []).forEach((todo) => {
+        const item = document.createElement("li");
+        item.textContent = todo.title;
+        steps.append(item);
+      });
+      const hint = document.createElement("p");
+      hint.textContent = steps.children.length ? "同意後會建立這些待辦：" : "目前看不出需要新增的待辦。";
+      const actions = document.createElement("div");
+      actions.className = "assistant__plan-actions";
+      const decide = async (url, accepted) => {
+        const data = new FormData();
+        data.append("csrf_token", form.querySelector("[name=csrf_token]").value);
+        try {
+          const response = await fetch(url, { method: "POST", body: data, credentials: "same-origin" });
+          if (!response.ok) throw new Error(String(response.status));
+          const result = await response.json();
+          plan.remove();
+          add("bot", result.message || (accepted ? "計畫已完成。" : "計畫沒有執行。"), result);
+        } catch (error) {
+          add("bot", "這份計畫暫時無法處理，請稍後再試。");
+        }
+      };
+      const approve = document.createElement("button");
+      approve.type = "button";
+      approve.className = "button button--small";
+      approve.textContent = "同意執行";
+      approve.addEventListener("click", () => decide(extra.plan.action_url, true));
+      const reject = document.createElement("button");
+      reject.type = "button";
+      reject.className = "button button--small button--quiet";
+      reject.textContent = "不採用";
+      reject.addEventListener("click", () => decide(extra.plan.reject_url, false));
+      actions.append(approve, reject);
+      const open = document.createElement("a");
+      open.className = "assistant__plan-open";
+      open.href = `/student/agent/proposals/${Number(extra.plan.id)}`;
+      open.textContent = "在規劃頁查看完整提案 →";
+      plan.append(title, reason, hint, steps, actions, open);
+      box.append(plan);
     }
     log.append(box);
     log.scrollTop = log.scrollHeight;
@@ -830,3 +911,42 @@ document.querySelectorAll("[data-photo-form]").forEach((form) => {
     }
   }
 })();
+
+// 字體大小切換（partials/nav.html 的 font_switch）：小／中／大，記在這台瀏覽器；「中」是預設，不另外存
+(() => {
+  const root = document.documentElement;
+  const current = () => root.getAttribute("data-font-size") || "md";
+  const sync = () => document.querySelectorAll("[data-font-size-set]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.fontSizeSet === current()));
+  });
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-font-size-set]");
+    if (!button) return;
+    const size = button.dataset.fontSizeSet;
+    if (size === "md") root.removeAttribute("data-font-size");
+    else root.setAttribute("data-font-size", size);
+    try {
+      if (size === "md") localStorage.removeItem("font-size");
+      else localStorage.setItem("font-size", size);
+    } catch (error) { /* 存不了也沒關係，這次瀏覽仍會套用 */ }
+    sync();
+  });
+  sync();
+})();
+
+// 獎懲記錄貼上（組員版）：從學校網頁複製表格時，剪貼簿有 HTML，轉成 Tab 分隔保留欄列；純文字照瀏覽器原本行為。
+document.querySelectorAll("[data-award-paste]").forEach((field) => {
+  field.addEventListener("paste", (event) => {
+    const html = event.clipboardData && event.clipboardData.getData("text/html");
+    if (!html) return;
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const rows = [...doc.querySelectorAll("tr")].map((row) =>
+      [...row.querySelectorAll(":scope > th, :scope > td")].map((cell) => (cell.textContent || "").replace(/\s+/g, " ").trim()));
+    const first = rows.findIndex((row) => row.map((cell) => cell.replace(/\s+/g, "")).includes("獎懲事由"));
+    if (first < 0) return;
+    const text = rows.slice(first).filter((row) => row.length).map((row) => row.join("\t")).join("\n");
+    event.preventDefault();
+    field.setRangeText(text, field.selectionStart, field.selectionEnd, "end");
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+});

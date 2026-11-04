@@ -210,3 +210,21 @@ def test_body_converts_grade_back_to_academic_year(tmp_path):
     _, cert = _apply(app)
 
     assert "114 學年度第一學期" in cert.body
+
+
+def test_approved_certificate_cannot_be_returned_or_reapproved(tmp_path):
+    app = cert_app(tmp_path)
+    _, cert = _apply(app)
+    staff = client_for(app, 'staff')
+    url = f'/staff/certificates/{cert.id}'
+    assert staff.post(url, data={'action': 'approve'}).status_code == 302
+    with app.app_context():
+        code = db.session.get(AwardCertificate, cert.id).verify_code
+    assert staff.post(url, data={'action': 'return', 'return_reason': '測試'}).status_code == 409
+    assert staff.post(url, data={'action': 'approve'}).status_code == 409
+    with app.app_context():
+        stored = db.session.get(AwardCertificate, cert.id)
+        assert stored.status == 'approved' and stored.verify_code == code
+    assert '查無' not in staff.get('/verify', query_string={'code': code}).get_data(as_text=True)
+    page = staff.get(url).get_data(as_text=True)
+    assert '已處理' in page and 'value="return"' not in page

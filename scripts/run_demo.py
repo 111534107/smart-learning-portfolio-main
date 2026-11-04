@@ -5,8 +5,8 @@
 然後打開 http://127.0.0.1:5000
 
 展示帳號（皆為假資料）：
-    學生  111534105 / demo1234（王小明，還沒選目標校系）
-    學生  111534107 / demo1234（林小美，已送導師確認）
+    學生  113534901 / demo1234（王小明，還沒選目標校系）
+    學生  113534902 / demo1234（林小美，已送導師確認）
     導師  teacher01 / demo1234（負責資管科三甲）
     科辦  staff01   / demo1234（林科助，核准電子獎狀）
     管理者 admin     / demo1234
@@ -44,9 +44,9 @@ DEMO_PASSWORD = "demo1234"
 
 # 登入頁「Demo 快速登入」列出的帳號，和 seed() 建立的帳號一致
 DEMO_ACCOUNTS = [
-    {"role": "student", "label": "學生", "username": "111534105", "password": DEMO_PASSWORD,
+    {"role": "student", "label": "學生", "username": "113534901", "password": DEMO_PASSWORD,
      "name": "王小明", "note": "還沒選目標校系"},
-    {"role": "student", "label": "學生", "username": "111534107", "password": DEMO_PASSWORD,
+    {"role": "student", "label": "學生", "username": "113534902", "password": DEMO_PASSWORD,
      "name": "林小美", "note": "已送導師確認"},
     {"role": "teacher", "label": "導師", "username": "teacher01", "password": DEMO_PASSWORD,
      "name": "陳導師", "note": "負責資管科三甲"},
@@ -57,7 +57,7 @@ DEMO_ACCOUNTS = [
 
 
 def seed():
-    student = User(username="111534105", display_name="王小明", role="student")
+    student = User(username="113534901", display_name="王小明", role="student")
     teacher = User(username="teacher01", display_name="陳導師", role="teacher")
     admin = User(username="admin", display_name="系統管理者", role="admin")
     staff = User(username="staff01", display_name="林科助", role="staff")
@@ -65,7 +65,7 @@ def seed():
         user.set_password(DEMO_PASSWORD)
         db.session.add(user)
     db.session.flush()
-    db.session.add(StudentProfile(user_id=student.id, student_no="111534105", class_name="資管科三甲", admission_year=113))
+    db.session.add(StudentProfile(user_id=student.id, student_no="113534901", class_name="資管科三甲", admission_year=113))
 
     courses = [
         (1, "上", "計算機概論", 3, 88), (1, "下", "程式設計（一）", 3, 91), (1, "下", "國文", 2, 82),
@@ -100,11 +100,11 @@ def seed():
     # 插大（轉學考）：北中南資訊相關科系的示範資料（官方簡章，見 CSV 的出處欄）
     import_transfer_programs()
     db.session.add(ClassAdvisor(teacher_id=teacher.id, class_name="資管科三甲", school_year=115))
-    classmate = User(username="111534107", display_name="林小美", role="student")
+    classmate = User(username="113534902", display_name="林小美", role="student")
     classmate.set_password(DEMO_PASSWORD)
     db.session.add(classmate)
     db.session.flush()
-    db.session.add(StudentProfile(user_id=classmate.id, student_no="111534107", class_name="資管科三甲", admission_year=113))
+    db.session.add(StudentProfile(user_id=classmate.id, student_no="113534902", class_name="資管科三甲", admission_year=113))
     db.session.add(LearningCourseRecord(student_id=classmate.id, school_year=1, semester="上", course_name="計算機概論",
                                         normalized_course_name="計算機概論", credits=3, score=90))
     # 113 學年度課綱的資訊類專業科目各一門，學群才判斷得出來（只有計算機概論時對不到課綱，推薦排序會亂）
@@ -127,6 +127,7 @@ def seed():
     program = AdmissionProgram.query.filter_by(program_code="208003").one()
     db.session.add(StudentTarget(student_id=classmate.id, rule_version_id=program.id))
     db.session.flush()
+    # 示範學生用假學號（113 學年入學＝專三），不綁學校信箱：真的學生用學校 Google 登入時會建立自己的帳號
     db.session.commit()
     review_snapshot_service.request_review(classmate, program)  # 送審時存快照
 
@@ -156,7 +157,7 @@ def main():
         db.create_all()
         seed()
     print(f"展示網站：http://127.0.0.1:{port}")
-    print(f"帳號（密碼都是 {DEMO_PASSWORD}）：學生 111534105、111534107｜導師 teacher01｜科辦 staff01｜管理者 admin")
+    print(f"帳號（密碼都是 {DEMO_PASSWORD}）：學生 113534901、113534902｜導師 teacher01｜科辦 staff01｜管理者 admin")
     app.run(port=port, debug=False)
 
 

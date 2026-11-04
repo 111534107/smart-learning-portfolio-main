@@ -93,3 +93,49 @@
   [data-theme="campus"] { background: #fff; }
   [data-theme="campus"] .quick-dock { display: none; }
 }
+
+/* 操作頁沿用「我的五年」首頁配色，首頁本身不套用此主題。 */
+[data-theme="campus"] { --paper: #f3efe6; --paper-deep: #e9e2d3; --sheet: #fffdf8; --line: #d6cdbb; --radius-card: 8px; }
+[data-theme="campus"] :is(.page-head h1, .auth__side h1, .auth__card h2, .record-group__head h2, .work-heading h1) { font-family: var(--font-sans); letter-spacing: normal; }
+[data-theme="campus"] .auth { grid-template-columns: minmax(260px, 2fr) minmax(0, 3fr); }
+[data-theme="campus"] .auth__side { background: var(--ink); padding: clamp(2rem, 4vw, 3.5rem); }
+[data-theme="campus"] .auth__side h1 { font-size: var(--fs-hero); line-height: 1.35; }
+[data-theme="campus"] .auth__form { background: var(--paper); }
+[data-theme="campus"] .auth__card { width: min(440px, 100%); }
+[data-theme="campus"] .fit-line summary { cursor: pointer; padding: .3rem 0; }
+[data-theme="campus"] .fit-line summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 720px) { [data-theme="campus"] .auth { grid-template-columns: 1fr; } [data-theme="campus"] .auth__side { padding: 1.5rem; } }
+
+/* 標題帶沿用首頁深墨色，狀態色仍各自保留。 */
+[data-theme="campus"] { --band-navy: #1c2230; --band-caramel: var(--band-navy); --accent-warm: #d9961f; --accent-terra: #2448c9; }
+[data-theme="campus"] .quick-dock__item--warm { background: var(--ink); }
+/* 教師、科辦及管理工作台：讓待處理內容比數字摘要更容易進入視野。 */
+[data-theme="campus"] .work-heading h1 { font-size: var(--fs-display); }
+[data-theme="campus"] .work-metric { padding: .75rem 1rem; border-top-width: 2px; }
+[data-theme="campus"] .work-metric strong { font-family: var(--font-sans); font-size: var(--fs-lg); }
+[data-theme="campus"] .work-panel { border-radius: 8px; }
+@media (max-width: 480px) {
+  [data-theme="campus"] .work-heading { align-items: flex-start; flex-direction: column; gap: .75rem; }
+  [data-theme="campus"] .work-panel__head { align-items: flex-start; flex-direction: column; }
+  [data-theme="campus"] .work-panel__head .button { align-self: flex-start; white-space: normal; }
+}
+@media (max-width: 720px) {
+  [data-theme="campus"] .course-table, [data-theme="campus"] .course-table tbody { display: block; }
+  [data-theme="campus"] .course-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  [data-theme="campus"] .course-table tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: .6rem .8rem; border-bottom: 1px solid var(--line); }
+  [data-theme="campus"] .course-table td { display: flex; gap: .5rem; align-items: baseline; min-width: 0; padding: .3rem; border: 0; overflow-wrap: anywhere; word-break: normal; }
+  [data-theme="campus"] .course-table td::before { content: attr(data-label); flex: 0 0 auto; color: var(--muted); font-size: var(--fs-xs); }
+  [data-theme="campus"] .course-table td[data-label="課程"] { grid-column: 1 / -1; }
+}
+
+/* 獎懲表格：手機以逐筆卡片顯示，保留每個欄位標籤。 */
+@media (max-width: 720px) {
+  [data-theme="campus"] .discipline-table, [data-theme="campus"] .discipline-table tbody { display: block; }
+  [data-theme="campus"] .discipline-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  [data-theme="campus"] .discipline-table tr { display: block; padding: .6rem .8rem; border-bottom: 1px solid var(--line); }
+  [data-theme="campus"] .discipline-table td { display: grid; grid-template-columns: 4.5rem minmax(0, 1fr); gap: .5rem; padding: .3rem 0; border: 0; overflow-wrap: anywhere; word-break: normal; }
+  [data-theme="campus"] .discipline-table td::before { content: attr(data-label); color: var(--muted); font-size: var(--fs-sm); }
+  [data-theme="campus"] .award-table input[name="reason"] { min-width: 0; }
+}
+
+[data-theme="campus"] .vessel.is-filled::after { display: none; }

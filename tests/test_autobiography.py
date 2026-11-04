@@ -351,3 +351,102 @@ def test_grade_one_is_told_autobiography_opens_at_grade_five(app):
         reason = student_rules.autobiography_block_reason(stu)
         assert "專五" in reason and "專二" not in reason
         assert student_rules.review_open_note(stu) == "專五開放生成自傳"
+
+
+def test_custom_draft_prompt_uses_flexible_headings_and_evidence_based_length(app):
+    captured = {}
+    def fake_ai(prompt, schema):
+        captured['prompt'] = prompt
+        return {'paragraphs': [{'title': '從實作學習', 'text': '測試內容', 'sources': ['F1']}]}
+    with app.app_context():
+        student = User.query.filter_by(username='stu').one()
+        prog = AdmissionProgram.query.filter_by(program_code='208003').one()
+        generate_draft(student, prog, ANSWERS, generate=fake_ai)
+    assert '1500' in captured['prompt'] and '2500' in captured['prompt']
+    assert '標題依內容' in captured['prompt']
+    assert '不得編造' in captured['prompt']
+
+
+def test_custom_draft_prompt_uses_flexible_headings_and_evidence_based_length(app):
+    captured = {}
+    def fake_ai(prompt, schema):
+        captured['prompt'] = prompt
+        return {'paragraphs': [{'title': '從實作學習', 'text': '測試內容', 'sources': ['F1']}]}
+    with app.app_context():
+        student = User.query.filter_by(username='stu').one()
+        prog = AdmissionProgram.query.filter_by(program_code='208003').one()
+        generate_draft(student, prog, ANSWERS, generate=fake_ai)
+    assert '1500' in captured['prompt'] and '2500' in captured['prompt']
+    assert '標題依內容' in captured['prompt']
+    assert '不得編造' in captured['prompt']
+
+
+def test_custom_contents_lists_only_confirmed_evidence_in_weighted_order(app):
+    from app.services.autobiography_service import custom_contents
+    with app.app_context():
+        student = User.query.filter_by(username='stu').one()
+        prog = AdmissionProgram.query.filter_by(program_code='208003').one()
+        db.session.add(Portfolio(student_id=student.id, title='尚未確認的競賽', category='competition', status='draft'))
+        db.session.commit()
+        chapters = custom_contents(student, prog)
+        names = [e['name'] for c in chapters for e in c['evidence']]
+        assert '校園黑客松' in names
+        assert '尚未確認的競賽' not in names
+        assert all(e['evidence_id'] for c in chapters for e in c['evidence'])
+        weighted = [c['weight'] for c in chapters if c['weight']]
+        assert weighted == sorted(weighted, reverse=True)
+
+
+def test_strength_inventory_counts_only_confirmed_records_and_links_evidence(app):
+    from app.services.autobiography_service import strength_inventory
+    with app.app_context():
+        student = User.query.filter_by(username='stu').one()
+        db.session.add_all([
+            CredentialRecord(student_id=student.id, credential_name='測試證照甲', category='國際', confirmation_status='confirmed'),
+            CredentialRecord(student_id=student.id, credential_name='未確認證照', category='國際', confirmation_status='draft'),
+            Portfolio(student_id=student.id, title='未確認經歷', category='competition', status='draft'),
+        ])
+        db.session.commit()
+        inventory = strength_inventory(student)
+        entries = [e for group in inventory for e in group['evidence']]
+        assert any(e['name'] == '測試證照甲' for e in entries)
+        assert not any(e['name'] in ('未確認證照', '未確認經歷') for e in entries)
+        assert all(group['count'] == len(group['evidence']) for group in inventory)
+        assert all(e['evidence_id'] for e in entries)
+
+
+def test_student_can_expand_inventory_without_hiding_question(app):
+    client = login(app)
+    choose_target(app, client)
+    page = client.get('/student/autobiography').get_data(as_text=True)
+    assert '<details class="strengths-disclosure"' in page
+    assert '<summary' in page and '已確認資料盤點' in page
+    assert 'name="motivation"' in page
+
+
+def test_contents_evidence_is_nested_under_its_chapter(app):
+    from html.parser import HTMLParser
+
+    class Outline(HTMLParser):
+        def __init__(self):
+            super().__init__(); self.inside = False; self.depth = 0; self.chapters = 0; self.evidence_nested = False
+        def handle_starttag(self, tag, attrs):
+            attrs = dict(attrs)
+            if tag == 'ol' and attrs.get('class') == 'toc':
+                self.inside = True; self.depth = 1
+            elif self.inside and tag in ('ol', 'ul'):
+                self.depth += 1
+            elif self.inside and tag == 'li' and self.depth == 1:
+                self.chapters += 1
+            elif self.inside and tag == 'li' and self.depth > 1:
+                self.evidence_nested = True
+        def handle_endtag(self, tag):
+            if self.inside and tag in ('ol', 'ul'):
+                self.depth -= 1
+                if self.depth == 0: self.inside = False
+    client = login(app)
+    choose_target(app, client)
+    page = client.get(f'/student/targets/{program(app)}').get_data(as_text=True)
+    tree = Outline(); tree.feed(page)
+    assert tree.chapters == 10
+    assert tree.evidence_nested

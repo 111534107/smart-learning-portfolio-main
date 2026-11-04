@@ -734,7 +734,7 @@ def learning_profile_document_confirm(document_id):
         db.session.commit()
     except (TypeError, ValueError) as exc:
         db.session.rollback()
-        return str(exc), 400
+        return render_template("student_input_error.html", message=str(exc), back_url=url_for("student.learning_profile_document_review", document_id=document.id)), 400
     saved = [f"{len(courses)} 門課程" if courses else "", f"{len(credentials)} 張證照" if credentials else ""]
     flash_done("已儲存 " + ("、".join(part for part in saved if part) or "確認結果") + "。", user, program, before)
     return redirect(next_path or _profile_page_url(document.document_type))
@@ -935,7 +935,7 @@ def evidence_upload(portfolio_id):
     try:
         safe_name = validate_upload_filename(uploaded.filename, current_app.config["ALLOWED_UPLOAD_EXTENSIONS"])
     except ValueError as exc:
-        return str(exc), 400
+        return render_template("student_input_error.html", message="檔案格式不支援，請選擇允許的格式後重試。", back_url=url_for("student.portfolio_edit", portfolio_id=portfolio.id)), 400
     location = storage_service.save(uploaded.read(), owner_id=get_current_user().id, folder="", filename=safe_name)
     evidence = PortfolioEvidence(portfolio_id=portfolio.id, evidence_type="file", display_name=safe_name, file_path=location)
     db.session.add(evidence)
@@ -1267,7 +1267,7 @@ def target_gap(program_id):
         program=program,
         target_track="transfer" if is_transfer(program) else "twotech",
         gap=gap,
-        chapters=chapter_order(program),
+        chapters=autobiography_service.custom_contents(user, program),
         targets=[t.program for t in targets],
         review=review,
         review_timeline=review_timeline(user, program),
@@ -1340,8 +1340,9 @@ def _render_autobiography(user, program, targets, error=None, answers=None, stat
         version=autobiography_service.version_of(draft) if draft else None,
         backup_label=autobiography_backup.status_label(draft) if draft else None,
         paragraph_reviews=paragraph_reviews,
-        school_turns=ai_quota_service.remaining(user) if ai_ready() else None,
-        ai_on=ai_ready(),
+        strength_inventory=autobiography_service.strength_inventory(user),
+        school_turns=ai_quota_service.remaining(user) if ai_ready() and not autobiography_service.ollama_ready() else None,
+        ai_on=ai_ready() or autobiography_service.ollama_ready(),
         review_note=student_rules.review_open_note(user),
         error=error,
         stale=stale,
@@ -1372,7 +1373,7 @@ def autobiography_generate():
     used_own_key = bool(own_key)
     try:
         # 學校金鑰每人每天有次數限制；先扣，AI 失敗時 rollback 就會退回
-        if not own_key and ai_ready():
+        if not own_key and ai_ready() and not autobiography_service.ollama_ready():
             ai_quota_service.consume(user)
         output = autobiography_service.generate_draft(user, program, answers, api_key=own_key)
         audit_service.record(user, "autobiography.generate", "learning_profile_output", output.id,

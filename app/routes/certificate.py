@@ -64,6 +64,10 @@ def staff_review(cert_id):
     if request.method == "GET":
         return render_template("staff_certificate_review.html", user=user, cert=cert)
 
+    if cert.status != "pending":
+        return render_template("staff_certificate_review.html", user=user, cert=cert,
+                               error="這筆申請已處理，不能重複審核。"), 409
+
     action = request.form.get("action")
     cert.title = request.form.get("title", cert.title).strip()[:50] or cert.title
     cert.issuer = request.form.get("issuer", cert.issuer).strip()[:100] or cert.issuer

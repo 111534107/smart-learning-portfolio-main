@@ -156,3 +156,32 @@ def test_edit_form_keeps_academic_year_value(tmp_path):
     html = client.get(f"/student/portfolio/{record_id}/edit").get_data(as_text=True)
 
     assert '<option value="114" selected>114 學年度</option>' in html
+
+
+def test_invalid_evidence_file_shows_chinese_error_and_return_link(tmp_path):
+    app = records_app(tmp_path)
+    client = app.test_client()
+    login(client)
+    client.post('/student/portfolio', data={'title': '測試經歷', 'category': 'activity'})
+    with app.app_context():
+        record_id = Portfolio.query.one().id
+    response = client.post(f'/student/portfolio/{record_id}/evidence', data={'file': (io.BytesIO(b'test'), 'bad.exe')}, content_type='multipart/form-data')
+    html = response.get_data(as_text=True)
+    assert response.status_code == 400
+    assert '格式' in html and f'/student/portfolio/{record_id}/edit' in html
+    assert '<html' in html
+
+
+def test_empty_credential_name_shows_error_with_return_link(tmp_path):
+    app = records_app(tmp_path)
+    client = app.test_client()
+    login(client)
+    client.post('/student/learning-profile/documents', data={'document_type': 'credential', 'file': (io.BytesIO(b'demo'), 'cert.pdf')}, content_type='multipart/form-data')
+    with app.app_context():
+        doc = SourceDocument.query.one()
+        document_id, revision = doc.id, doc.extraction.result_json['draft_revision']
+    response = client.post(f'/student/learning-profile/documents/{document_id}/review/confirm', data={'draft_revision': revision, 'courses_json': '[]', 'credentials_json': json.dumps([{'credential_name': ''}])})
+    html = response.get_data(as_text=True)
+    assert response.status_code == 400
+    assert '證照名稱為必填' in html and f'/student/learning-profile/documents/{document_id}/review' in html
+    assert '<html' in html

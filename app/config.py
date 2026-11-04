@@ -32,6 +32,8 @@ class Config:
     AI_PROVIDER = os.getenv("AI_PROVIDER", "none").lower()
     AI_API_KEY = os.getenv("AI_API_KEY", "")
     GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    AUTOBIOGRAPHY_AI_PROVIDER = os.getenv("AUTOBIOGRAPHY_AI_PROVIDER", "gemini").lower()
+    OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b")
     # Google Drive 原型只在本機明確啟用，且 OAuth 與 Picker 設定齊全時開放。
     GOOGLE_DRIVE_PREVIEW_ENABLED = os.getenv("GOOGLE_DRIVE_PREVIEW_ENABLED", "false").lower() == "true"
     GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "")

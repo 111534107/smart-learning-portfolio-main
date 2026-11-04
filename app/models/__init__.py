@@ -2,6 +2,7 @@ from app.models.agent_task import AgentTask
 from app.models.ai_usage import AiDailyUsage
 from app.models.audit_log import AuditLog
 from app.models.portfolio import Portfolio, PortfolioEvidence
+from app.models.award_record import SchoolAwardRecord
 from app.models.certificate import AwardCertificate
 from app.models.project import (
     ProjectGroup,
@@ -50,6 +51,7 @@ from app.models.match_filter import MatchFilterOption
 __all__ = [
     "AiDailyUsage",
     "AwardCertificate",
+    "SchoolAwardRecord",
     "AgentTask",
     "AuditLog",
     "Portfolio",

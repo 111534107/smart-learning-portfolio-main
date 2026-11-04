@@ -89,3 +89,15 @@ def test_logout_clears_session():
     assert response.status_code == 302
     assert response.headers["Location"].endswith("/login")
     assert client.get("/student/dashboard").status_code == 401
+
+
+def test_admin_navigation_groups_all_management_links_without_losing_access():
+    client = auth_app().test_client()
+    client.post('/login', data={'username': 'admin', 'password': 'test-password'})
+    page = client.get('/admin/dashboard').get_data(as_text=True)
+    assert 'aria-label="管理功能分類"' in page
+    for label in ('帳號與角色', '課程與招生', '系統設定'):
+        assert f'<summary>{label}</summary>' in page
+    for label in ('帳號管理', '導師班級', '專題規則', '課程規則', '排行篩選選項', '校系資料', '招生資料 Agent', 'OCR 辨識設定', '檔案存放設定', '操作紀錄'):
+        assert label in page
+    assert '系統總覽' in page and '登出' in page

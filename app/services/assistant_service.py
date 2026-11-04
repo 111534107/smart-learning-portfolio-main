@@ -113,5 +113,8 @@ def ask(user, message, history=None, page="", chat=None):
     task.finished_at = datetime.now(timezone.utc)
     db.session.add(task)
     db.session.commit()
+    # 組員版：站內導引連結由伺服器白名單產生；問到「規劃、下一步」時提出要學生同意的計畫
+    from app.services.assistant_agent_service import navigation_links, propose_plan
     return {"answer": answer or "這個問題我查了很多次還是沒有結論，請換個問法，或直接詢問導師／科辦。",
-            "steps": steps, "sources": sources}
+            "steps": steps, "sources": sources, "links": navigation_links(user, message),
+            "plan": propose_plan(user, message)}

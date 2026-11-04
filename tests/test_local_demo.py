@@ -176,3 +176,20 @@ def test_local_demo_loads_both_two_year_and_transfer_sample_programs():
         assert len(programs) > 30
         assert any(p.admission_category == "插大（轉學考）" for p in programs)
         assert any(p.admission_category == "日間部申請入學" for p in programs)
+
+
+def test_demo_experiences_have_labelled_specific_facts_for_autobiography():
+    from app.models import Portfolio
+    from app.services.autobiography_service import build_facts
+
+    app = create_local_demo_app()
+    with app.app_context():
+        student = User.query.filter_by(username="student_demo").one()
+        records = Portfolio.query.filter_by(student_id=student.id, status="confirmed").all()
+        assert records
+        assert all(record.description and "僅為測試資料" in record.description for record in records)
+        assert all(record.role and record.achievement and record.learned and record.domain_tags for record in records)
+        assert len({record.description for record in records}) >= 4
+        program = StudentTarget.query.filter_by(student_id=student.id).first().program
+        facts = build_facts(student, program)
+        assert any("我負責" in str(fact) and "學到" in str(fact) for fact in facts["items"])

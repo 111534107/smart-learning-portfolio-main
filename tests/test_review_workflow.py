@@ -64,3 +64,17 @@ def test_new_revision_preserves_v1():
         assert v2.version_no == 2
         assert v2.previous_submission_id == submission.id
         assert submission.status == "needs_revision"
+
+
+def test_staff_must_choose_decision_and_explain_revision():
+    app = review_app()
+    client = app.test_client()
+    client.post('/login', data={'username': 'staff', 'password': 'pw'})
+    with app.app_context():
+        submission_id = PortfolioSubmission.query.one().id
+    url = f'/staff/reviews/{submission_id}/result'
+    assert client.post(url, data={}).status_code == 400
+    assert client.post(url, data={'decision': 'needs_revision', 'comment': '  '}).status_code == 400
+    with app.app_context():
+        assert db.session.get(PortfolioSubmission, submission_id).status == 'submitted'
+    assert client.post(url, data={'decision': 'needs_revision', 'comment': '請補測試資料'}).status_code == 302

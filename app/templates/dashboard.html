@@ -75,8 +75,8 @@
         <div class="teacher-feedback" data-teacher-feedback><strong>教師意見</strong>{% for feedback in feedback_items %}<p><b>{{ feedback.teacher.display_name }}</b>：{{ feedback.comment }}</p>{% else %}<p class="muted">目前還沒有教師意見，可先依送件內容處理。</p>{% endfor %}</div>
         <form class="queue-row__form" method="post" action="{{ url_for('staff.staff_review_result', submission_id=submission.id) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <label>共同結論<select name="decision"><option value="approved">核可</option><option value="needs_revision" selected>需要補正</option><option value="rejected">退件</option></select></label>
-          <label>說明（選填）<input name="comment" placeholder="例如：請補上操作畫面與分工說明"></label>
+          <label>共同結論<select name="decision"><option value="" selected>請選擇結論</option><option value="approved">核可</option><option value="needs_revision">需要補正</option><option value="rejected">退件</option></select></label>
+          <label>說明（補正或退件時必填）<input name="comment" placeholder="例如：請補上操作畫面與分工說明"></label>
           <button class="button" type="submit">登錄結果</button>
         </form>
       </article>

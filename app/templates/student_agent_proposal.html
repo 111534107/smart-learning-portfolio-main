@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer with context %}
+{% from "partials/agent_hub.html" import hub_header, hub_footer, label_pill, plan_badge with context %}
+{% set page_name = "student-agent-hub" %}
+
+{% block title %}規劃提案 #{{ proposal.id }}｜小助手規劃{% endblock %}
+{% block navigation %}{{ masthead(user, "我的待辦") }}{% endblock %}
+
+{% block content %}
+{{ hub_header(tab, counts) }}
+
+<article class="sheet hub-pr hub-pr--{{ proposal.status }}" aria-labelledby="pr-title">
+  <header class="sheet__head">
+    <div>
+      <p class="hub-pr__eyebrow">規劃提案 #{{ proposal.id }}</p>
+      <h2 id="pr-title">{{ proposal.title }}</h2>
+    </div>
+    {{ plan_badge(proposal.status, plan_state) }}
+  </header>
+  <p class="hub-pr__meta">小助手於 {{ when(proposal.created_at)|taipei_time }} 提出
+    {% if proposal.status == "succeeded" %}· 你同意執行，建立了 {{ issues|length }} 項待辦{% endif %}</p>
+  {% if proposal.reason %}<p class="hub-pr__reason">{{ proposal.reason }}</p>{% endif %}
+
+  <div class="hub-pr__grid">
+    <section aria-labelledby="reads-title">
+      <h3 id="reads-title" class="hub-pr__h">① 小助手會讀的資料</h3>
+      <ol class="hub-steps">
+        {% for step in proposal.steps %}<li>{{ step }}</li>{% endfor %}
+      </ol>
+    </section>
+
+    <section aria-labelledby="todo-title">
+      {% if proposal.status == "succeeded" %}
+      <h3 id="todo-title" class="hub-pr__h">② 已建立的待辦</h3>
+      <ul class="hub-mini">
+        {% for row in issues %}
+        <li class="{% if row.closed %}is-done{% endif %}">{{ label_pill(labels, row.label) }} <a href="{{ row.todo.url }}">{{ row.todo.title }}</a></li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <h3 id="todo-title" class="hub-pr__h">② 同意後會建立的待辦</h3>
+      {% if proposal.preview_todos %}
+      <ul class="hub-mini hub-mini--preview">
+        {% for todo in proposal.preview_todos %}
+        <li>{{ label_pill(labels, kind_label.get(todo.kind, "data")) }} <span>{{ todo.title }}</span>{% if todo.note %}<small>{{ todo.note }}</small>{% endif %}</li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="muted">目前看不出需要新增的待辦。</p>
+      {% endif %}
+      {% endif %}
+    </section>
+  </div>
+</article>
+
+{% if proposal.status == "pending" %}
+<section class="hub-merge" aria-labelledby="merge-title">
+  <div class="hub-merge__text">
+    <h3 id="merge-title">這份提案還沒執行</h3>
+    <p>按「同意執行」才會建立待辦，建立時依當下資料重新整理。小助手不會新增、修改或刪除你的學習歷程資料；超過 24 小時沒決定會自動取消。</p>
+  </div>
+  <div class="hub-merge__actions">
+    <form method="post" action="{{ url_for('agent_plan.proposal_action', plan_id=proposal.id, decision='reject') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="button button--quiet" type="submit">不採用</button>
+    </form>
+    <form method="post" action="{{ url_for('agent_plan.proposal_action', plan_id=proposal.id, decision='approve') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="button hub-merge__go" type="submit">✓ 同意執行</button>
+    </form>
+  </div>
+</section>
+{% elif proposal.status == "cancelled" %}
+<p class="hub-closed">這份提案沒有執行，沒有建立任何待辦。</p>
+{% else %}
+<p class="hub-merged">✓ 已同意執行。<a href="{{ url_for('agent_plan.issues') }}">到待辦清單開始處理 →</a></p>
+{% endif %}
+
+{{ hub_footer() }}
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

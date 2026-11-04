@@ -63,22 +63,28 @@ def health():
     return jsonify(status="ok", database="ok")
 
 
+def _google_ready():
+    """Google Cloud 三個值都設好，而且管理員沒有在「Google 登入設定」關掉。"""
+    from app.services import google_workspace
+    return g_login.configured(current_app.config) and google_workspace.settings()["enabled"]
+
+
 @main_bp.route("/login", methods=["GET", "POST"])
 def login():
     from app.services.flow import safe_next
     next_path = safe_next(request.values.get("next"))
     if request.method == "GET":
-        return render_template("login.html", next_path=next_path, google_login_enabled=g_login.configured(current_app.config))
+        return render_template("login.html", next_path=next_path, google_login_enabled=_google_ready())
 
     username = request.form.get("username", "").strip()
     password = request.form.get("password", "")
     user = User.query.filter_by(username=username).first()
     if not user or not user.check_password(password):
         return render_template("login.html", error="帳號或密碼錯誤", next_path=next_path,
-                               google_login_enabled=g_login.configured(current_app.config)), 401
+                               google_login_enabled=_google_ready()), 401
     if not user.is_active:  # 密碼對了才說明已停用，不讓人用來試哪些帳號存在
         return render_template("login.html", error="這個帳號已停用，請洽系統管理員。", next_path=next_path,
-                               google_login_enabled=g_login.configured(current_app.config)), 403
+                               google_login_enabled=_google_ready()), 403
 
     return _finish_login(user, next_path)
 
@@ -96,7 +102,7 @@ def _finish_login(user, next_path=None):
     if not endpoint:
         session.clear()
         return render_template("login.html", error="此帳號尚未設定可用角色",
-                               google_login_enabled=g_login.configured(current_app.config)), 403
+                               google_login_enabled=_google_ready()), 403
     # 每次登入都記（規格 M11）；學生首頁也用 student.login 判斷是不是很久沒來（「好久不見」那一幕）
     action = "student.login" if user.role == "student" else "user.login"
     db.session.add(AuditLog(user_id=user.id, action=action, ip_address=request.remote_addr))
@@ -109,7 +115,7 @@ def _finish_login(user, next_path=None):
 @main_bp.get("/auth/google")
 def google_login():
     from app.services.flow import safe_next
-    if not g_login.configured(current_app.config):
+    if not _google_ready():
         abort(404)
     session.clear()
     session["google_login_state"] = g_login.new_state()
@@ -122,13 +128,13 @@ def google_login_callback():
     expected = session.pop("google_login_state", None)
     next_path = session.pop("google_login_next", None)
     if not expected or request.args.get("state") != expected:
-        enabled = g_login.configured(current_app.config)
+        enabled = _google_ready()
         message = ("請從登入頁按「使用學校 Google 帳號登入」重新開始。"
                    if enabled else "學校 Google 登入尚未設定，請先完成 Google Cloud 設定。")
         return render_template("login.html", error=message, google_login_enabled=enabled), 400
     if request.args.get("error") or not request.args.get("code"):
         return render_template("login.html", error="未完成 Google 登入，請重試。",
-                               google_login_enabled=g_login.configured(current_app.config)), 403
+                               google_login_enabled=_google_ready()), 403
     try:
         claims = g_login.client_for(current_app).verify_code(request.args["code"])
     except g_login.GoogleLoginError as error:
@@ -137,29 +143,22 @@ def google_login_callback():
         current_app.logger.warning("學校 Google 登入驗證失敗：%s：%s", type(cause).__name__ if cause else "GoogleLoginError",
                                    str(cause or error)[:300])
         return render_template("login.html", error="Google 登入驗證失敗，請重試。",
-                               google_login_enabled=g_login.configured(current_app.config)), 403
-    identity = g_login.school_identity(claims)
-    if identity is None:
-        return render_template("login.html", error="請使用已綁定的學校學生 Google 帳號登入。",
-                               google_login_enabled=True), 403
-    email, sub = identity
-    user = User.query.filter_by(google_sub=sub).first()
-    if user is None:
-        matches = User.query.filter(db.func.lower(User.email) == email).all()
-        if len(matches) != 1 or matches[0].google_sub:
-            user = None
-        else:
-            user = matches[0]
-    if not user or not user.is_active or user.role != "student" or (user.email or "").lower() != email:
-        return render_template("login.html", error="此學校帳號尚未綁定可用的學生帳號，請洽管理員。",
-                               google_login_enabled=True), 403
-    if not user.google_sub:
-        user.google_sub = sub
-    name = claims.get("name")
+                               google_login_enabled=_google_ready()), 403
+    from app.services import google_workspace
+    name = claims.get("name") if isinstance(claims, dict) else None
     if isinstance(name, str):
         name = " ".join(name.split())
-        if name and len(name) <= 100 and name.isprintable():
-            user.display_name = name
+        if not (name and len(name) <= 100 and name.isprintable()):
+            name = None
+    else:
+        name = None
+    # 規則見 services/google_workspace.py：學生第一次登入自動建帳號，教職員只限管理員建好的帳號
+    user, message = google_workspace.resolve(claims, name)
+    if user is None:
+        db.session.rollback()
+        return render_template("login.html", error=message, google_login_enabled=True), 403
+    if name:
+        user.display_name = name
     return _finish_login(user, next_path)
 
 
@@ -434,5 +433,8 @@ def inject_student_progress():
         from app.services.student_progress import student_progress
         # 「抵免進度」只給轉學生：目前以「已建立抵免紀錄」判斷，其他學生從「我的五年」的小連結進入
         has_transfer = TransferCreditRecord.query.filter_by(student_id=user.id).first() is not None
-        return {"student_progress": student_progress(user), "has_transfer_record": has_transfer}
+        from app.services.assistant_agent_service import open_todo_count
+        # 「我的待辦」放在學生主選單，旁邊顯示還沒完成幾項（11-04 使用者：原本藏在聊天視窗太不明顯）
+        return {"student_progress": student_progress(user), "has_transfer_record": has_transfer,
+                "agent_todos": open_todo_count(user)}
     return {}

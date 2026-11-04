@@ -82,3 +82,11 @@ def test_admin_dashboard_exposes_system_overview():
     assert b'data-page="admin-dashboard"' in response.data
     assert b'data-work-role="admin"' in response.data
     assert b'data-system-overview' in response.data
+
+
+def test_staff_review_form_explains_when_reason_is_required():
+    client = work_app().test_client()
+    login(client, 'work-staff')
+    page = client.get('/staff/dashboard').get_data(as_text=True)
+    assert '補正或退件時必填' in page
+    assert '說明（選填）' not in page

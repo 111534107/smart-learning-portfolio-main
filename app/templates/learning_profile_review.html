@@ -149,13 +149,13 @@
 <style>
   .score-groups { display: grid; gap: .75rem; max-width: 980px; }
   .score-group { border: 1px solid #d8dce5; border-radius: 12px; background: #fff; }
-  .score-group > summary { cursor: pointer; list-style: none; padding: 1rem 1.1rem; font-size: 1.15rem; font-weight: 800; display: flex; justify-content: space-between; gap: 1rem; align-items: center; }
+  .score-group > summary { cursor: pointer; list-style: none; padding: 1rem 1.1rem; font-size: var(--fs-md); font-weight: 800; display: flex; justify-content: space-between; gap: 1rem; align-items: center; }
   .score-group > summary::-webkit-details-marker { display: none; }
   .score-group > summary::after { content: "＋"; color: #52606d; }
   .score-group[open] > summary::after { content: "－"; }
   .score-group.failed { border-color: #f3b4ad; }
   .score-group.failed > summary { color: #b42318; background: #fff5f4; }
-  .score-group__best { font-size: .9rem; font-weight: 600; color: #667085; }
+  .score-group__best { font-size: var(--fs-sm); font-weight: 600; color: #667085; }
   .score-group__body { padding: 0 1.1rem 1rem; }
   .score-group table { width: 100%; border-collapse: collapse; }
   .score-group th, .score-group td { padding: .55rem; border-bottom: 1px solid #e7e9ef; text-align: left; }
@@ -205,19 +205,19 @@
   .score-lock-status { color: #475467; font-weight: 700; }
   .course-year-group { margin: 1rem 0; }
   .course-year-group[hidden] { display: none; }
-  .course-year-group > summary { cursor: pointer; list-style: none; padding: 1rem 1.1rem; font-size: 1.1rem; font-weight: 800; display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; }
+  .course-year-group > summary { cursor: pointer; list-style: none; padding: 1rem 1.1rem; font-size: var(--fs-md); font-weight: 800; display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; }
   .course-year-group > summary::-webkit-details-marker { display: none; }
   .course-year-group > summary::after { content: "＋ 展開"; margin-left: auto; color: #365ac9; }
   .course-year-group[open] > summary::after { content: "－ 收合"; }
-  .course-year-group__top-three { flex: 1 0 100%; margin: 0; padding-left: 1.5rem; color: #344054; font-size: .93rem; font-weight: 500; }
+  .course-year-group__top-three { flex: 1 0 100%; margin: 0; padding-left: 1.5rem; color: #344054; font-size: var(--fs-sm); font-weight: 500; }
   .course-year-group[open] .course-year-group__top-three,
   .course-year-group[open] .course-year-group__top-label { display: none; }
   .course-year-group__body { padding: 0 1.1rem 1rem; }
   .course-year-group__empty[hidden] { display: none; }
   .course-review-semester[hidden] { display: none; }
-  .course-review-semester > summary { display: flex; align-items: center; gap: .5rem; margin: 1rem 0 .5rem; padding: .65rem .8rem; background: #eef4ff; border-radius: 8px; color: #1d3a6f; cursor: pointer; font-size: 1.1rem; font-weight: 800; list-style: none; }
+  .course-review-semester > summary { display: flex; align-items: center; gap: .5rem; margin: 1rem 0 .5rem; padding: .65rem .8rem; background: #eef4ff; border-radius: 8px; color: #1d3a6f; cursor: pointer; font-size: var(--fs-md); font-weight: 800; list-style: none; }
   .course-review-semester > summary::-webkit-details-marker { display: none; }
-  .course-review-semester > summary::after { content: "＋ 展開"; margin-left: auto; color: #365ac9; font-size: .95rem; }
+  .course-review-semester > summary::after { content: "＋ 展開"; margin-left: auto; color: #365ac9; font-size: var(--fs-base); }
   .course-review-semester[open] > summary::after { content: "－ 收合"; }
   .course-review-section { margin: .5rem 0 1rem; border: 1px solid #e7e9ef; border-radius: 10px; }
   .course-review-section h4 { margin: 0; padding: .7rem .9rem; background: #f8fafc; }
@@ -243,23 +243,23 @@
   .course-review-section tbody tr:last-child { border-bottom: 0; }
   .course-review-section th, .course-review-section td { padding: 0; border: 0; }
   .course-review-section thead tr { padding: .55rem 1rem; background: #f8fafc; border-bottom: 1px solid #e7e9ef; }
-  .course-review-section thead th { position: static; background: none; color: #475467; font-size: .82rem; font-weight: 700; }
+  .course-review-section thead th { position: static; background: none; color: #475467; font-size: var(--fs-sm); font-weight: 700; }
   .course-review-section thead th:last-child { display: none; }
   .course-review-section tr.needs-review { background: #fffdf7; box-shadow: inset 4px 0 0 #f2b33d; }
   .course-review-section input {
     width: 100%; min-width: 0; box-sizing: border-box; padding: .45rem .6rem;
-    border: 1px solid #cfd4dc; border-radius: 7px; background: #fff; font-size: .98rem;
+    border: 1px solid #cfd4dc; border-radius: 7px; background: #fff; font-size: var(--fs-base);
   }
   .course-review-section td:first-child input { min-width: 0; font-weight: 700; }
   .course-review-section input[type="number"] { text-align: center; }
   .course-review-section input.value-pending { border: 1.5px dashed #d97706; background: #fffaf0; }
   .course-review-section td.field-pending { background: none; }
-  .course-review-section td small[id^="confidence-"] { margin-top: .25rem; color: #98a2b3; font-size: .74rem; line-height: 1.35; }
+  .course-review-section td small[id^="confidence-"] { margin-top: .25rem; color: #98a2b3; font-size: var(--fs-xs); line-height: 1.35; }
   .course-review-section td small.confidence-low,
   .course-review-section td small.confidence-unknown { color: #b54708; }
-  .course-review-section .pending-badge { margin-top: .15rem; font-size: .74rem; }
+  .course-review-section .pending-badge { margin-top: .15rem; font-size: var(--fs-xs); }
   .course-review-section td.course-notes-cell { grid-column: 1 / -1; }
-  .course-notes { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .5rem; padding-top: .2rem; font-size: .8rem; }
+  .course-notes { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .5rem; padding-top: .2rem; font-size: var(--fs-xs); }
   .course-notes small { display: inline-flex; margin: 0; }
   .note-chip { align-items: center; padding: .12rem .6rem; border-radius: 999px; background: #eef2f6; color: #344054; font-weight: 700; }
   .note-chip--failed { background: #fee4e2; color: #b42318; }
@@ -283,7 +283,7 @@
     .review-layout .source-doc { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow: auto; margin-bottom: 0; }
     .review-layout .course-review-section thead { display: none; }
     .review-layout .course-review-section tr { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .review-layout .course-review-section td[data-label]::before { content: attr(data-label); display: block; margin-bottom: .2rem; color: #475467; font-size: .76rem; font-weight: 700; }
+    .review-layout .course-review-section td[data-label]::before { content: attr(data-label); display: block; margin-bottom: .2rem; color: #475467; font-size: var(--fs-xs); font-weight: 700; }
     .review-layout .course-review-section td:first-child { grid-column: 1 / -1; }
   }
   @media (max-width: 600px) {
@@ -294,7 +294,7 @@
     .course-review-section tr { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem .7rem; padding: .75rem; }
     .review-filter-bar { position: static; box-shadow: none; }
     .course-review-section td:first-child { grid-column: 1 / -1; }
-    .course-review-section td[data-label]::before { content: attr(data-label); display: block; margin-bottom: .2rem; color: #475467; font-size: .76rem; font-weight: 700; }
+    .course-review-section td[data-label]::before { content: attr(data-label); display: block; margin-bottom: .2rem; color: #475467; font-size: var(--fs-xs); font-weight: 700; }
     .note-source { margin-left: 0; }
   }
 </style>

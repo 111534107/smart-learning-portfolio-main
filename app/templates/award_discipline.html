@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% set page_name = "award-discipline" %}
+
+{% block title %}已保存的懲處紀錄｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "活動與經歷") }}{% endblock %}
+
+{% block content %}
+{{ page_band("已保存的懲處紀錄", [("活動與經歷", url_for('student.portfolio_list')), ("匯入獎懲記錄", url_for('award.award_upload_page'))]) }}
+<div class="page page--banded">
+  <p class="notice mb-1">懲處紀錄不會出現在「活動與經歷」，目前也不會自動帶入備審資料。</p>
+  {% if records %}
+  <div class="table-wrap">
+    <table class="data-table discipline-table">
+      <thead><tr><th>學年度</th><th>學期</th><th>日期</th><th>名稱</th><th>數量</th><th>事由</th><th>銷過</th></tr></thead>
+      <tbody>
+        {% for record in records %}
+        <tr>
+          <td data-label="學年度">{{ record.school_year or "—" }}</td>
+          <td data-label="學期">{{ record.semester or "—" }}</td>
+          <td data-label="日期">{{ record.date or "—" }}</td>
+          <td data-label="名稱">{{ record.name or "—" }}</td>
+          <td data-label="數量">{{ record.count or "—" }}</td>
+          <td data-label="事由">{{ record.reason }}</td>
+          <td data-label="銷過">{{ record.revoked or "—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">目前沒有保存的懲處紀錄。</p>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

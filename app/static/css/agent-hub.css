@@ -1,0 +1,272 @@
+/* 小助手規劃：結構學 GitHub（Issues／Pull request／Activity），外觀沿用系統的紙張、深藍標題帶、焦糖色與五年色。
+   只用 design-system.css 與 theme-campus.css 的變數；另含右下角聊天視窗的計畫卡樣式。 */
+
+.hub {
+  --hub-navy: #1f3a5f;
+  --hub-band: var(--band-navy, linear-gradient(90deg, #1f3a5f, #2c5282));
+  --hub-warm: var(--accent-warm, #ca9954);
+  --hub-card: var(--radius-card, 14px);
+  --hub-shadow: var(--shadow-card, 0 6px 18px -12px rgb(60 40 10 / 35%));
+  --hub-merge: #1f8a5a;
+}
+
+/* ---------- 進度總覽卡 ---------- */
+.hub-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: clamp(1rem, 3vw, 2rem);
+  margin-bottom: 1.25rem;
+  padding: clamp(1.1rem, 3vw, 1.75rem) clamp(1.1rem, 3vw, 2rem);
+  border-radius: var(--hub-card);
+  background: var(--hub-band);
+  color: #fff;
+  box-shadow: var(--hub-shadow);
+  overflow: hidden;
+}
+.hub-hero::after { /* 右上角淡淡的焦糖光暈 */
+  content: "";
+  position: absolute;
+  inset: -40% -10% auto auto;
+  width: 22rem;
+  height: 22rem;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(202 153 84 / 35%), transparent 65%);
+  pointer-events: none;
+}
+.hub-ring { position: relative; width: 104px; height: 104px; flex: none; }
+.hub-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.hub-ring circle { fill: none; stroke-width: 11; }
+.hub-ring__track { stroke: rgb(255 255 255 / 18%); }
+.hub-ring__bar {
+  stroke: var(--hub-warm);
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: calc(100 - var(--p));
+}
+.hub-ring__num { position: absolute; inset: 0; display: grid; place-content: center; grid-auto-flow: column; align-items: baseline; font-family: var(--font-mono); }
+.hub-ring__num b { font-size: var(--fs-xl); line-height: 1; }
+.hub-ring__num small { font-size: var(--fs-sm); opacity: .8; }
+
+.hub-hero__body { position: relative; z-index: 1; min-width: 0; }
+.hub-hero__eyebrow { margin: 0 0 .3rem; color: rgb(255 255 255 / 75%); font-size: var(--fs-xs); letter-spacing: .08em; }
+.hub-hero__title { margin: 0 0 .75rem; color: #fff; font-family: var(--font-serif); font-size: var(--fs-xl); line-height: 1.25; }
+.hub-stats { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0; padding: 0; list-style: none; }
+.hub-stats li { display: inline-flex; align-items: baseline; gap: .35rem; padding: .3rem .8rem; border-radius: 999px; background: rgb(255 255 255 / 12%); font-size: var(--fs-sm); }
+.hub-stats b { font-family: var(--font-mono); font-size: var(--fs-md); }
+
+.hub-hero__action { position: relative; z-index: 1; display: grid; justify-items: end; gap: .4rem; text-align: right; }
+.hub-hero__action .button { border-color: var(--hub-warm); background: var(--hub-warm); color: #1c2230; }
+.hub-hero__action .button:hover { box-shadow: 3px 3px 0 #fff; }
+.hub-hero__hint { margin: 0; color: rgb(255 255 255 / 72%); font-size: var(--fs-xs); }
+.hub-pulse { animation: hub-pulse 2.2s ease-in-out infinite; }
+@keyframes hub-pulse { 50% { box-shadow: 0 0 0 6px rgb(202 153 84 / 35%); } }
+
+/* ---------- 分頁（像 GitHub 的 Issues / Pull requests 分頁） ---------- */
+.hub-tabs { display: flex; gap: .25rem; margin-bottom: 1.25rem; border-bottom: 2px solid var(--line); overflow-x: auto; }
+.hub-tabs a { display: inline-flex; align-items: center; gap: .45rem; margin-bottom: -2px; padding: .65rem 1.1rem; border-bottom: 3px solid transparent; color: var(--ink-soft); font-weight: 700; text-decoration: none; white-space: nowrap; }
+.hub-tabs a:hover { color: var(--ink); border-bottom-color: var(--line); }
+.hub-tabs a[aria-current="page"] { color: var(--hub-navy); border-bottom-color: var(--hub-warm); }
+.hub-count { min-width: 1.6rem; padding: .05rem .45rem; border-radius: 999px; background: var(--paper-deep); color: var(--ink); font-family: var(--font-mono); font-size: var(--fs-xs); text-align: center; }
+.hub-tabs a[aria-current="page"] .hub-count { background: var(--hub-navy); color: #fff; }
+
+/* ---------- 工具列：狀態切換＋標籤篩選 ---------- */
+.hub-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: 1rem; }
+.hub-switch { display: inline-flex; padding: .2rem; border: 1px solid var(--line); border-radius: 999px; background: var(--sheet); }
+.hub-switch a { padding: .35rem .95rem; border-radius: 999px; color: var(--ink-soft); font-size: var(--fs-sm); font-weight: 700; text-decoration: none; }
+.hub-switch a[aria-current="true"] { background: var(--hub-navy); color: #fff; }
+.hub-filters { display: flex; flex-wrap: wrap; gap: .4rem; }
+.hub-chip { padding: .3rem .8rem; border: 1px solid var(--line); border-radius: 999px; background: var(--sheet); color: var(--ink-soft); font-size: var(--fs-xs); font-weight: 700; text-decoration: none; transition: border-color .15s ease, background .15s ease; }
+.hub-chip:hover { border-color: var(--ink-soft); }
+.hub-chip.is-on { border-color: var(--hub-navy); background: var(--hub-navy); color: #fff; }
+
+/* ---------- 標籤：每一類一個顏色（沿用五年色） ---------- */
+.hub-label { display: inline-flex; align-items: center; gap: .3rem; padding: .1rem .6rem; border-radius: 999px; font-size: var(--fs-xs); font-weight: 700; white-space: nowrap; }
+.hub-label::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.hub-label--ocr { background: var(--danger-soft); color: var(--danger); }
+.hub-label--target { background: var(--accent-soft); color: var(--year-1); }
+.hub-label--gap { background: var(--warn-soft); color: #8a5a12; }
+.hub-label--data { background: var(--ok-soft); color: var(--year-2); }
+.hub-label--bio { background: #ece6fa; color: var(--year-5); }
+
+/* ---------- 待辦卡片（Issues） ---------- */
+.hub-issues { display: grid; gap: .75rem; margin: 0 0 1rem; padding: 0; list-style: none; }
+.hub-issue {
+  --stripe: var(--year-2);
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem 1rem 1.4rem;
+  border: 1px solid var(--line);
+  border-radius: var(--hub-card);
+  background: var(--sheet);
+  box-shadow: var(--hub-shadow);
+  overflow: hidden;
+  transition: transform .18s ease, box-shadow .18s ease, opacity .25s ease;
+  animation: hub-rise .45s cubic-bezier(.2, .8, .2, 1) both;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+.hub-issue::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 5px; background: var(--stripe); }
+.hub-issue:hover { transform: translateY(-2px); box-shadow: 0 12px 24px -16px rgb(60 40 10 / 45%); }
+.hub-issue--ocr { --stripe: var(--danger); }
+.hub-issue--target { --stripe: var(--year-1); }
+.hub-issue--gap { --stripe: var(--year-3); }
+.hub-issue--data { --stripe: var(--year-2); }
+.hub-issue--bio { --stripe: var(--year-5); }
+/* 只動位置不動透明度：動畫沒播（背景分頁、列印）時內容也完整可見 */
+@keyframes hub-rise { from { transform: translateY(10px); } }
+
+.hub-check {
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border: 2px solid var(--stripe, var(--line));
+  border-radius: 50%;
+  background: var(--sheet);
+  cursor: pointer;
+  transition: background .2s ease, transform .15s ease;
+}
+.hub-check svg { width: 1.3rem; height: 1.3rem; fill: none; stroke: var(--stripe); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 20; stroke-dashoffset: 20; transition: stroke-dashoffset .25s ease; }
+.hub-check:hover svg, .hub-check:focus-visible svg { stroke-dashoffset: 8; }
+.hub-check:active { transform: scale(.9); }
+.hub-issue.is-done .hub-check { background: var(--stripe); }
+.hub-issue.is-done .hub-check svg { stroke: #fff; stroke-dashoffset: 0; }
+.hub-issue.is-done { opacity: .78; }
+.hub-issue.is-done .hub-issue__title a { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line); }
+
+.hub-issue__main { min-width: 0; }
+.hub-issue__top { display: flex; align-items: center; gap: .5rem; margin: 0 0 .25rem; }
+.hub-issue__num { color: var(--muted); font-family: var(--font-mono); font-size: var(--fs-xs); }
+.hub-issue__title { margin: 0; font-family: var(--font-sans); font-size: var(--fs-md); font-weight: 700; line-height: 1.4; }
+.hub-issue__title a { color: var(--ink); text-decoration: none; }
+.hub-issue__title a:hover { color: var(--accent); text-decoration: underline; }
+.hub-issue__note { margin: .2rem 0 0; color: var(--ink-soft); font-size: var(--fs-sm); }
+.hub-issue__meta { margin: .35rem 0 0; color: var(--muted); font-size: var(--fs-xs); }
+.hub-issue__meta a { color: var(--muted); }
+
+/* ---------- 空狀態 ---------- */
+.hub-empty { padding: 2.5rem 1.25rem; text-align: center; }
+.hub-empty__big { margin: 0 0 .25rem; font-size: var(--fs-display); }
+
+/* ---------- 提案頁（Pull request） ---------- */
+.hub-pr { margin-bottom: 1rem; }
+.hub-pr .sheet__head { align-items: center; }
+.hub-pr__eyebrow { margin: 0 0 .15rem; font-family: var(--font-mono); font-size: var(--fs-xs); opacity: .8; }
+.hub-pr__meta { margin: 0 0 .75rem; color: var(--muted); font-size: var(--fs-sm); }
+.hub-pr__reason { margin: 0 0 1.25rem; padding: .8rem 1rem; border-left: 4px solid var(--hub-warm); border-radius: 0 var(--radius) var(--radius) 0; background: var(--paper); }
+.hub-pr__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+.hub-pr__h { margin: 0 0 .6rem; font-family: var(--font-sans); font-size: var(--fs-base); font-weight: 700; color: var(--hub-navy); }
+.hub-steps { margin: 0; padding: 0; list-style: none; counter-reset: step; }
+.hub-steps li { position: relative; padding: .55rem 0 .55rem 2.2rem; border-bottom: 1px dashed var(--line); font-size: var(--fs-sm); counter-increment: step; }
+.hub-steps li::before { content: counter(step); position: absolute; left: 0; top: .5rem; display: grid; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: var(--paper-deep); color: var(--hub-navy); font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 700; }
+.hub-mini { display: grid; gap: .5rem; margin: 0; padding: 0; list-style: none; }
+.hub-mini li { display: grid; gap: .2rem; justify-items: start; padding: .65rem .8rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--sheet); font-weight: 700; font-size: var(--fs-sm); }
+.hub-mini--preview li { border-style: dashed; background: var(--paper); }
+.hub-mini small { color: var(--muted); font-weight: 400; }
+.hub-mini a { color: var(--ink); }
+.hub-mini li.is-done a { color: var(--muted); text-decoration: line-through; }
+
+.hub-badge { display: inline-flex; align-items: center; gap: .35rem; padding: .25rem .8rem; border-radius: 999px; font-size: var(--fs-xs); font-weight: 700; white-space: nowrap; }
+.hub-badge--pending { background: var(--warn-soft); color: #8a5a12; }
+.hub-badge--succeeded { background: #dcf3e6; color: var(--hub-merge); }
+.hub-badge--cancelled { background: var(--paper-deep); color: var(--muted); }
+.sheet__head .hub-badge { border: 1px solid rgb(255 255 255 / 40%); }
+
+/* 同意執行列（像 GitHub 的 Merge 區） */
+.hub-merge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 1.1rem 1.4rem;
+  border: 2px solid var(--hub-merge);
+  border-radius: var(--hub-card);
+  background: #f0faf4;
+}
+.hub-merge h3 { margin: 0 0 .25rem; font-family: var(--font-sans); font-size: var(--fs-md); color: var(--hub-merge); }
+.hub-merge p { margin: 0; max-width: 40rem; color: var(--ink-soft); font-size: var(--fs-sm); }
+.hub-merge__actions { display: flex; flex-wrap: wrap; gap: .6rem; }
+.hub-merge__go { border-color: var(--hub-merge); background: var(--hub-merge); font-size: var(--fs-md); }
+.hub-merge__go:hover { box-shadow: 3px 3px 0 var(--ink); }
+.hub-closed, .hub-merged { margin: 0 0 1rem; padding: .9rem 1.2rem; border-radius: var(--hub-card); font-weight: 700; }
+.hub-closed { background: var(--paper-deep); color: var(--muted); }
+.hub-merged { background: #dcf3e6; color: var(--hub-merge); }
+.hub-merged a { color: inherit; }
+
+/* ---------- 提案列表 ---------- */
+.hub-prs { display: grid; gap: .6rem; margin: 0 0 1rem; padding: 0; list-style: none; }
+.hub-prs__item { animation: hub-rise .45s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i, 0) * 60ms); }
+.hub-prs__link { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 1rem; padding: .9rem 1.2rem; border: 1px solid var(--line); border-radius: var(--hub-card); background: var(--sheet); box-shadow: var(--hub-shadow); color: var(--ink); text-decoration: none; transition: transform .18s ease; }
+.hub-prs__link:hover { transform: translateY(-2px); }
+.hub-prs__num { display: grid; place-items: center; width: 2.6rem; height: 2.6rem; border-radius: 50%; background: var(--paper-deep); color: var(--hub-navy); font-family: var(--font-mono); font-weight: 700; }
+.hub-prs__item--succeeded .hub-prs__num { background: #dcf3e6; color: var(--hub-merge); }
+.hub-prs__item--pending .hub-prs__num { background: var(--warn-soft); color: #8a5a12; }
+.hub-prs__body { display: grid; gap: .15rem; min-width: 0; }
+.hub-prs__body small { color: var(--muted); }
+
+/* ---------- 行動紀錄（Activity 時間軸） ---------- */
+.hub-timeline { position: relative; margin: 0 0 1rem; padding: 0; list-style: none; }
+.hub-timeline::before { content: ""; position: absolute; top: .5rem; bottom: .5rem; left: 1.15rem; width: 2px; background: var(--line); }
+.hub-timeline__item { position: relative; display: grid; grid-template-columns: 2.3rem 1fr; gap: .9rem; align-items: start; padding: .4rem 0; animation: hub-rise .45s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i, 0) * 50ms); }
+.hub-timeline__dot { z-index: 1; display: grid; place-items: center; width: 2.3rem; height: 2.3rem; border: 3px solid var(--paper); border-radius: 50%; background: var(--paper-deep); color: var(--hub-navy); font-weight: 700; }
+.hub-timeline__item--merged .hub-timeline__dot { background: var(--hub-merge); color: #fff; }
+.hub-timeline__item--done .hub-timeline__dot { background: var(--year-5); color: #fff; }
+.hub-timeline__item--closed .hub-timeline__dot { background: var(--muted); color: #fff; }
+.hub-timeline__item--plan .hub-timeline__dot { background: var(--hub-warm); color: #1c2230; }
+.hub-timeline__card { padding: .6rem .9rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--sheet); }
+.hub-timeline__card p { margin: 0; font-weight: 700; }
+.hub-timeline__card small { color: var(--muted); }
+.hub-timeline__card a { color: var(--muted); }
+
+.hub-note { margin: 1.5rem 0 0; color: var(--muted); font-size: var(--fs-xs); }
+
+/* ---------- 手機 ---------- */
+@media (max-width: 720px) {
+  /* 手機：圓環＋標題一列、三個數字一列、按鈕一列 */
+  .hub-hero { grid-template-columns: auto 1fr; row-gap: .7rem; }
+  .hub-hero__body { display: contents; }
+  .hub-ring { grid-row: 1 / span 2; }
+  .hub-hero__eyebrow, .hub-hero__title, .hub-stats { position: relative; z-index: 1; }
+  .hub-hero__eyebrow { grid-column: 2; align-self: end; margin: 0; }
+  .hub-hero__title { grid-column: 2; align-self: start; margin: 0; }
+  .hub-stats { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); }
+  .hub-stats li { justify-content: center; padding: .3rem .4rem; font-size: var(--fs-xs); }
+  .hub-hero__action { grid-column: 1 / -1; justify-items: stretch; text-align: left; }
+  .hub-hero__action .button, .hub-hero__action form { width: 100%; }
+  .hub-ring { width: 80px; height: 80px; }
+  .hub-ring__num b { font-size: var(--fs-lg); }
+  .hub-hero__title { font-size: var(--fs-lg); }
+  .hub-issue { grid-template-columns: auto 1fr; padding: .9rem 1rem .9rem 1.2rem; }
+  .hub-issue__go { grid-column: 2; justify-self: start; }
+  .hub-pr__grid { grid-template-columns: 1fr; }
+  .hub-merge__actions { width: 100%; }
+  .hub-merge__actions form, .hub-merge__actions .button { flex: 1; width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hub-issue, .hub-prs__item, .hub-timeline__item, .hub-pulse { animation: none; }
+  .hub-issue, .hub-prs__link, .hub-check { transition: none; }
+  .hub-issue:hover, .hub-prs__link:hover { transform: none; }
+}
+
+/* ---- 右下角聊天視窗：組員版的計畫卡、站內連結 ---- */
+.assistant__links { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .6rem; }
+.assistant__links .button { text-decoration: none; }
+.assistant__plan { margin-top: .75rem; padding: .75rem .85rem; border: 2px solid #1f8a5a; border-radius: 10px; background: #f0faf4; }
+.assistant__plan > p { margin: .35rem 0 0; font-size: var(--fs-sm); }
+.assistant__plan ol { margin: .35rem 0 .6rem; padding-left: 1.25rem; font-size: var(--fs-sm); }
+.assistant__plan-actions { display: flex; flex-wrap: wrap; gap: .45rem; }
+.assistant__plan-actions .button:first-child { border-color: #1f8a5a; background: #1f8a5a; }
+.assistant__plan-open { display: inline-block; margin-top: .45rem; font-size: var(--fs-xs); }
+.assistant__history-button { margin-left: auto; margin-right: .5rem; color: var(--accent); font-size: var(--fs-xs); font-weight: 700; }
+
+/* ---- 學生主選單「我的待辦」：數字徽章＋等你同意的小點（agent-hub.css 由小助手視窗載入，學生每頁都有） ---- */
+.mainnav__todo { position: relative; display: inline-flex; align-items: center; gap: .35rem; }
+.mainnav__count { min-width: 1.35rem; padding: 0 .4rem; border-radius: 999px; background: var(--danger); color: #fff; font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 700; line-height: 1.35rem; text-align: center; }
+.mainnav__dot { width: .55rem; height: .55rem; border-radius: 50%; background: #ca9954; box-shadow: 0 0 0 3px rgb(202 153 84 / 30%); }

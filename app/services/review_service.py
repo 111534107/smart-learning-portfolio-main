@@ -36,6 +36,8 @@ def record_review_result(submission, actor, decision, comment=None, revision_ite
         raise PermissionError("only staff or admin can record the common result")
     if decision not in {"approved", "needs_revision", "rejected"}:
         raise ValueError("invalid review decision")
+    if decision in {"needs_revision", "rejected"} and not (comment or "").strip():
+        raise ValueError("退回或補正時請填寫原因")
     result = ProjectReviewResult(submission=submission, recorded_by=actor, decision=decision, comment=comment)
     db.session.add(result)
     submission.status = decision

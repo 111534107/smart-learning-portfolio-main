@@ -248,3 +248,16 @@ def test_real_client_allows_small_clock_skew_and_keeps_cause(monkeypatch):
 
     assert client.verify_code("code")["email"] == SCHOOL_EMAIL
     assert seen["skew"] >= 10
+
+
+def test_google_login_control_visible_and_explains_unconfigured_state():
+    app, _ = school_app()
+    client = app.test_client()
+    page = client.get('/login').get_data(as_text=True)
+    assert '使用學校 Google Workspace 帳號登入' in page
+    assert 'class="google-login' in page and 'href="/auth/google' in page
+    app.config['GOOGLE_LOGIN_REDIRECT_URI'] = ''
+    page = client.get('/login').get_data(as_text=True)
+    assert '使用學校 Google Workspace 帳號登入' in page
+    assert 'Google 登入尚未設定' in page
+    assert 'disabled' in page and 'href="/auth/google' not in page
