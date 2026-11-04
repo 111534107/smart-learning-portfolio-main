@@ -12,8 +12,10 @@
 <div class="page page--banded">
   {% set source_url = url_for('student.learning_profile_document_view', document_id=document.id) %}
   <details class="source-doc mb-1" open>
-    <summary>你上傳的獎懲記錄：{{ document.display_name }}</summary>
-    {% if document.preview_kind == "image" %}
+    <summary>{{ '你貼上的獎懲記錄' if document.extraction and document.extraction.provider == 'paste' else '你上傳的獎懲記錄' }}：{{ document.display_name }}</summary>
+    {% if document.extraction and document.extraction.provider == 'paste' %}
+    <pre style="white-space: pre-wrap; overflow-wrap: anywhere;">{{ document.extraction.result_json.get('pasted_text', '') }}</pre>
+    {% elif document.preview_kind == "image" %}
     <button type="button" class="source-doc__image" data-lightbox="{{ source_url }}" aria-label="放大 {{ document.display_name }}">
       <img src="{{ source_url }}" alt="{{ document.display_name }}">
       <span class="small">點圖片放大</span>
@@ -29,12 +31,12 @@
   <form method="post" action="{{ url_for('award.award_confirm', document_id=document.id) }}" class="form-stack">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="table-wrap">
-      <table class="data-table award-table">
+      <table class="data-table award-table" data-award-table>
         <thead><tr><th>匯入</th><th>事由</th><th>類別</th><th>學年度</th><th>學期</th><th>日期與獎勵</th></tr></thead>
         <tbody>
           {% for row in rows %}
           <tr>
-            <td class="award-table__include"><input type="checkbox" name="include" value="{{ loop.index0 }}" checked aria-label="匯入第 {{ loop.index }} 列"></td>
+            <td class="award-table__include"><input type="checkbox" name="include" value="{{ loop.index0 }}"{% if included is none or loop.index0 in included %} checked{% endif %} aria-label="匯入第 {{ loop.index }} 列"></td>
             <td><input name="reason" value="{{ row.reason }}" aria-label="第 {{ loop.index }} 列事由"></td>
             <td>
               <select name="category" aria-label="第 {{ loop.index }} 列類別">
@@ -50,6 +52,17 @@
         </tbody>
       </table>
     </div>
+    <template data-award-row-template>
+      <tr>
+        <td class="award-table__include"><input type="checkbox" name="include" checked data-award-field="匯入"></td>
+        <td><input name="reason" data-award-field="事由"></td>
+        <td><select name="category" data-award-field="類別"><option value="">請選擇</option>{% for key in categories %}<option value="{{ key }}">{{ category_labels[key] }}</option>{% endfor %}</select></td>
+        <td><input name="school_year" inputmode="numeric" data-award-field="學年度"></td>
+        <td><input name="semester" inputmode="numeric" data-award-field="學期（1 或 2）"></td>
+        <td><input name="detail" data-award-field="日期與獎勵"></td>
+      </tr>
+    </template>
+    <div><button class="button button--small button--line" type="button" data-award-add-row>＋ 新增一筆</button></div>
     <p class="muted small">事由空白的列不會匯入。學年度寫民國年（例如 114），學期寫 1 或 2。匯入後的資料標示「學校獎懲記錄」，之後還能在「活動與經歷」修改。</p>
     <div class="record-card__actions">
       <button class="button" type="submit">確認匯入勾選的列</button>

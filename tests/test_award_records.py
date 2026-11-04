@@ -75,6 +75,72 @@ def test_upload_without_ai_goes_to_review_with_blank_rows(tmp_path):
         assert SourceDocument.query.one().document_type == "award_record"
 
 
+def test_paste_school_table_reviews_then_imports_selected_rewards(tmp_path):
+    app = records_app(tmp_path)
+    client = app.test_client()
+    login(client)
+    pasted = ('學號\t姓名\t獎懲日期\t獎懲名稱\t數量\t獎懲事由\t銷過\n'
+              '111534100\t測試學生\t2025/12/30\t嘉獎\t1\t1141學期協助科上社團活動\t\n'
+              '111534100\t測試學生\t2025/12/22\t小功\t2\t1141學期參加比賽獲得佳作\t\n'
+              '111534100\t測試學生\t2025/12/01\t警告\t1\t上課遲到\t\n'
+              '111534100\t測試學生\t2025/11/01\t嘉獎\t1\t已銷過的記錄\t已銷')
+    assert '貼上學校獎懲表格' in client.get('/student/award-records').get_data(as_text=True)
+    response = client.post('/student/award-records/paste', data={'pasted_table': pasted})
+    assert response.status_code == 302
+    html = client.get(response.location).get_data(as_text=True)
+    assert '1141學期協助科上社團活動' in html
+    assert '1141學期參加比賽獲得佳作' in html
+    assert '已略過 2 筆' in html
+    with app.app_context():
+        assert Portfolio.query.count() == 0
+    confirm = client.post(response.location.replace('/review', '/confirm'), data={
+        'include': ['0', '1'], 'reason': ['1141學期協助科上社團活動', '1141學期參加比賽獲得佳作'],
+        'category': ['service', 'competition'], 'school_year': ['114', '114'],
+        'semester': ['1', '1'], 'detail': ['2025/12/30 嘉獎1次', '2025/12/22 小功2次'],
+    })
+    assert confirm.status_code == 302
+    with app.app_context():
+        records = Portfolio.query.order_by(Portfolio.id).all()
+        assert [r.category for r in records] == ['service', 'competition']
+        assert all(r.source == 'award_record' for r in records)
+
+
+def test_paste_rejects_other_students_or_unrecognized_table(tmp_path):
+    app = records_app(tmp_path)
+    client = app.test_client()
+    login(client)
+    header = '學號\t姓名\t獎懲日期\t獎懲名稱\t數量\t獎懲事由\t銷過\n'
+    response = client.post('/student/award-records/paste', data={'pasted_table': header +
+        '111534999\t其他人\t2025/12/30\t嘉獎\t1\t協助活動\t'})
+    assert response.status_code == 400
+    assert '學號' in response.get_data(as_text=True)
+    response = client.post('/student/award-records/paste', data={'pasted_table': '這不是表格'})
+    assert response.status_code == 400
+    with app.app_context():
+        assert SourceDocument.query.count() == 0
+
+
+def test_review_allows_adding_multiple_rows_and_importing_them(tmp_path):
+    app = records_app(tmp_path)
+    client = app.test_client()
+    login(client)
+    review_url = _upload(client).headers['Location']
+    html = client.get(review_url).get_data(as_text=True)
+    assert 'data-award-add-row' in html
+    assert 'data-award-row-template' in html
+    response = client.post(review_url.replace('/review', '/confirm'), data={
+        'include': ['0', '3', '4'],
+        'reason': ['原有記錄', '', '', '新增記錄一', '新增記錄二'],
+        'category': ['activity', '', '', 'service', 'competition'],
+        'school_year': ['114', '', '', '114', '114'],
+        'semester': ['1', '', '', '1', '2'],
+        'detail': ['', '', '', '嘉獎', '佳作'],
+    })
+    assert response.status_code == 302
+    with app.app_context():
+        assert {p.title for p in Portfolio.query.all()} == {'原有記錄', '新增記錄一', '新增記錄二'}
+
+
 def test_upload_with_ai_shows_classified_rows(tmp_path, monkeypatch):
     monkeypatch.setattr(service, "extract_rows", lambda path, name: (ROWS, []))
     app = records_app(tmp_path)

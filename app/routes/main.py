@@ -1,12 +1,14 @@
 from datetime import datetime, timezone
 from functools import wraps
+import re
+import secrets
 
 from flask import Blueprint, abort, current_app, jsonify, redirect, render_template, request, send_file, session, url_for
 from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.extensions import db
-from app.models import AuditLog, AwardCertificate, PortfolioSubmission, SourceDocument, StudentTarget, SubmissionAssignment, TeacherReviewFeedback, User
+from app.models import AuditLog, AwardCertificate, PortfolioSubmission, SourceDocument, StudentProfile, StudentTarget, SubmissionAssignment, TeacherReviewFeedback, User
 from app.services.gap_service import analyze_gap
 from app.services.admission_schedule import channel_label
 from app.services.guide_service import CARD_IDS, guide_cards
@@ -143,12 +145,32 @@ def google_login_callback():
     user = User.query.filter_by(google_sub=sub).first()
     if user is None:
         matches = User.query.filter(db.func.lower(User.email) == email).all()
-        if len(matches) != 1 or matches[0].google_sub:
-            user = None
-        else:
+        if len(matches) == 1 and not matches[0].google_sub:
             user = matches[0]
+        elif not matches:
+            student_no = email.split('@', 1)[0]
+            if re.fullmatch(r'[0-9]{1,20}', student_no):
+                profile = StudentProfile.query.filter_by(student_no=student_no).first()
+                by_name = User.query.filter_by(username=student_no).first()
+                existing = profile.user if profile else by_name
+                if existing and (not by_name or by_name.id == existing.id):
+                    if existing.role == 'student' and existing.is_active and not existing.email and not existing.google_sub:
+                        user = existing
+                        user.email = email
+                        if not profile and not user.student_profile:
+                            db.session.add(StudentProfile(user_id=user.id, student_no=student_no))
+                elif not existing:
+                    user = User(username=student_no, display_name=student_no, role='student', email=email, google_sub=sub)
+                    user.set_password(secrets.token_urlsafe(48))
+                    db.session.add(user)
+                    try:
+                        db.session.flush()
+                    except IntegrityError:
+                        db.session.rollback()
+                        return render_template('login.html', error='帳號建立發生衝突，請重新登入或洽管理員。', google_login_enabled=True), 409
+                    db.session.add(StudentProfile(user_id=user.id, student_no=student_no))
     if not user or not user.is_active or user.role != "student" or (user.email or "").lower() != email:
-        return render_template("login.html", error="此學校帳號尚未綁定可用的學生帳號，請洽管理員。",
+        return render_template("login.html", error="此學校帳號無法連結學生資料，請洽管理員。",
                                google_login_enabled=True), 403
     if not user.google_sub:
         user.google_sub = sub
@@ -157,7 +179,12 @@ def google_login_callback():
         name = " ".join(name.split())
         if name and len(name) <= 100 and name.isprintable():
             user.display_name = name
-    return _finish_login(user, next_path)
+    try:
+        return _finish_login(user, next_path)
+    except IntegrityError:
+        db.session.rollback()
+        session.clear()
+        return render_template('login.html', error='帳號建立發生衝突，請重新登入或洽管理員。', google_login_enabled=True), 409
 
 
 @main_bp.post("/logout")

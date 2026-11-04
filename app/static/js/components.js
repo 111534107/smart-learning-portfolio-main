@@ -78,6 +78,41 @@ document.querySelectorAll("[data-record-table]").forEach((table) => {
   });
 });
 
+// 從學校網頁複製表格時保留欄列；純文字貼上仍使用瀏覽器原有行為。
+document.querySelectorAll('[data-award-paste]').forEach((field) => {
+  field.addEventListener('paste', (event) => {
+    const html = event.clipboardData && event.clipboardData.getData('text/html');
+    if (!html) return;
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const rows = [...doc.querySelectorAll('tr')].map((row) =>
+      [...row.querySelectorAll(':scope > th, :scope > td')].map((cell) =>
+        (cell.textContent || '').replace(/\s+/g, ' ').trim()));
+    const first = rows.findIndex((row) => row.map((cell) => cell.replace(/\s+/g, '')).includes('獎懲事由'));
+    if (first < 0) return;
+    const text = rows.slice(first).filter((row) => row.length).map((row) => row.join('\t')).join('\n');
+    event.preventDefault();
+    field.setRangeText(text, field.selectionStart, field.selectionEnd, 'end');
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+});
+
+// 獎懲核對：逐筆新增手動填寫列，勾選值對應後端的列索引。
+document.querySelectorAll('[data-award-add-row]').forEach((button) => {
+  const form = button.closest('form');
+  const body = form.querySelector('[data-award-table] tbody');
+  const template = form.querySelector('[data-award-row-template]');
+  button.addEventListener('click', () => {
+    const index = body.rows.length;
+    const row = template.content.firstElementChild.cloneNode(true);
+    row.querySelector('[name="include"]').value = String(index);
+    row.querySelectorAll('[data-award-field]').forEach((field) => {
+      field.setAttribute('aria-label', `第 ${index + 1} 列${field.dataset.awardField}`);
+    });
+    body.appendChild(row);
+    row.querySelector('[name="reason"]').focus();
+  });
+});
+
 // ---------- 缺件比對：容器依序裝滿、數字往上跳、點容器看細節 ----------
 document.querySelectorAll("[data-gap-board]").forEach((board) => {
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;

@@ -9,6 +9,8 @@
 """
 
 import json
+import csv
+import io
 import re
 from functools import lru_cache
 from pathlib import Path
@@ -84,7 +86,40 @@ def extract_rows(file_path, display_name):
     return result.get("rows") or [], []
 
 
-def build_draft(rows, warnings=None):
+def parse_pasted_table(text, student_no):
+    """讀取從學校網頁複製的表格；欄位對不上時要求重新複製。"""
+    if not text or len(text) > 200000:
+        raise ValueError('請貼上獎懲表格，內容不可超過 20 萬字。')
+    try:
+        table = list(csv.reader(io.StringIO(text, newline=''), delimiter='\t'))
+    except csv.Error as exc:
+        raise ValueError('表格格式無法辨識，請連同標題重新複製貼上。') from exc
+    table = [row for row in table if any(cell.strip() for cell in row)]
+    if not table or len(table) > 1001:
+        raise ValueError('請貼上完整表格，每次最多 1000 筆。')
+    header = [re.sub(r'\s+', '', cell) for cell in table[0]]
+    required = ['學號', '姓名', '獎懲日期', '獎懲名稱', '數量', '獎懲事由', '銷過']
+    if len(header) < len(required) or header[:len(required)] != required:
+        raise ValueError('無法辨識表格欄位，請從學校系統連同表頭一起複製。')
+    rows = []
+    for index, cells in enumerate(table[1:], start=2):
+        if len(cells) == 6:
+            cells.append('')  # 複製時可能省略最後的空白「銷過」欄
+        if len(cells) != 7:
+            raise ValueError(f'第 {index} 列欄位不完整，請重新複製整列。')
+        number, _, date, name, count, reason, revoked = [cell.strip() for cell in cells]
+        if not student_no or number != student_no:
+            raise ValueError(f'第 {index} 列學號與目前學生帳號不一致，請確認複製的是自己的資料。')
+        if not date or not name or not reason or (count and not count.isdigit()):
+            raise ValueError(f'第 {index} 列內容不完整，請檢查日期、獎懲名稱、數量及事由。')
+        rows.append({'date': date, 'name': name, 'count': int(count) if count else 1,
+                     'reason': reason, 'revoked': revoked})
+    if not rows:
+        raise ValueError('沒有找到資料列，請連同表頭及獎懲紀錄一起複製。')
+    return rows
+
+
+def build_draft(rows, warnings=None, source='ai'):
     """過濾掉懲處與已銷過的列，補上建議類別與學年度，給學生確認。"""
     rewards = set(_rules()["rewards"])
     draft, skipped = [], 0
@@ -107,5 +142,6 @@ def build_draft(rows, warnings=None):
     if skipped:
         warnings.append(f"已略過 {skipped} 筆懲處、已銷過或沒有事由的紀錄，這些不會存進系統。")
     if draft:
-        warnings.append("AI 讀的字可能有錯，請對照原始檔逐列檢查；類別是建議，可以改。")
+        warnings.append("請對照來源逐列檢查；類別是建議，可以改。" if source == 'paste' else
+                        "AI 讀的字可能有錯，請對照原始檔逐列檢查；類別是建議，可以改。")
     return {"rows": draft, "warnings": warnings}

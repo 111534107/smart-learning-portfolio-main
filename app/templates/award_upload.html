@@ -11,6 +11,17 @@
 {{ page_band("匯入獎懲記錄", [("活動與經歷", url_for('student.portfolio_list'))]) }}
 <div class="page narrow page--banded">
   <section class="sheet mb-1">
+    <h2>貼上學校獎懲表格</h2>
+    <p>在學校系統選取獎懲表格（包含表頭），複製後貼到下方。系統會整理成多筆資料，讓你確認後再匯入。</p>
+    {% if paste_error %}<p class="alert mb-1" role="alert">{{ paste_error }}</p>{% endif %}
+    <form method="post" action="{{ url_for('award.award_paste') }}" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="field">學校獎懲表格<textarea name="pasted_table" rows="8" required data-award-paste placeholder="從學校系統複製表格後，貼在這裡">{{ pasted_table or '' }}</textarea></label>
+      <div><button class="button" type="submit">整理並核對</button></div>
+    </form>
+  </section>
+  <section class="sheet mb-1">
+    <h2>上傳 PDF 或圖片</h2>
     <ol class="muted small">
       <li>到學校系統的「查歷年獎懲」，學年期選最早到最晚，存成 PDF 或截圖。</li>
       <li>上傳後，AI 會一列一列讀出來，並建議放在活動、競賽、服務學習或幹部經歷。</li>

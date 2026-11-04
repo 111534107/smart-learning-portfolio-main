@@ -49,6 +49,39 @@ def award_upload_page():
     return render_template("award_upload.html", user=user, documents=documents)
 
 
+@award_bp.post('/student/award-records/paste')
+@role_required('student')
+def award_paste():
+    user = get_current_user()
+    text = request.form.get('pasted_table', '')
+    try:
+        student_no = user.student_profile.student_no if user.student_profile else None
+        rows = award_record_service.parse_pasted_table(text, student_no)
+    except ValueError as error:
+        documents = SourceDocument.query.filter_by(owner_id=user.id, document_type=DOCUMENT_TYPE).order_by(
+            SourceDocument.created_at.desc()).all()
+        return render_template('award_upload.html', user=user, documents=documents,
+                               paste_error=str(error), pasted_table=text), 400
+    file_bytes = text.encode('utf-8')
+    name = '貼上的獎懲表格.txt'
+    location = storage_service.save(file_bytes, owner_id=user.id, folder='learning-profile', filename=name)
+    try:
+        document = SourceDocument(owner_id=user.id, document_type=DOCUMENT_TYPE, display_name=name,
+                                  file_path=location, sha256=sha256(file_bytes).hexdigest(), status='extracted')
+        db.session.add(document)
+        db.session.flush()
+        draft = award_record_service.build_draft(rows, source='paste')
+        draft['pasted_text'] = text
+        db.session.add(DocumentExtraction(source_document_id=document.id, provider='paste', status='extracted',
+                                          result_json=draft))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        storage_service.discard(location)
+        raise
+    return redirect(url_for('award.award_review', document_id=document.id))
+
+
 @award_bp.post("/student/award-records")
 @role_required("student")
 def award_upload():
@@ -83,13 +116,13 @@ def award_upload():
     return redirect(url_for("award.award_review", document_id=document.id))
 
 
-def _render_review(user, document, rows, warnings, error=None, status=200):
+def _render_review(user, document, rows, warnings, error=None, status=200, included=None):
     if not rows:
         rows = [{"reason": "", "category": "", "school_year": "", "semester": "", "detail": ""}
                 for _ in range(award_record_service.BLANK_ROWS)]
     return render_template(
         "award_review.html", user=user, document=document, rows=rows, warnings=warnings, error=error,
-        categories=EXPERIENCE_CATEGORIES, category_labels=CATEGORY_LABELS,
+        categories=EXPERIENCE_CATEGORIES, category_labels=CATEGORY_LABELS, included=included,
     ), status
 
 
@@ -113,10 +146,10 @@ def award_confirm(document_id):
 
     chosen = [(index, row) for index, row in enumerate(rows) if index in included and row["reason"].strip()]
     if not chosen:
-        return _render_review(user, document, rows, [], error="請至少勾選一列要匯入的紀錄。", status=400)
+        return _render_review(user, document, rows, [], error="請至少勾選一列要匯入的紀錄。", status=400, included=included)
     for index, row in chosen:
         if row["category"] not in EXPERIENCE_CATEGORIES:
-            return _render_review(user, document, rows, [], error=f"第 {index + 1} 列請選擇類別。", status=400)
+            return _render_review(user, document, rows, [], error=f"第 {index + 1} 列請選擇類別。", status=400, included=included)
 
     profile = user.student_profile
     admission_year = profile.admission_year if profile else None

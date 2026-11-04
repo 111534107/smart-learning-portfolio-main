@@ -33,7 +33,7 @@ python run.py
 
 學生可用學校帳號 `學號@stu.ukn.edu.tw` 登入既有學生資料。先在 Google Cloud 建立「網頁應用程式」OAuth 用戶端，將實際開站網址的 `/auth/google/callback` 加入「已授權的重新導向 URI」（例如 `http://127.0.0.1:5013/auth/google/callback`）。本機 `.env` 填入 `GOOGLE_OAUTH_CLIENT_ID`、`GOOGLE_OAUTH_CLIENT_SECRET` 和相同的 `GOOGLE_LOGIN_REDIRECT_URI`，不要把密鑰提交到 Git。重新啟動系統後，登入頁才會顯示 Google 登入按鈕。
 
-管理員須先在「帳號管理」為既有學生綁定學號；系統固定補上 `@stu.ukn.edu.tw`。Google 登入不會自動建立學生、教師或管理員帳號。既有資料庫使用一鍵啟動時會自動套用遷移；手動啟動請先執行 `flask db upgrade`。Google 文件與雲端硬碟功能使用各自的回呼網址，但可共用同一個用戶端 ID 和密鑰。
+學生首次使用通過驗證的學校 Google 帳號登入時，系統會以信箱中的學號建立學生帳號；已有相同學號的學生帳號會在符合綁定條件時沿用。班級與入學學年度需由管理員補齊。既有資料庫使用一鍵啟動時會自動套用遷移；手動啟動請先執行 `flask db upgrade`。Google 文件與雲端硬碟功能使用各自的回呼網址，但可共用同一個用戶端 ID 和密鑰。
 
 ## BMAD 建議流程
 

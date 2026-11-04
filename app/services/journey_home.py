@@ -199,7 +199,7 @@ def journey_home(user, journey=None, now=None):
         "label": GRADE_LABELS[year["grade"]],
         "word": words.get(year["grade"], ""),
         "count": year["count"],
-        "state": "past" if year["grade"] < grade else ("now" if year["grade"] == grade else "future"),
+        "state": ("past" if year["grade"] < grade else ("now" if year["grade"] == grade else "future")) if journey["current_grade"] else "future",
     } for year in journey["years"]]
 
     previous = next((year for year in journey["years"] if year["grade"] == grade - 1), None)
@@ -219,7 +219,8 @@ def journey_home(user, journey=None, now=None):
     return {
         "summary": summary,
         "grade": grade,
-        "grade_label": GRADE_LABELS[grade],
+        "grade_label": GRADE_LABELS[grade] if journey["current_grade"] else "年級待確認",
+        "grade_known": bool(journey["current_grade"]),
         "stops": stops,
         "table": table,
         "sample_piece": SAMPLE_PIECE,

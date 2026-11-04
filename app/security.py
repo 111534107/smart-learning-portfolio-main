@@ -1,8 +1,9 @@
 from pathlib import Path
 import re
+from hmac import compare_digest
 from secrets import token_urlsafe
 
-from flask import abort, request, session
+from flask import abort, current_app, render_template, request, session
 
 
 def validate_upload_filename(filename, allowed_extensions):
@@ -31,6 +32,18 @@ def init_security(app):
     def validate_csrf_request():
         if not app.config.get("CSRF_ENABLED", True) or app.testing:
             return None
-        if request.method == "POST" and request.form.get("csrf_token") != session.get("csrf_token"):
-            abort(400, description="Invalid CSRF token")
+        if request.method == "POST":
+            expected = session.get("csrf_token")
+            supplied = request.form.get("csrf_token")
+            if not expected or not supplied or not compare_digest(str(expected), str(supplied)):
+                if request.endpoint == "main.login":
+                    from app.services.flow import safe_next
+                    from app.services.school_google_login import configured
+                    return render_template("login.html", error="登入頁已過期，請重新輸入帳號密碼或再次選擇 Google 登入。",
+                                           next_path=safe_next(request.form.get("next")),
+                                           google_login_enabled=configured(current_app.config)), 400
+                if request.endpoint == "main.logout":
+                    from app.routes.main import get_current_user
+                    return render_template("logout_retry.html", user=get_current_user()), 400
+                abort(400, description="Invalid CSRF token")
         return None

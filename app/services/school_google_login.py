@@ -1,4 +1,4 @@
-"""School-only Google OpenID Connect login for pre-existing student accounts."""
+"""School-only Google OpenID Connect login with verified student number matching."""
 import json
 import secrets
 from urllib.parse import urlencode

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer with context %}
+{% set page_name = "logout-retry" %}
+{% block title %}登入狀態已更新｜資管科智慧學習歷程系統{% endblock %}
+{% block navigation %}{{ masthead() }}{% endblock %}
+{% block content %}
+<div class="page narrow">
+  <section class="sheet">
+    <h1 class="sheet__head">登入狀態已更新</h1>
+    {% if user %}
+    <p class="mb-1">這個頁面可能已過期，或另一個分頁已切換帳號。目前登入的是「{{ user.display_name }}」。請確認帳號後再登出。</p>
+    <form method="post" action="{{ url_for('main.logout') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="button" type="submit">登出目前帳號</button>
+    </form>
+    {% else %}
+    <p class="mb-1">目前沒有登入中的帳號，請回到登入頁。</p>
+    <a class="button" href="{{ url_for('main.login') }}">回登入頁</a>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
+{% block footer %}{{ footer() }}{% endblock %}

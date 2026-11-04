@@ -20,7 +20,7 @@
     <div class="auth__card" data-motion="reveal">
       <h2>登入系統</h2>
       {% if error %}<p class="alert mb-1" role="alert">{{ error }}</p>{% endif %}
-      <form method="post" class="form-stack">
+      <form method="post" action="{{ url_for('main.login') }}" class="form-stack">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         {% if next_path %}<input type="hidden" name="next" value="{{ next_path }}">{% endif %}
         <label class="field">帳號 <small>學生請輸入學號</small><input name="username" autocomplete="username" required></label>
@@ -28,7 +28,7 @@
         <button class="button" type="submit">登入 →</button>
       </form>
       {% if google_login_enabled %}
-      <p class="small">學校帳號須為 @stu.ukn.edu.tw，並由管理員先綁定。</p>
+      <p class="small">請使用學號@stu.ukn.edu.tw；首次登入會建立學生帳號。</p>
       <a class="button button--quiet" href="{{ url_for('main.google_login', next=next_path) }}">使用學校 Google 帳號登入 →</a>
       {% endif %}
     </div>
@@ -39,8 +39,9 @@
       <ul class="demo-login__list">
         {% for account in config.DEMO_ACCOUNTS %}
         <li>
-          <form method="post">
+          <form method="post" action="{{ url_for('main.login') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {% if next_path %}<input type="hidden" name="next" value="{{ next_path }}">{% endif %}
             <input type="hidden" name="username" value="{{ account.username }}">
             <input type="hidden" name="password" value="{{ account.password }}">
             <button class="demo-login__account demo-login__account--{{ account.role }}" type="submit">
