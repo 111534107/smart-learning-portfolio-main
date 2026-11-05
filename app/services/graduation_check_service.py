@@ -9,7 +9,10 @@
 只用學生已確認、而且及格的成績與證照；草稿與未確認的資料不算。
 """
 
-from app.models import CredentialRecord, LearningCourseRecord
+from datetime import date
+
+from app.models import (CredentialRecord, LearningCourseRecord, SourceDocument, SystemSetting,
+                        TransferCreditRecord)
 from app.services.eligibility_service import load_curriculum, normalize_course_name
 
 CERTIFICATE_MINIMUM = 3
@@ -139,3 +142,137 @@ def evaluate(student, curriculum=None):
         overall = "short"
     return {"status": overall, "certificates": certificates, "credits": credits,
             "note": "僅供提醒，正式畢業資格以學校學生畢業門檻審核委員會的審核結果為準。"}
+
+
+# ---- 判斷結果：階段、資料是否足夠、規則（spec 4.2、5.2）----
+MAX_CREDITS_PER_TERM_SENIOR = 28  # 專五每學期最高修習學分
+TOTAL_TERMS = 10
+TODAY_SETTING_KEY = "graduation_check_today"
+ITEMS = ("certificates", "required_credits", "elective_credits", "total_credits")
+RESULTS = ("met", "gap", "insufficient_data", "transfer_pending", "rule_unverified", "progress")
+CERTIFICATE_BASIS = "資訊管理科學生畢業門檻實施要點（113.03.27 修訂）第五點"
+_CREDIT_ITEM_KEYS = {"required_credits": "required", "elective_credits": "elective", "total_credits": "total"}
+
+
+def academic_term(today):
+    """回傳（民國學年度, "上"|"下"）。8/1 起是新學年上學期，2/1 起是下學期。"""
+    if today.month >= 8:
+        return today.year - 1911, "上"
+    return today.year - 1912, "上" if today.month == 1 else "下"
+
+
+def check_today():
+    """檢核用的「今天」：系統設定有 graduation_check_today（ISO 日期）就用它，否則用今天。"""
+    setting = SystemSetting.query.filter_by(key=TODAY_SETTING_KEY).first()
+    if setting and setting.value:
+        try:
+            return date.fromisoformat(setting.value.strip())
+        except ValueError:
+            pass
+    return date.today()
+
+
+def student_stage(admission_year, today):
+    """學生目前的階段。formal 為專四下（含）以後；ended_terms 是入學後、目前學期之前的所有學期。"""
+    year, semester = academic_term(today)
+    if admission_year is None or year < admission_year:
+        return {"grade": None, "semester": semester, "formal": False, "ended_terms": [],
+                "remaining_terms": TOTAL_TERMS}
+    index = (year - admission_year) * 2 + (0 if semester == "上" else 1)
+    ended = [(admission_year + i // 2, "上" if i % 2 == 0 else "下") for i in range(index)]
+    grade = year - admission_year + 1
+    formal = grade > 4 or (grade == 4 and semester == "下")
+    return {"grade": grade, "semester": semester, "formal": formal, "ended_terms": ended,
+            "remaining_terms": max(TOTAL_TERMS - len(ended), 0)}
+
+
+def _item(result, amount=None, unit="學分", detail="", basis="", failed_required=None, missing_terms=None):
+    return {"result": result, "amount": amount, "unit": unit, "detail": detail, "basis": basis,
+            "failed_required": failed_required or [], "missing_terms": missing_terms or []}
+
+
+def _certificate_item(student, stage):
+    unconfirmed = (SourceDocument.query
+                   .filter(SourceDocument.owner_id == student.id, SourceDocument.document_type == "credential",
+                           SourceDocument.status != "confirmed").first())
+    if unconfirmed is not None:
+        return _item("insufficient_data", unit="張", basis=CERTIFICATE_BASIS,
+                     detail="有證照文件尚未確認，確認後才能判斷。")
+    status = certificate_status(student)
+    if status["missing"] == 0:
+        return _item("met", unit="張", basis=CERTIFICATE_BASIS,
+                     detail=f"已採計 {status['counted_count']} 張。")
+    result = "gap" if stage["formal"] else "progress"
+    return _item(result, status["missing"], "張", f"已採計 {status['counted_count']} 張，還差 {status['missing']} 張。",
+                 CERTIFICATE_BASIS)
+
+
+def _missing_terms(student, admission_year, ended_terms):
+    """已結束、但沒有已確認課程紀錄的學期；school_year 可能存民國學年度，也可能存年級。"""
+    courses = (LearningCourseRecord.query
+               .filter_by(student_id=student.id, confirmation_status="confirmed").all())
+    have = {(course.school_year, course.semester) for course in courses}
+    return [(year, semester) for year, semester in ended_terms
+            if (year, semester) not in have and (year - admission_year + 1, semester) not in have]
+
+
+def _failed_required(student, table):
+    """必修類別、已確認不及格，而且沒有同課名已確認及格的課程名稱。"""
+    courses = (LearningCourseRecord.query
+               .filter_by(student_id=student.id, confirmation_status="confirmed")
+               .order_by(LearningCourseRecord.id).all())
+    passed = {normalize_course_name(c.course_name) for c in courses if c.acquisition_status == "passed"}
+    failed = []
+    for course in courses:
+        key = normalize_course_name(course.course_name)
+        entry = table.get(key)
+        if (course.acquisition_status == "not_passed" and entry and entry["category"] in REQUIRED_CATEGORIES
+                and key not in passed and course.course_name not in failed):
+            failed.append(course.course_name)
+    return failed
+
+
+def _credit_items(student, stage, curriculum):
+    profile = student.student_profile
+    year = profile.admission_year if profile else None
+    credits = credit_status(student, curriculum=curriculum)
+    if credits["earned"] is None:
+        return {name: _item("rule_unverified", detail=credits["reason"]) for name in _CREDIT_ITEM_KEYS}
+    basis = credits["source"]
+    missing = _missing_terms(student, year, stage["ended_terms"])
+    if missing:
+        text = "、".join(f"{y}{s}" for y, s in missing)
+        return {name: _item("insufficient_data", basis=basis, missing_terms=missing,
+                            detail=f"這些學期還沒有已確認的成績單：{text}。")
+                for name in _CREDIT_ITEM_KEYS}
+    pending = TransferCreditRecord.query.filter(TransferCreditRecord.student_id == student.id,
+                                                TransferCreditRecord.status != "completed").first()
+    capacity = stage["remaining_terms"] * MAX_CREDITS_PER_TERM_SENIOR
+    failed = _failed_required(student, curriculum[year]) if stage["formal"] else []
+    items = {}
+    for name, key in _CREDIT_ITEM_KEYS.items():
+        short = credits["gaps"][key]
+        detail = f"已修 {credits['earned'][key]} 學分，規定 {credits['needed'][key]} 學分。"
+        if pending is not None:
+            items[name] = _item("transfer_pending", short, detail=detail + "抵免尚未完成。", basis=basis)
+        elif short == 0:
+            items[name] = _item("met", detail=detail, basis=basis)
+        elif not stage["formal"]:
+            items[name] = _item("progress", short, detail=detail, basis=basis)
+        elif (name == "required_credits" and failed) or short > capacity:
+            items[name] = _item("gap", short, detail=detail, basis=basis,
+                                failed_required=failed if name == "required_credits" else [])
+        else:
+            items[name] = _item("progress", short, detail=detail, basis=basis)
+    return items
+
+
+def assess(student, today=None, curriculum=None):
+    """四個項目的判斷結果。load_curriculum() 只讀一次；既有 evaluate 不受影響。"""
+    today = check_today() if today is None else today
+    curriculum = load_curriculum() if curriculum is None else curriculum
+    profile = student.student_profile
+    stage = student_stage(profile.admission_year if profile else None, today)
+    items = {"certificates": _certificate_item(student, stage)}
+    items.update(_credit_items(student, stage, curriculum))
+    return {"stage": stage, "items": items}
