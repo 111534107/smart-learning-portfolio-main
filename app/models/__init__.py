@@ -47,6 +47,7 @@ from app.models.transfer_credit import TransferCreditRecord
 from app.models.system_setting import SystemSetting
 from app.models.google_doc import AutobiographyGoogleDoc, StudentDriveFolder
 from app.models.match_filter import MatchFilterOption
+from app.models.graduation_case import GraduationCase, GraduationCaseEvent, Notification
 
 __all__ = [
     "AiDailyUsage",
@@ -98,4 +99,7 @@ __all__ = [
     "AutobiographyGoogleDoc",
     "StudentDriveFolder",
     "MatchFilterOption",
+    "GraduationCase",
+    "GraduationCaseEvent",
+    "Notification",
 ]
