@@ -201,3 +201,77 @@ def sync_all(today=None):
     students = (User.query.join(StudentProfile, StudentProfile.user_id == User.id, isouter=True)
                 .filter(User.role == "student", User.is_active.is_(True)).order_by(User.id).all())
     return sum(len(sync_student(student, today=today)) for student in students)
+
+
+# ---- 導師首頁／科辦頁用的總覽（只讀，不寫入）----
+_GAP_ITEM_ORDER = ("certificates", "required_credits", "total_credits", "elective_credits")
+_FIRST_CHECK = "專四下學期期末考前兩週"
+_SECOND_CHECK = "專五上學期期末考前兩週"
+_AFTER_CHECK = "已過兩次檢核，請與科辦確認"
+
+
+def next_check_text(stage):
+    """下一次檢核時間的說明文字。"""
+    grade, semester = stage.get("grade"), stage.get("semester")
+    if grade is None or grade <= 4:
+        return _FIRST_CHECK
+    if grade == 5 and semester == "上":
+        return _SECOND_CHECK
+    return _AFTER_CHECK
+
+
+def _hint(case):
+    if case.case_type == "data_needed":
+        return "請學生上傳並確認資料"
+    if case.item == "certificates":
+        return "依實施要點第五點補救"
+    return "請洽科辦確認補修"
+
+
+def class_overview(students, today=None):
+    """一個班級的畢業門檻總覽。不建立案件、不寫事件。"""
+    today = check.check_today() if today is None else today
+    curriculum = check.load_curriculum()
+    ids = [student.id for student in students]
+    open_cases = []
+    if ids:
+        open_cases = (GraduationCase.query
+                      .filter(GraduationCase.student_id.in_(ids), GraduationCase.status != "closed",
+                              GraduationCase.case_type.in_(("gap", "data_needed")))
+                      .order_by(GraduationCase.id).all())
+    by_student = {}
+    for case in open_cases:
+        by_student.setdefault(case.student_id, []).append(case)
+    overview = {"total": len(students), "met": 0, "gap": 0, "data": 0, "other": 0, "priority": []}
+    ranked = []
+    for student in students:
+        assessment = check.assess(student, today=today, curriculum=curriculum)
+        results = [data["result"] for data in assessment["items"].values()]
+        cases = by_student.get(student.id, [])
+        grade = assessment["stage"].get("grade") or 0
+        if cases and any(case.case_type == "gap" for case in cases):
+            overview["gap"] += 1
+        elif cases or "insufficient_data" in results:
+            overview["data"] += 1
+        elif all(result == "met" for result in results):
+            overview["met"] += 1
+        else:
+            overview["other"] += 1
+        for case in cases:
+            if case.case_type == "gap":
+                order = _GAP_ITEM_ORDER.index(case.item) if case.item in _GAP_ITEM_ORDER else len(_GAP_ITEM_ORDER)
+                key = (0, order, -grade, -(case.current_amount or 0), case.id)
+                label = (f"{_label(case.item)}還差 {case.current_amount} {case.unit or ''}".strip()
+                         if case.current_amount is not None else f"{_label(case.item)}有缺口")
+            else:
+                key = (1, 0, -grade, 0, case.id)
+                label = f"{_label(case.item)}資料待確認"
+            ranked.append((key, {"student": student, "case": case, "label": label, "hint": _hint(case)}))
+    overview["priority"] = [row for _, row in sorted(ranked, key=lambda pair: pair[0])]
+    return overview
+
+
+def awaiting_cases():
+    """科辦待核對的案件。"""
+    return (GraduationCase.query.filter_by(status="awaiting_verification")
+            .order_by(GraduationCase.updated_at, GraduationCase.id).all())

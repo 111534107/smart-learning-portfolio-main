@@ -22,6 +22,9 @@ from app.services import audit_service, autobiography_service, review_snapshot_s
 from app.services.autobiography_service import latest_draft, version_of
 from app.services.file_preview import inline_file
 from app.services.teacher_scope import can_view_student
+from app.routes import graduation as graduation_routes
+from app.services import graduation_case_service, graduation_check_service
+from app.models import GraduationCase, GraduationCaseEvent
 
 teacher_bp = Blueprint("teacher", __name__)
 
@@ -69,8 +72,19 @@ def student_detail(student_id):
             "autobiography": draft,
             "current_version": version_of(draft) if draft else None,
         })
+    assessment = graduation_check_service.assess(student)
+    grad_cases = (GraduationCase.query.filter_by(student_id=student.id)
+                  .order_by(GraduationCase.id.desc()).all())
     return render_template(
         "teacher_student.html",
+        grad_assessment=assessment,
+        grad_cases=[{"case": case, "events": case.events.order_by(GraduationCaseEvent.id.desc()).limit(5).all()}
+                    for case in grad_cases],
+        grad_next_check=graduation_case_service.next_check_text(assessment["stage"]),
+        grad_item_labels=graduation_case_service.ITEM_LABELS,
+        grad_event_labels=graduation_routes.EVENT_LABELS,
+        grad_result_labels=graduation_check_service.RESULT_LABELS,
+        grad_disclaimer=graduation_check_service.DISCLAIMER,
         review_notices=review_snapshot_service.NOTICES,
         user=teacher,
         student=student,

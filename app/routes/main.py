@@ -10,7 +10,7 @@ from app.models import AuditLog, AwardCertificate, PortfolioSubmission, SourceDo
 from app.services.gap_service import analyze_gap
 from app.services.guide_service import CARD_IDS, guide_cards
 from app.services.journey_home import journey_home
-from app.services import photo_service, student_rules
+from app.services import graduation_case_service, graduation_check_service, photo_service, student_rules
 from app.services.package_service import latest_review
 from app.services.teacher_scope import advised_classes, students_for_teacher
 from app.content.five_year_plan import FIVE_YEAR_PLAN, NEXT_STOPS
@@ -354,6 +354,8 @@ def teacher_dashboard():
         teacher_assignments=assignments,
         classes=advised_classes(user),
         class_rows=rows,
+        grad=graduation_case_service.class_overview(students),
+        grad_disclaimer=graduation_check_service.DISCLAIMER,
         category_keys=CATEGORY_KEYS,
         category_labels=CATEGORY_LABELS,
     )
@@ -373,6 +375,9 @@ def staff_dashboard():
         title="科辦／行政工作台",
         user=user,
         staff_pending_submissions=pending_submissions,
+        graduation_awaiting=graduation_case_service.awaiting_cases(),
+        grad_disclaimer=graduation_check_service.DISCLAIMER,
+        grad_item_labels=graduation_case_service.ITEM_LABELS,
         staff_pending_certificates=AwardCertificate.query.filter_by(status="pending").count(),
         category_labels=CATEGORY_LABELS,
         staff_feedback_by_submission=feedback_by_submission(

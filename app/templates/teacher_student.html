@@ -59,6 +59,33 @@
     {% endif %}
   </section>
   {% endif %}
+  <section class="work-panel" data-grad-student>
+    <div class="work-panel__head"><div><h2>畢業門檻提醒</h2><p>下一次檢核：{{ grad_next_check }}。</p></div></div>
+    <ul class="rule-item-list">
+      {% for item, data in grad_assessment["items"].items() %}
+      {% set rlabel, rtag = grad_result_labels[data.result] %}
+      <li><strong>{{ grad_item_labels[item] }}</strong><span><span class="tag {{ rtag }}">{{ rlabel }}</span> {{ data.detail }}</span></li>
+      {% endfor %}
+    </ul>
+    {% for entry in grad_cases %}
+    {% set case = entry.case %}
+    <article class="snapshot-box mt-1">
+      <p><a href="{{ url_for('graduation.case_detail', case_id=case.id) }}"><b>{{ case.number }}</b></a>　{{ grad_item_labels.get(case.item, "一般詢問") }}　<span class="tag">{{ {"pending": "待處理", "in_progress": "處理中", "awaiting_verification": "待科辦核對", "closed": "已結案"}[case.status] }}</span>{% if case.current_amount is not none %}　還差 {{ case.current_amount }} {{ case.unit }}{% endif %}</p>
+      <ul class="small">{% for event in entry.events %}<li>{{ event.created_at|taipei_time("%Y-%m-%d %H:%M") }}　{{ grad_event_labels.get(event.event_type, event.event_type) }}{% if event.note %}：{{ event.note }}{% endif %}</li>{% endfor %}</ul>
+      {% if case.is_open %}
+      <form class="form-stack" method="post" action="{{ url_for('graduation.case_action', case_id=case.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="note">
+        <label class="field">面談紀錄<textarea name="note" required placeholder="例如：已和學生面談，說明補救方式。"></textarea></label>
+        <div><button class="button button--line" type="submit">留下面談紀錄</button></div>
+      </form>
+      {% endif %}
+    </article>
+    {% else %}
+    <p class="muted mt-1">目前沒有案件。</p>
+    {% endfor %}
+    <p class="small muted">{{ grad_disclaimer }}</p>
+  </section>
   <div class="work-metrics work-metrics--four">
     {% for key in category_keys %}
     <article class="work-metric"><span>{{ category_labels[key] }}</span><strong>{{ journey.totals[key] }}</strong><small>筆</small></article>
