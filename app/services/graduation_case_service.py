@@ -5,6 +5,8 @@
 只做提醒與追蹤，不宣告任何人符合或不符合畢業資格。
 """
 
+import logging
+
 from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
@@ -16,9 +18,11 @@ from app.services import graduation_check_service as check
 CREDIT_ITEMS = ("required_credits", "elective_credits", "total_credits")
 ITEM_LABELS = {
     "certificates": "證照", "required_credits": "必修學分", "elective_credits": "選修學分",
-    "total_credits": "總學分", "credits": "成績單（學分）",
+    "total_credits": "總學分", "credits": "成績單（學分）", "general": "一般詢問",
 }
 _WAITING_RESULTS = ("insufficient_data", "transfer_pending", "rule_unverified")
+_NOT_GAP = ("met", "progress")
+logger = logging.getLogger(__name__)
 
 
 def advisors_for(student):
@@ -87,15 +91,14 @@ def _open_case(student_id, item, case_type):
         open_key=GraduationCase.open_key_for(student_id, item, case_type)).first()
 
 
-def _create_case(student, item, case_type, data):
+def _create_case(student, item, case_type, data, last_result, previous=None):
     """建立案件；open_key 衝突（並行同步）時回傳 None，由呼叫端改走已有案件分支。"""
-    previous = _latest_closed(student.id, item, case_type)
     case = GraduationCase(
         student_id=student.id, case_type=case_type, item=item, status="pending",
         initial_amount=data.get("amount"), current_amount=data.get("amount"),
         unit=data.get("unit"), basis=data.get("basis") or "", detail=data.get("detail") or "",
         open_key=GraduationCase.open_key_for(student.id, item, case_type),
-        previous_case_id=previous.id if previous else None)
+        previous_case_id=previous.id if previous else None, last_result=last_result)
     try:
         with db.session.begin_nested():
             db.session.add(case)
@@ -109,13 +112,44 @@ def _label(item):
     return ITEM_LABELS.get(item, item)
 
 
+def _set_last_result(case, value):
+    if case.last_result != value:
+        case.last_result = value
+
+
+def _previous_result(case, bad, good):
+    """案件上次同步看到的結果；舊資料沒有 last_result 時，由狀態推回。"""
+    if case.last_result:
+        return case.last_result
+    return good if case.status == "awaiting_verification" else bad
+
+
+def _should_reopen(closed, bad, amount=None):
+    """結案後同一問題又出現時，要不要開新案件。
+
+    只在「離開問題狀態後又回來」（結案案件最後看到的結果不是問題），
+    或缺口比結案時更大時才開；否則尊重科辦的結案決定，不再開案、不再通知。
+    """
+    if closed is None:
+        return True
+    if (closed.last_result or bad) != bad:
+        return True
+    return amount is not None and closed.current_amount is not None and amount > closed.current_amount
+
+
 def _sync_gap(student, item, data, formal, advisors, staff, events):
+    """缺口案件：只在判斷結果轉變（缺口 ↔ 已排除）時改狀態，不蓋掉人工送出、退回、結案。"""
     result = data["result"]
     case = _open_case(student.id, item, "gap")
     if case is None:
+        closed = _latest_closed(student.id, item, "gap")
         if result != "gap" or not formal:
+            if closed is not None and result in _NOT_GAP:
+                _set_last_result(closed, result)
             return
-        case = _create_case(student, item, "gap", data)
+        if not _should_reopen(closed, "gap", data["amount"]):
+            return
+        case = _create_case(student, item, "gap", data, "gap", closed)
         if case is not None:
             events.append(record_event(
                 case, "created", to_status="pending", amount_after=data["amount"],
@@ -125,27 +159,32 @@ def _sync_gap(student, item, data, formal, advisors, staff, events):
         case = _open_case(student.id, item, "gap")
         if case is None:
             return
+    previous = _previous_result(case, "gap", "met")
     if result == "gap":
         amount = data["amount"]
-        if case.status == "awaiting_verification":
-            # 待驗證後缺口又出現：退回處理中，通知學生與導師
+        _set_last_result(case, "gap")
+        if previous != "gap" and case.status == "awaiting_verification":
+            # 系統判斷已排除、待核對期間缺口又出現：退回處理中，通知學生與導師
             events.append(record_event(
                 case, "recalculated", to_status="in_progress", amount_after=amount,
                 note=f"缺口再次出現，目前還差 {amount} {data['unit']}。", notify=[student, *advisors],
                 message=f"案件 {case.number}：{_label(item)}的缺口再次出現，已退回處理中。"))
         elif (amount is not None and case.current_amount is not None
                 and amount != case.current_amount):
+            # 缺口仍在、數字變了：只更新目前缺口，不改狀態（含人工送出的待核對）、不通知
             word = "減為" if amount < case.current_amount else "增為"
             events.append(record_event(
                 case, "recalculated", amount_after=amount,
                 note=f"缺口由 {case.current_amount} {word} {amount} {data['unit']}。"))
-    elif result in ("met", "progress"):
-        if case.status != "awaiting_verification":
+    elif result in _NOT_GAP:
+        _set_last_result(case, result)
+        if previous == "gap" and case.status != "awaiting_verification":
             events.append(record_event(
                 case, "auto_verify", to_status="awaiting_verification",
                 note=f"重新判斷結果為 {result}，等待科辦核對。", notify=staff,
                 message=f"案件 {case.number}：{_label(item)}的資料已改善，請科辦核對。"))
     elif result in _WAITING_RESULTS:
+        # 等待中的結果不寫進 last_result，避免蓋掉「缺口 ↔ 已排除」的轉變
         note = f"判斷結果：{result}"
         last = case.events.order_by(GraduationCaseEvent.id.desc()).first()
         if not (last and last.event_type == "data_changed" and last.note == note):
@@ -153,12 +192,18 @@ def _sync_gap(student, item, data, formal, advisors, staff, events):
 
 
 def _sync_data_needed(student, item, needed, data, formal, staff, events):
-    """needed：該項資料是否仍不足。"""
+    """資料補充案件；needed：該項資料是否仍不足。last_result 記 insufficient / sufficient。"""
+    state = "insufficient" if needed else "sufficient"
     case = _open_case(student.id, item, "data_needed")
     if case is None:
+        closed = _latest_closed(student.id, item, "data_needed")
         if not (needed and formal):
+            if closed is not None:
+                _set_last_result(closed, state)
             return
-        case = _create_case(student, item, "data_needed", data)
+        if not _should_reopen(closed, "insufficient"):
+            return
+        case = _create_case(student, item, "data_needed", data, "insufficient", closed)
         if case is not None:
             events.append(record_event(
                 case, "created", to_status="pending", note=data.get("detail") or "",
@@ -168,17 +213,25 @@ def _sync_data_needed(student, item, needed, data, formal, staff, events):
         case = _open_case(student.id, item, "data_needed")
         if case is None:
             return
-    if not needed and case.status != "awaiting_verification":
+    previous = _previous_result(case, "insufficient", "sufficient")
+    _set_last_result(case, state)
+    if needed:
+        if previous != "insufficient" and case.status == "awaiting_verification":
+            events.append(record_event(
+                case, "recalculated", to_status="in_progress",
+                note=f"資料又變得不足：{data.get('detail') or ''}".rstrip("："), notify=[student],
+                message=f"案件 {case.number}：{_label(item)}資料又不足，已退回處理中。"))
+    elif previous == "insufficient" and case.status != "awaiting_verification":
         events.append(record_event(
             case, "auto_verify", to_status="awaiting_verification",
             note="資料已足夠判斷，等待科辦核對。", notify=staff,
             message=f"案件 {case.number}：{_label(item)}資料已補足，請科辦核對。"))
 
 
-def sync_student(student, today=None):
+def sync_student(student, today=None, curriculum=None):
     """依判斷結果同步該生的案件；回傳本次新增的事件。"""
     today = check.check_today() if today is None else today
-    assessment = check.assess(student, today=today)
+    assessment = check.assess(student, today=today, curriculum=curriculum)
     formal = assessment["stage"]["formal"]
     items = assessment["items"]
     advisors = advisors_for(student)
@@ -200,7 +253,15 @@ def sync_all(today=None):
     today = check.check_today() if today is None else today
     students = (User.query.join(StudentProfile, StudentProfile.user_id == User.id, isouter=True)
                 .filter(User.role == "student", User.is_active.is_(True)).order_by(User.id).all())
-    return sum(len(sync_student(student, today=today)) for student in students)
+    curriculum = check.load_curriculum()  # 全科共用一份，不必每位學生重讀 CSV
+    total = 0
+    for student in students:
+        try:
+            with db.session.begin_nested():
+                total += len(sync_student(student, today=today, curriculum=curriculum))
+        except Exception:  # 單一學生資料有問題時記錄後跳過，不拖垮全科
+            logger.exception("畢業缺口同步失敗，已跳過學生 %s", student.id)
+    return total
 
 
 # ---- 導師首頁／科辦頁用的總覽（只讀，不寫入）----
@@ -220,7 +281,12 @@ def next_check_text(stage):
     return _AFTER_CHECK
 
 
+WAITING_IMPROVED_LABEL = "資料已改善，待科辦核對"
+
+
 def _hint(case):
+    if case.status == "awaiting_verification":
+        return "等待科辦核對"
     if case.case_type == "data_needed":
         return "請學生上傳並確認資料"
     if case.item == "certificates":
@@ -249,16 +315,25 @@ def class_overview(students, today=None):
         results = [data["result"] for data in assessment["items"].values()]
         cases = by_student.get(student.id, [])
         grade = assessment["stage"].get("grade") or 0
-        if cases and any(case.case_type == "gap" for case in cases):
+        active = [case for case in cases if case.status != "awaiting_verification"]
+        # 待科辦核對的案件不算「確定有缺口」，也不算「已達門檻」：歸在 other（等待核對、修課中等）
+        if any(case.case_type == "gap" for case in active):
             overview["gap"] += 1
-        elif cases or "insufficient_data" in results:
+        elif active or "insufficient_data" in results:
             overview["data"] += 1
+        elif cases:
+            overview["other"] += 1
         elif all(result == "met" for result in results):
             overview["met"] += 1
         else:
             overview["other"] += 1
         for case in cases:
-            if case.case_type == "gap":
+            if case.status == "awaiting_verification":
+                # 排在未處理的缺口與資料補充案件之後
+                key = (2, 0, -grade, 0, case.id)
+                label = (WAITING_IMPROVED_LABEL if case.improved_pending
+                         else f"{_label(case.item)}已送交，待科辦核對")
+            elif case.case_type == "gap":
                 order = _GAP_ITEM_ORDER.index(case.item) if case.item in _GAP_ITEM_ORDER else len(_GAP_ITEM_ORDER)
                 key = (0, order, -grade, -(case.current_amount or 0), case.id)
                 label = (f"{_label(case.item)}還差 {case.current_amount} {case.unit or ''}".strip()

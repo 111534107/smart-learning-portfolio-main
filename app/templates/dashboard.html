@@ -33,7 +33,7 @@
       <span style="width:{{ grad.gap * 100 / grad.total }}%;background:#c0392b"></span>
       <span style="width:{{ grad.data * 100 / grad.total }}%;background:#8a919c"></span>
     </div>
-    <p class="small muted">綠色已達門檻、紅色確定有缺口、灰色資料待確認{% if grad.other %}；另有 {{ grad.other }} 人還在修課、抵免待核對或待人工確認{% endif %}。</p>
+    <p class="small muted">綠色已達門檻、紅色確定有缺口、灰色資料待確認{% if grad.other %}；另有 {{ grad.other }} 人還在修課、抵免待核對、待人工確認或案件待科辦核對{% endif %}。</p>
     {% endif %}
     <h3 class="mt-1">需要優先關心的學生</h3>
     {% if grad.priority %}

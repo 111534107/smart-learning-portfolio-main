@@ -30,6 +30,9 @@ class GraduationCase(db.Model):
     # 開啟中的案件用 student:item:type 防重複；結案後設為 NULL（唯一欄位允許多個 NULL）
     open_key = db.Column(db.String(80), nullable=True, unique=True)
     previous_case_id = db.Column(db.Integer, db.ForeignKey("graduation_cases.id"), nullable=True)
+    # 最近一次同步看到的判斷結果：缺口案件存 gap / met / progress；資料補充案件存 insufficient / sufficient。
+    # 同步只在結果「轉變」時動作，避免蓋掉人工送出、退回或結案。
+    last_result = db.Column(db.String(30), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=utcnow, onupdate=utcnow)
     closed_at = db.Column(db.DateTime, nullable=True)
@@ -47,6 +50,12 @@ class GraduationCase(db.Model):
     @property
     def is_open(self):
         return self.status != "closed"
+
+    @property
+    def improved_pending(self):
+        """待科辦核對，而且最近一次同步看到的資料已改善（不是人工送出時仍有缺口）。"""
+        return (self.status == "awaiting_verification" and self.case_type != "inquiry"
+                and self.last_result not in ("gap", "insufficient"))
 
     @classmethod
     def open_key_for(cls, student_id, item, case_type):

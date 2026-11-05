@@ -168,7 +168,11 @@ def test_all_advisors_notified_once(app):
     assert {u.id for u in svc.advisors_for(student)} == {t1.id, t2.id}
 
 
-def test_reopen_creates_linked_case(app):
+def _counts():
+    return (GraduationCase.query.count(), GraduationCaseEvent.query.count(), Notification.query.count())
+
+
+def test_closed_while_gap_then_same_gap_opens_nothing(app):
     student = make_student()
     svc.sync_student(student, today=GAP_DAY)
     old = cases(student, "gap", "certificates")[0]
@@ -176,11 +180,128 @@ def test_reopen_creates_linked_case(app):
     old.close_reason = "improved"
     db.session.flush()
     assert old.open_key is None and old.status == "closed"
+    before = _counts()
+    assert svc.sync_student(student, today=GAP_DAY) == []
+    assert _counts() == before
+
+
+def test_close_then_met_then_gap_opens_linked_case(app):
+    from app.services import graduation_case_actions as actions
+    staff = make_user("office", "staff")
+    teacher = add_advisor("t1")
+    student = make_student()
+    svc.sync_student(student, today=GAP_DAY)
+    old = cases(student, "gap", "certificates")[0]
+    actions.perform(old, staff, "close_no_gap", "證書補救已核可")
+    _three_certs(student)
+    assert [e for e in svc.sync_student(student, today=GAP_DAY) if e.case.item == "certificates"] == []
+    db.session.refresh(old)
+    assert old.last_result == "met"
+    CredentialRecord.query.filter_by(student_id=student.id).first().confirmation_status = "rejected"
+    db.session.flush()
     svc.sync_student(student, today=GAP_DAY)
     rows = cases(student, "gap", "certificates")
     assert len(rows) == 2
     new = [row for row in rows if row.id != old.id][0]
-    assert new.previous_case_id == old.id and new.status == "pending"
+    assert new.previous_case_id == old.id and new.status == "pending" and new.current_amount == 1
+    assert Notification.query.filter_by(case_id=new.id, recipient_id=teacher.id).count() == 1
+
+
+def test_closed_then_larger_gap_opens_linked_case(app):
+    from app.services import graduation_case_actions as actions
+    staff = make_user("office", "staff")
+    student = make_student()
+    add_credential(student, "電腦軟體應用 丙級", "丙級")
+    svc.sync_student(student, today=GAP_DAY)
+    old = cases(student, "gap", "certificates")[0]
+    assert old.current_amount == 2
+    actions.perform(old, staff, "close_no_gap", "誤判")
+    CredentialRecord.query.filter_by(student_id=student.id).first().confirmation_status = "rejected"
+    db.session.flush()
+    svc.sync_student(student, today=GAP_DAY)
+    rows = cases(student, "gap", "certificates")
+    assert len(rows) == 2
+    new = [row for row in rows if row.id != old.id][0]
+    assert new.previous_case_id == old.id and new.current_amount == 3
+
+
+def test_submit_while_gap_then_sync_stays_awaiting(app):
+    from app.services import graduation_case_actions as actions
+    make_user("office", "staff")
+    student = make_student()
+    svc.sync_student(student, today=GAP_DAY)
+    case = cases(student, "gap", "certificates")[0]
+    actions.perform(case, student, "start")
+    actions.perform(case, student, "submit", "已依第五點第（1）款加修六學分")
+    assert case.status == "awaiting_verification"
+    before = _counts()
+    assert svc.sync_student(student, today=GAP_DAY) == []
+    db.session.refresh(case)
+    assert case.status == "awaiting_verification"
+    assert _counts() == before
+
+
+def test_reject_then_sync_stays_in_progress(app):
+    from app.services import graduation_case_actions as actions
+    staff = make_user("office", "staff")
+    student = make_student()
+    svc.sync_student(student, today=GAP_DAY)
+    case = cases(student, "gap", "certificates")[0]
+    _three_certs(student)
+    svc.sync_student(student, today=GAP_DAY)
+    assert case.status == "awaiting_verification"
+    actions.perform(case, staff, "reject", "證照影本不清楚")
+    assert case.status == "in_progress"
+    before = _counts()
+    assert svc.sync_student(student, today=GAP_DAY) == []
+    db.session.refresh(case)
+    assert case.status == "in_progress"
+    assert _counts() == before
+
+
+def test_close_no_gap_then_sync_opens_nothing(app):
+    from app.services import graduation_case_actions as actions
+    staff = make_user("office", "staff")
+    student = make_student()
+    svc.sync_student(student, today=GAP_DAY)
+    case = cases(student, "gap", "certificates")[0]
+    actions.perform(case, staff, "close_no_gap", "已取得國立大專院校入學資格")
+    before = _counts()
+    svc.sync_student(student, today=GAP_DAY)
+    svc.sync_all(today=GAP_DAY)
+    assert _counts() == before
+    assert len(cases(student, "gap", "certificates")) == 1
+
+
+def test_data_needed_insufficient_again_returns_to_in_progress(app):
+    from tests.test_graduation_assessment import fill_ended_terms
+    from app.models import LearningCourseRecord
+    make_user("office", "staff")
+    student = make_student()
+    svc.sync_student(student, today=GAP_DAY)
+    case = cases(student, "data_needed", "credits")[0]
+    fill_ended_terms(student, 111, GAP_DAY)
+    svc.sync_student(student, today=GAP_DAY)
+    assert case.status == "awaiting_verification"
+    LearningCourseRecord.query.filter_by(student_id=student.id).first().confirmation_status = "draft"
+    db.session.flush()
+    events = svc.sync_student(student, today=GAP_DAY)
+    db.session.refresh(case)
+    assert case.status == "in_progress"
+    assert [e.event_type for e in events if e.case_id == case.id] == ["recalculated"]
+    assert svc.sync_student(student, today=GAP_DAY) == []
+
+
+def test_data_needed_closed_while_insufficient_opens_nothing(app):
+    from app.services import graduation_case_actions as actions
+    staff = make_user("office", "staff")
+    student = make_student()
+    svc.sync_student(student, today=GAP_DAY)
+    case = cases(student, "data_needed", "credits")[0]
+    actions.perform(case, staff, "close_no_gap", "紙本成績單已核對")
+    before = _counts()
+    svc.sync_student(student, today=GAP_DAY)
+    assert _counts() == before
 
 
 def test_sync_without_profile_creates_nothing(app):
@@ -218,6 +339,34 @@ def test_sync_all_counts_events(app):
     add_credential(student, "電腦軟體應用 丙級", "丙級")
     assert svc.sync_all(today=GAP_DAY) > 0
     assert svc.sync_all(today=GAP_DAY) == 0
+
+
+def test_sync_all_isolates_failures_and_loads_curriculum_once(app, monkeypatch):
+    bad = make_student()
+    good = make_user("gcstu2", "student")
+    db.session.add(StudentProfile(user_id=good.id, student_no="gcstu2", class_name="資管科五甲",
+                                  admission_year=111))
+    db.session.flush()
+    loads = {"n": 0}
+    original_load = check.load_curriculum
+
+    def counting_load():
+        loads["n"] += 1
+        return original_load()
+
+    original_assess = check.assess
+
+    def flaky_assess(student, today=None, curriculum=None):
+        if student.id == bad.id:
+            raise ValueError("壞資料")
+        return original_assess(student, today=today, curriculum=curriculum)
+
+    monkeypatch.setattr(check, "load_curriculum", counting_load)
+    monkeypatch.setattr(check, "assess", flaky_assess)
+    assert svc.sync_all(today=GAP_DAY) > 0
+    assert cases(good, "gap", "certificates")
+    assert cases(bad) == []
+    assert loads["n"] == 1
 
 
 def _three_certs(student):

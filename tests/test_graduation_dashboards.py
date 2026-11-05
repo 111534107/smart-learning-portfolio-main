@@ -52,8 +52,10 @@ def _setup(monkeypatch, tmp_path, spec):
             student = _student(username, name, f"9990{index}")
             ids[username] = student.id
             table[student.id] = (results, grade)
-            for item, case_type, amount in cases:
-                _case(student, item, case_type, amount)
+            for item, case_type, amount, *rest in cases:
+                case = _case(student, item, case_type, amount, *rest[:1])
+                if len(rest) > 1:
+                    case.last_result = rest[1]
         db.session.commit()
     monkeypatch.setattr(check, "assess", _fake_assess(table))
     return app, ids
@@ -98,6 +100,37 @@ def test_priority_order(monkeypatch, tmp_path):
     app, ids = _setup(monkeypatch, tmp_path, spec)
     names = [row["student"].display_name for row in _overview(app, ids)["priority"]]
     assert names == ["證照生", "必修生", "必修高年級小缺口", "必修低年級", "資料生"]
+
+
+def test_awaiting_case_not_counted_as_gap_and_ranks_last(monkeypatch, tmp_path):
+    spec = [
+        ("w1", "待核對生", {"certificates": "met"}, 5,
+         [("certificates", "gap", 1, "awaiting_verification", "met")]),
+        ("d1", "資料生", {}, 5, [("certificates", "data_needed", None)]),
+        ("g1", "缺口生", {"certificates": "gap"}, 5, [("certificates", "gap", 2)]),
+    ]
+    app, ids = _setup(monkeypatch, tmp_path, spec)
+    overview = _overview(app, ids)
+    assert overview["gap"] == 1 and overview["other"] == 1
+    rows = overview["priority"]
+    assert [row["student"].display_name for row in rows] == ["缺口生", "資料生", "待核對生"]
+    assert rows[-1]["label"] == "資料已改善，待科辦核對"
+    assert "還差" not in rows[-1]["label"]
+
+
+def test_teacher_pages_show_improved_label_for_awaiting(tmp_path):
+    app = pages_app(tmp_path)
+    case_id = make_case(app)
+    with app.app_context():
+        case = db.session.get(GraduationCase, case_id)
+        case.status, case.last_result = "awaiting_verification", "met"
+        student_id = case.student_id
+        db.session.commit()
+    client = as_user(app, "tea")
+    for path in ("/teacher/dashboard", f"/teacher/students/{student_id}", f"/graduation/cases/{case_id}"):
+        html = client.get(path).get_data(as_text=True)
+        assert "資料已改善，待科辦核對" in html, path
+        assert "證照還差" not in html and "目前還差" not in html, path
 
 
 def test_priority_hints(monkeypatch, tmp_path):
