@@ -71,9 +71,9 @@ def test_academic_term_boundaries():
     assert svc.academic_term(date(2027, 2, 1)) == (115, "下")
 
 def test_stage_formal_from_grade4_second_term():
-    assert svc.student_stage(111, date(2025, 3, 1))["formal"] is True    # 114 下＝專四下
-    assert svc.student_stage(111, date(2024, 10, 1))["formal"] is False  # 114 上＝專四上
-    stage = svc.student_stage(111, date(2025, 10, 1))                     # 115 上＝專五上
+    assert svc.student_stage(111, date(2026, 3, 1))["formal"] is True    # 114 下＝專四下
+    assert svc.student_stage(111, date(2025, 10, 1))["formal"] is False  # 114 上＝專四上
+    stage = svc.student_stage(111, date(2026, 10, 1))                     # 115 上＝專五上
     assert stage["grade"] == 5 and stage["remaining_terms"] == 2
 
 def test_grade1_short_of_220_is_progress_not_gap(app): ...           # 驗收情境 1：四項都不是 gap
@@ -316,7 +316,7 @@ def test_staff_dashboard_lists_awaiting_cases(app)      # 含 G-編號
 - Modify: `app/demo.py`（**先 `git diff app/demo.py` 看別人未提交的修改，只新增一個獨立函式並在既有建置流程尾端呼叫，不改動別人的段落**）
 - Modify: `docs/03_開發紀錄/development-log.md`、`docs/05_交接與專案管理/handoff.md`（最上面加一節）
 
-- [ ] **Step 1: 新增示範資料** `seed_graduation_demo(today: date)`：一個 111 學年度入學的班級（例如「資管科五甲」）、一位已綁班的 `teacher_demo`；至少 4 位假學生，姓名或備註標「僅為測試資料」，課名用 `curriculum_groups.csv` 111 屆的真實課名，涵蓋：已達門檻、證照只有 1 張（gap）、必修不及格（gap）、缺一學期成績（data_needed）。設定 `SystemSetting("graduation_check_today")` 為專五上的日期（例如 `2025-10-15`），並呼叫 `sync_all`。
+- [ ] **Step 1: 新增示範資料** `seed_graduation_demo(today: date)`：一個 111 學年度入學的班級（例如「資管科五甲」）、一位已綁班的 `teacher_demo`；至少 4 位假學生，姓名或備註標「僅為測試資料」，課名用 `curriculum_groups.csv` 111 屆的真實課名，涵蓋：已達門檻、證照只有 1 張（gap）、必修不及格（gap）、缺一學期成績（data_needed）。設定 `SystemSetting("graduation_check_today")` 為 111 屆專五上的日期（例如 `2026-10-15`，即 115 學年度上學期），並呼叫 `sync_all`。
 - [ ] **Step 2: 瀏覽器驗收**（`preview_start` 名稱 `story-merged-5013`）：`teacher_demo` 首頁看到四張卡與名單 → 點學生進案件頁寫面談紀錄 → `student_demo`（或對應假學生）看到通知與案件 → `staff_demo` 在待核對看到案件並退回、再通過。每一步截圖。
 - [ ] **Step 3: 完整測試**
 Run: `D:\democase\ai\.venv\Scripts\python.exe -m pytest -q --basetemp=logs/test-runs/gc-full-01`
