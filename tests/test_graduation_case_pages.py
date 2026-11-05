@@ -219,6 +219,125 @@ def test_student_page_shows_results_remedy_and_case(tmp_path):
     assert REMEDY_TEXT["total_credits"] == "請洽科辦確認補修方式。"
 
 
+def _fake_assess(results):
+    from app.services import graduation_check_service as check
+
+    def fake(student, today=None, curriculum=None):
+        items = {name: check._item(results.get(name, "met"), detail="假資料")
+                 for name in check.ITEMS}
+        return {"stage": {"grade": 5, "semester": "上", "formal": True}, "items": items}
+    return fake
+
+
+def test_student_header_follows_item_results(tmp_path, monkeypatch):
+    from app.services import graduation_check_service as check
+    app = pages_app(tmp_path)
+    client = as_user(app, "stu")
+    plan = (({}, "met"), ({"total_credits": "progress"}, "progress"),
+            ({"total_credits": "progress", "certificates": "transfer_pending"}, "waiting"),
+            ({"certificates": "insufficient_data", "required_credits": "gap"}, "gap"))
+    for results, expected in plan:
+        monkeypatch.setattr(check, "assess", _fake_assess(results))
+        html = client.get("/student/graduation-check").get_data(as_text=True)
+        assert f'data-grad-overall="{expected}"' in html, expected
+        assert "還差一些" not in html and "已達到提醒條件" not in html
+    assert "累計" in html
+
+
+def test_student_page_remedy_reads_basis_once(tmp_path):
+    from app.services import graduation_check_service as check
+    app = pages_app(tmp_path)
+    make_case(app)
+    html = as_user(app, "stu").get("/student/graduation-check").get_data(as_text=True)
+    assert "補救方式：" in html
+    assert "</strong>依據" not in html
+    assert not check.CERTIFICATE_REMEDY.startswith("依據")
+    assert "第五點" in check.CERTIFICATE_REMEDY
+
+
+def test_confirm_survives_sync_failure(tmp_path, monkeypatch):
+    from sqlalchemy.exc import IntegrityError
+    app = pages_app(tmp_path)
+    client = as_user(app, "stu")
+    for error in (ValueError("同步壞了"), IntegrityError("x", {}, Exception("dup"))):
+        client.post("/student/learning-profile/documents", data={
+            "document_type": "credential", "file": (io.BytesIO(b"demo" + str(error).encode()), "cert.pdf"),
+        }, content_type="multipart/form-data")
+        with app.app_context():
+            document = SourceDocument.query.order_by(SourceDocument.id.desc()).first()
+            document_id = document.id
+            revision = document.extraction.result_json["draft_revision"]
+
+        def broken(*args, _error=error, **kwargs):
+            raise _error
+
+        monkeypatch.setattr(svc, "sync_student", broken)
+        response = client.post(f"/student/learning-profile/documents/{document_id}/review/confirm", data={
+            "draft_revision": revision, "courses_json": "[]", "credentials_json": json.dumps([]),
+        })
+        assert response.status_code == 302, type(error).__name__
+        with app.app_context():
+            assert db.session.get(SourceDocument, document_id).status == "confirmed"
+
+
+def test_transfer_save_survives_sync_failure(tmp_path, monkeypatch):
+    from app.models import TransferCreditRecord
+
+    def broken(*args, **kwargs):
+        raise ValueError("同步壞了")
+
+    app = pages_app(tmp_path)
+    monkeypatch.setattr(svc, "sync_student", broken)
+    response = as_user(app, "stu").post("/student/transfer-credit", data={"status": "submitted"})
+    assert response.status_code == 302
+    with app.app_context():
+        assert TransferCreditRecord.query.one().status == "submitted"
+        student_id = User.query.filter_by(username="stu").one().id
+    response = as_user(app, "tea").post(f"/teacher/students/{student_id}/transfer-credit/confirm",
+                                        data={"confirmed": "1"})
+    assert response.status_code == 302
+    with app.app_context():
+        assert TransferCreditRecord.query.one().teacher_confirmed is True
+
+
+def test_recheck_bad_student_id_and_redirect(tmp_path):
+    app = pages_app(tmp_path)
+    staff = as_user(app, "sta")
+    assert staff.post("/staff/graduation/recheck", data={"student_id": "²"}).status_code == 404
+    assert staff.post("/staff/graduation/recheck", data={"student_id": "abc"}).status_code == 404
+    response = staff.post("/staff/graduation/recheck")
+    assert response.status_code == 302 and response.headers["Location"].endswith("/staff/dashboard")
+    with app.app_context():
+        student_id = User.query.filter_by(username="stu").one().id
+    response = staff.post("/staff/graduation/recheck", data={"student_id": str(student_id)})
+    assert response.status_code == 302 and response.headers["Location"].endswith("/staff/dashboard")
+
+
+def test_inquiry_wording_for_staff(tmp_path):
+    from app.services import graduation_case_actions as actions
+    app = pages_app(tmp_path)
+    as_user(app, "stu").post("/student/graduation-check/inquiry", data={"note": "請問證照怎麼算？"})
+    with app.app_context():
+        case = GraduationCase.query.filter_by(case_type="inquiry").one()
+        student = User.query.filter_by(username="stu").one()
+        staff = User.query.filter_by(username="sta").one()
+        actions.perform(case, student, "start")
+        actions.perform(case, student, "submit")
+        db.session.commit()
+        case_id = case.id
+    html = as_user(app, "sta").get("/staff/dashboard").get_data(as_text=True)
+    assert "一般詢問" in html and ">general<" not in html
+    with app.app_context():
+        case = db.session.get(GraduationCase, case_id)
+        staff = User.query.filter_by(username="sta").one()
+        event = actions.perform(case, staff, "verify")
+        db.session.commit()
+        message = Notification.query.filter_by(event_id=event.id).first().message
+    assert "已處理" in message and "缺口" not in message
+    html = as_user(app, "stu").get(f"/graduation/cases/{case_id}").get_data(as_text=True)
+    assert "不代表學生符合全部畢業資格" not in html
+
+
 def test_action_post_by_unauthorized_user_leaks_nothing(tmp_path):
     app = pages_app(tmp_path)
     case_id = make_case(app)

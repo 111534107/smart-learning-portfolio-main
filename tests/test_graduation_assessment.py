@@ -173,6 +173,41 @@ def test_unconfirmed_credential_document_is_insufficient(app):
     assert item["result"] == "insufficient_data"
 
 
+def test_failed_credential_document_does_not_block(app):
+    student = make_student(111)
+    for name in ("電腦軟體應用 丙級", "網頁設計 丙級", "軟體設計 乙級"):
+        add_credential(student, name, name[-2:])
+    db.session.add(SourceDocument(owner_id=student.id, document_type="credential", display_name="壞檔.jpg",
+                                  file_path="x", sha256="1" * 64, status="analysis_failed"))
+    db.session.flush()
+    item = svc.assess(student, today=date(2026, 3, 1))["items"]["certificates"]
+    assert item["result"] == "met"
+
+
+def test_pending_credential_document_states_are_insufficient(app):
+    student = make_student(111)
+    for index, status in enumerate(("queued", "processing", "extracted")):
+        db.session.add(SourceDocument(owner_id=student.id, document_type="credential",
+                                      display_name=f"{status}.jpg", file_path="x",
+                                      sha256=str(index) * 64, status=status))
+        db.session.flush()
+        item = svc.assess(student, today=date(2026, 3, 1))["items"]["certificates"]
+        assert item["result"] == "insufficient_data", status
+        SourceDocument.query.filter_by(status=status).one().status = "confirmed"
+        db.session.flush()
+
+
+def test_unmatched_course_names_make_credits_rule_unverified(app):
+    student = make_student(111)
+    today = date(2027, 3, 1)  # 專五下，剩 1 學期：不比對的話必修會被算成缺口
+    fill_ended_terms(student, 111, today)
+    add_course(student, "火星探索實務", 3, school_year=111, semester="上")
+    result = svc.assess(student, today=today)
+    for name in CREDIT_ITEMS:
+        assert result["items"][name]["result"] == "rule_unverified"
+        assert "火星探索實務" in result["items"][name]["detail"]
+
+
 def test_ended_term_matches_grade_number_school_year(app):
     student = make_student(111)
     today = date(2026, 3, 1)

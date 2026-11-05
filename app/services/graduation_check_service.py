@@ -151,6 +151,8 @@ TODAY_SETTING_KEY = "graduation_check_today"
 ITEMS = ("certificates", "required_credits", "elective_credits", "total_credits")
 RESULTS = ("met", "gap", "insufficient_data", "transfer_pending", "rule_unverified", "progress")
 CERTIFICATE_BASIS = "資訊管理科學生畢業門檻實施要點（113.03.27 修訂）第五點"
+# 證照檔案還在處理或等待學生確認的狀態（見 student.py 上傳／確認流程與 ocr_queue）
+PENDING_DOCUMENT_STATUSES = ("uploaded", "queued", "processing", "extracted")
 _CREDIT_ITEM_KEYS = {"required_credits": "required", "elective_credits": "elective", "total_credits": "total"}
 
 
@@ -192,9 +194,10 @@ def _item(result, amount=None, unit="學分", detail="", basis="", failed_requir
 
 
 def _certificate_item(student, stage):
+    # 只有還在辨識或等學生確認的檔案算「尚未確認」；辨識失敗（analysis_failed）的檔案不擋判斷
     unconfirmed = (SourceDocument.query
                    .filter(SourceDocument.owner_id == student.id, SourceDocument.document_type == "credential",
-                           SourceDocument.status != "confirmed").first())
+                           SourceDocument.status.in_(PENDING_DOCUMENT_STATUSES)).first())
     if unconfirmed is not None:
         return _item("insufficient_data", unit="張", basis=CERTIFICATE_BASIS,
                      detail="有證照文件尚未確認，確認後才能判斷。")
@@ -245,6 +248,12 @@ def _credit_items(student, stage, curriculum):
         return {name: _item("insufficient_data", basis=basis, missing_terms=missing,
                             detail=f"這些學期還沒有已確認的成績單：{text}。")
                 for name in _CREDIT_ITEM_KEYS}
+    if credits["unmatched"]:
+        # 對不到科目表的課沒有算進學分，硬判會變成假缺口：三項都改為待人工確認
+        names = "、".join(credits["unmatched"])
+        return {name: _item("rule_unverified", basis=basis,
+                            detail=f"有課程對不到修業科目表，學分無法判斷，請科辦確認：{names}。")
+                for name in _CREDIT_ITEM_KEYS}
     pending = TransferCreditRecord.query.filter(TransferCreditRecord.student_id == student.id,
                                                 TransferCreditRecord.status != "completed").first()
     capacity = stage["remaining_terms"] * MAX_CREDITS_PER_TERM_SENIOR
@@ -267,6 +276,26 @@ def _credit_items(student, stage, curriculum):
     return items
 
 
+OVERALL_LABELS = {
+    "gap": ("有項目出現缺口", "tag--danger"),
+    "waiting": ("有項目資料不足或待確認", "tag--warn"),
+    "met": ("各項目都已達成", "tag--ok"),
+    "progress": ("修課中", "tag--warn"),
+}
+
+
+def overall_result(assessment):
+    """學生頁頂端的整體狀態，跟各項目判斷結果一致：gap / waiting / met / progress。"""
+    results = [data["result"] for data in assessment["items"].values()]
+    if "gap" in results:
+        return "gap"
+    if any(result in ("insufficient_data", "transfer_pending", "rule_unverified") for result in results):
+        return "waiting"
+    if results and all(result == "met" for result in results):
+        return "met"
+    return "progress"
+
+
 def assess(student, today=None, curriculum=None):
     """四個項目的判斷結果。load_curriculum() 只讀一次；既有 evaluate 不受影響。"""
     today = check_today() if today is None else today
@@ -280,7 +309,7 @@ def assess(student, today=None, curriculum=None):
 
 # ---- 補救方式文字（只引用實施要點，不替學科辦決定）----
 CERTIFICATE_REMEDY = (
-    f"依據：{CERTIFICATE_BASIS}。適用 109 學年度（含）以後入學的日間部五年制學生。"
+    f"依{CERTIFICATE_BASIS}，適用 109 學年度（含）以後入學的日間部五年制學生。"
     "未能通過證照門檻者，可擇一補救："
     "（1）修畢額外加選六學分專業選修；"
     "（2）修畢且取得微學分學程或學分學程並加選三學分專業選修；"

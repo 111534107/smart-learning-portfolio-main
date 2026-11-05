@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% from "partials/nav.html" import masthead with context %}
 {% set page_name = "student-graduation-check" %}
-{% set status_text = {"ok": ("已達到提醒條件", "tag--ok"), "short": ("還差一些", "tag--warn"), "needs_check": ("待確認", "tag--warn")} %}
-{% set label, tag = status_text[result.status] %}
+{# 頂端狀態依各項目判斷結果（assess）決定，避免與下方項目矛盾 #}
+{% set label, tag = check.OVERALL_LABELS[overall] %}
 {% set cert = result.certificates %}
 {% set credits = result.credits %}
 
@@ -20,10 +20,10 @@
     </div>
   </header>
 
-  <p class="tag {{ tag }}" role="status">{{ label }}</p>
+  <p class="tag {{ tag }}" role="status" data-grad-overall="{{ overall }}">{{ label }}</p>
 
   <section class="work-panel" aria-labelledby="cert-heading">
-    <h2 id="cert-heading">專業證照（至少 3 張）</h2>
+    <h2 id="cert-heading">專業證照（至少 3 張，累計數字）</h2>
     <p>採計 {{ cert.counted_count }} 張，還差 {{ cert.missing }} 張。中（英）文輸入證照至多採計 1 張。</p>
     {% if cert.counted %}
     <ul>{% for name in cert.counted %}<li>{{ name }}</li>{% endfor %}</ul>
@@ -35,7 +35,8 @@
   </section>
 
   <section class="work-panel" aria-labelledby="credit-heading">
-    <h2 id="credit-heading">學分</h2>
+    <h2 id="credit-heading">學分（累計數字）</h2>
+    <p class="small muted">下表只是目前已確認成績的累計數字，「還差」是距離畢業總規定的差距，不等於缺口；是否列為缺口請看下方「各項目判斷結果」。</p>
     {% if credits.earned is none %}
     <p>{{ credits.reason }}</p>
     {% else %}

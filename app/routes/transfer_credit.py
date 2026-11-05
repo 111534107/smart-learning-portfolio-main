@@ -7,7 +7,7 @@ from flask import Blueprint, abort, redirect, render_template, request, url_for
 from app.extensions import db
 from app.models import TransferCreditRecord, User
 from app.routes.main import get_current_user, role_required
-from app.services.graduation_case_service import sync_student
+from app.routes.graduation import sync_after_commit
 from app.services.teacher_scope import can_view_student
 
 
@@ -60,8 +60,7 @@ def student_transfer_credit():
             record.teacher_id = None
             record.teacher_confirmed_at = None
         db.session.commit()
-        sync_student(student)
-        db.session.commit()
+        sync_after_commit(student)
         return redirect(url_for("transfer_credit.student_transfer_credit", saved=1))
 
     return render_template(
@@ -93,6 +92,5 @@ def confirm_transfer_credit(student_id):
         record.teacher_id = None
         record.teacher_confirmed_at = None
     db.session.commit()
-    sync_student(student)
-    db.session.commit()
+    sync_after_commit(student)
     return redirect(url_for("teacher.student_detail", student_id=student.id))

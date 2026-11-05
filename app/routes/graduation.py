@@ -6,7 +6,7 @@ GET 一律不建立案件、不改狀態、不寫事件、不發通知；
 
 from datetime import datetime, timezone
 
-from flask import Blueprint, abort, redirect, render_template, request, url_for
+from flask import Blueprint, abort, current_app, redirect, render_template, request, url_for
 
 from app.extensions import db
 from app.models import GraduationCase, GraduationCaseEvent, Notification, User
@@ -46,13 +46,17 @@ def inject_unread_notifications():
 
 
 def _render_case(case, user, error=None, status=200):
-    item_label = case_service.ITEM_LABELS.get(case.item, "一般詢問" if case.item == "general" else case.item)
+    item_label = case_service.ITEM_LABELS.get(case.item, case.item)
     events = case.events.order_by(GraduationCaseEvent.id).all()
+    inquiry = case.case_type == "inquiry"
     return render_template(
         "graduation_case.html", user=user, case=case, events=events, error=error,
         available=actions.available_actions(case, user), item_label=item_label,
-        status_labels=STATUS_LABELS, action_labels=ACTION_LABELS, event_labels=EVENT_LABELS,
-        close_reason_labels=CLOSE_REASON_LABELS, type_labels=CASE_TYPE_LABELS,
+        status_labels=STATUS_LABELS,
+        action_labels={**ACTION_LABELS, "verify": "已處理"} if inquiry else ACTION_LABELS,
+        event_labels={**EVENT_LABELS, "verified": "科辦已處理"} if inquiry else EVENT_LABELS,
+        close_reason_labels={**CLOSE_REASON_LABELS, "improved": "已處理"} if inquiry else CLOSE_REASON_LABELS,
+        type_labels=CASE_TYPE_LABELS,
         remedy=check.REMEDY_TEXT.get(case.item) if case.case_type == "gap" else None,
         disclaimer=check.DISCLAIMER,
     ), status
@@ -124,11 +128,32 @@ def notifications():
 def recheck():
     raw = request.form.get("student_id", "").strip()
     if raw:
-        student = db.session.get(User, int(raw)) if raw.isdigit() else None
+        student = db.session.get(User, _parse_id(raw))
         if student is None or student.role != "student":
             abort(404)
         case_service.sync_student(student)
     else:
         case_service.sync_all()
     db.session.commit()
-    return redirect(url_for("graduation.notifications"))
+    return redirect(url_for("main.staff_dashboard"))
+
+
+def _parse_id(raw):
+    """只接受 ASCII 數字的編號；其他（含全形、上標等 Unicode 數字）回傳 0，查無此人。"""
+    if not (raw.isascii() and raw.isdigit()) or len(raw) > 18:
+        return 0
+    return int(raw)
+
+
+def sync_after_commit(student):
+    """主要資料已經提交後，再同步畢業缺口案件。
+
+    同步失敗只回復同步這一段並記錄，原本的確認或儲存仍然有效，不讓使用者看到錯誤頁。
+    """
+    student_id = student.id
+    try:
+        case_service.sync_student(student)
+        db.session.commit()
+    except Exception:  # 同步是附帶動作，任何錯誤都不能讓已提交的主要動作看起來失敗
+        db.session.rollback()
+        current_app.logger.exception("畢業缺口同步失敗（學生 %s），主要資料已儲存", student_id)

@@ -94,7 +94,9 @@ def perform(case, user, action, note=""):
         message = f"案件 {case.number}：{label}。"
         if note:
             message += f"原因：{note}"
-    if action == "verify":
+    if action == "verify" and case.case_type == "inquiry":
+        message = f"案件 {case.number}：科辦已核對，這一筆詢問已處理。"
+    elif action == "verify":
         message = f"案件 {case.number}：科辦已核對，這一筆缺口確認改善。"
     elif action == "submit":
         message = f"案件 {case.number}：已送出，請科辦核對。"

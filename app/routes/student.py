@@ -29,6 +29,7 @@ from app.models import (
     User,
 )
 from app.routes.main import get_current_user, role_required
+from app.routes.graduation import sync_after_commit
 from app.services.focus_service import focus_view
 from app.services.portfolio_service import owned_portfolio, create_submission_snapshot
 from app.security import validate_upload_filename
@@ -44,7 +45,7 @@ from app.services.admission_links import admission_links, load_school_links
 from app.services.admission_schedule import CHECKED_ON, channel_label, latest_timeline, timeline
 from app.services.matching_service import rank_programs
 from app.services.transfer_exam import is_transfer
-from app.services import graduation_case_service, graduation_check_service
+from app.services import graduation_check_service
 
 from app.services.gap_checklist import download_checklist, review_timeline
 from app.services.journey_service import CATEGORY_LABELS, EXPERIENCE_CATEGORIES, build_journey
@@ -254,9 +255,12 @@ def graduation_check():
     for case in cases:  # 每個檢核項目只掛最新的缺口案件
         if case.case_type == "gap":
             item_cases.setdefault(case.item, case)
+    curriculum = graduation_check_service.load_curriculum()
+    assessment = graduation_check_service.assess(user, curriculum=curriculum)
     return render_template("student_graduation_check.html", user=user,
-                           result=graduation_check_service.evaluate(user),
-                           assessment=graduation_check_service.assess(user),
+                           result=graduation_check_service.evaluate(user, curriculum=curriculum),
+                           assessment=assessment,
+                           overall=graduation_check_service.overall_result(assessment),
                            item_cases=item_cases,
                            other_cases=[c for c in cases if c.case_type != "gap"],
                            check=graduation_check_service)
@@ -759,11 +763,11 @@ def learning_profile_document_confirm(document_id):
         audit_service.record(user, "learning_profile.document_confirm", "source_document", document.id,
                              detail={"course_count": len(courses), "credential_count": len(credentials)})
         db.session.commit()
-        graduation_case_service.sync_student(user)
-        db.session.commit()
     except (TypeError, ValueError) as exc:
         db.session.rollback()
         return render_template("student_input_error.html", message=str(exc), back_url=url_for("student.learning_profile_document_review", document_id=document.id)), 400
+    # 確認已提交；同步失敗只回復同步本身，不影響確認結果
+    sync_after_commit(user)
     saved = [f"{len(courses)} 門課程" if courses else "", f"{len(credentials)} 張證照" if credentials else ""]
     flash_done("已儲存 " + ("、".join(part for part in saved if part) or "確認結果") + "。", user, program, before)
     return redirect(next_path or _profile_page_url(document.document_type))
