@@ -217,3 +217,19 @@ def test_student_page_shows_results_remedy_and_case(tmp_path):
     assert "第五點" in html and "109 學年度（含）以後入學" in html
     from app.services.graduation_check_service import REMEDY_TEXT
     assert REMEDY_TEXT["total_credits"] == "請洽科辦確認補修方式。"
+
+
+def test_action_post_by_unauthorized_user_leaks_nothing(tmp_path):
+    app = pages_app(tmp_path)
+    case_id = make_case(app)
+    with app.app_context():
+        number = db.session.get(GraduationCase, case_id).number
+        other_teacher = _user("tea2", "teacher", "別班導師")
+        db.session.add(ClassAdvisor(teacher_id=other_teacher.id, class_name="五專四乙", school_year=115))
+        db.session.commit()
+    for username in ("other", "tea2"):
+        response = as_user(app, username).post(f"/graduation/cases/{case_id}/actions",
+                                               data={"action": "note", "note": "x"})
+        body = response.get_data(as_text=True)
+        assert response.status_code == 403
+        assert number not in body and "測試學生" not in body

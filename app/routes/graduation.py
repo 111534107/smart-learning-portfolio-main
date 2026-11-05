@@ -89,6 +89,8 @@ def case_action(case_id):
     except actions.CaseActionError as exc:
         db.session.rollback()
         case = db.session.get(GraduationCase, case_id)
+        if not actions.can_view(case, user):
+            abort(403)  # 不能看案件的人，不回傳案件內容
         body, status = _render_case(case, user, error=str(exc), status=exc.status_code)
         return body, status
     return redirect(url_for("graduation.case_detail", case_id=case_id))
