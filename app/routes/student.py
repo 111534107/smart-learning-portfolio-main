@@ -17,6 +17,7 @@ from app.models import (
     AuditLog,
     CredentialRecord,
     DocumentExtraction,
+    GraduationCase,
     LearningCourseRecord,
     LearningProfileOutput,
     MatchFilterOption,
@@ -43,7 +44,7 @@ from app.services.admission_links import admission_links, load_school_links
 from app.services.admission_schedule import CHECKED_ON, channel_label, latest_timeline, timeline
 from app.services.matching_service import rank_programs
 from app.services.transfer_exam import is_transfer
-from app.services import graduation_check_service
+from app.services import graduation_case_service, graduation_check_service
 
 from app.services.gap_checklist import download_checklist, review_timeline
 from app.services.journey_service import CATEGORY_LABELS, EXPERIENCE_CATEGORIES, build_journey
@@ -247,8 +248,18 @@ def learning_profile_credentials():
 @role_required("student")
 def graduation_check():
     user = get_current_user()
+    cases = (GraduationCase.query.filter_by(student_id=user.id)
+             .order_by(GraduationCase.id.desc()).all())
+    item_cases = {}
+    for case in cases:  # 每個檢核項目只掛最新的缺口案件
+        if case.case_type == "gap":
+            item_cases.setdefault(case.item, case)
     return render_template("student_graduation_check.html", user=user,
-                           result=graduation_check_service.evaluate(user))
+                           result=graduation_check_service.evaluate(user),
+                           assessment=graduation_check_service.assess(user),
+                           item_cases=item_cases,
+                           other_cases=[c for c in cases if c.case_type != "gap"],
+                           check=graduation_check_service)
 
 
 @student_bp.get("/student/learning-profile/upload")
@@ -747,6 +758,8 @@ def learning_profile_document_confirm(document_id):
         document.status = "confirmed"
         audit_service.record(user, "learning_profile.document_confirm", "source_document", document.id,
                              detail={"course_count": len(courses), "credential_count": len(credentials)})
+        db.session.commit()
+        graduation_case_service.sync_student(user)
         db.session.commit()
     except (TypeError, ValueError) as exc:
         db.session.rollback()

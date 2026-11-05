@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "notifications" %}
+{% block title %}通知｜資管科學習歷程{% endblock %}
+{% block navigation %}{{ masthead(user, "通知") }}{% endblock %}
+{% block content %}
+<section class="work-shell">
+  <header class="work-heading">
+    <div>
+      <p class="small">畢業缺口案件</p>
+      <h1>通知</h1>
+      <p>只做提醒與追蹤。點通知可開啟案件，開啟後該案件的通知會標為已讀。</p>
+    </div>
+  </header>
+  {% if user.role == "staff" %}
+  <section class="work-panel">
+    <h2>重新檢核</h2>
+    <p>依目前資料重新同步所有學生的案件（開啟頁面不會自動執行）。</p>
+    <form method="post" action="{{ url_for('graduation.recheck') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="button button--small" type="submit">重新檢核全部學生</button>
+    </form>
+  </section>
+  {% endif %}
+  <section class="work-panel mt-1">
+    {% if rows %}
+    <ul>
+      {% for row in rows %}
+      <li>
+        <a href="{{ url_for('graduation.case_detail', case_id=row.case_id) }}">{{ row.case.number }}</a>
+        {{ row.message }}
+        <span class="small muted">{{ row.created_at|taipei_time("%Y-%m-%d %H:%M") }}</span>
+        {% if not row.read_at %}<span class="tag tag--warn">未讀</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">目前沒有通知。</p>
+    {% endif %}
+  </section>
+  <p class="small muted">{{ "僅供提醒，正式畢業資格以學校學生畢業門檻審核委員會的審核結果為準。" }}</p>
+</section>
+{% endblock %}

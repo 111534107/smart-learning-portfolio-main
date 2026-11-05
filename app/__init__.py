@@ -47,6 +47,7 @@ def create_app(config_overrides=None):
     from app.routes.google_docs import google_docs_bp
     from app.routes.storage import storage_bp
     from app.routes.agent_plan import agent_plan_bp
+    from app.routes.graduation import graduation_bp
     from app import models
 
     app.register_blueprint(main_bp)
@@ -63,6 +64,7 @@ def create_app(config_overrides=None):
     app.register_blueprint(google_docs_bp)
     app.register_blueprint(storage_bp)
     app.register_blueprint(agent_plan_bp)
+    app.register_blueprint(graduation_bp)
 
     @app.cli.command("agent-check")
     def agent_check_command():

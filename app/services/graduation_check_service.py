@@ -276,3 +276,30 @@ def assess(student, today=None, curriculum=None):
     items = {"certificates": _certificate_item(student, stage)}
     items.update(_credit_items(student, stage, curriculum))
     return {"stage": stage, "items": items}
+
+
+# ---- 補救方式文字（只引用實施要點，不替學科辦決定）----
+CERTIFICATE_REMEDY = (
+    f"依據：{CERTIFICATE_BASIS}。適用 109 學年度（含）以後入學的日間部五年制學生。"
+    "未能通過證照門檻者，可擇一補救："
+    "（1）修畢額外加選六學分專業選修；"
+    "（2）修畢且取得微學分學程或學分學程並加選三學分專業選修；"
+    "（3）採計輔導課程及服務時數：缺三張須報考任三張證照、完成 12 小時輔導課程與 24 小時資訊技術實作，"
+    "缺二張須報考任二張並完成 24 小時資訊技術實作，缺一張須報考任一張並完成 12 小時資訊技術實作"
+    "（除打字證照外，各類證照須報考並到考但未通過者適用，需檢附未通過紀錄文件）；"
+    "（4）獲得校內外資訊相關競賽前三名；"
+    "（5）取得國立大專院校入學資格；"
+    "（6）其他特殊狀況，經科務會議同意者。")
+CREDIT_REMEDY = "請洽科辦確認補修方式。"
+REMEDY_TEXT = {
+    "certificates": CERTIFICATE_REMEDY,
+    "required_credits": CREDIT_REMEDY,
+    "elective_credits": CREDIT_REMEDY,
+    "total_credits": CREDIT_REMEDY,
+}
+RESULT_LABELS = {
+    "met": ("已達成", "tag--ok"), "gap": ("有缺口", "tag--danger"),
+    "insufficient_data": ("資料不足", "tag--warn"), "transfer_pending": ("抵免待核對", "tag--warn"),
+    "rule_unverified": ("待人工確認", "tag--warn"), "progress": ("修課中", "tag--warn"),
+}
+DISCLAIMER = "僅供提醒，正式畢業資格以學校學生畢業門檻審核委員會的審核結果為準。"

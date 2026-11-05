@@ -52,6 +52,39 @@
     {% endif %}
   </section>
 
+  <section class="work-panel" aria-labelledby="assess-heading">
+    <h2 id="assess-heading">各項目判斷結果</h2>
+    <p class="small muted">目前階段：{% if assessment.stage.grade %}專{{ assessment.stage.grade }}{{ assessment.stage.semester }}{% else %}尚未入學{% endif %}{% if not assessment.stage.formal %}（專四下以後才會正式列為缺口）{% endif %}</p>
+    {% for item, data in assessment["items"].items() %}
+    {% set rlabel, rtag = check.RESULT_LABELS[data.result] %}
+    {% set case = item_cases.get(item) %}
+    <div class="work-panel mt-1">
+      <h3>{{ {"certificates": "專業證照", "required_credits": "必修學分", "elective_credits": "選修學分", "total_credits": "總學分"}[item] }}
+        <span class="tag {{ rtag }}">{{ rlabel }}</span></h3>
+      {% if data.amount is not none and data.result in ("gap", "progress", "transfer_pending") %}<p>還差 {{ data.amount }} {{ data.unit }}。</p>{% endif %}
+      {% if data.detail %}<p>{{ data.detail }}</p>{% endif %}
+      {% if data.failed_required %}<p>不及格的必修：{{ data.failed_required|join("、") }}</p>{% endif %}
+      {% if data.basis %}<p class="small muted">依據：{{ data.basis }}</p>{% endif %}
+      {% if data.result == "gap" %}<p><strong>補救方式：</strong>{{ check.REMEDY_TEXT[item] }}</p>{% endif %}
+      {% if case %}<p class="small">案件 <a href="{{ url_for('graduation.case_detail', case_id=case.id) }}">{{ case.number }}</a>（{{ {"pending": "待處理", "in_progress": "處理中", "awaiting_verification": "待科辦核對", "closed": "已結案"}[case.status] }}）</p>{% endif %}
+    </div>
+    {% endfor %}
+    {% if other_cases %}
+    <h3 class="mt-1">其他案件</h3>
+    <ul>{% for case in other_cases %}<li><a href="{{ url_for('graduation.case_detail', case_id=case.id) }}">{{ case.number }}</a>（{{ {"data_needed": "資料不足", "inquiry": "詢問"}[case.case_type] }}，{{ {"pending": "待處理", "in_progress": "處理中", "awaiting_verification": "待科辦核對", "closed": "已結案"}[case.status] }}）</li>{% endfor %}</ul>
+    {% endif %}
+  </section>
+
+  <section class="work-panel mt-1" aria-labelledby="inquiry-heading">
+    <h2 id="inquiry-heading">更正或諮詢</h2>
+    <p>資料有誤或想問導師，可在此留言；導師會收到通知。</p>
+    <form class="form-stack" method="post" action="{{ url_for('graduation.create_inquiry') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="field">內容<textarea name="note" rows="3" maxlength="1000" required></textarea></label>
+      <button class="button button--small" type="submit">送出詢問</button>
+    </form>
+  </section>
+
   <p class="small muted">{{ result.note }}</p>
 </section>
 {% endblock %}
