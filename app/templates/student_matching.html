@@ -50,11 +50,15 @@
         <a class="button button--small {{ 'button--line' if chart != 'column' else '' }}" href="{{ url_for('student.matching', **dict(keep, chart='column')) }}" data-chart-mode="column" aria-pressed="{{ 'true' if chart == 'column' else 'false' }}">長條</a>
       </div>
     </div>
+    {# 排序不是只看準備度（11-04 實測：學生以為排錯），把規則寫出來 #}
+    <p class="muted small mb-1">排序方式：先排可報的，再排和你科系相關的，同一組裡才依準備度由高到低。所以準備度高的校系不一定排在最前面。</p>
     <ol class="match-chart match-chart--{{ chart }} plain-list" data-match-chart>
       {% for row in rows %}
       <li class="match-chart__item">
         <a class="match-chart__label" href="{{ url_for('student.matching_detail', program_id=row.program.id) }}">{{ loop.index }}. {{ row.program.school_name }} {{ row.program.department_name }}</a>
-        <span class="tag {{ {'eligible': 'tag--info', 'needs_check': 'tag--warn', 'ineligible': 'tag--danger'}[row.status] }}">{{ row.status_label }}</span>
+        {# 同校同系可能有不同招生管道（技優甄審、日間部申請……），要標出來才分得出兩列（11-04 實測） #}
+        {# 兩個標籤包成一格，圖表格線的欄數才不會跑掉 #}
+        <span class="match-chart__tags"><span class="tag">{{ row.channel_label }}</span><span class="tag {{ {'eligible': 'tag--info', 'needs_check': 'tag--warn', 'ineligible': 'tag--danger'}[row.status] }}">{{ row.status_label }}</span></span>
         {% if row.fit is not none %}
         <span class="match-chart__track"><span class="match-chart__fill" style="--fit: {{ row.fit }}%"></span></span>
         <span class="match-chart__value">準備度 {{ row.fit }}%</span>

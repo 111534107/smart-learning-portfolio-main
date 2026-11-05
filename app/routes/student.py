@@ -203,6 +203,12 @@ def _profile_page_url(document_type):
     return url_for(PROFILE_PAGES.get(document_type, "student.learning_profile"))
 
 
+def _blank_score(course):
+    """OCR 沒讀到成績（空白或標「待確認」）：鎖定成績時仍允許學生補上。"""
+    value = course.get("score") if isinstance(course, dict) else None
+    return value is None or str(value).strip() == "" or "待確認" in str(value)
+
+
 def _learning_profile_page(kind):
     user = get_current_user()
     documents = SourceDocument.query.filter_by(owner_id=user.id, document_type=kind).order_by(
@@ -599,8 +605,8 @@ def learning_profile_document_confirm(document_id):
                     key = f"course_{index}_{field}"
                     if key not in request.form:
                         raise ValueError("課程欄位不完整，請重新開啟確認頁面")
-                    if all_fields_locked or (field == "score" and not scores_unlocked):
-                        item[field] = original.get("score")
+                    if all_fields_locked or (field == "score" and not scores_unlocked and not _blank_score(original)):
+                        item[field] = original.get(field)
                     else:
                         item[field] = request.form[key].strip()
                 courses.append(item)
@@ -611,7 +617,8 @@ def learning_profile_document_confirm(document_id):
         if not scores_unlocked:
             original_courses = result.get("courses", [])
             for index, item in enumerate(courses):
-                if isinstance(item, dict):
+                # 空白成績（原本就沒讀到）可以直接補，不必先解鎖（11-04 實測）
+                if isinstance(item, dict) and not (index < len(original_courses) and _blank_score(original_courses[index])):
                     item["score"] = (
                         original_courses[index].get("score")
                         if index < len(original_courses) else None

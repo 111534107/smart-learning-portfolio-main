@@ -112,6 +112,18 @@ def table_pieces(journey):
     for year in journey["years"]:
         for key in CATEGORY_KEYS:
             seen = {}
+            if key == "grades":
+                # 成績一年一片（11-04 實測：一門課一片，上傳成績單後一次冒出 89 片）
+                courses = year["categories"][key]
+                if courses:
+                    items.append({
+                        "id": f"grades-{year['grade']}",
+                        "key": key,
+                        "label": PIECE_LABELS[key],
+                        "grade_label": GRADE_LABELS[year["grade"]],
+                        "title": f"{GRADE_LABELS[year['grade']]}成績 {len(courses)} 門課",
+                    })
+                continue
             for item in year["categories"][key]:
                 title = item.get("title") or ""
                 # 片的 id＝資料來源＋資料庫編號（改標題、換年級都不變）；沒有編號的假資料才退回用標題

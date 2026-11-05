@@ -109,11 +109,45 @@ def strength_inventory(student):
     for item in LearningCourseRecord.query.filter_by(student_id=student.id, confirmation_status="confirmed"):
         add("已確認課程", item.course_name, f"course:{item.id}")
     for item in CredentialRecord.query.filter_by(student_id=student.id, confirmation_status="confirmed"):
-        add("證照：" + (item.category or "未分類"), item.credential_name, f"credential:{item.id}")
+        add("證照：" + (item.category or "未分類"), credential_label(item), f"credential:{item.id}")
     for item in Portfolio.active().filter_by(student_id=student.id, status="confirmed"):
         if item.category in CATEGORY_LABELS:
             add(CATEGORY_LABELS[item.category], item.title, f"portfolio:{item.id}")
     return [{"label": label, "count": len(items), "evidence": items} for label, items in groups.items()]
+
+# 備審目錄不列的共同課程（不是專業能力的證明）：勞作教育、體育、班會等
+GENERAL_COURSE_WORDS = ("勞作", "體育", "班會", "週會", "周會", "團體活動", "全民國防", "軍訓", "健康與護理", "生涯規劃")
+TOP_COURSES = 5
+
+
+def credential_label(credential):
+    """證照名稱加上級別（同名證照才分得出來），名稱已含級別就不重複。"""
+    name = credential.credential_name
+    level = (credential.level or "").strip()
+    return f"{name}（{level}）" if level and level not in name else name
+
+
+def _course_summary(courses):
+    """成績不逐門列出（11-04 實測：85 門課全列，連勞作教育、體育都在）：
+    一行總覽＋分數最高的幾門專業科目。"""
+    if not courses:
+        return []
+    scored = [c for c in courses if c.score is not None]
+    summary = f"歷年成績單：已確認 {len(courses)} 門課"
+    if scored:
+        summary += f"，平均 {round(sum(c.score for c in scored) / len(scored), 1)} 分"
+    items = [{"name": summary, "evidence_id": "course:all"}]
+    professional = [c for c in scored if not any(word in c.course_name for word in GENERAL_COURSE_WORDS)]
+    seen = set()
+    for course in sorted(professional, key=lambda c: c.score, reverse=True):
+        if course.course_name in seen:
+            continue
+        seen.add(course.course_name)
+        items.append({"name": f"表現較好的科目：{course.course_name} {course.score:g} 分", "evidence_id": f"course:{course.id}"})
+        if len(seen) >= TOP_COURSES:
+            break
+    return items
+
 
 def custom_contents(student, program):
     """依加權列出已確認的具體佐證；保留資料來源供學生核對。"""
@@ -126,9 +160,9 @@ def custom_contents(student, program):
     for chapter in chapters:
         evidence = []
         if "grades" in chapter["keys"]:
-            evidence.extend({"name": c.course_name, "evidence_id": f"course:{c.id}"} for c in courses)
+            evidence.extend(_course_summary(courses))
         if "credential" in chapter["keys"]:
-            evidence.extend({"name": c.credential_name, "evidence_id": f"credential:{c.id}"} for c in credentials)
+            evidence.extend({"name": credential_label(c), "evidence_id": f"credential:{c.id}"} for c in credentials)
         for record in records:
             if record.category in chapter["keys"] or ("project" in chapter["keys"] and
                     ("專題" in record.title or "作品" in record.title)):

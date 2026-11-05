@@ -367,9 +367,9 @@
           {% set known = certainty is number and certainty is not sameas true and certainty is not sameas false and certainty >= 0 and certainty <= 1 %}
           {% set field_pending = value is none or value == '' or (value is string and '待確認' in value) %}
           <td class="{{ 'field-pending' if field_pending else '' }}{{ ' field-low' if field in ['course_name', 'credits', 'score'] and known and certainty < 0.85 else '' }}" data-label="{{ label }}">
-            <input id="course-{{ index }}-{{ field }}" aria-label="第 {{ index + 1 }} 列{{ label }}" aria-describedby="confidence-{{ index }}-{{ field }}" name="course_{{ index }}_{{ field }}" value="{{ value if value is not none else '' }}" {% if field in ['credits', 'score'] %}type="number" min="0" step="1" {% if field == 'score' %}max="100"{% endif %}{% else %}type="text"{% endif %} {% if field == 'score' %}readonly class="score-locked{% if field_pending %} value-pending{% endif %}" title="成績目前已鎖定"{% elif field_pending %}class="value-pending"{% endif %} {% if field == 'course_name' %}required{% endif %} {% if field == 'grade_level' %}list="grade-options"{% endif %} placeholder="待確認">
+            <input id="course-{{ index }}-{{ field }}" aria-label="第 {{ index + 1 }} 列{{ label }}" aria-describedby="confidence-{{ index }}-{{ field }}" name="course_{{ index }}_{{ field }}" value="{{ value if value is not none else '' }}" {% if field in ['credits', 'score'] %}type="number" min="0" step="1" {% if field == 'score' %}max="100"{% endif %}{% else %}type="text"{% endif %} {# 空白成績不鎖：本來就沒有值，不會誤改，學生直接補（11-04 實測：空白成績要先解鎖） #}{% if field == 'score' and not field_pending %}readonly class="score-locked" title="成績目前已鎖定"{% elif field_pending %}class="value-pending"{% endif %} {% if field == 'course_name' %}required{% endif %} {% if field == 'grade_level' %}list="grade-options"{% endif %} placeholder="待確認">
             {% if field == 'course_name' and group.highest and group.highest.index == index %}<small class="highest-mark">最高成績</small>{% endif %}
-            <small id="confidence-{{ index }}-{{ field }}" class="{{ 'confidence-low' if known and certainty < 0.85 else ('confidence-unknown' if not known else '') }}" title="OCR 信心：{% if known %}{{ (certainty * 100)|round|int }}%{% else %}未知{% endif %}（不代表正確率{% if not known or certainty < 0.85 %}，請對照原圖核對{% endif %}）">信心 {% if known %}{{ (certainty * 100)|round|int }}%{% if certainty < 0.85 %}・偏低{% endif %}{% else %}未知{% endif %}</small>
+            {# 信心正常的欄位不顯示數字，只留給螢幕閱讀器；只有科目、學分、成績偏低或未知才顯示（11-04 實測：85 列 × 5 個信心值太多） #}{% set show_confidence = field in ['course_name', 'credits', 'score'] and (not known or certainty < 0.85) %}<small id="confidence-{{ index }}-{{ field }}" class="{{ 'confidence-low' if known and certainty < 0.85 else ('confidence-unknown' if not known else '') }}{{ '' if show_confidence else ' visually-hidden' }}" title="OCR 信心：{% if known %}{{ (certainty * 100)|round|int }}%{% else %}未知{% endif %}（不代表正確率{% if not known or certainty < 0.85 %}，請對照原圖核對{% endif %}）">信心 {% if known %}{{ (certainty * 100)|round|int }}%{% if certainty < 0.85 %}・偏低{% endif %}{% else %}未知{% endif %}</small>
             {% if field_pending %}<small class="pending-badge">⚠ 待確認</small>{% endif %}
           </td>
         {% endfor %}
@@ -516,7 +516,7 @@
     const unlockInput = document.getElementById('scores-unlocked');
     const allFieldsLockedInput = document.getElementById('all-fields-locked');
     const lockStatus = document.getElementById('score-lock-status');
-    const scoreInputs = document.querySelectorAll('#review-grade-groups input[name$="_score"]');
+    const scoreInputs = document.querySelectorAll('#review-grade-groups input[name$="_score"]:not(.value-pending)');  // 空白成績不受鎖定影響
     const courseInputs = document.querySelectorAll('#review-grade-groups input[name^="course_"]');
     if (!filter || !failureFilter || !makeupFilter) return;
     let scoresUnlocked = false;
@@ -537,7 +537,7 @@
       if (locked) setScoreLock(false);
       else setScoreLock(true);
       for (const input of courseInputs) {
-        input.readOnly = locked || (input.name.endsWith('_score') && !scoresUnlocked);
+        input.readOnly = locked || (input.name.endsWith('_score') && !input.classList.contains('value-pending') && !scoresUnlocked);
         input.classList.toggle('all-fields-locked', locked);
       }
       refreshLockButton();

@@ -98,9 +98,13 @@ def guide_cards(user, snoozed=None, now=None):
 
     # 沒有成績的非一年級學生，仍以上傳成績單為主
     visible = [card for card in cards if not _is_snoozed(card["id"], snoozed, now)]
-    seen, unique = set(), []
+    # 同一張卡或同一個目的地只留一張（11-04 實測：專五的「確認上傳」「選校系」各出現兩張）
+    seen, seen_hrefs, unique = set(), set(), []
     for card in visible:
-        if card["id"] not in seen:
-            seen.add(card["id"])
-            unique.append(card)
+        href = card["href"].split("?")[0].split("#")[0]
+        if card["id"] in seen or href in seen_hrefs:
+            continue
+        seen.add(card["id"])
+        seen_hrefs.add(href)
+        unique.append(card)
     return unique[:MAX_CARDS]

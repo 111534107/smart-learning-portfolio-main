@@ -1,5 +1,13 @@
 {# 推薦排序的細項：登入學生本人「怎麼進這所學校」。列表頁展開與整頁共用這一份。
    缺少的項目依「補滿可加的準備度」由多到少排，第一條是先做的；每條都有直接去補的連結。 #}
+{# 已有部分資料時，具體說要補什麼（11-04 實測：「再多補一些」沒說補什麼）。門檻見 gap_service._grade_level／_count_level／_autobiography_level #}
+{% macro partial_hint(key, label) -%}
+{%- if key == "grades" -%}成績已上傳；歷年平均 85 分以上才算滿分，成績無法再補，可以靠其他項目加分
+{%- elif key == "autobiography" -%}自傳已有草稿；改成自己的話並再儲存一次（第 2 版）就算完成
+{%- else -%}{{ label }}目前 1 筆，再補 1 筆就滿分
+{%- endif -%}
+{%- endmacro %}
+
 {% macro matching_detail(row, category_labels) %}
 {% set doc_labels = {"autobiography": "自傳與讀書計畫", "project": "專題作品"} %}
 {% set have_items = row.gap["items"] | selectattr("fraction") | selectattr("fraction", "gt", 0) | list %}
@@ -33,7 +41,7 @@
       {% else %}{% set href = url_for("student.portfolio_new", category=key) %}{% endif %}
       <li>
         {% if loop.first %}<b>先做這個：</b>{% endif %}{{ item.name }}（占 {{ item.weight }}%）
-        <span class="muted small">：{% if item.missing %}還缺 {% for k in item.missing %}{{ category_labels.get(k, k) }}{% if not loop.last %}、{% endif %}{% endfor %}{% else %}再多補一些 {{ category_labels.get(key, doc_labels.get(key, key)) }}{% endif %}{% for k in item.documents if item.levels[k] < 1 %}；{{ doc_labels.get(k, k) }}還沒完成{% endfor %}</span>
+        <span class="muted small">：{% if item.missing %}還缺 {% for k in item.missing %}{{ category_labels.get(k, k) }}{% if not loop.last %}、{% endif %}{% endfor %}{% else %}{{ partial_hint(key, category_labels.get(key, doc_labels.get(key, key))) }}{% endif %}{% for k in item.documents if item.levels[k] < 1 %}；{{ doc_labels.get(k, k) }}還沒完成{% endfor %}</span>
         <span class="small">補滿可加 {{ item.gain }}%</span>
         <a class="small" href="{{ href }}">去補 →</a>
       </li>

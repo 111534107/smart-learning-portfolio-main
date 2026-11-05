@@ -25,8 +25,14 @@
       <svg class="welcome__art welcome__art--hero" viewBox="0 0 140 130" aria-hidden="true">
         <path class="piece piece--in" style="--c: var(--year-1); --d: 0s" transform="translate(20 15)" d="{{ piece_path }}"/>
       </svg>
+      {% if grade and grade > 1 %}
+      {# 專二以上第一次登入：不是新生，不說「歡迎來到資管科」（11-04 實測：專五看到新生歡迎） #}
+      <h1>{{ user.display_name }}，歡迎使用學習歷程系統。</h1>
+      <p>你已經走過 {{ grade - 1 }} 年，我們幫你把這幾年一片一片拼起來。</p>
+      {% else %}
       <h1>{{ user.display_name }}，歡迎來到資管科。</h1>
       <p>五年很長，我們陪你一片一片拼。</p>
+      {% endif %}
     </section>
 
     {# 2 五年五片 #}

@@ -178,6 +178,44 @@ def test_unlocked_confirmation_can_edit_score_and_preserves_winter_season(tmp_pa
         assert (course.score, course.makeup_season) == (75, "winter")
 
 
+def test_blank_score_can_be_filled_without_unlocking(tmp_path):
+    """11-04 實測：OCR 沒讀到的空白成績，被「成績已鎖定」擋住，要先解鎖才能補。"""
+    app, client, document_id = _review_app(tmp_path, [
+        {"course_name": "中英文輸入", "credits": 2, "score": None, "semester": "第二學期",
+         "grade_level": "一年級", "school_year": 111},
+        {"course_name": "計算機概論", "credits": 3, "score": 80, "semester": "第二學期",
+         "grade_level": "一年級", "school_year": 111},
+    ])
+    page = client.get(f"/student/learning-profile/documents/{document_id}/review").get_data(as_text=True)
+    blank = page.split('name="course_0_score"', 1)[1].split(">", 1)[0]
+    assert "readonly" not in blank
+    assert "readonly" in page.split('name="course_1_score"', 1)[1].split(">", 1)[0]
+    response = client.post(
+        f"/student/learning-profile/documents/{document_id}/review/confirm",
+        data={"course_input_mode": "fields",
+              "course_0_course_name": "中英文輸入", "course_0_credits": "2", "course_0_score": "65",
+              "course_0_semester": "第二學期", "course_0_grade_level": "一年級",
+              "course_1_course_name": "計算機概論", "course_1_credits": "3", "course_1_score": "12",
+              "course_1_semester": "第二學期", "course_1_grade_level": "一年級"},
+    )
+    assert response.status_code == 302
+    with app.app_context():
+        scores = {c.course_name: c.score for c in LearningCourseRecord.query.all()}
+    assert scores == {"中英文輸入": 65, "計算機概論": 80}  # 已有成績仍受鎖定保護
+
+
+def test_normal_confidence_is_not_shown_on_every_field(tmp_path):
+    """11-04 實測：85 列 × 5 個信心值資訊過載；只顯示偏低或未知的科目、學分、成績。"""
+    app, client, document_id = _review_app(tmp_path, [
+        {"course_name": "資訊科技", "credits": 2, "score": 88, "semester": "第一學期", "grade_level": "一年級",
+         "field_confidence": {"course_name": 0.95, "credits": 0.6, "score": 0.97}},
+    ])
+    page = client.get(f"/student/learning-profile/documents/{document_id}/review").get_data(as_text=True)
+    visible = re.findall(r'<small id="confidence-0-(\w+)" class="([^"]*)"', page)
+    shown = [field for field, cls in visible if "visually-hidden" not in cls]
+    assert shown == ["credits"]
+
+
 def test_all_fields_locked_confirmation_preserves_original_course_fields(tmp_path):
     app, client, document_id = _review_app(tmp_path, [
         {"course_name": "原始課名", "credits": 3, "score": 85, "semester": "第二學期",

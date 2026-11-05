@@ -17,6 +17,10 @@
     <p class="muted">{% if kind == "transcript" %}從學校系統下載歷年成績單（PDF 或圖片）後上傳{% else %}拍下或掃描證照正面後上傳{% endif %}，確認內容就會放進「我的五年」。</p>
     <a class="button" href="{{ url_for('student.learning_profile_upload_page', type=kind) }}" data-tour="{{ page_label }}從這裡上傳。" data-tour-order="1">＋ 上傳{{ page_label }}</a>
   </div>
+  {# 抵免入口只放在成績頁，不在首頁對所有學生顯示（11-04 實測）；建立抵免紀錄後主選單會出現「抵免進度」 #}
+  {% if kind == "transcript" and not has_transfer_record %}
+  <p class="muted small mb-1"><a href="{{ url_for('transfer_credit.student_transfer_credit') }}">轉學生？填寫抵免進度 →</a></p>
+  {% endif %}
 
 
     <div>

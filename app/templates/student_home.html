@@ -107,7 +107,6 @@
       <span>最近成果 <b>{{ home.summary.latest or "還沒有" }}</b></span>
     </p>
     {{ guide_deck(guide) }}
-    {% if not has_transfer_record %}<p class="today__transfer small"><a href="{{ url_for('transfer_credit.student_transfer_credit') }}">轉學生？填寫抵免進度 →</a></p>{% endif %}
   </section>
 
   {# 五年資料夾：收起來，點路線上的節點才打開；放在拼圖前面，不用捲過拼圖才找得到 #}

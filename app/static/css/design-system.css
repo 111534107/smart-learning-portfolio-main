@@ -1604,12 +1604,17 @@ body[data-page="student-welcome"] .assistant { display: none; }
 .match-filter__field input[type="search"] { min-width: 12rem; max-width: 100%; }
 .match-chart--bar .match-chart__item { grid-template-columns: minmax(0, 1.2fr) auto minmax(0, 2fr) auto; }
 .match-chart__item .tag { font-size: var(--fs-xs); white-space: nowrap; }
+.match-chart__tags { display: inline-flex; flex-wrap: wrap; gap: .25rem; }
 .match-cards > summary { cursor: pointer; font-weight: 600; }
 .match-detail__todo { padding-left: 1.2rem; }
 .match-detail__todo li { margin-bottom: .35rem; }
 @media (max-width: 720px) {
-  .match-chart--bar .match-chart__item { grid-template-columns: minmax(0, 1fr) auto auto; }
-  .match-chart--bar .match-chart__track { grid-column: 1 / -1; grid-row: 2; }
+  /* 手機：校名一整列，下一列放管道與可報標籤，再下一列是準備度條（校名才不會被標籤擠成一字一行） */
+  .match-chart--bar .match-chart__item { grid-template-columns: minmax(0, 1fr) auto; }
+  .match-chart--bar .match-chart__label { grid-column: 1 / -1; }
+  .match-chart--bar .match-chart__tags { grid-column: 1 / -1; grid-row: 2; }
+  .match-chart--bar .match-chart__track { grid-column: 1; grid-row: 3; }
+  .match-chart--bar .match-chart__value, .match-chart--bar .match-chart__note { grid-column: 2; grid-row: 3; }
   .match-filter__field, .match-filter__field input[type="search"] { width: 100%; min-width: 0; }
 }
 

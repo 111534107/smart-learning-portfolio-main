@@ -143,7 +143,9 @@ def test_transfer_credit_is_hidden_from_students_without_a_transfer_record(clien
     html = client.get("/student/dashboard").get_data(as_text=True)
 
     assert "抵免進度" not in nav_html(html)
-    assert "轉學生？填寫抵免進度" in html
+    # 首頁不對所有學生顯示轉學生入口；改放在成績頁
+    assert "轉學生？填寫抵免進度" not in html
+    assert "轉學生？填寫抵免進度" in client.get("/student/learning-profile").get_data(as_text=True)
     with app.app_context():
         student = User.query.filter_by(username="student_syn").one()
         db.session.add(TransferCreditRecord(student_id=student.id))

@@ -397,6 +397,31 @@ def test_custom_contents_lists_only_confirmed_evidence_in_weighted_order(app):
         assert weighted == sorted(weighted, reverse=True)
 
 
+def test_course_evidence_is_summarized_not_listed_course_by_course():
+    """11-04 實測：備審目錄把 85 門課逐一列出（含勞作教育、體育）。"""
+    from types import SimpleNamespace
+    from app.services.autobiography_service import TOP_COURSES, _course_summary
+    courses = [SimpleNamespace(id=i, course_name=f"專業科目{i}", score=60 + i) for i in range(1, 80)]
+    courses += [SimpleNamespace(id=100, course_name="勞作教育", score=100),
+                SimpleNamespace(id=101, course_name="體育(一)", score=99),
+                SimpleNamespace(id=102, course_name="班會", score=None)]
+    items = _course_summary(courses)
+    names = [item["name"] for item in items]
+    assert len(items) == 1 + TOP_COURSES
+    assert names[0].startswith("歷年成績單：已確認 82 門課")
+    assert not any("勞作" in n or "體育" in n for n in names)
+    assert "專業科目79" in names[1]
+    assert _course_summary([]) == []
+
+
+def test_credential_label_shows_level_only_when_missing_from_name():
+    from types import SimpleNamespace
+    from app.services.autobiography_service import credential_label
+    assert credential_label(SimpleNamespace(credential_name="網頁設計", level="丙級")) == "網頁設計（丙級）"
+    assert credential_label(SimpleNamespace(credential_name="網頁設計丙級", level="丙級")) == "網頁設計丙級"
+    assert credential_label(SimpleNamespace(credential_name="TQC Word", level=None)) == "TQC Word"
+
+
 def test_strength_inventory_counts_only_confirmed_records_and_links_evidence(app):
     from app.services.autobiography_service import strength_inventory
     with app.app_context():

@@ -170,15 +170,28 @@ def test_every_record_in_five_years_is_one_piece(app):
         table = journey_home(user)["table"]
     assert table["count"] == 3
     assert [(p["key"], p["grade_label"], p["title"]) for p in table["pieces"]] == [
-        ("activity", "專一", "迎新"), ("grades", "專三", "系統分析"), ("service", "專三", "資訊週")]
+        ("activity", "專一", "迎新"), ("grades", "專三", "專三成績 1 門課"), ("service", "專三", "資訊週")]
     assert len({p["id"] for p in table["pieces"]}) == 3
+
+
+def test_courses_of_one_year_make_one_piece(app):
+    """11-04 實測：一門課一片，上傳成績單後一次 89 片；改成每個年級的成績一片。"""
+    with app.test_request_context():
+        user = student()
+        for index in range(30):
+            db.session.add(LearningCourseRecord(student_id=user.id, school_year=3, course_name=f"課{index}",
+                                                normalized_course_name=f"課{index}", score=80))
+        db.session.commit()
+        table = journey_home(user)["table"]
+    assert table["count"] == 1
+    assert table["pieces"][0]["title"] == "專三成績 30 門課"
 
 
 def test_piece_positions_are_stable_and_on_the_table_edges(app):
     with app.test_request_context():
         small = journey_home(student(), journey=_journey_full(1, 3))["table"]
         big = journey_home(student(), journey=_journey_full(2, 3))["table"]
-    assert big["count"] == 60
+    assert big["count"] == 55  # 成績一年一片：5 年 ×（5 類 × 2 筆＋成績 1 片）
     by_id = {p["id"]: p for p in big["pieces"]}
     for piece in small["pieces"]:  # 同一筆資料：片變多了，位置和角度也不變
         same = by_id[piece["id"]]
@@ -299,9 +312,9 @@ def test_150_pieces_render_without_per_piece_filters(app, monkeypatch):
     monkeypatch.setattr(main_routes, "journey_home",
                         lambda user, journey=None, now=None: journey_home(user, journey=_journey_full(5, 3), now=now))
     page = _dashboard(app)
-    assert page.count("data-table-piece=") == 150
+    assert page.count("data-table-piece=") == 130  # 成績一年一片：5 年 ×（5 類 × 5 筆＋成績 1 片）
     clip_ids = re.findall(r'<clipPath id="([^"]+)"', page)
-    assert len(clip_ids) == len(set(clip_ids)) >= 150
+    assert len(clip_ids) == len(set(clip_ids)) >= 130
     assert page.count('filter="url(#ts-grain)"') == 1
     scene = page.split('<g id="year-scene">', 1)[1].split("</defs>", 1)[0]
     assert "filter=" not in scene

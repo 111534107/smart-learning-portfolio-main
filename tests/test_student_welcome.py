@@ -64,3 +64,15 @@ def test_welcome_is_students_only(client):
     login(client, "tch")
 
     assert client.get("/student/welcome").status_code == 403
+
+
+def test_senior_student_is_not_welcomed_as_a_freshman(client):
+    """11-04 實測：專五第一次登入看到「歡迎來到資管科」。"""
+    with client.app.app_context():
+        StudentProfile.query.filter_by(student_no="s1").one().admission_year = 111
+        db.session.commit()
+    login(client)
+    page = client.get("/student/welcome").get_data(as_text=True)
+
+    assert "歡迎來到資管科" not in page
+    assert "歡迎使用學習歷程系統" in page
