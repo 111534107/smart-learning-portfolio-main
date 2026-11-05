@@ -52,7 +52,7 @@ def test_draft_skips_punishments_and_revoked_rows():
 
 def test_ai_category_is_used_only_when_rules_do_not_match():
     draft = service.build_draft([
-        {"date": "2025/06/11", "name": "嘉獎", "count": 1, "reason": "1132參與公益", "category": "activity"},
+        {"date": "2025/06/11", "name": "嘉獎", "count": 1, "reason": "1132參與校園活動", "category": "activity"},
         {"date": "2025/06/11", "name": "嘉獎", "count": 1, "reason": "1132協助國中社團", "category": "activity"},
         {"date": "2025/06/11", "name": "嘉獎", "count": 1, "reason": "1132其他", "category": "不存在"},
     ])
@@ -333,6 +333,13 @@ def test_parse_pasted_table_reads_rows_without_ai():
     assert rows[3]["revoked"] == "已銷過"
 
 
+def test_parse_pasted_table_accepts_extra_columns_without_losing_revoked_status():
+    table = "\n".join(line + "\t備註" for line in PASTED.split("\n"))
+    rows = service.parse_pasted_table(table, "111534100")
+    assert len(rows) == 4
+    assert rows[3]["revoked"] == "已銷過"
+
+
 def test_parse_pasted_table_rejects_other_students_and_bad_header():
     import pytest
     with pytest.raises(ValueError, match="學號與目前帳號不一致"):
@@ -382,6 +389,8 @@ def test_upload_page_recommends_paste_and_warns_pdf_goes_to_gemini(tmp_path):
     page = client.get("/student/award-records").get_data(as_text=True)
 
     assert "data-award-paste" in page and "不會送給 AI" in page and "Google Gemini" in page
+    assert 'href="/student/discipline-records"' in page
+    assert "查看已保存的懲處紀錄" in page
 
 
 def test_enthusiastic_class_service_suggests_leadership():
@@ -389,3 +398,9 @@ def test_enthusiastic_class_service_suggests_leadership():
         {"date": "2025/06/30", "name": "嘉獎", "count": 1, "reason": "1132熱心班級事務", "revoked": ""}
     ])
     assert draft["rows"][0]["category"] == "leadership"
+
+
+def test_enthusiastic_charity_is_not_mistaken_for_leadership():
+    assert service.classify("1132熱心公益") == "service"
+    assert service.classify("1132熱心服務") == "service"
+    assert service.classify("1132熱心") is None

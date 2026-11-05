@@ -128,6 +128,13 @@
   [data-theme="campus"] .course-table td[data-label="課程"] { grid-column: 1 / -1; }
 }
 
+[data-theme="campus"] .award-pasted-source {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 18rem;
+  overflow: auto;
+}
+
 /* 獎懲表格：手機以逐筆卡片顯示，保留每個欄位標籤。 */
 @media (max-width: 720px) {
   [data-theme="campus"] .discipline-table, [data-theme="campus"] .discipline-table tbody { display: block; }

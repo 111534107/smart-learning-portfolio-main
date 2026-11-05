@@ -15,7 +15,7 @@
     {% set pasted = document.extraction and document.extraction.provider == "paste" %}
     <summary>{{ "你貼上的獎懲記錄" if pasted else "你上傳的獎懲記錄" }}：{{ document.display_name }}</summary>
     {% if pasted %}
-    <pre class="small" style="white-space: pre-wrap; overflow-wrap: anywhere; max-height: 18rem; overflow: auto;">{{ document.extraction.result_json.get("pasted_text", "") }}</pre>
+    <pre class="small award-pasted-source">{{ document.extraction.result_json.get("pasted_text", "") }}</pre>
     {% elif document.preview_kind == "image" %}
     <button type="button" class="source-doc__image" data-lightbox="{{ source_url }}" aria-label="放大 {{ document.display_name }}">
       <img src="{{ source_url }}" alt="{{ document.display_name }}">

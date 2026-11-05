@@ -180,9 +180,9 @@ def parse_pasted_table(text, student_no):
     for index, cells in enumerate(table[1:], start=2):
         if len(cells) == 6:
             cells.append("")  # 複製時可能省略最後空白的「銷過」欄
-        if len(cells) != 7:
+        if len(cells) < len(PASTE_HEADER):
             raise ValueError(f"第 {index} 列欄位不完整，請重新複製整列。")
-        number, _, date, name, count, reason, revoked = [cell.strip() for cell in cells]
+        number, _, date, name, count, reason, revoked = [cell.strip() for cell in cells[:len(PASTE_HEADER)]]
         if not student_no or number != student_no:
             raise ValueError(f"第 {index} 列學號與目前帳號不一致，請確認複製的是自己的資料。")
         if not date or not name or not reason or (count and not count.isdigit()):
