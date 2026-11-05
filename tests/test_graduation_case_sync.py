@@ -218,3 +218,93 @@ def test_sync_all_counts_events(app):
     add_credential(student, "電腦軟體應用 丙級", "丙級")
     assert svc.sync_all(today=GAP_DAY) > 0
     assert svc.sync_all(today=GAP_DAY) == 0
+
+
+def _three_certs(student):
+    for name in ("電腦軟體應用 丙級", "網頁設計 丙級", "軟體設計 乙級"):
+        add_credential(student, name, name[-2:])
+
+
+def test_data_needed_resolved_notifies_exactly_staff(app):
+    from tests.test_graduation_assessment import fill_ended_terms
+    s1 = make_user("office1", "staff")
+    s2 = make_user("office2", "staff")
+    add_advisor("t1")
+    student = make_student()
+    svc.sync_student(student, today=GAP_DAY)
+    case = cases(student, "data_needed", "credits")[0]
+    fill_ended_terms(student, 111, GAP_DAY)
+    svc.sync_student(student, today=GAP_DAY)
+    db.session.refresh(case)
+    assert case.status == "awaiting_verification"
+    event = case.events.filter_by(event_type="auto_verify").one()
+    rows = Notification.query.filter_by(case_id=case.id, event_id=event.id).all()
+    assert sorted(n.recipient_id for n in rows) == sorted([s1.id, s2.id])
+
+
+def test_open_key_conflict_falls_back_to_existing_case(app, monkeypatch):
+    student = make_student()
+    svc.sync_student(student, today=GAP_DAY)
+    original = svc._open_case
+    calls = {"n": 0}
+
+    def flaky(student_id, item, case_type):
+        if item == "certificates" and case_type == "gap" and calls["n"] == 0:
+            calls["n"] += 1
+            return None  # 模擬並行：第一次查不到
+        return original(student_id, item, case_type)
+
+    monkeypatch.setattr(svc, "_open_case", flaky)
+    svc.sync_student(student, today=GAP_DAY)
+    assert calls["n"] == 1
+    rows = [c for c in cases(student, "gap", "certificates") if c.is_open]
+    assert len(rows) == 1
+    assert rows[0].events.filter_by(event_type="created").count() == 1
+
+
+def test_non_formal_student_existing_case_goes_to_verification(app):
+    staff = make_user("office", "staff")
+    student = make_student()
+    svc.sync_student(student, today=GAP_DAY)
+    case = cases(student, "gap", "certificates")[0]
+    _three_certs(student)
+    svc.sync_student(student, today=date(2025, 10, 1))  # 專四上，非正式
+    db.session.refresh(case)
+    assert case.status == "awaiting_verification"
+    assert Notification.query.filter_by(recipient_id=staff.id, case_id=case.id).count() == 1
+
+
+def test_gap_reappears_in_awaiting_verification_returns_to_in_progress(app):
+    teacher = add_advisor("t1")
+    student = make_student()
+    svc.sync_student(student, today=GAP_DAY)
+    case = cases(student, "gap", "certificates")[0]
+    _three_certs(student)
+    svc.sync_student(student, today=GAP_DAY)
+    db.session.refresh(case)
+    assert case.status == "awaiting_verification"
+    CredentialRecord.query.filter_by(student_id=student.id).first().confirmation_status = "rejected"
+    db.session.flush()
+    events = svc.sync_student(student, today=GAP_DAY)
+    db.session.refresh(case)
+    mine = [e for e in events if e.case_id == case.id]
+    assert [e.event_type for e in mine] == ["recalculated"]
+    assert case.status == "in_progress" and case.current_amount == 1
+    got = Notification.query.filter_by(case_id=case.id, event_id=mine[0].id).all()
+    assert sorted(n.recipient_id for n in got) == sorted([student.id, teacher.id])
+
+
+def test_gap_growth_updates_amount_without_notice(app):
+    student = make_student()
+    add_credential(student, "電腦軟體應用 丙級", "丙級")
+    svc.sync_student(student, today=GAP_DAY)
+    case = cases(student, "gap", "certificates")[0]
+    assert case.current_amount == 2
+    notices_before = Notification.query.filter_by(case_id=case.id).count()
+    CredentialRecord.query.filter_by(student_id=student.id).first().confirmation_status = "rejected"
+    db.session.flush()
+    events = svc.sync_student(student, today=GAP_DAY)
+    db.session.refresh(case)
+    assert [e.event_type for e in events if e.case_id == case.id] == ["recalculated"]
+    assert case.current_amount == 3 and case.status == "pending"
+    assert Notification.query.filter_by(case_id=case.id).count() == notices_before

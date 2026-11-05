@@ -126,11 +126,19 @@ def _sync_gap(student, item, data, formal, advisors, staff, events):
         if case is None:
             return
     if result == "gap":
-        if (data["amount"] is not None and case.current_amount is not None
-                and data["amount"] < case.current_amount):
+        amount = data["amount"]
+        if case.status == "awaiting_verification":
+            # 待驗證後缺口又出現：退回處理中，通知學生與導師
             events.append(record_event(
-                case, "recalculated", amount_after=data["amount"],
-                note=f"缺口由 {case.current_amount} 減為 {data['amount']} {data['unit']}。"))
+                case, "recalculated", to_status="in_progress", amount_after=amount,
+                note=f"缺口再次出現，目前還差 {amount} {data['unit']}。", notify=[student, *advisors],
+                message=f"案件 {case.number}：{_label(item)}的缺口再次出現，已退回處理中。"))
+        elif (amount is not None and case.current_amount is not None
+                and amount != case.current_amount):
+            word = "減為" if amount < case.current_amount else "增為"
+            events.append(record_event(
+                case, "recalculated", amount_after=amount,
+                note=f"缺口由 {case.current_amount} {word} {amount} {data['unit']}。"))
     elif result in ("met", "progress"):
         if case.status != "awaiting_verification":
             events.append(record_event(
