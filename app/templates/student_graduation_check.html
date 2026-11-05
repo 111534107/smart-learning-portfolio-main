@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "student-graduation-check" %}
+{% set status_text = {"ok": ("已達到提醒條件", "tag--ok"), "short": ("還差一些", "tag--warn"), "needs_check": ("待確認", "tag--warn")} %}
+{% set label, tag = status_text[result.status] %}
+{% set cert = result.certificates %}
+{% set credits = result.credits %}
+
+{% block title %}畢業門檻提醒｜資管科學習歷程{% endblock %}
+
+{% block navigation %}{{ masthead(user, "畢業門檻") }}{% endblock %}
+
+{% block content %}
+<section class="work-shell">
+  <header class="work-heading">
+    <div>
+      <p class="small">學習支援</p>
+      <h1>畢業門檻提醒</h1>
+      <p>依已確認的成績與證照，整理證照與學分還差多少。只供提醒，不代表畢業資格。</p>
+    </div>
+  </header>
+
+  <p class="tag {{ tag }}" role="status">{{ label }}</p>
+
+  <section class="work-panel" aria-labelledby="cert-heading">
+    <h2 id="cert-heading">專業證照（至少 3 張）</h2>
+    <p>採計 {{ cert.counted_count }} 張，還差 {{ cert.missing }} 張。中（英）文輸入證照至多採計 1 張。</p>
+    {% if cert.counted %}
+    <ul>{% for name in cert.counted %}<li>{{ name }}</li>{% endfor %}</ul>
+    {% else %}
+    <p class="muted">目前沒有已確認、可採計的證照。</p>
+    {% endif %}
+    {% for note in cert.notes %}<p class="muted small">{{ note }}</p>{% endfor %}
+    <p class="small"><a href="{{ url_for('student.learning_profile_credentials') }}">到證照頁確認或補上傳</a></p>
+  </section>
+
+  <section class="work-panel" aria-labelledby="credit-heading">
+    <h2 id="credit-heading">學分</h2>
+    {% if credits.earned is none %}
+    <p>{{ credits.reason }}</p>
+    {% else %}
+    <table>
+      <thead><tr><th scope="col">項目</th><th scope="col">已修</th><th scope="col">需修</th><th scope="col">還差</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">必修</th><td>{{ credits.earned.required }}</td><td>{{ credits.needed.required }}</td><td>{{ credits.gaps.required }}</td></tr>
+        <tr><th scope="row">選修</th><td>{{ credits.earned.elective }}</td><td>{{ credits.needed.elective }}</td><td>{{ credits.gaps.elective }}</td></tr>
+        <tr><th scope="row">總學分</th><td>{{ credits.earned.total }}</td><td>{{ credits.needed.total }}</td><td>{{ credits.gaps.total }}</td></tr>
+      </tbody>
+    </table>
+    <p class="small muted">依據：{{ credits.source }}</p>
+    {% if credits.reason %}<p>{{ credits.reason }}</p>{% endif %}
+    {% endif %}
+  </section>
+
+  <p class="small muted">{{ result.note }}</p>
+</section>
+{% endblock %}

@@ -43,6 +43,7 @@ from app.services.admission_links import admission_links, load_school_links
 from app.services.admission_schedule import CHECKED_ON, channel_label, latest_timeline, timeline
 from app.services.matching_service import rank_programs
 from app.services.transfer_exam import is_transfer
+from app.services import graduation_check_service
 
 from app.services.gap_checklist import download_checklist, review_timeline
 from app.services.journey_service import CATEGORY_LABELS, EXPERIENCE_CATEGORIES, build_journey
@@ -240,6 +241,14 @@ def learning_profile():
 @role_required("student")
 def learning_profile_credentials():
     return _learning_profile_page("credential")
+
+
+@student_bp.get("/student/graduation-check")
+@role_required("student")
+def graduation_check():
+    user = get_current_user()
+    return render_template("student_graduation_check.html", user=user,
+                           result=graduation_check_service.evaluate(user))
 
 
 @student_bp.get("/student/learning-profile/upload")

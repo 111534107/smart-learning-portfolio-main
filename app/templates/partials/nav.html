@@ -43,7 +43,7 @@
       {% else %}
         <a href="{{ url_for('main.index') }}#route">我的五年</a>
         {{ font_switch() }}
-        <a class="button button--small" href="{{ url_for('main.login') }}">登入</a>
+        {% if active != "login" %}<a class="button button--small" href="{{ url_for('main.login') }}">登入</a>{% endif %}
       {% endif %}
     </nav>
   </div>
@@ -60,6 +60,7 @@
   ("成績單", url_for("student.learning_profile")),
   ("證照", url_for("student.learning_profile_credentials")),
   ("活動與經歷", url_for("student.portfolio_list")),
+  ("畢業門檻", url_for("student.graduation_check")),
   ("目標與備審", gap_href),
 ] %}
 {% if has_transfer_record %}{% set items = items + [("抵免進度", url_for("transfer_credit.student_transfer_credit"))] %}{% endif %}
