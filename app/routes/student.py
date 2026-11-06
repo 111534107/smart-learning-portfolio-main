@@ -598,6 +598,23 @@ def _course_grade(user, school_year, grade_level):
         return year - profile.admission_year + 1
     return None
 
+def _same_term_course(user, fields):
+    """已確認的成績中，同一年級、同一學期、同一門課的那一筆；沒有年級或學期時不比對，回傳 None。"""
+    probe = LearningCourseRecord(school_year=fields["school_year"], semester=fields["semester"],
+                                 grade_level=fields["grade_level"], course_name=fields["course_name"])
+    profile = user.student_profile
+    admission_year = profile.admission_year if profile else None
+    key = graduation_check_service.course_term_key(probe, admission_year)
+    if key is None:
+        return None
+    candidates = LearningCourseRecord.query.filter_by(
+        student_id=user.id, semester=fields["semester"], confirmation_status="confirmed").all()
+    for course in candidates:
+        if graduation_check_service.course_term_key(course, admission_year) == key:
+            return course
+    return None
+
+
 @student_bp.post("/student/learning-profile/documents/<int:document_id>/review/confirm")
 @role_required("student")
 def learning_profile_document_confirm(document_id):
@@ -716,8 +733,7 @@ def learning_profile_document_confirm(document_id):
                 # 組員確認頁只填年級（grade_level）時，也要檢查不能填比現在高的年級
                 student_rules.check_record_year(
                     user, course_year if course_year is not None else grade_number(grade_level))
-            db.session.add(LearningCourseRecord(
-                student_id=user.id,
+            fields = dict(
                 source_document_id=document.id,
                 school_year=course_year,
                 semester=_course_semester(item.get("semester")),
@@ -729,7 +745,14 @@ def learning_profile_document_confirm(document_id):
                 status_mark=status_mark,
                 makeup_season=makeup_season,
                 confirmation_status="confirmed",
-            ))
+            )
+            existing = _same_term_course(user, fields)
+            if existing is not None:
+                # 重複上傳成績單（例如專四的歷年成績單又列出專三的課）：更新原本那一筆，不再新增
+                for key, value in fields.items():
+                    setattr(existing, key, value)
+            else:
+                db.session.add(LearningCourseRecord(student_id=user.id, **fields))
         for item in credentials:
             if not isinstance(item, dict):
                 raise ValueError("證照資料格式錯誤")

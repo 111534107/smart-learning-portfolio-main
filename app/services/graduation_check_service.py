@@ -85,6 +85,42 @@ def certificate_status(student):
             "needed": CERTIFICATE_MINIMUM, "missing": missing, "notes": notes}
 
 
+def course_term_key(course, admission_year=None):
+    """同一門課的辨識鍵：（年級, 學期, 正規化課名）；沒有年級或學期時回傳 None（無法判斷是否重複）。
+
+    成績紀錄的學年欄位有時存年級（1～5），有時存民國學年度，有入學年度時一律換成年級。
+    """
+    year = course.year_for_placement
+    if year is not None and year > 5 and admission_year:
+        year = year - admission_year + 1
+    if year is None or not course.semester:
+        return None
+    return (year, course.semester, normalize_course_name(course.course_name))
+
+
+def unique_courses(courses, admission_year=None):
+    """重複上傳成績單時，同一學期的同一門課只留最後一筆；回傳（課程清單, 被略過的重複課名）。"""
+    latest = {}
+    for course in courses:
+        key = course_term_key(course, admission_year)
+        latest[key if key is not None else ("id", course.id)] = course
+    kept = sorted(latest.values(), key=lambda c: c.id)
+    kept_ids = {c.id for c in kept}
+    duplicates = []
+    for course in courses:
+        if course.id not in kept_ids and course.course_name not in duplicates:
+            duplicates.append(course.course_name)
+    return kept, duplicates
+
+
+def _confirmed_courses(student):
+    profile = student.student_profile
+    courses = (LearningCourseRecord.query
+               .filter_by(student_id=student.id, confirmation_status="confirmed")
+               .order_by(LearningCourseRecord.id).all())
+    return unique_courses(courses, profile.admission_year if profile else None)
+
+
 def credit_status(student, curriculum=None):
     profile = student.student_profile
     year = profile.admission_year if profile else None
@@ -95,9 +131,7 @@ def credit_status(student, curriculum=None):
         return {"status": NEEDS_CHECK, "admission_year": year, "earned": None,
                 "reason": f"尚未核對 {year} 學年度入學的修業科目表，總學分與必修、選修學分待確認。"}
 
-    courses = (LearningCourseRecord.query
-               .filter_by(student_id=student.id, confirmation_status="confirmed")
-               .order_by(LearningCourseRecord.id).all())
+    courses, duplicates = _confirmed_courses(student)
     required = elective = 0
     unmatched = []
     for course in courses:
@@ -127,7 +161,7 @@ def credit_status(student, curriculum=None):
     return {"status": status, "admission_year": year, "source": rule["source"],
             "earned": earned, "needed": {"required": rule["required"], "elective": rule["elective"],
                                          "total": rule["total"]},
-            "gaps": gaps, "unmatched": unmatched, "reason": reason}
+            "gaps": gaps, "unmatched": unmatched, "duplicates": duplicates, "reason": reason}
 
 
 def evaluate(student, curriculum=None):
@@ -221,9 +255,7 @@ def _missing_terms(student, admission_year, ended_terms):
 
 def _failed_required(student, table):
     """必修類別、已確認不及格，而且沒有同課名已確認及格的課程名稱。"""
-    courses = (LearningCourseRecord.query
-               .filter_by(student_id=student.id, confirmation_status="confirmed")
-               .order_by(LearningCourseRecord.id).all())
+    courses, _ = _confirmed_courses(student)
     passed = {normalize_course_name(c.course_name) for c in courses if c.acquisition_status == "passed"}
     failed = []
     for course in courses:

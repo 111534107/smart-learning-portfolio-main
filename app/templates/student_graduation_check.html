@@ -50,6 +50,7 @@
     </table>
     <p class="small muted">依據：{{ credits.source }}</p>
     {% if credits.reason %}<p>{{ credits.reason }}</p>{% endif %}
+    {% if credits.duplicates %}<p class="small muted">這些課在不同的成績單裡重複出現，同一學期只計算一次：{{ credits.duplicates|join("、") }}。</p>{% endif %}
     {% endif %}
   </section>
 
