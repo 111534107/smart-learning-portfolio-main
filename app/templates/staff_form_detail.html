@@ -48,7 +48,7 @@
           <tr>
             <td>第 {{ version.version_no }} 版{% if loop.first %} <span class="tag tag--info">目前版本</span>{% endif %}{% if version.note %}<br><span class="muted small">{{ version.note }}</span>{% endif %}</td>
             <td class="small">{{ version.original_filename }}</td>
-            <td class="small mono">{{ "%.1f"|format(version.file_size / 1024) }} KB</td>
+            <td class="small mono">{% if version.file_size < 1024 %}{{ version.file_size }} B{% elif version.file_size < 1048576 %}{{ "%.1f"|format(version.file_size / 1024) }} KB{% else %}{{ "%.1f"|format(version.file_size / 1048576) }} MB{% endif %}</td>
             <td class="small">{{ version.uploaded_by.display_name }}<br>{{ version.created_at|taipei_time("%Y-%m-%d %H:%M") }}</td>
             <td><a class="button button--small button--line" href="{{ url_for('forms.staff_version_download', version_id=version.id) }}">下載</a></td>
           </tr>

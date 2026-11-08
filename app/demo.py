@@ -11,6 +11,7 @@ from app.extensions import db
 from app.models import (AuditLog, AwardCertificate, ClassAdvisor, CredentialRecord, LearningCourseRecord, Portfolio,
                         StudentProfile, StudentTarget, User)
 from app.services import certificate_service
+from app.services import form_library_service
 from app.services.admission_service import import_seed_programs, published_programs
 from app.services.transfer_exam import import_transfer_programs
 from app.services.journey_service import EXPERIENCE_CATEGORIES, academic_year_of, current_grade
@@ -146,6 +147,7 @@ def create_local_demo_app():
         ))
         portfolios = _seed_journey_board(users["student"].id, admission_year)
         _seed_staff_queue(users["student"], portfolios)
+        form_library_service.seed_demo_forms(users["staff"])  # 表單下載區：合成表單（非學校正式檔）
         db.session.add(ClassAdvisor(
             teacher_id=users["teacher"].id,
             class_name="資管科測試班",

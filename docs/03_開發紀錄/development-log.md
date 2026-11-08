@@ -1,5 +1,33 @@
 # 開發日誌
 
+## 2026-11-08 表單下載區（UC-28／F-53）
+
+日期：2026-11-08（台灣時間）
+
+開發者：Claude（主對話分派；工作資料夾 `D:\democase\_worktrees\ai-wt-forms`，分支 `feat/forms-download-area`，從 `0cc0f34` 開出。`ai-wt-story` 同時有五個對話在改，所以另開 worktree）
+
+目標：規格書 UC-28／F-53 與 `docs/02_需求與設計/02_設計規格/AI_設計規格_科辦表單區_下載與收件_2026-10-08.md` 第十一點第 1 步「下載區」。科辦管理分類、上架、改版（舊版保留不能覆寫）、下架；學生與導師只看得到開放給自己且上架中的表單，下載最新版。**收件不做**（2026-10-09 暫停）。
+
+設計與計畫：`docs/superpowers/specs/2026-11-08-forms-download-design.md`、`docs/superpowers/plans/2026-11-08-forms-download.md`。
+
+修改檔案：
+- 新增 `app/models/form_library.py`：`form_categories`、`form_items`、`form_item_versions`（同一表單版本號唯一；程式裡沒有修改既有版本的路徑）。`app/models/__init__.py` 匯出。
+- 新增 `migrations/versions/b20261108f01_add_form_library.py`：**revision `b20261108f01`，down_revision `b20261105c01`**。其他對話（二技公告等）也會從 `b20261105c01` 接新 migration，合併時會出現多個 head，要補一個 merge revision。
+- 新增 `app/services/form_library_service.py`：上傳檢查（副檔名 pdf／doc／docx／xls／xlsx／odt／ods、檔頭特徵比對、空檔、單檔 10 MB，可用 `FORM_MAX_BYTES` 調整）、`add_version`（沿用 `storage_service.save`，資料夾 `forms`）、`can_download`（清單與下載共用）、`visible_items`（含關鍵字搜尋）、`seed_demo_forms`（合成 PDF）。
+- 新增 `app/routes/forms.py`：`/forms`、`/forms/<id>/download`（學生、導師；科辦也能取檔）；`/staff/forms`、分類新增與修改、`/staff/forms/<id>`（修改資料、上傳新版本、下架／重新上架）、`/staff/forms/versions/<id>/download`（只給科辦，可下載舊版）。不存在回 404，無權限、已下架、分類停用回 403。`app/__init__.py` 註冊藍圖。
+- 新增模板 `forms_list.html`、`staff_forms.html`、`staff_form_detail.html`（分類用原生 `<details>` 收合）。
+- `app/services/audit_service.py`：`form.publish／new_version／update／unpublish／republish`、`form_category.create／update` 中文名稱。
+- `app/templates/partials/nav.html`：科辦選單加「表單下載區」、導師選單加「表單下載」；**學生只在刊頭右側（「怎麼操作」旁）加一個「表單下載」小連結**，沒有動主選單，因為 student-nav 對話正在合併學生導覽列。量到學生刊頭在 1366px 寬時本來就溢出（1395px，不含新連結），已在共用筆記請 student-nav 合併時把「表單下載」收進新選單並拿掉這個小連結。
+- `app/demo.py`、`scripts/run_demo.py`：各加一行 `seed_demo_forms`（4 個分類、9 份合成表單：一份第 2 版、一份只開放老師、一份已下架）。檔案是程式產生的英文單行 PDF，寫明非學校正式表單；沒有下載學校真檔。
+- 測試：新增 `tests/test_form_library.py`（20 項）、`tests/test_form_library_routes.py`（12 項）；`tests/test_local_demo.py` 加 1 項。
+
+驗證結果：
+- 新測試 32 項＋展示站 14 項通過。完整測試 **1267 通過、9 略過**（`logs/test-runs/forms-full-20261108`，約 11 分鐘）；檔案大小顯示的小修在完整測試之後，另外重跑表單頁面測試 12 項通過。
+- 瀏覽器（自己的埠 5077，本機合成展示站）：科辦上架「瀏覽器測試：社團活動申請表」→ 上傳第 2 版（版本紀錄保留第 1 版）→ 學生 `/forms` 下載拿到第 2 版內容與第 2 版檔名，只開放老師與已下架的示範表單不出現 → 科辦下架 → 學生清單不再出現、直接用網址下載得到 403。
+- 小修：版本紀錄的檔案大小小於 1 KB 時原本顯示「0.0 KB」，改顯示位元組。
+
+未推送。
+
 ## 2026-11-03 合併校園主題與學校 Google 登入兩個分支
 
 日期：2026-11-03（台灣時間）

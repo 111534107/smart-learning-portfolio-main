@@ -58,6 +58,20 @@ def test_local_demo_staff_has_submissions_and_a_certificate_to_review():
     assert "目前沒有待核准的申請" not in certificates
 
 
+def test_local_demo_has_synthetic_forms_for_students_and_staff():
+    # 11-08 表單下載區（UC-28）：展示站要有合成表單；學生只看到開放給學生且上架中的
+    app = create_local_demo_app()
+    student = app.test_client()
+    student.post("/login", data={"username": "student_demo", "password": "demo2026"})
+    page = student.get("/forms").get_data(as_text=True)
+    assert "學生請假單" in page
+    assert "實習訪視紀錄表" not in page  # 只開放老師
+    assert "舊版加退選單" not in page  # 已下架
+    staff = app.test_client()
+    staff.post("/login", data={"username": "staff_demo", "password": "demo2026"})
+    assert "已下架" in staff.get("/staff/forms").get_data(as_text=True)
+
+
 def test_local_demo_follows_environment_ai_setting(monkeypatch):
     # 10-30 起展示站的 AI 與 Google 沿用 .env（每個版本功能都要真的能用），不再強制關閉
     from app.config import Config
