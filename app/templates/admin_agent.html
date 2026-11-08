@@ -29,7 +29,7 @@
     <form method="post" action="{{ url_for('admin.agent_patrol') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit" data-busy-text="Agent 巡查中…（約 10 秒～1 分鐘）">讓 Agent 巡查一次</button></form>
   </section>
 
-  <section class="work-panel">
+  <section class="work-panel" id="public-sources">
     <div class="work-panel__head"><div><h2>官方來源</h2><p>只擷取科系名稱含「{{ keywords|join("、") }}」的校系（可在 .env 的 AGENT_PROGRAM_KEYWORDS 修改）。</p></div></div>
     {% if sources %}
     <div class="table-wrap">
@@ -38,8 +38,8 @@
         <tbody>
           {% for source in sources %}
           {% set snap = latest[source.id] %}
-          <tr>
-            <td><b>{{ source.name }}</b></td>
+          <tr{% if source.id in failed_sources %} class="source-failed"{% endif %}>
+            <td><b>{{ source.name }}</b>{% if source.id in failed_sources %} <span class="tag tag--danger">上次檢查失敗，網址可能失效</span>{% endif %}</td>
             <td class="small">{% if source.source_type == "url" %}<a href="{{ source.url }}" target="_blank" rel="noopener noreferrer">{{ source.url|truncate(48, True, "…") }}</a>{% else %}手動上傳：{{ source.url[9:] }}{% endif %}</td>
             <td class="mono small">{{ snap.fetched_at|taipei_time("%Y-%m-%d %H:%M") if snap else "還沒抓過" }}</td>
             <td>{% if source.source_type == "url" %}
@@ -70,7 +70,7 @@
     </div>
   </section>
 
-  <section class="work-panel">
+  <section class="work-panel" id="source-changes">
     <div class="work-panel__head"><div><h2>偵測到的更新</h2><p>按「擷取加權」後，Agent 會建立候選校系，到「校系資料」核對後再核准。</p></div></div>
     {% if changes %}
     <div class="table-wrap">
@@ -100,7 +100,7 @@
   </section>
 
   {% if schedule_groups %}
-  <section class="work-panel">
+  <section class="work-panel" id="candidate-schedules">
     <div class="work-panel__head"><div><h2>候選招生日程</h2><p>Agent 從官方日程表擷取的日程。<b>請對照原文</b>，整組核准後才會取代招生時程頁的日程；退回不會影響目前的日程。</p></div></div>
     {% for group in schedule_groups %}
     <h3>{{ group.year }} 學年度{{ group.label }}（{{ group.rows|length }} 項）{% if group.source %}<span class="small">：<a href="{{ group.source }}" target="_blank" rel="noopener noreferrer">原文</a></span>{% endif %}</h3>

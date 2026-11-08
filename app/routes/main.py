@@ -373,20 +373,19 @@ def staff_dashboard():
 @main_bp.get("/admin/dashboard")
 @role_required("admin")
 def admin_dashboard():
+    """管理員首頁：上方是今天要處理的待辦（每張卡連到處理頁），下方是帳號人數與操作紀錄。
+    舊「全部送件／最近送件動態」2026-10-10 送審流程拿掉後不再顯示。"""
+    from app.services.admin_todos import admin_todos
     user = db.session.get(User, session["user_id"])
+    todos = admin_todos()
     return render_template(
         "admin_dashboard.html",
         user=user,
+        todos=todos,
+        todo_total=sum(1 for todo in todos if todo["count"]),
         student_count=User.query.filter_by(role="student", is_active=True).count(),
         teacher_count=User.query.filter_by(role="teacher", is_active=True).count(),
         staff_count=User.query.filter_by(role="staff", is_active=True).count(),
-        submission_count=PortfolioSubmission.query.count(),
-        pending_submission_count=PortfolioSubmission.query.filter_by(status="submitted").count(),
-        recent_submissions=(
-            PortfolioSubmission.query.order_by(PortfolioSubmission.created_at.desc())
-            .limit(6)
-            .all()
-        ),
     )
 
 

@@ -401,6 +401,11 @@ fieldset.field legend { padding: 0; margin-bottom: .35rem; }
 .eyebrow { font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .work-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .9rem; margin-bottom: 1.5rem; }
 .work-metrics--four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+/* 管理員首頁（11-08）：待辦數字卡一列四張；0 件的卡變淡，仍可點進處理頁 */
+.admin-todo { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 0; }
+.admin-todo .admin-todo--clear { opacity: .62; }
+.admin-todo .admin-todo--clear strong::after { content: ""; }
+.source-failed td:first-child { box-shadow: inset 3px 0 0 var(--danger, #c0392b); }
 .work-metric { padding: 1rem; background: var(--sheet); border: 1px solid var(--line); border-top: 3px solid var(--ink); }
 .work-metric span { font-size: var(--fs-sm); color: var(--muted); }
 .work-metric strong { display: block; font-family: var(--font-serif); font-size: var(--fs-xl); font-weight: 900; line-height: 1.2; }

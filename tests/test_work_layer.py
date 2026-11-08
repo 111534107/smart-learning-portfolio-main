@@ -99,6 +99,12 @@ def test_admin_dashboard_exposes_system_overview():
     assert b'data-page="admin-dashboard"' in response.data
     assert b'data-work-role="admin"' in response.data
     assert b'data-system-overview' in response.data
+    page = response.get_data(as_text=True)
+    assert 'data-admin-todos' in page
+    # 舊送審流程（2026-10-10 拿掉）的字樣與英文狀態不能再出現
+    for old in ("全部送件", "最近送件動態", "共同審查", "指派的審查", "Work layer submission", ">submitted<"):
+        assert old not in page
+    assert "科辦" in page and "核准電子獎狀" in page
 
 
 def test_staff_nav_has_workbench_and_certificates_only():

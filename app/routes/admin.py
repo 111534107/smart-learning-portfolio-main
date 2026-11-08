@@ -538,8 +538,10 @@ def agent_home():
     tasks = (AgentTask.query.filter(AgentTask.task_type.in_(["admission_source_check", "admission_extract", "agent_patrol"]))
              .order_by(AgentTask.id.desc()).limit(15).all())
     from app.services.admission_schedule import schedule_groups
+    from app.services.admin_todos import failed_source_ids
     return render_template(
         "admin_agent.html",
+        failed_sources=failed_source_ids(),
         schedule_groups=schedule_groups(),
         user=get_current_user(),
         sources=sources,

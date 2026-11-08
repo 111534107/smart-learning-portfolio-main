@@ -22,7 +22,7 @@
         {% set admin_links = links["admin"] %}
         <a href="{{ admin_links[0][1] }}"{% if active == admin_links[0][0] %} aria-current="page"{% endif %}>系統總覽</a>
         <div class="admin-nav-groups" role="group" aria-label="管理功能分類">
-          {% for name, indices in [("帳號與角色", [1, 11, 7]), ("課程與招生", [2, 3, 4, 5, 6]), ("系統設定", [8, 9, 10])] %}
+          {% for name, indices in [("帳號與角色", [1, 11, 7]), ("課程與招生", [3, 4, 5, 6]), ("系統設定", [8, 9, 10])] %}
           <details class="admin-nav-group">
             <summary>{{ name }}</summary>
             <div class="admin-nav-group__links">{% for index in indices %}{% set label, href = admin_links[index] %}<a href="{{ href }}"{% if label == active %} aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}</div>
