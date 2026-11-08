@@ -115,12 +115,18 @@ def test_review_page_has_combined_filters_visible_pending_badges_and_default_loc
     ])
     page = client.get(f"/student/learning-profile/documents/{document_id}/review").get_data(as_text=True)
     assert "資訊科技" in page and "资讯科技" in page
-    assert 'id="review-failure-filter"' in page
-    assert '<option value="pending">只看缺學分</option>' in page
-    assert "只列出學分空白或待確認的課程" in page
-    assert 'id="review-makeup-filter"' in page
-    assert re.search(r'<button[^>]*id="lock-all-scores"[^>]*>.*?解鎖成績', page, re.S)
-    assert 'id="all-fields-locked" name="all_fields_locked" value="0"' in page
+    # 11-06 改版：頂端一句話說要核對幾門；三個切換按鈕取代三個下拉選單；成績只有一個「允許修改」勾選框
+    assert "讀到 2 門課，有 1 門要請你看一下" in page
+    assert re.search(r'data-review-view="review" aria-pressed="true">要核對的 <strong>1</strong>', page)
+    assert 'data-review-view="failed"' in page and 'data-review-view="all"' in page
+    assert 'id="review-failure-filter"' not in page and 'id="review-makeup-filter"' not in page
+    assert 'id="allow-score-edit"' in page and "允許修改成績" in page
+    assert 'id="lock-all-scores"' not in page and 'id="all-fields-locked"' not in page
+    assert 'name="scores_unlocked" value="0"' in page
+    assert "另外 1 門沒有標出問題" in page
+    assert 'class="review-savebar"' in page
+    assert re.search(r'<details class="review-more">.*?重新分析來源檔.*?</details>', page, re.S)
+    assert 'value="fields" checked' in page
     assert 'data-makeup-season="summer"' in page
     assert 'data-needs-review="true"' in page
     assert "⚠ 待確認" in page
@@ -246,7 +252,9 @@ def test_review_marks_low_confidence_rows(tmp_path):
     ])
     page = client.get(f"/student/learning-profile/documents/{document_id}/review").get_data(as_text=True)
     assert page.count('class="needs-review"') == 1
-    assert "還有 1 列待確認" in page
+    assert "讀到 2 門課，有 1 門要請你看一下" in page
+    assert 'data-attention="true"' in page and 'data-attention="false"' in page
+    assert "看不清楚，請對照原圖" in page
     assert 'class="review-layout"' in page
     # 學期、年級沒有信心資料時不標橘色；只有低信心的學分欄標出
     assert 'field-low" data-label="第幾學期"' not in page
