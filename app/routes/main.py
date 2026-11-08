@@ -6,7 +6,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.extensions import db
-from app.models import AuditLog, AwardCertificate, PortfolioSubmission, SourceDocument, StudentTarget, SubmissionAssignment, User
+from app.models import AuditLog, AwardCertificate, PortfolioSubmission, SourceDocument, StudentTarget, User
 from app.services.gap_service import analyze_gap
 from app.services.guide_service import CARD_IDS, guide_cards
 from app.services.journey_home import journey_home
@@ -314,12 +314,9 @@ def guide_snooze():
 @main_bp.get("/teacher/dashboard")
 @role_required("teacher")
 def teacher_dashboard():
+    """導師首頁：先看畢業門檻提醒，再看本班學生與待確認的備審資料。
+    「專題審查指派／我的審查」2026-10-10 定案不在本系統範圍，畫面拿掉；review 路由與舊資料保留。"""
     user = get_current_user()
-    assignments = (
-        SubmissionAssignment.query.filter_by(teacher_id=user.id)
-        .order_by(SubmissionAssignment.assigned_at.desc())
-        .all()
-    )
     students = students_for_teacher(user)
     rows = []
     for student in students:
@@ -333,13 +330,20 @@ def teacher_dashboard():
             "targets": [target.program for target in targets],
             "pending": sum(1 for review in reviews if review and review.status == "pending"),
         })
+    pending_rows = [row for row in rows if row["pending"]]
+    if len(pending_rows) == 1:
+        pending_href = url_for("teacher.student_detail", student_id=pending_rows[0]["student"].id)
+    elif pending_rows:
+        pending_href = "#class-roster"
+    else:
+        pending_href = None
     return render_template(
         "dashboard.html",
         title="教師工作台",
         user=user,
-        teacher_assignments=assignments,
         classes=advised_classes(user),
         class_rows=rows,
+        pending_href=pending_href,
         grad=graduation_case_service.class_overview(students),
         grad_disclaimer=graduation_check_service.DISCLAIMER,
         category_keys=CATEGORY_KEYS,

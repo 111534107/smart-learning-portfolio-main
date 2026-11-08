@@ -1,3 +1,5 @@
+import re
+
 from app import create_app
 from app.extensions import db
 from app.models import Portfolio, PortfolioSubmission, SubmissionAssignment, User
@@ -48,16 +50,26 @@ def login(client, username):
     )
 
 
-def test_teacher_dashboard_exposes_assigned_review_work():
+def test_teacher_dashboard_hides_retired_project_review():
+    # 2026-10-10 定案：專題共同審查不在本系統範圍。選單「我的審查」與首頁「專題審查指派」拿掉，
+    # 舊指派資料與 review 路由保留（只藏畫面）。
     client = work_app().test_client()
     login(client, "work-teacher")
 
     response = client.get("/teacher/dashboard")
+    page = response.get_data(as_text=True)
 
     assert response.status_code == 200
-    assert b'data-page="work-dashboard"' in response.data
-    assert b'data-work-role="teacher"' in response.data
-    assert b'href="/teacher/reviews"' in response.data
+    assert 'data-page="work-dashboard"' in page
+    assert 'data-work-role="teacher"' in page
+    for retired in ('href="/teacher/reviews"', "我的審查", "專題審查指派", "Work layer submission", "給科辦參考的意見"):
+        assert retired not in page
+    nav = page[page.index('aria-label="主要導覽"'):page.index("</nav>")]
+    labels = re.findall(r"<a (?![^>]*masthead__help)[^>]*>([^<]+)", nav)  # 「怎麼操作」說明連結不算功能選單
+    assert [label.strip() for label in labels] == ["工作台", "通知"]
+    assert client.get("/teacher/reviews").status_code == 200
+    with client.application.app_context():
+        assert SubmissionAssignment.query.count() == 1
 
 
 def test_staff_dashboard_shows_only_staff_work_not_portfolio_submissions():

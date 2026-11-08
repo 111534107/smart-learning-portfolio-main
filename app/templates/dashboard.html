@@ -9,16 +9,12 @@
 
 {% block content %}
 {% if user.role == "teacher" %}
+{# 11-08 改版：畢業門檻提醒放最上面（10 秒內看懂全班狀態），本班學生表在下面；每列整列可點、右邊有「查看」。
+   「我的審查／專題審查指派」2026-10-10 定案不在本系統範圍，畫面拿掉；review 路由與舊資料保留。 #}
 <section class="work-shell work-shell--wide" data-work-role="teacher">
-  <header class="work-heading" data-tour="先看本班有哪些學生與待確認件數。" data-tour-order="1">
-    <div><h1>{{ user.display_name }} 老師</h1><p>{% if classes %}負責班級：{{ classes|join("、") }}。{% endif %}點學生姓名查看資料，確認備審內容或留下修改建議。</p></div>
+  <header class="work-heading" data-tour="先看本班畢業門檻，再看學生資料與待確認件數。" data-tour-order="1">
+    <div><h1>{{ user.display_name }} 老師</h1><p>{% if classes %}負責班級：{{ classes|join("、") }}。{% endif %}先看畢業門檻提醒，點任一列就能打開學生資料。</p></div>
   </header>
-  {% set pending_total = class_rows|sum(attribute="pending") %}
-  <div class="work-metrics" data-tour="這裡整理班級人數、待確認送審和目標校系。" data-tour-order="2">
-    <article class="work-metric"><span>本班學生</span><strong>{{ class_rows|length }}</strong><small>人</small></article>
-    <article class="work-metric"><span>等待你確認</span><strong>{{ pending_total }}</strong><small>份備審資料</small></article>
-    <article class="work-metric"><span>已選目標校系</span><strong>{{ class_rows|selectattr("targets")|list|length }}</strong><small>人</small></article>
-  </div>
   <section class="work-panel" data-grad-overview data-tour="看本班畢業門檻的整體情形，從最需要關心的學生開始。" data-tour-order="2">
     <div class="work-panel__head"><div><h2>畢業門檻提醒</h2><p>依學生已確認的證照與成績單整理，專四下起才會正式列出缺口。</p></div></div>
     <div class="work-metrics work-metrics--four">
@@ -38,14 +34,15 @@
     <h3 class="mt-1">需要優先關心的學生</h3>
     {% if grad.priority %}
     <div class="table-wrap">
-      <table class="data-table">
-        <thead><tr><th>學生</th><th>目前缺口</th><th>建議行動</th></tr></thead>
+      <table class="data-table data-table--rowlink" data-priority-list>
+        <thead><tr><th>學生</th><th>目前缺口</th><th>建議行動</th><th><span class="visually-hidden">操作</span></th></tr></thead>
         <tbody>
           {% for row in grad.priority %}
-          <tr>
-            <td><a href="{{ url_for('graduation.case_detail', case_id=row.case.id) }}"><b>{{ row.student.display_name }}</b></a> <span class="muted small">{{ row.case.number }}</span></td>
+          <tr class="row-link">
+            <td><b>{{ row.student.display_name }}</b> <span class="muted small mono">{{ row.case.number }}</span></td>
             <td>{{ row.label }}</td>
             <td>{{ row.hint }}</td>
+            <td class="row-link__action"><a class="button button--small row-link__target" href="{{ url_for('graduation.case_detail', case_id=row.case.id) }}" aria-label="查看 {{ row.student.display_name }} 的畢業門檻案件">查看</a></td>
           </tr>
           {% endfor %}
         </tbody>
@@ -56,20 +53,31 @@
     {% endif %}
     <p class="small muted">{{ grad_disclaimer }}</p>
   </section>
-  <section class="work-panel" data-class-roster data-tour="只會列出分派給你的班級學生；點姓名查看。" data-tour-order="3">
-    <div class="work-panel__head"><div><h2>本班學生</h2><p>數字是各類資料筆數，空格代表還沒有資料。</p></div></div>
+  {% set pending_total = class_rows|sum(attribute="pending") %}
+  <div class="work-metrics" data-tour="這裡整理班級人數、待確認送審和目標校系；有待確認時點數字卡就能過去。" data-tour-order="3">
+    <article class="work-metric"><span>本班學生</span><strong>{{ class_rows|length }}</strong><small>人</small></article>
+    {% if pending_total and pending_href %}
+    <a class="work-metric work-metric--link" href="{{ pending_href }}" data-pending-link><span>等待你確認</span><strong>{{ pending_total }}</strong><small>份備審資料 · 點這裡確認</small></a>
+    {% else %}
+    <article class="work-metric"><span>等待你確認</span><strong>{{ pending_total }}</strong><small>份備審資料</small></article>
+    {% endif %}
+    <article class="work-metric"><span>已選目標校系</span><strong>{{ class_rows|selectattr("targets")|list|length }}</strong><small>人</small></article>
+  </div>
+  <section class="work-panel" id="class-roster" data-class-roster data-tour="只會列出分派給你的班級學生；點任一列查看。" data-tour-order="4">
+    <div class="work-panel__head"><div><h2>本班學生</h2><p>數字是各類資料筆數，空格代表還沒有資料。標「待確認」的學生有備審資料等你確認。</p></div></div>
     {% if class_rows %}
     <div class="table-wrap">
-      <table class="data-table">
-        <thead><tr><th>學號</th><th>姓名</th>{% for key in category_keys %}<th>{{ category_labels[key] }}</th>{% endfor %}<th>目標校系</th><th>待確認</th></tr></thead>
+      <table class="data-table data-table--rowlink">
+        <thead><tr><th>學號</th><th>姓名</th>{% for key in category_keys %}<th>{{ category_labels[key] }}</th>{% endfor %}<th>目標校系</th><th>待確認</th><th><span class="visually-hidden">操作</span></th></tr></thead>
         <tbody>
           {% for row in class_rows %}
-          <tr>
+          <tr class="row-link{% if row.pending %} row-link--pending{% endif %}">
             <td class="mono">{{ row.student.student_profile.student_no }}</td>
-            <td><a href="{{ url_for('teacher.student_detail', student_id=row.student.id) }}"><b>{{ row.student.display_name }}</b></a></td>
+            <td><b>{{ row.student.display_name }}</b></td>
             {% for key in category_keys %}<td>{% if row.totals[key] %}{{ row.totals[key] }}{% else %}<span class="muted">—</span>{% endif %}</td>{% endfor %}
             <td class="small">{% for program in row.targets %}{{ program.school_name|replace("國立", "") }}{{ program.department_name }}{% if not loop.last %}<br>{% endif %}{% else %}<span class="muted">未選</span>{% endfor %}</td>
             <td>{% if row.pending %}<span class="tag tag--warn">{{ row.pending }} 份</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td class="row-link__action"><a class="button button--small row-link__target" href="{{ url_for('teacher.student_detail', student_id=row.student.id) }}" aria-label="查看 {{ row.student.display_name }} 的資料">{% if row.pending %}確認{% else %}查看{% endif %}</a></td>
           </tr>
           {% endfor %}
         </tbody>
@@ -78,17 +86,6 @@
     {% else %}
     <p class="work-empty"><strong>還沒有負責的班級。</strong><span>請系統管理者在「導師班級」設定。</span></p>
     {% endif %}
-  </section>
-  <section class="work-panel">
-    <div class="work-panel__head"><div><h2>專題審查指派</h2><p>專題共同審查流程（後續擴充）。</p></div><a href="{{ url_for('review.teacher_reviews') }}">前往完整清單</a></div>
-    <ul class="work-list">
-      {% for assignment in teacher_assignments[:4] %}
-      <li><span class="work-list__index">{{ loop.index }}</span><div><strong>{{ assignment.submission.portfolio.title }}</strong><span>版本 {{ assignment.submission.version_no }} · {{ category_labels.get(assignment.submission.portfolio.category, assignment.submission.portfolio.category) }}</span></div><span class="queue-badge">待閱讀</span></li>
-      <li class="work-feedback-form"><form method="post" action="{{ url_for('review.teacher_feedback', submission_id=assignment.submission_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>給科辦參考的意見<textarea name="comment" required placeholder="例如：作品架構完整，建議補上資料模型圖與操作畫面。"></textarea></label><button class="button" type="submit">送出意見</button></form></li>
-      {% else %}
-      <li class="work-empty"><strong>目前沒有新的審查項目。</strong><span>有指派進來時，會在這裡提醒你。</span></li>
-      {% endfor %}
-    </ul>
   </section>
 </section>
 {% elif user.role == "staff" %}

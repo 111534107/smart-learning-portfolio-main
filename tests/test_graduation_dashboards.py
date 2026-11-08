@@ -148,6 +148,25 @@ def test_teacher_dashboard_shows_cards_and_names(tmp_path):
         assert text in html
 
 
+def test_teacher_dashboard_puts_graduation_first_and_rows_clickable(tmp_path):
+    app = pages_app(tmp_path)
+    case_id = make_case(app)
+    with app.app_context():
+        student_id = User.query.filter_by(username="stu").one().id
+    html = as_user(app, "tea").get("/teacher/dashboard").get_data(as_text=True)
+    # 畢業門檻提醒在本班學生表上面，導師一進首頁就看到
+    assert html.index("data-grad-overview") < html.index("data-class-roster")
+    assert html.index("需要優先關心的學生") < html.index("本班學生</h2>")
+    # 兩張表每一列右邊都有明確的「查看」按鈕，整列可點（按鈕的 ::after 蓋住整列）
+    priority = html[html.index("data-priority-list"):html.index("data-class-roster")]
+    assert f'class="button button--small row-link__target" href="/graduation/cases/{case_id}"' in priority
+    roster = html[html.index("data-class-roster"):]
+    assert f'class="button button--small row-link__target" href="/teacher/students/{student_id}"' in roster
+    assert '<tr class="row-link">' in roster
+    # 沒有待確認的備審資料時，數字卡不連結
+    assert "data-pending-link" not in html
+
+
 def test_teacher_sees_only_own_class(tmp_path):
     app = pages_app(tmp_path)
     make_case(app)

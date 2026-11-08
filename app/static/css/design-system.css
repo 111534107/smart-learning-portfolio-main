@@ -1674,3 +1674,9 @@ body[data-page="student-welcome"] .assistant { display: none; }
 .work-metric--link strong::after { content: " →"; font-size: var(--fs-md); color: var(--muted); }
 .staff-list > li .button { white-space: nowrap; }
 .staff-list > li.work-empty { display: block; }
+/* 導師首頁：整列可點。「查看」按鈕的 ::after 蓋住整列，點列上任何位置都進到同一頁；不需要 JS。 */
+.data-table--rowlink tr.row-link { position: relative; cursor: pointer; }
+.data-table--rowlink tr.row-link:hover td, .data-table--rowlink tr.row-link:focus-within td { background: rgba(0, 0, 0, .04); }
+.data-table--rowlink .row-link__target::after { content: ""; position: absolute; inset: 0; }
+.data-table--rowlink .row-link__action { text-align: right; white-space: nowrap; }
+.data-table--rowlink tr.row-link--pending td:first-child { box-shadow: inset 3px 0 0 var(--warn, #b7791f); }
