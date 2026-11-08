@@ -54,47 +54,84 @@
 {% endif %}
 {% endmacro %}
 
-{# 學生：參考臺大教務處網站，上方只留一排主選單，所在頁面加底線。 #}
+{# 學生頂端列（2026-11-08 改版）：主選單只留 5 項，成績單／證照／活動與經歷合成「我的資料」（頁面上方有分頁標籤）；
+   字體大小、導覽、怎麼操作、登出收進右邊的帳號選單；通知留在外面顯示未讀數。手機寬度主選單收成「選單」按鈕。
+   開合由 components.js 的 [data-menu-toggle] 處理（aria-expanded／Esc 關閉／點外面關閉）。 #}
 {% macro student_masthead(user, active="") %}
 {% set gap_href = url_for("student.target_gap", program_id=student_progress.program.id) if student_progress.program else url_for("student.target_list") %}
-{# 「目標校系」與「備審資料」合併：選了校系就直接進第一個校系的備審頁，還沒選就到選校系頁 #}
-{% set items = [
-  ("我的五年", url_for("main.student_dashboard")),
+{# 「我的資料」底下的子頁；轉學生多一個「抵免進度」 #}
+{% set data_tabs = [
   ("成績單", url_for("student.learning_profile")),
   ("證照", url_for("student.learning_profile_credentials")),
   ("活動與經歷", url_for("student.portfolio_list")),
-  ("畢業門檻", url_for("student.graduation_check")),
-  ("目標與備審", gap_href),
 ] %}
-{% if has_transfer_record %}{% set items = items + [("抵免進度", url_for("transfer_credit.student_transfer_credit"))] %}{% endif %}
+{% if has_transfer_record %}{% set data_tabs = data_tabs + [("抵免進度", url_for("transfer_credit.student_transfer_credit"))] %}{% endif %}
+{% set in_data = active in data_tabs|map("first")|list %}
+{# 「目標校系」與「備審資料」合併：選了校系就直接進第一個校系的備審頁，還沒選就到選校系頁 #}
 {% set active = "目標與備審" if active in ("目標校系", "備審資料") else active %}
+{% set items = [
+  ("我的五年", url_for("main.student_dashboard"), active == "我的五年"),
+  ("我的資料", data_tabs[0][1], in_data),
+  ("畢業門檻", url_for("student.graduation_check"), active == "畢業門檻"),
+  ("目標與備審", gap_href, active == "目標與備審"),
+] %}
+{% set todo_count = agent_todos.open if agent_todos is defined else 0 %}
+{% set name = user.display_name or user.username %}
 <header class="masthead masthead--student">
   <div class="masthead__inner">
     <a class="brand" href="{{ url_for('main.student_dashboard') }}">
       <span class="brand__mark" aria-hidden="true">IM</span>
-      <span>資管科學習歷程</span>
+      <span class="brand__name">資管科學習歷程</span>
     </a>
-    <nav class="mainnav" aria-label="主要導覽">
-      {% for label, href in items %}
-      <a href="{{ href }}"{% if label == active %} aria-current="page"{% endif %}>{{ label }}</a>
+    <button type="button" class="snav-toggle" data-menu-toggle aria-expanded="false" aria-controls="student-mainnav">
+      <span class="snav-toggle__bars" aria-hidden="true"></span>選單
+    </button>
+    <nav class="mainnav" id="student-mainnav" aria-label="主要導覽">
+      {% for label, href, current in items %}
+      <a href="{{ href }}"{% if current %} aria-current="{{ 'true' if label == '我的資料' else 'page' }}"{% endif %}>{{ label }}</a>
       {% endfor %}
       {# 小助手規劃的待辦：放主選單、顯示數字；有等你同意的計畫時亮一個點 #}
-      {% set todo_count = agent_todos.open if agent_todos is defined else 0 %}
       <a class="mainnav__todo" href="{{ url_for('agent_plan.issues') }}"{% if active == "我的待辦" %} aria-current="page"{% endif %}>我的待辦{% if todo_count %} <span class="mainnav__count" aria-label="{{ todo_count }} 項未完成">{{ todo_count }}</span>{% endif %}{% if agent_todos is defined and agent_todos.pending_plan %}<span class="mainnav__dot" title="有規劃提案等你同意" aria-label="有規劃提案等你同意"></span>{% endif %}</a>
-      {{ notification_link(user) }}
     </nav>
-    <div class="masthead__links">
-      <button type="button" class="masthead__help" data-tour-start hidden>導覽</button>
-      {{ font_switch() }}
-        <a class="masthead__help" href="{{ url_for('main.help_page') }}">❓ 怎麼操作</a>
-      <span class="masthead__user">{{ user.display_name }}</span>
-      <form method="post" action="{{ url_for('main.logout') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="button button--small button--quiet" type="submit">登出</button>
-      </form>
+    <div class="masthead__tools">
+      {% if unread_notification_count is defined %}
+      <a class="snav-bell" href="{{ url_for('graduation.notifications') }}"{% if active == "通知" %} aria-current="page"{% endif %}>通知{% if unread_notification_count %} <span class="mainnav__count" aria-label="{{ unread_notification_count }} 則未讀通知">{{ unread_notification_count }}</span>{% endif %}</a>
+      {% endif %}
+      <div class="account-menu">
+        <button type="button" class="account-menu__button" data-menu-toggle aria-expanded="false" aria-controls="account-menu-panel">
+          <span class="account-menu__avatar" aria-hidden="true">{{ name[:1] }}</span>
+          <span class="account-menu__name">{{ name }}</span>
+          <span class="visually-hidden">的帳號選單</span>
+          <span class="account-menu__caret" aria-hidden="true"></span>
+        </button>
+        <div class="account-menu__panel" id="account-menu-panel" hidden>
+          <p class="account-menu__who">{{ name }}<small>學生</small></p>
+          <div class="account-menu__row">
+            <span class="account-menu__label" aria-hidden="true">字體大小</span>
+            {{ font_switch() }}
+          </div>
+          <button type="button" class="account-menu__item" data-tour-start hidden>看這頁的導覽</button>
+          <a class="account-menu__item" href="{{ url_for('main.help_page') }}"{% if active == "怎麼操作" %} aria-current="page"{% endif %}>怎麼操作</a>
+          <form method="post" action="{{ url_for('main.logout') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="account-menu__item account-menu__item--out" type="submit">登出</button>
+          </form>
+        </div>
+      </div>
     </div>
   </div>
 </header>
+{% if in_data %}
+{# 「我的資料」的分頁標籤：目前這頁加 aria-current，換頁就是一般連結 #}
+<nav class="subnav" aria-label="我的資料">
+  <div class="subnav__inner">
+    <span class="subnav__title" aria-hidden="true">我的資料</span>
+    {% for label, href in data_tabs %}
+    <a href="{{ href }}"{% if label == active %} aria-current="page"{% endif %}>{{ label }}</a>
+    {% endfor %}
+  </div>
+</nav>
+{% endif %}
 {% endmacro %}
 
 {# 頁面標題列：左邊色塊是頁名，右邊是麵包屑。

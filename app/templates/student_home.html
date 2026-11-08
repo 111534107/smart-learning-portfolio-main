@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "partials/nav.html" import masthead, footer, guide_deck with context %}
+{% from "partials/nav.html" import masthead, footer, guide_deck, next_card with context %}
 {% set page_name = "student-dashboard" %}
 {% set add_links = {"grades": url_for("student.learning_profile_upload_page", type="transcript"), "credential": url_for("student.learning_profile_upload_page", type="credential")} %}
 {# 五個節點的位置（viewBox 0 0 1000 200），路線依序穿過 #}
@@ -29,9 +29,21 @@
 {% endif %}
 
 <div class="page journey-home{% if show_return %} is-waiting{% endif %}" data-journey-home>
-  {# 五年路線：畫到「你在這裡」 #}
-  <section class="route-map" aria-labelledby="route-title" data-tour="這條路是你的五年，小人物站在今年。" data-tour-order="1">
+  {# 第一屏（2026-11-08 改版）：打招呼＋「今天先完成哪一步」放最上面，一打開就看得到最重要的一步和按鈕；
+     五年路線圖保留，接在下面（Canva 第 11 頁：最多三件事＋一行概況） #}
+  <section class="today" aria-labelledby="today-title" data-tour="不知道做什麼？從這裡開始，最上面那張最重要。" data-tour-order="1">
     <h1 id="route-title" class="route-map__title" tabindex="-1">{% if user.display_name %}<span class="route-map__name">{{ user.display_name }}</span>・{% endif %}{{ home.grade_label }}，你在這裡。</h1>
+    <h2 id="today-title" class="today__title">今天先完成哪一步</h2>
+    {% if guide %}{{ guide_deck(guide) }}{% else %}{{ next_card() }}{% endif %}
+    <p class="today__stats">
+      <span>五年累積 <b>{{ home.summary.percent }}%</b> <small>只是累積比例，不是錄取機率</small></span>
+      <span>待處理 <b>{{ home.summary.pending }}</b></span>
+      <span>最近成果 <b>{{ home.summary.latest or "還沒有" }}</b></span>
+    </p>
+  </section>
+
+  {# 五年路線：畫到「你在這裡」 #}
+  <section class="route-map" aria-label="我的五年路線，目前在{{ home.grade_label }}" data-tour="這條路是你的五年，小人物站在今年。" data-tour-order="2">
     <svg class="route-map__svg" viewBox="0 0 1000 360" role="group" aria-label="專一到專五的路線，目前在{{ home.grade_label }}">
       {% for key, label, href, cx, cy, color in places %}
       <a href="{{ href }}" class="place" data-place="{{ key }}" data-x="{{ cx }}" data-y="{{ cy - 6 }}" style="--c: {{ color }}; --p: {{ loop.index0 }};">
@@ -96,17 +108,6 @@
       <a class="place-grid__item" href="{{ href }}" style="--c: {{ color }};">{{ label }}</a>
       {% endfor %}
     </nav>
-  </section>
-
-  {# 今天先完成哪一步（Canva 第 11 頁；放在拼圖前面，登入就看得到下一步）：最多三件事＋一行概況 #}
-  <section class="today" aria-labelledby="today-title" data-tour="不知道做什麼？從這三件事開始。" data-tour-order="2">
-    <h2 id="today-title" class="today__title">今天先完成哪一步</h2>
-    <p class="today__stats">
-      <span>五年累積 <b>{{ home.summary.percent }}%</b> <small>只是累積比例，不是錄取機率</small></span>
-      <span>待處理 <b>{{ home.summary.pending }}</b></span>
-      <span>最近成果 <b>{{ home.summary.latest or "還沒有" }}</b></span>
-    </p>
-    {{ guide_deck(guide) }}
   </section>
 
   {# 五年資料夾：收起來，點路線上的節點才打開；放在拼圖前面，不用捲過拼圖才找得到 #}

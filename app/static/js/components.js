@@ -934,6 +934,49 @@ document.querySelectorAll("[data-photo-form]").forEach((form) => {
   sync();
 })();
 
+// 學生頂端列的開合選單（partials/nav.html）：手機的「選單」和帳號選單。
+// 按鈕 data-menu-toggle＋aria-controls 指到面板；帳號面板用 hidden，主選單交給 CSS 看 aria-expanded。
+// Esc 關閉並回到按鈕、點外面或焦點離開就關；面板裡按了連結／導覽就關（字體大小可以連續調，不關）。
+(() => {
+  const toggles = [...document.querySelectorAll("[data-menu-toggle]")];
+  if (!toggles.length) return;
+  const panelOf = (toggle) => document.getElementById(toggle.getAttribute("aria-controls"));
+  const isOpen = (toggle) => toggle.getAttribute("aria-expanded") === "true";
+  const setOpen = (toggle, open) => {
+    toggle.setAttribute("aria-expanded", String(open));
+    const panel = panelOf(toggle);
+    if (panel && panel.classList.contains("account-menu__panel")) panel.hidden = !open;
+  };
+  const inside = (toggle, node) => toggle.contains(node) || (panelOf(toggle) && panelOf(toggle).contains(node));
+  toggles.forEach((toggle) => {
+    toggle.addEventListener("click", () => {
+      const open = !isOpen(toggle);
+      toggles.forEach((other) => { if (other !== toggle && isOpen(other)) setOpen(other, false); });
+      setOpen(toggle, open);
+    });
+    const panel = panelOf(toggle);
+    if (!panel) return;
+    panel.addEventListener("click", (event) => {
+      if (event.target.closest("a, [data-tour-start]")) setOpen(toggle, false);
+    });
+    panel.addEventListener("focusout", (event) => {
+      if (isOpen(toggle) && event.relatedTarget && !inside(toggle, event.relatedTarget)) setOpen(toggle, false);
+    });
+  });
+  document.addEventListener("click", (event) => {
+    toggles.forEach((toggle) => { if (isOpen(toggle) && !inside(toggle, event.target)) setOpen(toggle, false); });
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    toggles.forEach((toggle) => {
+      if (!isOpen(toggle)) return;
+      const hadFocus = inside(toggle, document.activeElement);
+      setOpen(toggle, false);
+      if (hadFocus) toggle.focus();
+    });
+  });
+})();
+
 // 獎懲記錄貼上（組員版）：從學校網頁複製表格時，剪貼簿有 HTML，轉成 Tab 分隔保留欄列；純文字照瀏覽器原本行為。
 document.querySelectorAll("[data-award-paste]").forEach((field) => {
   field.addEventListener("paste", (event) => {

@@ -1,4 +1,4 @@
-"""成績單與證照分成兩個頁面與兩個導覽項目（合成資料）。"""
+"""成績單與證照分成兩個頁面；2026-11-08 起兩者收在主選單「我的資料」底下的分頁標籤（合成資料）。"""
 import re
 
 import pytest
@@ -43,12 +43,16 @@ def nav_html(html):
     return re.search(r'<nav class="mainnav".*?</nav>', html, re.S).group(0)
 
 
-def test_navigation_has_separate_transcript_and_credential_items(client):
-    nav = nav_html(client.get("/student/dashboard").get_data(as_text=True))
+def tabs_html(html):
+    return re.search(r'<nav class="subnav" aria-label="我的資料">.*?</nav>', html, re.S).group(0)
 
-    assert ">成績單<" in nav and ">證照<" in nav
-    assert "成績與證照" not in nav
-    assert 'href="/student/learning-profile/credentials"' in nav
+
+def test_navigation_has_separate_transcript_and_credential_items(client):
+    tabs = tabs_html(client.get("/student/learning-profile").get_data(as_text=True))
+
+    assert ">成績單<" in tabs and ">證照<" in tabs
+    assert "成績與證照" not in tabs
+    assert 'href="/student/learning-profile/credentials"' in tabs
 
 
 def test_transcript_page_shows_only_transcripts_and_courses(client):
@@ -65,7 +69,8 @@ def test_credential_page_shows_only_credentials(client):
     assert "合成證照.png" in html and "模擬網頁設計丙級" in html
     assert "合成成績單.pdf" not in html and "模擬資料結構" not in html
     assert 'href="/student/learning-profile/upload?type=credential"' in html
-    assert re.search(r'<a href="/student/learning-profile/credentials" aria-current="page">證照</a>', nav_html(html))
+    assert re.search(r'<a href="/student/learning-profile/credentials" aria-current="page">證照</a>', tabs_html(html))
+    assert 'aria-current="true">我的資料</a>' in nav_html(html)
 
 
 @pytest.mark.parametrize("kind, label, other", [("transcript", "上傳成績單", "credential"),
