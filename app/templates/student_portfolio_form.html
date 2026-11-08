@@ -34,7 +34,8 @@
     </form>
   </section>
 
-  {% if portfolio and (portfolio.certificate or (portfolio.source == "award_record" and portfolio.category == "service")) %}
+  {% set cert_kinds = certificate_kinds(portfolio) if portfolio else [] %}
+  {% if portfolio and (portfolio.certificate or cert_kinds) %}
   {% set cert = portfolio.certificate %}
   <section class="sheet mt-1" aria-labelledby="certificate-title">
     <div class="sheet__head"><h2 id="certificate-title">電子獎狀</h2></div>
@@ -45,11 +46,27 @@
     <p class="muted">已送出申請，等科辦核准。</p>
     {% else %}
     {% if cert and cert.status == "returned" %}<p class="alert mb-1">科辦退回：{{ cert.return_reason }}</p>{% endif %}
-    <p class="muted small mb-1">這是科上派的服務，可以請科辦開一張電子獎狀（補充個別證明，不取代學校的獎懲記錄）。</p>
+    {% if cert_kinds %}
     <form method="post" action="{{ url_for('certificate.certificate_apply', portfolio_id=portfolio.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% if cert_kinds|length == 1 %}
+      {% set only = cert_kinds[0] %}
+      <p class="muted small mb-1">這筆是{{ only[2] }}，可以請科辦開一張「{{ only[1] }}」（補充個別證明，不取代學校的獎懲記錄）。</p>
+      <input type="hidden" name="kind" value="{{ only[0] }}">
+      {% else %}
+      {% set picked = cert.kind if cert and cert.kind in cert_kinds|map(attribute=0)|list else cert_kinds[0][0] %}
+      <fieldset class="field mb-1">
+        <legend class="field__label">要申請哪一種證明？<small>補充個別證明，不取代學校的獎懲記錄</small></legend>
+        <div class="check-row">
+          {% for kind, title, hint in cert_kinds %}
+          <label><input type="radio" name="kind" value="{{ kind }}" {{ "checked" if kind == picked else "" }}> {{ title }}<span class="muted small">（{{ hint }}）</span></label>
+          {% endfor %}
+        </div>
+      </fieldset>
+      {% endif %}
       <button class="button button--small" type="submit">{{ "重新申請" if cert else "申請電子獎狀" }}</button>
     </form>
+    {% endif %}
     {% endif %}
   </section>
   {% endif %}

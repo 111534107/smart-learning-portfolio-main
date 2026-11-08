@@ -85,16 +85,21 @@ class GraduationCaseEvent(db.Model):
 
 
 class Notification(db.Model):
-    """站內通知；同一接收者對同一事件只會有一筆。"""
+    """站內通知；同一接收者對同一事件只會有一筆。
+
+    畢業缺口案件的通知有 case_id 與 event_id；其他通知（例如電子獎狀核准或退回）兩者為空，
+    改用 link 存要開啟的站內網址。
+    """
 
     __tablename__ = "notifications"
     __table_args__ = (db.UniqueConstraint("recipient_id", "event_id", name="uq_notification_recipient_event"),)
 
     id = db.Column(db.Integer, primary_key=True)
     recipient_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
-    case_id = db.Column(db.Integer, db.ForeignKey("graduation_cases.id"), nullable=False, index=True)
-    event_id = db.Column(db.Integer, db.ForeignKey("graduation_case_events.id"), nullable=False)
+    case_id = db.Column(db.Integer, db.ForeignKey("graduation_cases.id"), nullable=True, index=True)
+    event_id = db.Column(db.Integer, db.ForeignKey("graduation_case_events.id"), nullable=True)
     message = db.Column(db.String(255), nullable=False, default="")
+    link = db.Column(db.String(255), nullable=True)  # 站內路徑，例如 /certificates/3；只接受 / 開頭
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
     read_at = db.Column(db.DateTime, nullable=True)
 

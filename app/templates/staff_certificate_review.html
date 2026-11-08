@@ -7,17 +7,53 @@
 {% block navigation %}{{ masthead(user, "電子獎狀") }}{% endblock %}
 
 {% block content %}
+<style>
+  .cert-source { display: grid; grid-template-columns: max-content 1fr; gap: .3rem 1rem; margin: 0 0 .8rem; }
+  .cert-source dt { color: var(--muted, #666); }
+  .cert-source dd { margin: 0; }
+  .cert-source__preview { display: block; width: 100%; max-height: 70vh; border: 1px solid var(--line, #ccc); border-radius: 6px; background: #fff; }
+  iframe.cert-source__preview { height: 70vh; }
+  @media (max-width: 600px) { .cert-source { grid-template-columns: 1fr; } }
+</style>
+
 <div class="page narrow">
   <p class="small"><a href="{{ url_for('certificate.staff_list') }}">← 回電子獎狀清單</a></p>
   <section class="sheet mb-1">
     <h1 class="h2">{{ cert.student.display_name }} 的電子獎狀申請</h1>
-    <p>服務紀錄：<b>{{ cert.portfolio.title }}</b>{% if cert.portfolio.description %}（{{ cert.portfolio.description }}）{% endif %}</p>
-    {% if cert.portfolio.source_document %}
-    <p><a class="button button--small button--line" href="{{ url_for('certificate.staff_source', cert_id=cert.id) }}" target="_blank" rel="noopener">對照學生上傳的獎懲記錄</a></p>
-    {% endif %}
-    {% if cert.status == "approved" %}<p class="notice">已核准，驗證碼 <span class="mono">{{ cert.verify_code }}</span>。</p>{% endif %}
-    {% if cert.status == "returned" %}<p class="notice">已退回：{{ cert.return_reason }}</p>{% endif %}
+    <p>申請類別：<span class="tag">{{ kind_label }}</span></p>
+    <p>經歷標題：<b>{{ cert.portfolio.title }}</b>{% if cert.portfolio.description %}（{{ cert.portfolio.description }}）{% endif %}</p>
   </section>
+
+  <section class="sheet mb-1" aria-labelledby="award-source-title" data-award-source>
+    <h2 class="h3" id="award-source-title">對照學校獎懲記錄</h2>
+    {% if award_row %}
+    <dl class="cert-source">
+      <dt>獎懲事由（匯入時原文）</dt><dd><b>{{ award_row.reason }}</b></dd>
+      {% if award_row.date or award_row.name %}<dt>日期與獎懲</dt><dd>{{ award_row.date or "" }} {{ award_row.name or "" }}{% if award_row.count %} {{ award_row.count }} 次{% endif %}</dd>{% endif %}
+    </dl>
+    {% if award_row.reason != cert.portfolio.title %}<p class="alert small" role="note">學生後來改過經歷標題，和獎懲原文不同，請以原文為準。</p>{% endif %}
+    {% else %}
+    <p class="muted small">這筆是較早匯入的資料，系統沒有留下逐列原文；下面是學生的經歷標題：<b>{{ cert.portfolio.title }}</b></p>
+    {% endif %}
+    {% set source_doc = cert.portfolio.source_document %}
+    {% if source_doc %}
+    {% set source_url = url_for('certificate.staff_source', cert_id=cert.id) %}
+    <p class="small">學生上傳的獎懲記錄原始檔：{{ source_doc.display_name }}
+      {% if source_kind %}<a href="{{ source_url }}" target="_blank" rel="noopener">另開視窗</a>{% endif %}</p>
+    {% if source_kind == "image" %}
+    <img class="cert-source__preview" src="{{ source_url }}" alt="{{ cert.student.display_name }} 上傳的獎懲記錄原始檔">
+    {% elif source_kind == "pdf" %}
+    <iframe class="cert-source__preview" src="{{ source_url }}" title="{{ cert.student.display_name }} 上傳的獎懲記錄原始檔"></iframe>
+    {% else %}
+    <p class="muted small">這種檔案不能在網頁預覽。</p>
+    {% endif %}
+    {% else %}
+    <p class="muted small">沒有原始檔（可能是貼上表格匯入的）。</p>
+    {% endif %}
+  </section>
+
+  {% if cert.status == "approved" %}<p class="notice mb-1">已核准，驗證碼 <span class="mono">{{ cert.verify_code }}</span>。</p>{% endif %}
+  {% if cert.status == "returned" %}<p class="notice mb-1">已退回：{{ cert.return_reason }}</p>{% endif %}
 
   <section class="sheet">
     {% if error %}<p class="alert mb-1" role="alert">{{ error }}</p>{% endif %}

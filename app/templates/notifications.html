@@ -7,9 +7,9 @@
 <section class="work-shell">
   <header class="work-heading">
     <div>
-      <p class="small">畢業缺口案件</p>
+      <p class="small">畢業缺口案件與電子獎狀</p>
       <h1>通知</h1>
-      <p>只做提醒與追蹤。點通知可開啟案件，開啟後該案件的通知會標為已讀。</p>
+      <p>只做提醒與追蹤。點通知可開啟案件或電子獎狀，開啟後會標為已讀。</p>
     </div>
   </header>
   {% if user.role == "staff" %}
@@ -27,8 +27,12 @@
     <ul>
       {% for row in rows %}
       <li>
+        {% if row.case_id %}
         <a href="{{ url_for('graduation.case_detail', case_id=row.case_id) }}">{{ row.case.number }}</a>
         {{ row.message }}
+        {% else %}
+        <a href="{{ url_for('graduation.notification_open', notification_id=row.id) }}">{{ row.message }}</a>
+        {% endif %}
         <span class="small muted">{{ row.created_at|taipei_time("%Y-%m-%d %H:%M") }}</span>
         {% if not row.read_at %}<span class="tag tag--warn">未讀</span>{% endif %}
       </li>

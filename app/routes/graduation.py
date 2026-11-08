@@ -123,6 +123,26 @@ def notifications():
     return render_template("notifications.html", user=user, rows=rows)
 
 
+@graduation_bp.get("/notifications/<int:notification_id>/open")
+@role_required("student", "teacher", "staff")
+def notification_open(notification_id):
+    """開啟非案件的通知（例如電子獎狀核准或退回）：標為已讀後轉到通知裡的站內網址。"""
+    user = get_current_user()
+    note = db.session.get(Notification, notification_id)
+    if note is None or note.recipient_id != user.id:
+        abort(404)
+    if note.read_at is None:
+        note.read_at = datetime.now(timezone.utc)
+        db.session.commit()
+    if note.case_id:
+        return redirect(url_for("graduation.case_detail", case_id=note.case_id))
+    link = note.link or ""
+    # 只轉到站內路徑，避免被拿來轉址到外站
+    if link.startswith("/") and not link.startswith("//") and "\\" not in link:
+        return redirect(link)
+    return redirect(url_for("graduation.notifications"))
+
+
 @graduation_bp.post("/staff/graduation/recheck")
 @role_required("staff")
 def recheck():
