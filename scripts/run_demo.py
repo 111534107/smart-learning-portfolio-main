@@ -28,6 +28,7 @@ from app.extensions import db  # noqa: E402
 from app.services.admission_service import import_seed_programs  # noqa: E402
 from app.services.transfer_exam import import_transfer_programs  # noqa: E402
 from app.services import certificate_service, review_snapshot_service  # noqa: E402
+from app.services import form_library_service  # noqa: E402
 from app.models import (  # noqa: E402
     AdmissionProgram,
     AwardCertificate,
@@ -126,6 +127,7 @@ def seed():
                                     body=certificate_service.default_body(service_record)))
     program = AdmissionProgram.query.filter_by(program_code="208003").one()
     db.session.add(StudentTarget(student_id=classmate.id, rule_version_id=program.id))
+    form_library_service.seed_demo_forms(staff)  # 表單下載區：合成表單（非學校正式檔）
     db.session.flush()
     # 示範學生用假學號（113 學年入學＝專三），不綁學校信箱：真的學生用學校 Google 登入時會建立自己的帳號
     db.session.commit()

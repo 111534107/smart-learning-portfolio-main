@@ -48,6 +48,7 @@ from app.models.system_setting import SystemSetting
 from app.models.google_doc import AutobiographyGoogleDoc, StudentDriveFolder
 from app.models.match_filter import MatchFilterOption
 from app.models.graduation_case import GraduationCase, GraduationCaseEvent, Notification
+from app.models.form_library import FormCategory, FormItem, FormItemVersion
 
 __all__ = [
     "AiDailyUsage",
@@ -102,4 +103,7 @@ __all__ = [
     "GraduationCase",
     "GraduationCaseEvent",
     "Notification",
+    "FormCategory",
+    "FormItem",
+    "FormItemVersion",
 ]

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer with context %}
+{% set page_name = "staff-form-detail" %}
+
+{% block title %}{{ item.title }}｜表單下載區{% endblock %}
+
+{% block navigation %}{{ masthead(user, "表單下載區") }}{% endblock %}
+
+{% block content %}
+<div class="page narrow">
+  <p class="small"><a href="{{ url_for('forms.staff_forms') }}">← 回表單下載區</a></p>
+  {% if error %}<p class="alert mb-1" role="alert">{{ error }}</p>{% endif %}
+
+  <section class="sheet mb-1">
+    <h1 class="h2">{{ item.title }}
+      {% if item.is_published %}<span class="tag tag--ok">上架中</span>{% else %}<span class="tag tag--warn">已下架</span>{% endif %}
+      {% if not item.category.is_active %}<span class="tag tag--warn">分類已停用</span>{% endif %}</h1>
+    <p class="muted small">{% if item.is_published %}學生與老師可以在「表單下載」看到並下載最新版（依開放對象）。{% else %}已下架：學生與老師看不到，也不能用網址下載；檔案仍保留。{% endif %}</p>
+    <form method="post" action="{{ url_for('forms.staff_toggle_publish', item_id=item.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% if item.is_published %}
+      <button class="button button--line" type="submit" name="action" value="unpublish">下架</button>
+      {% else %}
+      <button class="button" type="submit" name="action" value="republish">重新上架</button>
+      {% endif %}
+    </form>
+  </section>
+
+  <section class="sheet mb-1">
+    <h2 class="h3">上傳新版本</h2>
+    <p class="muted small">新版本上架後，大家下載的就是新版；舊版保留在下方紀錄，不會被覆蓋。</p>
+    <form method="post" action="{{ url_for('forms.staff_new_version', item_id=item.id) }}" enctype="multipart/form-data" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="field"><span class="field__label">檔案 <small>PDF、Word、Excel、ODT、ODS，單檔 10 MB 以內</small></span>
+        <input type="file" name="file" required accept=".pdf,.doc,.docx,.xls,.xlsx,.odt,.ods"></label>
+      <label class="field"><span class="field__label">改了什麼 <small>選填</small></span><input name="note" maxlength="200" placeholder="例如：更新簽核欄位"></label>
+      <div><button class="button" type="submit">上傳新版本</button></div>
+    </form>
+  </section>
+
+  <section class="sheet mb-1">
+    <h2 class="h3">版本紀錄</h2>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>版本</th><th>檔名</th><th>大小</th><th>上傳</th><th><span class="visually-hidden">下載</span></th></tr></thead>
+        <tbody>
+          {% for version in item.versions|reverse %}
+          <tr>
+            <td>第 {{ version.version_no }} 版{% if loop.first %} <span class="tag tag--info">目前版本</span>{% endif %}{% if version.note %}<br><span class="muted small">{{ version.note }}</span>{% endif %}</td>
+            <td class="small">{{ version.original_filename }}</td>
+            <td class="small mono">{% if version.file_size < 1024 %}{{ version.file_size }} B{% elif version.file_size < 1048576 %}{{ "%.1f"|format(version.file_size / 1024) }} KB{% else %}{{ "%.1f"|format(version.file_size / 1048576) }} MB{% endif %}</td>
+            <td class="small">{{ version.uploaded_by.display_name }}<br>{{ version.created_at|taipei_time("%Y-%m-%d %H:%M") }}</td>
+            <td><a class="button button--small button--line" href="{{ url_for('forms.staff_version_download', version_id=version.id) }}">下載</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="sheet">
+    <h2 class="h3">表單資料</h2>
+    <form method="post" action="{{ url_for('forms.staff_update', item_id=item.id) }}" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="field"><span class="field__label">分類</span>
+        <select name="category_id" required>
+          {% for category in categories %}<option value="{{ category.id }}"{% if category.id == item.category_id %} selected{% endif %}>{{ category.name }}{% if not category.is_active %}（已停用）{% endif %}</option>{% endfor %}
+        </select></label>
+      <label class="field"><span class="field__label">表單名稱</span><input name="title" maxlength="100" required value="{{ item.title }}"></label>
+      <label class="field"><span class="field__label">說明</span><textarea name="description" rows="2">{{ item.description or "" }}</textarea></label>
+      <fieldset class="field"><legend class="field__label">開放對象（至少勾一個）</legend>
+        <div class="check-row">
+          <label><input type="checkbox" name="open_to_students" value="1"{% if item.open_to_students %} checked{% endif %}> 學生</label>
+          <label><input type="checkbox" name="open_to_teachers" value="1"{% if item.open_to_teachers %} checked{% endif %}> 老師</label>
+        </div></fieldset>
+      <div><button class="button button--line" type="submit">儲存資料</button></div>
+    </form>
+  </section>
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

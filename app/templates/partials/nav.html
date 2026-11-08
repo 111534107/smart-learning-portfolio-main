@@ -5,8 +5,8 @@
 {% if user and user.role == "student" and student_progress is defined %}{{ student_masthead(user, active) }}{% else %}
 {% set links = {
   "student": [("我的五年", url_for("main.student_dashboard")), ("成績單", url_for("student.learning_profile")), ("證照", url_for("student.learning_profile_credentials")), ("活動與經歷", url_for("student.portfolio_list")), ("目標校系", url_for("student.target_list"))],
-  "teacher": [("工作台", url_for("main.teacher_dashboard"))],
-  "staff": [("工作台", url_for("main.staff_dashboard")), ("電子獎狀", url_for("certificate.staff_list"))],
+  "teacher": [("工作台", url_for("main.teacher_dashboard")), ("表單下載", url_for("forms.form_list"))],
+  "staff": [("工作台", url_for("main.staff_dashboard")), ("電子獎狀", url_for("certificate.staff_list")), ("表單下載區", url_for("forms.staff_forms"))],
   "admin": [("系統總覽", url_for("main.admin_dashboard")), ("帳號管理", url_for("admin.accounts")), ("專題規則", url_for("admin.project_types")), ("課程規則", url_for("admin.course_rules")), ("排行篩選選項", url_for("admin.match_filters")), ("校系資料", url_for("admin.programs")), ("招生資料 Agent", url_for("admin.agent_home")), ("導師班級", url_for("admin.classes")), ("OCR 辨識設定", url_for("admin.ocr_settings_page")), ("檔案存放設定", url_for("storage.settings_page")), ("操作紀錄", url_for("admin.audit_logs")), ("Google 登入設定", url_for("admin.google_workspace_page"))],
 } %}
 {% if user %}
@@ -145,6 +145,8 @@
             {{ font_switch() }}
           </div>
           <button type="button" class="account-menu__item" data-tour-start hidden>看這頁的導覽</button>
+          {# 表單下載區（UC-28）：學生從帳號選單進入，主選單維持 5 項 #}
+          <a class="account-menu__item" href="{{ url_for('forms.form_list') }}"{% if active == "表單下載" %} aria-current="page"{% endif %}>表單下載</a>
           <a class="account-menu__item" href="{{ url_for('main.help_page') }}"{% if active == "怎麼操作" %} aria-current="page"{% endif %}>怎麼操作</a>
           <form method="post" action="{{ url_for('main.logout') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

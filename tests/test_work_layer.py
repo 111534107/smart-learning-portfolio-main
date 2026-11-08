@@ -66,7 +66,7 @@ def test_teacher_dashboard_hides_retired_project_review():
         assert retired not in page
     nav = page[page.index('aria-label="主要導覽"'):page.index("</nav>")]
     labels = re.findall(r"<a (?![^>]*masthead__help)[^>]*>([^<]+)", nav)  # 「怎麼操作」說明連結不算功能選單
-    assert [label.strip() for label in labels] == ["工作台"]
+    assert [label.strip() for label in labels] == ["工作台", "表單下載"]  # 11-08 合併表單下載區（UC-28）
     # 11-08：通知移到右邊工具列（跟學生同一套頂端列），帳號選單收字體大小、怎麼操作、登出
     assert 'class="snav-bell"' in page and "account-menu__panel" in page
     assert client.get("/teacher/reviews").status_code == 200
