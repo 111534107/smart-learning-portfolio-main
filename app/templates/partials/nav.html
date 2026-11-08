@@ -9,7 +9,68 @@
   "staff": [("工作台", url_for("main.staff_dashboard")), ("電子獎狀", url_for("certificate.staff_list"))],
   "admin": [("系統總覽", url_for("main.admin_dashboard")), ("帳號管理", url_for("admin.accounts")), ("專題規則", url_for("admin.project_types")), ("課程規則", url_for("admin.course_rules")), ("排行篩選選項", url_for("admin.match_filters")), ("校系資料", url_for("admin.programs")), ("招生資料 Agent", url_for("admin.agent_home")), ("導師班級", url_for("admin.classes")), ("OCR 辨識設定", url_for("admin.ocr_settings_page")), ("檔案存放設定", url_for("storage.settings_page")), ("操作紀錄", url_for("admin.audit_logs")), ("Google 登入設定", url_for("admin.google_workspace_page"))],
 } %}
-<header class="masthead{% if user and user.role == 'admin' %} masthead--admin{% endif %}">
+{% if user %}
+{# 老師、科辦、管理員（2026-11-08）：跟學生同一套頂端列——主選單、右邊「通知」與帳號選單（字體大小、導覽、怎麼操作、登出），
+   手機寬度主選單收成「選單」按鈕。原本全部攤在一排，視窗變窄就擠成三、四行。 #}
+{% set name = user.display_name or user.username %}
+{% set role_label = {"teacher": "老師", "staff": "科辦", "admin": "管理員", "student": "學生"}.get(user.role, "") %}
+<header class="masthead masthead--app masthead--{{ user.role }}">
+  <div class="masthead__inner">
+    <a class="brand" href="{{ url_for('main.index') }}">
+      <span class="brand__mark" aria-hidden="true">IM</span>
+      <span class="brand__name">資管科學習歷程</span>
+    </a>
+    <button type="button" class="snav-toggle" data-menu-toggle aria-expanded="false" aria-controls="app-mainnav">
+      <span class="snav-toggle__bars" aria-hidden="true"></span>選單
+    </button>
+    <nav class="mainnav" id="app-mainnav" aria-label="主要導覽">
+      {% if user.role == "admin" %}
+      {% set admin_links = links["admin"] %}
+      <a href="{{ admin_links[0][1] }}"{% if active == admin_links[0][0] %} aria-current="page"{% endif %}>系統總覽</a>
+      <div class="admin-nav-groups" role="group" aria-label="管理功能分類">
+        {% for group_name, indices in [("帳號與角色", [1, 11, 7]), ("課程與招生", [3, 4, 5, 6]), ("系統設定", [8, 9, 10])] %}
+        <details class="admin-nav-group">
+          <summary>{{ group_name }}</summary>
+          <div class="admin-nav-group__links">{% for index in indices %}{% set label, href = admin_links[index] %}<a href="{{ href }}"{% if label == active %} aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}</div>
+        </details>
+        {% endfor %}
+      </div>
+      {% else %}
+      {% for label, href in links.get(user.role, []) %}
+      <a href="{{ href }}"{% if label == active %} aria-current="page"{% endif %}>{{ label }}</a>
+      {% endfor %}
+      {% endif %}
+    </nav>
+    <div class="masthead__tools">
+      {% if unread_notification_count is defined and user.role in ("student", "teacher", "staff") %}
+      <a class="snav-bell" href="{{ url_for('graduation.notifications') }}"{% if active == "通知" %} aria-current="page"{% endif %}>通知{% if unread_notification_count %} <span class="mainnav__count" aria-label="{{ unread_notification_count }} 則未讀通知">{{ unread_notification_count }}</span>{% endif %}</a>
+      {% endif %}
+      <div class="account-menu">
+        <button type="button" class="account-menu__button" data-menu-toggle aria-expanded="false" aria-controls="account-menu-panel">
+          <span class="account-menu__avatar" aria-hidden="true">{{ name[:1] }}</span>
+          <span class="account-menu__name">{{ name }}</span>
+          <span class="visually-hidden">的帳號選單</span>
+          <span class="account-menu__caret" aria-hidden="true"></span>
+        </button>
+        <div class="account-menu__panel" id="account-menu-panel" hidden>
+          <p class="account-menu__who">{{ name }}<small>{{ role_label }}</small></p>
+          <div class="account-menu__row">
+            <span class="account-menu__label" aria-hidden="true">字體大小</span>
+            {{ font_switch() }}
+          </div>
+          <button type="button" class="account-menu__item" data-tour-start hidden>看這頁的導覽</button>
+          <a class="account-menu__item" href="{{ url_for('main.help_page') }}"{% if active == "怎麼操作" %} aria-current="page"{% endif %}>怎麼操作</a>
+          <form method="post" action="{{ url_for('main.logout') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="account-menu__item account-menu__item--out" type="submit">登出</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+{% else %}
+<header class="masthead">
   <div class="masthead__inner">
     <a class="brand" href="{{ url_for('main.index') }}">
       <span class="brand__mark" aria-hidden="true">IM</span>
@@ -17,40 +78,13 @@
       <span class="brand__issue">康寧大學 · 資訊管理科五專</span>
     </a>
     <nav class="masthead__links" aria-label="主要導覽">
-      {% if user %}
-        {% if user.role == "admin" %}
-        {% set admin_links = links["admin"] %}
-        <a href="{{ admin_links[0][1] }}"{% if active == admin_links[0][0] %} aria-current="page"{% endif %}>系統總覽</a>
-        <div class="admin-nav-groups" role="group" aria-label="管理功能分類">
-          {% for name, indices in [("帳號與角色", [1, 11, 7]), ("課程與招生", [3, 4, 5, 6]), ("系統設定", [8, 9, 10])] %}
-          <details class="admin-nav-group">
-            <summary>{{ name }}</summary>
-            <div class="admin-nav-group__links">{% for index in indices %}{% set label, href = admin_links[index] %}<a href="{{ href }}"{% if label == active %} aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}</div>
-          </details>
-          {% endfor %}
-        </div>
-        {% else %}
-        {% for label, href in links.get(user.role, []) %}
-        <a href="{{ href }}"{% if label == active %} aria-current="page"{% endif %}>{{ label }}</a>
-        {% endfor %}
-        {% endif %}
-        {{ notification_link(user) }}
-        <button type="button" class="masthead__help" data-tour-start hidden>導覽</button>
-        {{ font_switch() }}
-        <a class="masthead__help" href="{{ url_for('main.help_page') }}">❓ 怎麼操作</a>
-        <span class="masthead__user">{{ user.display_name }}</span>
-        <form method="post" action="{{ url_for('main.logout') }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="button button--small button--quiet" type="submit">登出</button>
-        </form>
-      {% else %}
         <a href="{{ url_for('main.index') }}#route">我的五年</a>
         {{ font_switch() }}
         {% if active != "login" %}<a class="button button--small" href="{{ url_for('main.login') }}">登入</a>{% endif %}
-      {% endif %}
     </nav>
   </div>
 </header>
+{% endif %}
 {% endif %}
 {% endmacro %}
 
@@ -77,7 +111,7 @@
 ] %}
 {% set todo_count = agent_todos.open if agent_todos is defined else 0 %}
 {% set name = user.display_name or user.username %}
-<header class="masthead masthead--student">
+<header class="masthead masthead--app masthead--student">
   <div class="masthead__inner">
     <a class="brand" href="{{ url_for('main.student_dashboard') }}">
       <span class="brand__mark" aria-hidden="true">IM</span>

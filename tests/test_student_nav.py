@@ -35,7 +35,7 @@ def client(tmp_path):
 
 
 def header(html):
-    return re.search(r'<header class="masthead masthead--student">.*?</header>', html, re.S).group(0)
+    return re.search(r'<header class="masthead masthead--app masthead--student">.*?</header>', html, re.S).group(0)
 
 
 def mainnav_labels(html):
@@ -99,8 +99,9 @@ def test_home_puts_the_next_step_before_the_route_map(client):
 
 
 def test_css_keeps_the_header_on_one_row_and_folds_on_phones():
-    assert ".masthead--student .masthead__inner { gap: 1rem; flex-wrap: nowrap; }" in CSS
-    assert '.js .masthead--student .snav-toggle[aria-expanded="false"] + .mainnav { display: none; }' in CSS
+    # 11-08 起老師、科辦、管理員共用同一套頂端列，class 統一為 .masthead--app
+    assert ".masthead--app .masthead__inner { gap: 1rem; flex-wrap: nowrap; }" in CSS
+    assert '.js .masthead--app .snav-toggle[aria-expanded="false"] + .mainnav { display: none; }' in CSS
     assert ".account-menu__panel[hidden] { display: none; }" in CSS
     # 舊規則（900px 以下主選單整排可左右捲動、520px 以下排成五格）已拿掉
     assert ".mainnav { order: 3; width: 100%; margin: 0; overflow-x: auto; }" not in CSS

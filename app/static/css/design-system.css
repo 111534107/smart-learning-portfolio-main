@@ -478,7 +478,7 @@ fieldset.field legend { padding: 0; margin-bottom: .35rem; }
   .table-wrap .data-table th, .table-wrap .data-table .button { white-space: nowrap; }
   .table-wrap .data-table td { word-break: keep-all; }
   /* 老師、科辦、管理員的導覽在手機上會折成好幾行，不再黏在頂端，免得一直蓋住三成畫面 */
-  .masthead:not(.masthead--student) { position: static; }
+  .masthead:not(.masthead--app) { position: static; }
 }
 
 /* ---------- 小工具 ---------- */
@@ -1346,16 +1346,16 @@ body[data-page="student-welcome"] .assistant { display: none; }
 .flash { margin: 0; padding: .8rem 1rem; border: 1px solid #abefc6; border-left: 5px solid #17b26a; border-radius: var(--radius); background: #ecfdf3; color: #054f31; font-weight: 700; }
 .flash span { color: #17b26a; }
 
-/* 學生頂端列（2026-11-08 改版，partials/nav.html 的 student_masthead）：
+/* 登入後頂端列（2026-11-08 學生改版；同日套用到老師、科辦、管理員，class 統一為 .masthead--app）：
    主選單 5 項＋右邊「通知」與帳號選單；寬度不夠時依序收起帳號名稱、網站名稱，手機（≤700px）主選單收成「選單」按鈕。
    768／900／1280px 都不能左右捲動（tests/test_student_nav.py 檢查規則還在）。 */
-.masthead--student .masthead__inner { gap: 1rem; flex-wrap: nowrap; }
-.masthead--student .brand,
-.masthead--student .mainnav a,
-.masthead--student .masthead__tools > * { white-space: nowrap; }
-.masthead--student .mainnav { margin-left: .5rem; min-width: 0; }
-.masthead--student .mainnav a { padding: 0 .9rem; }
-.masthead--student .mainnav a[aria-current] { color: var(--accent); font-weight: 700; border-bottom-color: var(--accent); }
+.masthead--app .masthead__inner { gap: 1rem; flex-wrap: nowrap; }
+.masthead--app .brand,
+.masthead--app .mainnav a,
+.masthead--app .masthead__tools > * { white-space: nowrap; }
+.masthead--app .mainnav { margin-left: .5rem; min-width: 0; }
+.masthead--app .mainnav a { padding: 0 .9rem; }
+.masthead--app .mainnav a[aria-current] { color: var(--accent); font-weight: 700; border-bottom-color: var(--accent); }
 .masthead__tools { margin-left: auto; display: flex; align-items: center; gap: .5rem; }
 .snav-bell { display: inline-flex; align-items: center; gap: .35rem; padding: .45rem .6rem; border-radius: var(--radius); color: var(--ink-soft); text-decoration: none; }
 .snav-bell:hover { background: var(--paper-deep); color: var(--ink); }
@@ -1389,7 +1389,7 @@ body[data-page="student-welcome"] .assistant { display: none; }
 .account-menu__item:hover, .account-menu__item:focus-visible { background: var(--paper-deep); }
 .account-menu__item--out { color: var(--danger); border-top: 1px solid var(--line); border-radius: 0 0 var(--radius) var(--radius); }
 .account-menu__button:focus-visible, .account-menu__item:focus-visible, .snav-toggle:focus-visible, .snav-bell:focus-visible,
-.masthead--student .mainnav a:focus-visible, .subnav a:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
+.masthead--app .mainnav a:focus-visible, .subnav a:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
 
 /* 「我的資料」分頁標籤（成績單／證照／活動與經歷／抵免進度），所在頁加底線 */
 .subnav { background: var(--sheet); border-bottom: 1px solid var(--line); }
@@ -1400,30 +1400,30 @@ body[data-page="student-welcome"] .assistant { display: none; }
 .subnav a[aria-current="page"] { color: var(--accent); font-weight: 700; border-bottom-color: var(--accent); }
 
 @media (max-width: 1180px) {
-  .masthead--student .account-menu__name { display: none; }
-  .masthead--student .account-menu__button { padding-right: .55rem; }
+  .masthead--app .account-menu__name { display: none; }
+  .masthead--app .account-menu__button { padding-right: .55rem; }
 }
 @media (max-width: 1040px) {
-  .masthead--student .brand__name { display: none; }
-  .masthead--student .mainnav { margin-left: 0; }
-  .masthead--student .mainnav a { padding: 0 .7rem; }
+  .masthead--app .brand__name { display: none; }
+  .masthead--app .mainnav { margin-left: 0; }
+  .masthead--app .mainnav a { padding: 0 .7rem; }
 }
 @media (max-width: 860px) {
-  .masthead--student .masthead__inner { gap: .5rem; }
-  .masthead--student .mainnav a { padding: 0 .55rem; }
-  .masthead--student .masthead__tools { gap: .2rem; }
-  .masthead--student .snav-bell { padding: .45rem .4rem; }
+  .masthead--app .masthead__inner { gap: .5rem; }
+  .masthead--app .mainnav a { padding: 0 .55rem; }
+  .masthead--app .masthead__tools { gap: .2rem; }
+  .masthead--app .snav-bell { padding: .45rem .4rem; }
 }
 /* 手機：主選單收進「選單」按鈕，打開時整排直列在頂端列下面；沒有 JavaScript 時直接攤開 */
 @media (max-width: 700px) {
-  .masthead--student .masthead__inner { flex-wrap: wrap; padding: .45rem 0; min-height: 0; }
-  .masthead--student .brand { order: 1; }
-  .masthead--student .masthead__tools { order: 2; }
-  .js .masthead--student .snav-toggle { display: inline-flex; order: 3; }
-  .masthead--student .mainnav { order: 4; width: 100%; flex-direction: column; margin: 0; padding: .25rem 0 .5rem; border-top: 1px solid var(--line); }
-  .js .masthead--student .snav-toggle[aria-expanded="false"] + .mainnav { display: none; }
-  .masthead--student .mainnav a { padding: .75rem; border-bottom: 0; border-left: 3px solid transparent; }
-  .masthead--student .mainnav a[aria-current] { border-left-color: var(--accent); background: var(--accent-soft); }
+  .masthead--app .masthead__inner { flex-wrap: wrap; padding: .45rem 0; min-height: 0; }
+  .masthead--app .brand { order: 1; }
+  .masthead--app .masthead__tools { order: 2; }
+  .js .masthead--app .snav-toggle { display: inline-flex; order: 3; }
+  .masthead--app .mainnav { order: 4; width: 100%; flex-direction: column; margin: 0; padding: .25rem 0 .5rem; border-top: 1px solid var(--line); }
+  .js .masthead--app .snav-toggle[aria-expanded="false"] + .mainnav { display: none; }
+  .masthead--app .mainnav a { padding: .75rem; border-bottom: 0; border-left: 3px solid transparent; }
+  .masthead--app .mainnav a[aria-current] { border-left-color: var(--accent); background: var(--accent-soft); }
   .account-menu__panel { position: fixed; left: 1rem; right: 1rem; top: auto; min-width: 0; margin-top: .5rem; }
   .subnav__title { display: none; }
   .subnav a { padding: .65rem .75rem; }
@@ -1695,11 +1695,6 @@ body[data-page="student-welcome"] .assistant { display: none; }
   .admin-nav-group summary { text-align: center; }
   .admin-nav-group:last-child .admin-nav-group__links { left: auto; right: 0; }
 }
-.masthead--admin .brand__issue { display: none; }
-.masthead--admin .masthead__inner { gap: .75rem; }
-.masthead--admin .masthead__links { gap: .1rem; }
-.masthead--admin .masthead__links a, .masthead--admin .admin-nav-group summary { padding-left: .5rem; padding-right: .5rem; }
-@media (max-width: 1040px) { .masthead--admin .masthead__inner { flex-wrap: wrap; padding: .6rem 0; } .masthead--admin .masthead__links { width: 100%; margin-left: 0; } }
 /* 資料細節可逐步展開，目錄子項不再佔用章節編號。 */
 .toc > li { counter-increment: toc; display: grid; grid-template-columns: 2.4rem minmax(0,1fr) 120px; }
 .toc .toc__evidence { grid-column: 2 / -1; margin: .15rem 0 .3rem; padding-left: 1.2rem; }
@@ -1732,3 +1727,35 @@ body[data-page="student-welcome"] .assistant { display: none; }
 .data-table--rowlink .row-link__target::after { content: ""; position: absolute; inset: 0; }
 .data-table--rowlink .row-link__action { text-align: right; white-space: nowrap; }
 .data-table--rowlink tr.row-link--pending td:first-child { box-shadow: inset 3px 0 0 var(--warn, #b7791f); }
+
+/* 老師、科辦、管理員共用學生的頂端列（11-08）：管理員的三個分類下拉放在主選單裡 */
+.masthead--app .admin-nav-groups { display: flex; flex-wrap: nowrap; align-items: stretch; gap: 0; }
+.masthead--app .admin-nav-group { display: flex; }
+.masthead--app .admin-nav-group summary { display: flex; align-items: center; padding: 0 .8rem; border-radius: 0; font-size: var(--fs-base); color: var(--ink-soft); }
+.masthead--app .admin-nav-group:has(a[aria-current]) summary { color: var(--accent); font-weight: 700; }
+.masthead--app .admin-nav-group__links { top: 100%; }
+.masthead--app .admin-nav-group__links a { padding: .55rem .75rem; border: 0; border-radius: var(--radius); }
+.masthead--app .admin-nav-group__links a[aria-current] { background: var(--accent-soft); }
+@media (max-width: 1040px) {
+  .masthead--app .admin-nav-group summary { padding: 0 .6rem; }
+}
+@media (max-width: 700px) {
+  .masthead--app .admin-nav-groups { flex-direction: column; width: 100%; }
+  .masthead--app .admin-nav-group { display: block; }
+  .masthead--app .admin-nav-group summary { padding: .75rem; text-align: left; border-left: 3px solid transparent; }
+  .masthead--app .admin-nav-group__links { position: static; min-width: 0; box-shadow: none; border: 0; padding: 0 0 .25rem 1rem; background: none; }
+}
+
+/* 工作台標題列右邊的按鈕不要被擠成一字一行（11-08：科辦「全部申請與處理紀錄」在窄螢幕折成三行）；窄螢幕改成按鈕放到說明下面 */
+.work-panel__head > .button, .work-panel__head > form .button { flex-shrink: 0; white-space: nowrap; }
+@media (max-width: 640px) {
+  .work-panel__head { flex-direction: column; align-items: flex-start; }
+}
+
+/* 未登入的頂端列（公開首頁、登入頁）在手機寬度維持一行：只留 IM 標誌，連結和字體大小靠右 */
+@media (max-width: 480px) {
+  .masthead:not(.masthead--app) .masthead__inner { flex-wrap: nowrap; gap: .5rem; }
+  .masthead:not(.masthead--app) .brand > span:not(.brand__mark) { display: none; }
+  .masthead:not(.masthead--app) .masthead__links { margin-left: auto; flex-wrap: nowrap; }
+  .masthead:not(.masthead--app) .masthead__links a { padding: .4rem .5rem; white-space: nowrap; }
+}
