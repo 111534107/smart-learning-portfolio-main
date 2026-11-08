@@ -1,5 +1,23 @@
 # 專題交接（新對話從這裡開始）
 
+## 2026-11-05 Claude：畢業缺口案件完成，等瀏覽器驗收（最新，先讀）
+
+- 畢業門檻提醒、共用缺口案件（`G-000123` 編號）、導師 A 版首頁、科辦待核對都已完成並提交；規則與細節見開發日誌同日「畢業缺口案件」一節。
+- 展示資料：`app/demo_graduation.py`（`seed_graduation_demo`），檢核日期固定 2026-10-15。導師 `teacher_demo` 班級「資管科五甲」，假學生 `grad_demo_met`／`grad_demo_cert`／`grad_demo_fail`／`grad_demo_data`（密碼 `demo2026`）。
+- **未提交**：`app/demo.py` 尾端那 3 行呼叫（該檔另有他人修改）、本交接與開發日誌。提交 `demo.py` 時只加那 3 行。
+- 未做：電子郵件通知、各學期預警、抵免學分計入、兩套修業規則合併、檢核日期倒數、管理員設定檢核日期介面。瀏覽器驗收由主控端進行。
+
+## 2026-11-04 晚 Claude：GitHub 風格小助手規劃，後端改接組員版（最新，先讀）
+
+- 使用者決定：**改接組員的後端**。Claude 先前自做的那套（`AgentProposal`／`AgentIssue`／`AgentEvent`、遷移 `b20261104e01`）**已整套刪除**，沒有新資料表、沒有新遷移。
+- 從組員倉庫 `vujhdcusa/1028`（`2f9c882`）只移入「同意式計畫、待辦、站內連結」：`app/services/assistant_agent_service.py`、`routes/assistant.py` 三個 API、`assistant_service.ask` 回傳 `links`／`plan`。**沒有移入**即時網路查詢、GPT 備援、來源預取（本分支另有 `feat/agent-web-search` 待合併，GPT 核對報告也指出 GPT 備援沒有全面去識別）。
+- 修了組員版三個問題：逾期計畫仍能同意、資料已補齊的待辦按「重新開啟」無效、同意前看不到會建立哪些待辦；另修聊天紀錄存在瀏覽器時沒有分帳號（本分支原本就有這個問題）。
+- 新頁面：`/student/agent/issues`（待辦，像 Issues）、`/student/agent/proposals`、`/student/agent/proposals/<id>`（像 Pull request，同意執行＝Merge）、`/student/agent/activity`（行動紀錄）。路由 `app/routes/agent_plan.py`，樣式 `app/static/css/agent-hub.css`。
+- 畫面已依使用者意見改成系統自己的風格（深藍標題帶、紙色卡片、五年色），不是 GitHub 灰色。
+- **學校 Google Workspace 登入（11-04 晚，最新）**：學生 @stu.ukn.edu.tw 第一次登入自動建帳號；教職員 @ukn.edu.tw 限管理員先建帳號填信箱；管理員設定頁 `/admin/google-workspace`。示範站學生改假學號 113534901／113534902。細節見開發日誌同名一節。
+- **學校 Google 登入（5021，較早）**：`ai-wt-story\.env` 已加 `GOOGLE_LOGIN_REDIRECT_URI=http://127.0.0.1:5021/auth/google/callback`。還要使用者做：Google Cloud Console 加這個網址、重開 5021、管理員綁定學號信箱（`run_demo.py` 重開會清掉）。真實登入未驗收。
+- 測試與日誌見開發日誌同日「GitHub 風格小助手規劃」一節。未提交、未推送。
+
 ## 2026-11-04 Claude 額度用完：備審與履歷改版交接（最新，先讀）
 
 - 設計書：`docs/02_需求與設計/01_目前有效/AI_備審與履歷產出改版設計_2026-11-04.md`（使用者已核准，照第三節順序做）。設計書第四節三個問題，使用者沒指定，先用預設：Word 先做二技備審版（實習履歷之後換封面即可）；語文能力、操行由學生填進系統；一鍵更新預設保留學生改過的段落。
