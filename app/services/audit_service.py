@@ -31,6 +31,13 @@ ACTION_LABELS = {
     "autobiography.generate": "產生自傳",
     "autobiography.save": "儲存自傳",
     "autobiography.teacher_edit": "導師修改自傳",
+    "form.publish": "上架表單",
+    "form.new_version": "表單改版",
+    "form.update": "修改表單資料",
+    "form.unpublish": "下架表單",
+    "form.republish": "重新上架表單",
+    "form_category.create": "新增表單分類",
+    "form_category.update": "修改表單分類",
 }
 
 
