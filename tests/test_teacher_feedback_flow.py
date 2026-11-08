@@ -69,7 +69,8 @@ def test_assigned_teacher_feedback_is_visible_before_staff_records_a_result():
     queue_response = client.get("/staff/dashboard")
 
     assert queue_response.status_code == 200
-    assert b"Please add the data model diagram." in queue_response.data
+    # 2026-10-10 定案：科辦不看備審，科辦首頁不再列送件與教師意見（舊資料保留）
+    assert b"Please add the data model diagram." not in queue_response.data
 
 
 def test_unassigned_teacher_cannot_submit_feedback_for_someone_elses_assignment():

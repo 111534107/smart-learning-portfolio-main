@@ -1667,3 +1667,10 @@ body[data-page="student-welcome"] .assistant { display: none; }
 .font-switch button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 @media (max-width: 560px) { .font-switch__icon { display: none; } .font-switch button { min-width: 1.75rem; } }
 @media print { .font-switch { display: none; } }
+
+/* 科辦首頁（11-08）：數字卡可直接點到要處理的清單；每列右邊一個主要按鈕 */
+.work-metric--link { display: block; color: inherit; text-decoration: none; }
+.work-metric--link:hover, .work-metric--link:focus-visible { border-top-color: var(--accent, #365ac9); background: var(--paper, #fff); }
+.work-metric--link strong::after { content: " →"; font-size: var(--fs-md); color: var(--muted); }
+.staff-list > li .button { white-space: nowrap; }
+.staff-list > li.work-empty { display: block; }

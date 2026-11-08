@@ -6,7 +6,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.extensions import db
-from app.models import AuditLog, AwardCertificate, PortfolioSubmission, SourceDocument, StudentTarget, SubmissionAssignment, TeacherReviewFeedback, User
+from app.models import AuditLog, AwardCertificate, PortfolioSubmission, SourceDocument, StudentTarget, SubmissionAssignment, User
 from app.services.gap_service import analyze_gap
 from app.services.guide_service import CARD_IDS, guide_cards
 from app.services.journey_home import journey_home
@@ -27,20 +27,6 @@ def get_current_user():
     if not user or not user.is_active:
         return None
     return user
-
-
-def feedback_by_submission(submission_ids):
-    feedback_map = {}
-    if not submission_ids:
-        return feedback_map
-    feedback_items = (
-        TeacherReviewFeedback.query.filter(TeacherReviewFeedback.submission_id.in_(submission_ids))
-        .order_by(TeacherReviewFeedback.created_at.asc())
-        .all()
-    )
-    for feedback in feedback_items:
-        feedback_map.setdefault(feedback.submission_id, []).append(feedback)
-    return feedback_map
 
 
 @main_bp.route("/")
@@ -364,25 +350,19 @@ def teacher_dashboard():
 @main_bp.get("/staff/dashboard")
 @role_required("staff")
 def staff_dashboard():
+    """科辦首頁只放規格書定的工作：電子獎狀與畢業缺口核對。
+    「待處理送件／登錄共同結論」2026-10-10 已拿掉（科辦不看備審），舊資料保留但不再列出。"""
     user = get_current_user()
-    pending_submissions = (
-        PortfolioSubmission.query.filter_by(status="submitted")
-        .order_by(PortfolioSubmission.created_at.desc())
-        .all()
-    )
+    pending_certificates = AwardCertificate.query.filter_by(status="pending")
     return render_template(
         "dashboard.html",
-        title="科辦／行政工作台",
+        title="科辦工作台",
         user=user,
-        staff_pending_submissions=pending_submissions,
         graduation_awaiting=graduation_case_service.awaiting_cases(),
         grad_disclaimer=graduation_check_service.DISCLAIMER,
         grad_item_labels=graduation_case_service.ITEM_LABELS,
-        staff_pending_certificates=AwardCertificate.query.filter_by(status="pending").count(),
-        category_labels=CATEGORY_LABELS,
-        staff_feedback_by_submission=feedback_by_submission(
-            [item.id for item in pending_submissions]
-        ),
+        staff_pending_certificates=pending_certificates.count(),
+        staff_certificate_rows=pending_certificates.order_by(AwardCertificate.created_at).limit(5).all(),
     )
 
 

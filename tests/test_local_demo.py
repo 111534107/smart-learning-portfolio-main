@@ -51,9 +51,9 @@ def test_local_demo_staff_has_submissions_and_a_certificate_to_review():
     dashboard = client.get("/staff/dashboard").get_data(as_text=True)
     certificates = client.get("/staff/certificates").get_data(as_text=True)
 
-    assert "2 件待處理" in dashboard
-    assert "【測試】競賽5" in dashboard and "【測試】活動5" in dashboard
-    assert "· activity ·" not in dashboard and "· 活動 ·" in dashboard  # 類別顯示中文，不是程式代碼
+    # 11-08：科辦首頁直接列出待核准的電子獎狀；送件（備審）2026-10-10 起科辦不看
+    assert "【測試】服務4" in dashboard and "/staff/certificates/" in dashboard
+    assert "【測試】競賽5" not in dashboard and "【測試】活動5" not in dashboard
     assert "【測試】服務4" in certificates
     assert "目前沒有待核准的申請" not in certificates
 

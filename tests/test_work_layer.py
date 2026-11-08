@@ -60,16 +60,21 @@ def test_teacher_dashboard_exposes_assigned_review_work():
     assert b'href="/teacher/reviews"' in response.data
 
 
-def test_staff_dashboard_exposes_submitted_work_queue():
+def test_staff_dashboard_shows_only_staff_work_not_portfolio_submissions():
+    # 2026-10-10 定案：科辦不看備審，「待處理送件／登錄共同結論」從畫面拿掉（舊資料保留）
     client = work_app().test_client()
     login(client, "work-staff")
 
     response = client.get("/staff/dashboard")
+    page = response.get_data(as_text=True)
 
     assert response.status_code == 200
-    assert b'data-work-role="staff"' in response.data
-    assert b'data-work-queue' in response.data
-    assert b"Work layer submission" in response.data
+    assert 'data-work-role="staff"' in page
+    assert 'data-work-queue' in page
+    assert "科辦工作台" in page
+    assert 'href="#staff-certificates"' in page and 'href="#staff-graduation"' in page
+    assert "Work layer submission" not in page
+    assert "待處理送件" not in page and "共同結論" not in page
 
 
 def test_admin_dashboard_exposes_system_overview():
@@ -84,9 +89,9 @@ def test_admin_dashboard_exposes_system_overview():
     assert b'data-system-overview' in response.data
 
 
-def test_staff_review_form_explains_when_reason_is_required():
+def test_staff_nav_has_workbench_and_certificates_only():
     client = work_app().test_client()
     login(client, 'work-staff')
     page = client.get('/staff/dashboard').get_data(as_text=True)
-    assert '補正或退件時必填' in page
-    assert '說明（選填）' not in page
+    assert '>工作台</a>' in page and '>電子獎狀</a>' in page
+    assert '登錄結果' not in page
