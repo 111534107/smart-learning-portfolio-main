@@ -3,6 +3,10 @@
 同步是冪等的：同一份資料重複同步不會多出案件、事件或通知。
 本服務只 flush，不 commit，由呼叫端決定何時提交。
 只做提醒與追蹤，不宣告任何人符合或不符合畢業資格。
+
+2026-11-09 起：重新對照後缺口已排除（或資料已補足）就自動結案，通知學生與導師；
+不再送科辦核對（正式畢業資格審查由教務處負責，科辦不參與）。
+舊資料裡停在 awaiting_verification 的案件，下次同步看到已改善也會自動結案。
 """
 
 import logging
@@ -35,11 +39,6 @@ def advisors_for(student):
         return []
     return (User.query.filter(User.id.in_(ids), User.is_active.is_(True))
             .order_by(User.id).all())
-
-
-def staff_users():
-    """所有啟用中的科辦人員。"""
-    return User.query.filter(User.role == "staff", User.is_active.is_(True)).order_by(User.id).all()
 
 
 def record_event(case, event_type, actor=None, *, to_status=None, amount_after=None, note="",
@@ -128,7 +127,7 @@ def _should_reopen(closed, bad, amount=None):
     """結案後同一問題又出現時，要不要開新案件。
 
     只在「離開問題狀態後又回來」（結案案件最後看到的結果不是問題），
-    或缺口比結案時更大時才開；否則尊重科辦的結案決定，不再開案、不再通知。
+    或缺口比結案時更大時才開；否則尊重導師的結案決定，不再開案、不再通知。
     """
     if closed is None:
         return True
@@ -137,7 +136,16 @@ def _should_reopen(closed, bad, amount=None):
     return amount is not None and closed.current_amount is not None and amount > closed.current_amount
 
 
-def _sync_gap(student, item, data, formal, advisors, staff, events):
+AUTO_CLOSE_NOTE = "系統重新對照後已無缺口，自動結案。正式畢業資格仍以教務處審查為準。"
+
+
+def _auto_close(case, note, notify, message):
+    """資料已改善：自動結案（close_reason=improved），通知學生與導師。"""
+    case.close_reason = "improved"
+    return record_event(case, "auto_closed", to_status="closed", note=note, notify=notify, message=message)
+
+
+def _sync_gap(student, item, data, formal, advisors, events):
     """缺口案件：只在判斷結果轉變（缺口 ↔ 已排除）時改狀態，不蓋掉人工送出、退回、結案。"""
     result = data["result"]
     case = _open_case(student.id, item, "gap")
@@ -178,11 +186,10 @@ def _sync_gap(student, item, data, formal, advisors, staff, events):
                 note=f"缺口由 {case.current_amount} {word} {amount} {data['unit']}。"))
     elif result in _NOT_GAP:
         _set_last_result(case, result)
-        if previous == "gap" and case.status != "awaiting_verification":
-            events.append(record_event(
-                case, "auto_verify", to_status="awaiting_verification",
-                note=f"重新判斷結果為 {result}，等待科辦核對。", notify=staff,
-                message=f"案件 {case.number}：{_label(item)}的資料已改善，請科辦核對。"))
+        if previous == "gap" or case.status == "awaiting_verification":
+            events.append(_auto_close(
+                case, AUTO_CLOSE_NOTE, [student, *advisors],
+                f"案件 {case.number}：{_label(item)}重新對照後已無缺口，已自動結案。"))
     elif result in _WAITING_RESULTS:
         # 等待中的結果不寫進 last_result，避免蓋掉「缺口 ↔ 已排除」的轉變
         note = f"判斷結果：{result}"
@@ -191,7 +198,7 @@ def _sync_gap(student, item, data, formal, advisors, staff, events):
             events.append(record_event(case, "data_changed", note=note))
 
 
-def _sync_data_needed(student, item, needed, data, formal, staff, events):
+def _sync_data_needed(student, item, needed, data, formal, advisors, events):
     """資料補充案件；needed：該項資料是否仍不足。last_result 記 insufficient / sufficient。"""
     state = "insufficient" if needed else "sufficient"
     case = _open_case(student.id, item, "data_needed")
@@ -221,11 +228,10 @@ def _sync_data_needed(student, item, needed, data, formal, staff, events):
                 case, "recalculated", to_status="in_progress",
                 note=f"資料又變得不足：{data.get('detail') or ''}".rstrip("："), notify=[student],
                 message=f"案件 {case.number}：{_label(item)}資料又不足，已退回處理中。"))
-    elif previous == "insufficient" and case.status != "awaiting_verification":
-        events.append(record_event(
-            case, "auto_verify", to_status="awaiting_verification",
-            note="資料已足夠判斷，等待科辦核對。", notify=staff,
-            message=f"案件 {case.number}：{_label(item)}資料已補足，請科辦核對。"))
+    elif previous == "insufficient" or case.status == "awaiting_verification":
+        events.append(_auto_close(
+            case, "資料已足夠判斷，自動結案。", [student, *advisors],
+            f"案件 {case.number}：{_label(item)}資料已補足，已自動結案。"))
 
 
 def sync_student(student, today=None, curriculum=None):
@@ -235,16 +241,15 @@ def sync_student(student, today=None, curriculum=None):
     formal = assessment["stage"]["formal"]
     items = assessment["items"]
     advisors = advisors_for(student)
-    staff = staff_users()
     events = []
     for item, data in items.items():
-        _sync_gap(student, item, data, formal, advisors, staff, events)
+        _sync_gap(student, item, data, formal, advisors, events)
     cert = items["certificates"]
-    _sync_data_needed(student, "certificates", cert["result"] == "insufficient_data", cert, formal, staff, events)
+    _sync_data_needed(student, "certificates", cert["result"] == "insufficient_data", cert, formal, advisors, events)
     credit_rows = [items[name] for name in CREDIT_ITEMS]
     needed = any(row["result"] == "insufficient_data" for row in credit_rows)
     source = next((row for row in credit_rows if row["result"] == "insufficient_data"), credit_rows[0])
-    _sync_data_needed(student, "credits", needed, source, formal, staff, events)
+    _sync_data_needed(student, "credits", needed, source, formal, advisors, events)
     return events
 
 
@@ -264,11 +269,11 @@ def sync_all(today=None):
     return total
 
 
-# ---- 導師首頁／科辦頁用的總覽（只讀，不寫入）----
+# ---- 導師首頁用的總覽（只讀，不寫入）----
 _GAP_ITEM_ORDER = ("certificates", "required_credits", "total_credits", "elective_credits")
 _FIRST_CHECK = "專四下學期期末考前兩週"
 _SECOND_CHECK = "專五上學期期末考前兩週"
-_AFTER_CHECK = "已過兩次檢核，請與科辦確認"
+_AFTER_CHECK = "已過兩次檢核，請向教務處確認"
 
 
 def next_check_text(stage):
@@ -281,12 +286,12 @@ def next_check_text(stage):
     return _AFTER_CHECK
 
 
-WAITING_IMPROVED_LABEL = "資料已改善，待科辦核對"
+WAITING_IMPROVED_LABEL = "資料已改善，下次重新對照時會自動結案"
 
 
 def _hint(case):
     if case.status == "awaiting_verification":
-        return "等待科辦核對"
+        return "舊案件：導師可確認後結案"
     if case.case_type == "data_needed":
         return "請學生上傳並確認資料"
     if case.item == "certificates":
@@ -316,7 +321,7 @@ def class_overview(students, today=None):
         cases = by_student.get(student.id, [])
         grade = assessment["stage"].get("grade") or 0
         active = [case for case in cases if case.status != "awaiting_verification"]
-        # 待科辦核對的案件不算「確定有缺口」，也不算「已達門檻」：歸在 other（等待核對、修課中等）
+        # 舊資料裡待核對的案件不算「確定有缺口」，也不算「已達門檻」：歸在 other（等待核對、修課中等）
         if any(case.case_type == "gap" for case in active):
             overview["gap"] += 1
         elif active or "insufficient_data" in results:
@@ -332,7 +337,7 @@ def class_overview(students, today=None):
                 # 排在未處理的缺口與資料補充案件之後
                 key = (2, 0, -grade, 0, case.id)
                 label = (WAITING_IMPROVED_LABEL if case.improved_pending
-                         else f"{_label(case.item)}已送交，待科辦核對")
+                         else f"{_label(case.item)}已送交，待導師確認（舊案件）")
             elif case.case_type == "gap":
                 order = _GAP_ITEM_ORDER.index(case.item) if case.item in _GAP_ITEM_ORDER else len(_GAP_ITEM_ORDER)
                 key = (0, order, -grade, -(case.current_amount or 0), case.id)
@@ -344,9 +349,3 @@ def class_overview(students, today=None):
             ranked.append((key, {"student": student, "case": case, "label": label, "hint": _hint(case)}))
     overview["priority"] = [row for _, row in sorted(ranked, key=lambda pair: pair[0])]
     return overview
-
-
-def awaiting_cases():
-    """科辦待核對的案件。"""
-    return (GraduationCase.query.filter_by(status="awaiting_verification")
-            .order_by(GraduationCase.updated_at, GraduationCase.id).all())

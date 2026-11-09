@@ -1,4 +1,6 @@
-"""電子獎狀補完：TA 證明、社團證明兩種類別、核准／退回寄站內通知、審核頁直接對照獎懲原文與原始檔。
+"""電子獎狀補完：TA 證明類別、核准／退回寄站內通知、審核頁直接對照獎懲原文與原始檔。
+
+2026-11-09 起科學會證明不由科辦開（訪談：科學會歸類在社團，證明由學務處辦），改成提醒學生到學務處。
 
 全部用合成假資料。
 """
@@ -54,12 +56,12 @@ def test_eligible_kinds_follow_award_reason(tmp_path):
         kinds = {pid: certificate_service.eligible_kinds(db.session.get(Portfolio, pid))
                  for pid in (ta_id, club_id, data_id)}
         service_record = next(p for p in Portfolio.query.all() if "麗山" in p.title)
-        # 麗山國中社團：科上派的服務，同時也提到社團，兩種都可以選
-        assert certificate_service.eligible_kinds(service_record) == ["service", "club"]
+        # 麗山國中社團：科上派的服務；提到社團也不再能申請社團證明（11-09 改由學務處辦）
+        assert certificate_service.eligible_kinds(service_record) == ["service"]
         manual = next(p for p in Portfolio.query.all() if p.title == "資訊週志工")
         assert certificate_service.eligible_kinds(manual) == []
     assert kinds[ta_id] == ["ta"]
-    assert kinds[club_id] == ["club"]
+    assert kinds[club_id] == []
     assert kinds[data_id] == []  # 「DATA」裡的 ta 不算
 
 
@@ -72,7 +74,26 @@ def test_student_applies_for_ta_certificate(tmp_path):
     assert response.status_code == 302
     cert = _cert(app)
     assert cert.kind == "ta" and cert.title == "TA 證明"
-    assert "協助課程教學" in cert.body and "擔任資料庫系統課程TA認真負責" in cert.body
+    # 11-09 科長訪談：TA 證明寫誰、哪一學期、協助哪一門課，不寫時數
+    assert "於 114 學年度第一學期擔任「資料庫系統」課程 TA（教學助理）" in cert.body
+    assert "協助課程教學" in cert.body and "小時" not in cert.body
+
+
+def test_ta_body_names_the_course_for_common_wordings(tmp_path):
+    from app.services.certificate_service import ta_course
+    assert ta_course("1141學期擔任資料庫系統課程TA認真負責") == "資料庫系統"
+    assert ta_course("1141學期擔任程式設計課程助教") == "程式設計"
+    assert ta_course("1132學期擔任網頁設計證照輔導班教學助理") == "網頁設計證照輔導班"
+    assert ta_course("擔任「軟體設計」TA") == "軟體設計"
+    assert ta_course("1141學期協助TA工作") is None  # 看不出課名
+
+
+def test_ta_body_without_course_keeps_original_reason(tmp_path):
+    app = cert_app(tmp_path)
+    ta_id = _add_award_record(app, "1141學期協助TA工作熱心", "activity")
+    client_for(app, "stu").post(f"/student/portfolio/{ta_id}/certificate", data={"kind": "ta"})
+    body = _cert(app).body
+    assert "協助TA工作熱心" in body and "協助課程教學" in body and "小時" not in body
 
 
 def test_kind_defaults_to_first_eligible_and_rejects_others(tmp_path):
@@ -108,18 +129,72 @@ def test_portfolio_page_lets_student_choose_kind(tmp_path):
     both = student.get(f"/student/portfolio/{service_id}/edit").get_data(as_text=True)
     only_ta = student.get(f"/student/portfolio/{ta_id}/edit").get_data(as_text=True)
 
-    assert 'value="service"' in both and 'value="club"' in both and "社團證明" in both
+    assert "「服務證明」" in both and 'value="club"' not in both
     assert "「TA 證明」" in only_ta and 'name="kind" value="ta"' in only_ta
 
 
-def test_staff_list_shows_kind(tmp_path):
+def test_club_record_reminds_student_to_go_to_student_affairs(tmp_path):
+    # 2026-11-09 訪談：科學會歸類在社團，證明是學務處的表格，指導老師蓋章後交回學務處蓋章，科辦不開
     app = cert_app(tmp_path)
     club_id = _add_award_record(app, "1141學期擔任資訊研習社社長熱心社務", "leadership")
-    client_for(app, "stu").post(f"/student/portfolio/{club_id}/certificate", data={"kind": "club"})
+    student = client_for(app, "stu")
+
+    page = student.get(f"/student/portfolio/{club_id}/edit").get_data(as_text=True)
+    applied = student.post(f"/student/portfolio/{club_id}/certificate", data={"kind": "club"})
+
+    assert "學務處" in page and "指導老師蓋章" in page
+    assert "申請電子獎狀" not in page and 'name="kind"' not in page
+    assert applied.status_code == 400
+    with app.app_context():
+        assert AwardCertificate.query.count() == 0
+
+
+def test_student_association_officer_gets_reminder_but_class_officer_does_not(tmp_path):
+    app = cert_app(tmp_path)
+    association_id = _add_award_record(app, "1141學期擔任資管科科學會活動長認真負責", "leadership")
+    class_id = _add_award_record(app, "1141學期擔任班級幹部服務熱心", "leadership")
+    student = client_for(app, "stu")
+
+    association = student.get(f"/student/portfolio/{association_id}/edit").get_data(as_text=True)
+    class_officer = student.get(f"/student/portfolio/{class_id}/edit").get_data(as_text=True)
+
+    assert "科學會歸類在社團" in association and "學務處" in association
+    assert "學務處" not in class_officer  # 訪談只講到科學會與社團，班級幹部沒有說，不亂提醒
+
+
+def test_service_record_mentioning_club_shows_both_service_and_reminder(tmp_path):
+    app = cert_app(tmp_path)
+    with app.app_context():
+        service_id = next(p.id for p in Portfolio.query.all() if "麗山" in p.title)
+
+    page = client_for(app, "stu").get(f"/student/portfolio/{service_id}/edit").get_data(as_text=True)
+
+    assert "申請電子獎狀" in page and "學務處" in page
+
+
+def test_manual_record_without_club_words_has_no_reminder(tmp_path):
+    app = cert_app(tmp_path)
+    with app.app_context():
+        manual_id = next(p.id for p in Portfolio.query.all() if p.title == "資訊週志工")
+
+    page = client_for(app, "stu").get(f"/student/portfolio/{manual_id}/edit").get_data(as_text=True)
+
+    assert "學務處" not in page
+
+
+def test_staff_list_still_shows_old_club_certificates(tmp_path):
+    """11-09 以前已申請的科學會證明照樣顯示、照樣能審，資料不刪。"""
+    app = cert_app(tmp_path)
+    club_id = _add_award_record(app, "1141學期擔任資訊研習社社長熱心社務", "leadership")
+    with app.app_context():
+        record = db.session.get(Portfolio, club_id)
+        db.session.add(AwardCertificate(student_id=record.student_id, portfolio=record, status="pending", kind="club",
+                                        title="科學會證明", issuer="資訊管理科", body="（舊申請）"))
+        db.session.commit()
 
     html = client_for(app, "staff").get("/staff/certificates").get_data(as_text=True)
 
-    assert "社團證明" in html and "資訊研習社社長" in html
+    assert "科學會證明" in html and "資訊研習社社長" in html
 
 
 # ---- 通知 ----

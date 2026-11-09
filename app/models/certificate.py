@@ -8,7 +8,7 @@ def _utcnow():
 
 
 class AwardCertificate(db.Model):
-    """科辦開的電子獎狀（服務證明、TA 證明、社團證明）。一筆紀錄最多一張；退回後學生可以再申請。
+    """科辦開的電子獎狀（服務證明、TA 證明；科學會證明 11-09 起改由學務處辦）。一筆紀錄最多一張；退回後學生可以再申請。
 
     狀態：pending（待科辦核准）→ approved（已核准，有驗證碼）或 returned（退回，附原因）。
     """
@@ -19,7 +19,7 @@ class AwardCertificate(db.Model):
     student_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     portfolio_id = db.Column(db.Integer, db.ForeignKey("portfolios.id"), nullable=False, unique=True)
     status = db.Column(db.String(20), nullable=False, default="pending", index=True)
-    # service 服務證明／ta TA 證明／club 社團證明，見 certificate_service.KINDS
+    # service 服務證明／ta TA 證明／club 科學會證明（11-09 起不能新申請），見 certificate_service.KINDS
     kind = db.Column(db.String(20), nullable=False, default="service", server_default="service")
     title = db.Column(db.String(50), nullable=False)
     body = db.Column(db.Text, nullable=False)

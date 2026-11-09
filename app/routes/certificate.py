@@ -20,6 +20,12 @@ def certificate_kinds(record):
     return [(kind, service.KINDS[kind], service.KIND_HINTS[kind]) for kind in service.eligible_kinds(record)]
 
 
+@certificate_bp.app_template_global()
+def certificate_club_reminder(record):
+    """學生經歷頁用：寫到科學會、社團的紀錄，提醒到學務處辦證明（科辦不開科學會證明）。"""
+    return service.club_reminder(record)
+
+
 @certificate_bp.post("/student/portfolio/<int:portfolio_id>/certificate")
 @role_required("student")
 def certificate_apply(portfolio_id):
@@ -31,7 +37,7 @@ def certificate_apply(portfolio_id):
     kind = request.form.get("kind") or (kinds[0] if kinds else "")
     if kind not in kinds:
         return ("只有從學校獎懲記錄匯入的紀錄可以申請電子獎狀：服務學習可申請服務證明，"
-                "事由寫到 TA、助教可申請 TA 證明，寫到社團、社長可申請社團證明。"), 400
+                "事由寫到 TA、助教可申請 TA 證明。科學會（社團）證明請到學務處辦理。"), 400
     cert = record.certificate
     if cert and cert.status in ("pending", "approved"):
         return redirect(url_for("student.portfolio_edit", portfolio_id=record.id))

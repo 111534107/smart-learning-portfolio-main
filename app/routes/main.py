@@ -354,17 +354,15 @@ def teacher_dashboard():
 @main_bp.get("/staff/dashboard")
 @role_required("staff")
 def staff_dashboard():
-    """科辦首頁只放規格書定的工作：電子獎狀與畢業缺口核對。
-    「待處理送件／登錄共同結論」2026-10-10 已拿掉（科辦不看備審），舊資料保留但不再列出。"""
+    """科辦首頁只放規格書定的工作：電子獎狀。
+    「待處理送件／登錄共同結論」2026-10-10 已拿掉（科辦不看備審），舊資料保留但不再列出。
+    「畢業缺口待核對」2026-11-09 拿掉：畢業資格審查由教務處負責，改善後案件自動結案。"""
     user = get_current_user()
     pending_certificates = AwardCertificate.query.filter_by(status="pending")
     return render_template(
         "dashboard.html",
         title="科辦工作台",
         user=user,
-        graduation_awaiting=graduation_case_service.awaiting_cases(),
-        grad_disclaimer=graduation_check_service.DISCLAIMER,
-        grad_item_labels=graduation_case_service.ITEM_LABELS,
         staff_pending_certificates=pending_certificates.count(),
         staff_certificate_rows=pending_certificates.order_by(AwardCertificate.created_at).limit(5).all(),
     )

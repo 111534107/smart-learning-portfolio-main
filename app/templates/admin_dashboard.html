@@ -29,8 +29,13 @@
     <div class="work-metrics">
       <article class="work-metric"><span>學生</span><strong>{{ student_count }}</strong><small>整理成績、證照與學習歷程</small></article>
       <article class="work-metric"><span>導師</span><strong>{{ teacher_count }}</strong><small>查看本班學生的畢業門檻與備審資料</small></article>
-      <article class="work-metric"><span>科辦</span><strong>{{ staff_count }}</strong><small>核准電子獎狀、核對畢業缺口</small></article>
+      <article class="work-metric"><span>科辦</span><strong>{{ staff_count }}</strong><small>核准電子獎狀、管理表單下載區</small></article>
     </div>
+  </section>
+
+  <section class="work-panel" data-grad-recheck>
+    <div class="work-panel__head"><div><h2>畢業門檻重新對照</h2><p>學生改資料時系統會自動對照；學期跨到專四下或專五上時，按一次讓全科案件依新階段開立或結案。正式畢業資格審查由教務處負責。</p></div>
+      <form method="post" action="{{ url_for('graduation.recheck') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small button--line" type="submit">重新對照全科</button></form></div>
   </section>
 
   <section class="work-panel">

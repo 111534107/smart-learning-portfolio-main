@@ -86,7 +86,7 @@ def test_staff_dashboard_shows_only_staff_work_not_portfolio_submissions():
     assert 'data-work-role="staff"' in page
     assert 'data-work-queue' in page
     assert "科辦工作台" in page
-    assert 'href="#staff-certificates"' in page and 'href="#staff-graduation"' in page
+    assert 'href="#staff-certificates"' in page and 'href="#staff-graduation"' not in page  # 11-09 畢業缺口改由教務處
     assert "Work layer submission" not in page
     assert "待處理送件" not in page and "共同結論" not in page
 

@@ -1,4 +1,11 @@
-"""畢業缺口案件的角色動作與權限：學生、導師、科辦共用同一份案件紀錄。
+"""畢業缺口案件的角色動作與權限：學生與導師共用同一份案件紀錄。
+
+2026-11-09 起科辦不參與畢業缺口：科長訪談說明正式畢業資格審查由教務處負責
+（學生專四下、專五上各填一次自評表），科辦只做電子獎狀、二技公告、表單下載區。
+因此拿掉「送出待核對 → 科辦確認／退回」：
+- 系統重新對照後缺口已排除，案件自動結案（見 graduation_case_service）。
+- 系統看不到的改善（例如教務處已確認補救），由導師填寫原因後結案。
+舊資料裡的 submitted / verified / rejected 事件照樣顯示，不刪。
 
 perform / create_inquiry 只 flush，不 commit，由呼叫端提交。
 只做提醒與追蹤，不宣告任何人符合或不符合畢業資格。
@@ -9,24 +16,15 @@ from app.models import GraduationCase
 from app.services import graduation_case_service as svc
 from app.services import teacher_scope
 
-ACTIONS = ("note", "start", "submit", "verify", "reject", "close_no_gap")
+ACTIONS = ("note", "start", "close")
 
 # action -> (允許角色, 允許起始狀態(None 表非 closed), 結果狀態, 事件, 通知對象, 原因必填)
 _RULES = {
     "note": (("student", "teacher"), None, None, None, None, True),
-    "start": (("student", "teacher", "staff"), ("pending",), "in_progress", "started", (), False),
-    "submit": (("student", "teacher", "staff"), ("in_progress",), "awaiting_verification",
-               "submitted", ("staff",), False),
-    "verify": (("staff",), ("awaiting_verification",), "closed", "verified",
-               ("student", "teacher"), False),
-    "reject": (("staff",), ("awaiting_verification",), "in_progress", "rejected",
-               ("student", "teacher"), True),
-    "close_no_gap": (("staff",), None, "closed", "closed_no_gap", ("student", "teacher"), True),
+    "start": (("student", "teacher"), ("pending",), "in_progress", "started", (), False),
+    "close": (("teacher",), None, "closed", "teacher_closed", ("student",), True),
 }
-_ACTION_LABELS = {
-    "note": "留言", "start": "開始處理", "submit": "送出待核對", "verify": "確認改善",
-    "reject": "退回", "close_no_gap": "以查無缺口結案",
-}
+_ACTION_LABELS = {"note": "留言", "start": "開始處理", "close": "結案"}
 
 
 class CaseActionError(Exception):
@@ -38,14 +36,14 @@ class CaseActionError(Exception):
 
 
 def can_view(case, user):
-    """學生本人、導師本班、科辦全部；其他（含管理員）不可看。"""
+    """學生本人、導師本班；其他（含科辦、管理員）不可看。"""
     if user is None:
         return False
     if user.role == "student":
         return case.student_id == user.id
     if user.role == "teacher":
         return teacher_scope.can_view_student(user, case.student)
-    return user.role == "staff"
+    return False
 
 
 def _state_ok(case, allowed_states):
@@ -67,8 +65,6 @@ def _recipients(case, kinds):
         people.append(case.student)
     if "teacher" in kinds:
         people.extend(svc.advisors_for(case.student))
-    if "staff" in kinds:
-        people.extend(svc.staff_users())
     return people
 
 
@@ -82,31 +78,22 @@ def perform(case, user, action, note=""):
     if not _state_ok(case, states):
         raise CaseActionError(f"案件 {case.number}：目前狀態不能{label}。", 400)
     note = (note or "").strip()
-    if need_note and not note:
-        raise CaseActionError(f"案件 {case.number}：{label}必須填寫原因。", 400)
+    if need_note and not note and not (action == "close" and case.case_type == "inquiry"):
+        raise CaseActionError(f"案件 {case.number}：{label}必須填寫原因（例如教務處已確認）。", 400)
 
     if action == "note":
         event_type = "student_note" if user.role == "student" else "teacher_note"
         notify = ("teacher",) if user.role == "student" else ("student",)
         to_status = "in_progress" if case.status == "pending" else None
         message = f"案件 {case.number} 有新留言，請查看。"
+    elif action == "close" and case.case_type == "inquiry":
+        message = f"案件 {case.number}：導師已回覆，這一筆詢問已處理。"
+        case.close_reason = "answered"
+    elif action == "close":
+        message = f"案件 {case.number}：導師已結案。原因：{note}"
+        case.close_reason = "teacher"
     else:
         message = f"案件 {case.number}：{label}。"
-        if note:
-            message += f"原因：{note}"
-    if action == "verify" and case.case_type == "inquiry":
-        message = f"案件 {case.number}：科辦已核對，這一筆詢問已處理。"
-    elif action == "verify":
-        message = f"案件 {case.number}：科辦已核對，這一筆缺口確認改善。"
-    elif action == "submit":
-        message = f"案件 {case.number}：已送出，請科辦核對。"
-    elif action == "reject":
-        message = f"案件 {case.number}：科辦退回，請再處理。原因：{note}"
-    elif action == "close_no_gap":
-        message = f"案件 {case.number}：科辦核對後以查無缺口結案。原因：{note}"
-
-    if to_status == "closed":
-        case.close_reason = "improved" if action == "verify" else "no_gap"
     event = svc.record_event(case, event_type, user, to_status=to_status, note=note,
                              notify=[p for p in _recipients(case, notify) if p.id != user.id],
                              message=message)

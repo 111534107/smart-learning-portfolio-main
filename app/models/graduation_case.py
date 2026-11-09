@@ -53,7 +53,7 @@ class GraduationCase(db.Model):
 
     @property
     def improved_pending(self):
-        """待科辦核對，而且最近一次同步看到的資料已改善（不是人工送出時仍有缺口）。"""
+        """11-09 以前留下來、停在待核對的舊案件，而且最近一次同步看到的資料已改善（下次同步會自動結案）。"""
         return (self.status == "awaiting_verification" and self.case_type != "inquiry"
                 and self.last_result not in ("gap", "insufficient"))
 
@@ -71,7 +71,7 @@ class GraduationCaseEvent(db.Model):
     case_id = db.Column(db.Integer, db.ForeignKey("graduation_cases.id"), nullable=False, index=True)
     actor_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     # created / student_note / teacher_note / started / submitted / recalculated /
-    # auto_verify / verified / rejected / closed_no_gap / data_changed
+    # auto_closed / teacher_closed / data_changed（11-09 起）；舊資料另有 auto_verify / verified / rejected / closed_no_gap
     event_type = db.Column(db.String(30), nullable=False)
     from_status = db.Column(db.String(30), nullable=True)
     to_status = db.Column(db.String(30), nullable=True)

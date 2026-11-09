@@ -26,6 +26,7 @@ def pages_app(tmp_path):
         student.student_profile.class_name = "五專四甲"
         teacher = _user("tea", "teacher", "導師")
         _user("sta", "staff", "科辦")
+        _user("adm", "admin", "管理員")
         _user("other", "student", "別人")
         db.session.add(ClassAdvisor(teacher_id=teacher.id, class_name="五專四甲", school_year=115))
         db.session.add(SystemSetting(key="graduation_check_today", value="2026-03-01"))
@@ -53,15 +54,17 @@ def counts(app):
                 Notification.query.count())
 
 
-def test_case_page_same_number_for_three_roles(tmp_path):
+def test_case_page_same_number_for_student_and_teacher_not_staff(tmp_path):
+    # 2026-11-09：畢業資格審查由教務處負責，科辦不參與畢業缺口案件
     app = pages_app(tmp_path)
     case_id = make_case(app)
     with app.app_context():
         number = db.session.get(GraduationCase, case_id).number
-    for username in ("stu", "tea", "sta"):
+    for username in ("stu", "tea"):
         response = as_user(app, username).get(f"/graduation/cases/{case_id}")
         assert response.status_code == 200
         assert number in response.get_data(as_text=True)
+    assert as_user(app, "sta").get(f"/graduation/cases/{case_id}").status_code == 403
 
 
 def test_case_page_forbidden_for_other_student(tmp_path):
@@ -76,7 +79,8 @@ def test_opening_pages_creates_nothing(tmp_path):
     before = counts(app)
     plan = (("stu", ["/student/graduation-check", f"/graduation/cases/{case_id}", "/notifications"]),
             ("tea", ["/teacher/dashboard", f"/graduation/cases/{case_id}"]),
-            ("sta", ["/staff/dashboard", f"/graduation/cases/{case_id}"]))
+            ("sta", ["/staff/dashboard"]),
+            ("adm", ["/admin/dashboard"]))
     for username, paths in plan:
         client = as_user(app, username)
         for _ in range(2):
@@ -171,11 +175,12 @@ def test_notifications_page_lists_messages(tmp_path):
     assert number in html
 
 
-def test_staff_recheck_only_for_staff(tmp_path):
+def test_recheck_only_for_admin(tmp_path):
     app = pages_app(tmp_path)
-    assert as_user(app, "tea").post("/staff/graduation/recheck").status_code == 403
-    assert as_user(app, "stu").post("/staff/graduation/recheck").status_code == 403
-    response = as_user(app, "sta").post("/staff/graduation/recheck")
+    for username in ("tea", "stu", "sta"):
+        assert as_user(app, username).post("/admin/graduation/recheck").status_code == 403
+    assert as_user(app, "sta").post("/staff/graduation/recheck").status_code == 404
+    response = as_user(app, "adm").post("/admin/graduation/recheck")
     assert response.status_code == 302
     with app.app_context():
         assert GraduationCase.query.filter_by(item="certificates", case_type="gap").count() == 1
@@ -186,7 +191,8 @@ def test_case_action_route_and_errors(tmp_path):
     case_id = make_case(app)
     student = as_user(app, "stu")
     url = f"/graduation/cases/{case_id}/actions"
-    assert student.post(url, data={"action": "verify"}).status_code == 403
+    assert student.post(url, data={"action": "close", "note": "x"}).status_code == 403
+    assert student.post(url, data={"action": "verify"}).status_code == 400
     assert student.post(url, data={"action": "note", "note": ""}).status_code == 400
     assert student.post(url, data={"action": "start"}).status_code == 302
     with app.app_context():
@@ -302,40 +308,53 @@ def test_transfer_save_survives_sync_failure(tmp_path, monkeypatch):
 
 def test_recheck_bad_student_id_and_redirect(tmp_path):
     app = pages_app(tmp_path)
-    staff = as_user(app, "sta")
-    assert staff.post("/staff/graduation/recheck", data={"student_id": "²"}).status_code == 404
-    assert staff.post("/staff/graduation/recheck", data={"student_id": "abc"}).status_code == 404
-    response = staff.post("/staff/graduation/recheck")
-    assert response.status_code == 302 and response.headers["Location"].endswith("/staff/dashboard")
+    admin = as_user(app, "adm")
+    assert admin.post("/admin/graduation/recheck", data={"student_id": "²"}).status_code == 404
+    assert admin.post("/admin/graduation/recheck", data={"student_id": "abc"}).status_code == 404
+    response = admin.post("/admin/graduation/recheck")
+    assert response.status_code == 302 and response.headers["Location"].endswith("/admin/dashboard")
     with app.app_context():
         student_id = User.query.filter_by(username="stu").one().id
-    response = staff.post("/staff/graduation/recheck", data={"student_id": str(student_id)})
-    assert response.status_code == 302 and response.headers["Location"].endswith("/staff/dashboard")
+    response = admin.post("/admin/graduation/recheck", data={"student_id": str(student_id)})
+    assert response.status_code == 302 and response.headers["Location"].endswith("/admin/dashboard")
 
 
-def test_inquiry_wording_for_staff(tmp_path):
-    from app.services import graduation_case_actions as actions
+def test_teacher_answers_inquiry(tmp_path):
     app = pages_app(tmp_path)
     as_user(app, "stu").post("/student/graduation-check/inquiry", data={"note": "請問證照怎麼算？"})
     with app.app_context():
-        case = GraduationCase.query.filter_by(case_type="inquiry").one()
-        student = User.query.filter_by(username="stu").one()
-        staff = User.query.filter_by(username="sta").one()
-        actions.perform(case, student, "start")
-        actions.perform(case, student, "submit")
-        db.session.commit()
-        case_id = case.id
-    html = as_user(app, "sta").get("/staff/dashboard").get_data(as_text=True)
-    assert "一般詢問" in html and ">general<" not in html
+        case_id = GraduationCase.query.filter_by(case_type="inquiry").one().id
+    teacher = as_user(app, "tea")
+    page = teacher.get(f"/graduation/cases/{case_id}").get_data(as_text=True)
+    assert "已回覆，結案" in page
+    assert teacher.post(f"/graduation/cases/{case_id}/actions", data={"action": "close"}).status_code == 302
     with app.app_context():
         case = db.session.get(GraduationCase, case_id)
-        staff = User.query.filter_by(username="sta").one()
-        event = actions.perform(case, staff, "verify")
-        db.session.commit()
-        message = Notification.query.filter_by(event_id=event.id).first().message
+        assert case.status == "closed" and case.close_reason == "answered"
+        message = Notification.query.filter_by(case_id=case_id, recipient_id=case.student_id).order_by(
+            Notification.id.desc()).first().message
     assert "已處理" in message and "缺口" not in message
     html = as_user(app, "stu").get(f"/graduation/cases/{case_id}").get_data(as_text=True)
-    assert "不代表學生符合全部畢業資格" not in html
+    assert "不代表學生符合全部畢業資格" not in html and "已回覆" in html
+
+
+def test_teacher_close_from_case_page_mentions_registrar(tmp_path):
+    app = pages_app(tmp_path)
+    case_id = make_case(app)
+    teacher = as_user(app, "tea")
+    page = teacher.get(f"/graduation/cases/{case_id}").get_data(as_text=True)
+    assert "教務處" in page
+    assert teacher.post(f"/graduation/cases/{case_id}/actions", data={"action": "close", "note": ""}).status_code == 400
+    assert teacher.post(f"/graduation/cases/{case_id}/actions",
+                        data={"action": "close", "note": "教務處已確認補救"}).status_code == 302
+    html = as_user(app, "stu").get(f"/graduation/cases/{case_id}").get_data(as_text=True)
+    assert "導師結案" in html and "正式畢業資格審查由教務處負責" in html
+
+
+def test_student_page_points_to_registrar_self_check(tmp_path):
+    app = pages_app(tmp_path)
+    html = as_user(app, "stu").get("/student/graduation-check").get_data(as_text=True)
+    assert "data-registrar-note" in html and "自評表" in html and "教務處" in html
 
 
 def test_action_post_by_unauthorized_user_leaks_nothing(tmp_path):

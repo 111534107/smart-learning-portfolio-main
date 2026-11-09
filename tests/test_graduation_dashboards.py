@@ -114,7 +114,7 @@ def test_awaiting_case_not_counted_as_gap_and_ranks_last(monkeypatch, tmp_path):
     assert overview["gap"] == 1 and overview["other"] == 1
     rows = overview["priority"]
     assert [row["student"].display_name for row in rows] == ["缺口生", "資料生", "待核對生"]
-    assert rows[-1]["label"] == "資料已改善，待科辦核對"
+    assert rows[-1]["label"] == "資料已改善，下次重新對照時會自動結案"
     assert "還差" not in rows[-1]["label"]
 
 
@@ -129,7 +129,7 @@ def test_teacher_pages_show_improved_label_for_awaiting(tmp_path):
     client = as_user(app, "tea")
     for path in ("/teacher/dashboard", f"/teacher/students/{student_id}", f"/graduation/cases/{case_id}"):
         html = client.get(path).get_data(as_text=True)
-        assert "資料已改善，待科辦核對" in html, path
+        assert "資料已改善，下次重新對照時會自動結案" in html, path
         assert "證照還差" not in html and "目前還差" not in html, path
 
 
@@ -215,10 +215,11 @@ def test_next_check_text():
     assert svc.next_check_text({"grade": 3, "semester": "上"}) == "專四下學期期末考前兩週"
     assert svc.next_check_text({"grade": 4, "semester": "下"}) == "專四下學期期末考前兩週"
     assert svc.next_check_text({"grade": 5, "semester": "上"}) == "專五上學期期末考前兩週"
-    assert svc.next_check_text({"grade": 5, "semester": "下"}) == "已過兩次檢核，請與科辦確認"
+    assert svc.next_check_text({"grade": 5, "semester": "下"}) == "已過兩次檢核，請向教務處確認"
 
 
-def test_staff_dashboard_lists_awaiting_cases(tmp_path):
+def test_staff_dashboard_has_no_graduation_cases(tmp_path):
+    # 2026-11-09：畢業資格審查由教務處負責，科辦首頁不再列畢業缺口，重新對照按鈕移到管理員首頁
     app = pages_app(tmp_path)
     case_id = make_case(app)
     with app.app_context():
@@ -227,6 +228,6 @@ def test_staff_dashboard_lists_awaiting_cases(tmp_path):
         number = case.number
         db.session.commit()
     html = as_user(app, "sta").get("/staff/dashboard").get_data(as_text=True)
-    assert number in html
-    assert "/staff/graduation/recheck" in html
-    assert "僅供提醒" in html
+    assert number not in html and "畢業缺口" not in html and "recheck" not in html
+    admin = as_user(app, "adm").get("/admin/dashboard").get_data(as_text=True)
+    assert "/admin/graduation/recheck" in admin and "data-grad-recheck" in admin

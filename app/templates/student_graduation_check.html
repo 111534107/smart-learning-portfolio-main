@@ -17,6 +17,7 @@
       <p class="small">學習支援</p>
       <h1>畢業門檻提醒</h1>
       <p>依已確認的成績與證照，整理證照與學分還差多少。只供提醒，不代表畢業資格。</p>
+      <p class="small" data-registrar-note>正式畢業資格審查由<strong>教務處</strong>負責：專四下、專五上教務處會請你填一張自評表，寫哪些科目過了、哪些沒過。可以先用這一頁對照，再照實填寫。</p>
     </div>
   </header>
 
@@ -68,12 +69,12 @@
       {% if data.failed_required %}<p>不及格的必修：{{ data.failed_required|join("、") }}</p>{% endif %}
       {% if data.basis %}<p class="small muted">依據：{{ data.basis }}</p>{% endif %}
       {% if data.result == "gap" %}<p><strong>補救方式：</strong>{{ check.REMEDY_TEXT[item] }}</p>{% endif %}
-      {% if case %}<p class="small">案件 <a href="{{ url_for('graduation.case_detail', case_id=case.id) }}">{{ case.number }}</a>（{{ {"pending": "待處理", "in_progress": "處理中", "awaiting_verification": "待科辦核對", "closed": "已結案"}[case.status] }}）</p>{% endif %}
+      {% if case %}<p class="small">案件 <a href="{{ url_for('graduation.case_detail', case_id=case.id) }}">{{ case.number }}</a>（{{ {"pending": "待處理", "in_progress": "處理中", "awaiting_verification": "待確認（舊案件）", "closed": "已結案"}[case.status] }}）</p>{% endif %}
     </div>
     {% endfor %}
     {% if other_cases %}
     <h3 class="mt-1">其他案件</h3>
-    <ul>{% for case in other_cases %}<li><a href="{{ url_for('graduation.case_detail', case_id=case.id) }}">{{ case.number }}</a>（{{ {"data_needed": "資料不足", "inquiry": "詢問"}[case.case_type] }}，{{ {"pending": "待處理", "in_progress": "處理中", "awaiting_verification": "待科辦核對", "closed": "已結案"}[case.status] }}）</li>{% endfor %}</ul>
+    <ul>{% for case in other_cases %}<li><a href="{{ url_for('graduation.case_detail', case_id=case.id) }}">{{ case.number }}</a>（{{ {"data_needed": "資料不足", "inquiry": "詢問"}[case.case_type] }}，{{ {"pending": "待處理", "in_progress": "處理中", "awaiting_verification": "待確認（舊案件）", "closed": "已結案"}[case.status] }}）</li>{% endfor %}</ul>
     {% endif %}
   </section>
 

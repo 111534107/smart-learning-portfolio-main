@@ -1,5 +1,102 @@
 # 開發日誌
 
+## 2026-11-09 TA 證明預設內文寫出課名
+
+日期：2026-11-09（台灣時間）
+
+開發者：Claude（工作資料夾 `D:\democase\ai-wt-story`，分支 `feat/google-docs-autobiography`）
+
+原因：科長訪談說 TA 證明要寫誰、哪一學期、協助哪一門課，不寫時數（公文核給的時數和實際做的不同）。原本內文是「參與『獎懲事由』」，事由沒整理過，課名不明顯。
+
+修改檔案：
+- `app/services/certificate_service.py`：
+  - 新增 `ta_course`：從匯入時的獎懲原文找出課名，例如「擔任資料庫系統課程TA」→ 資料庫系統。支援 TA、助教、教學助理，以及「」括起來的課名。
+  - TA 證明預設內文改成「於○○學年度第○學期擔任「○○」課程 TA（教學助理），協助課程教學、認真負責，特此證明。」
+  - 看不出課名時沿用原本寫法（原文照抄）。科辦核准前仍可修改內文。
+- `tests/test_certificate_kinds_notices.py`：改 1 項，新增 2 項（各種寫法的課名、看不出課名時照抄原文）。
+
+驗證結果：電子獎狀與展示站測試 49 項通過（`logs/test-runs/ta-green`）。
+
+## 2026-11-09 畢業缺口改成對齊教務處流程：改善後自動結案，科辦退出
+
+日期：2026-11-09（台灣時間）
+
+開發者：Claude（工作資料夾 `D:\democase\ai-wt-story`，分支 `feat/google-docs-autobiography`）
+
+原因：2026-11-09 科長訪談（`docs/06_會議錄音與逐字稿/AI_會議紀錄_2026-11-09-TA證明與畢業資格審查詢問.md`）說明：
+- 畢業資格審查由教務處負責，學生在專四下、專五上各填一次自評表。
+- 科辦只負責電子獎狀、二技公告、表單下載區，不做畢業審查。
+
+原本設計是「系統判斷改善 → 送科辦核對 → 科辦確認或退回」，核對單位錯了。使用者決定照會議紀錄第三節第 2 點修改。
+
+新流程：
+- 學生改資料後，系統重新對照。缺口已排除或資料已補足時，**案件自動結案**（`close_reason=improved`，事件 `auto_closed`），通知學生與導師。
+- 系統看不到的改善（例如教務處已確認補救），由**導師填寫原因後結案**（`close_reason=teacher`）。
+- 學生詢問由導師回覆後結案（`close_reason=answered`），不必填原因。
+- 拿掉「送出待核對」「確認改善」「退回」「以查無缺口結案」。學生只能留言、開始處理。
+- 科辦看不到畢業缺口案件，科辦首頁也拿掉「畢業缺口待核對」。
+- 「重新對照全科」按鈕從科辦首頁移到管理員首頁（`/admin/graduation/recheck`）。這個按鈕是給學期跨到專四下、專五上時用的。
+- 舊資料：停在 `awaiting_verification` 的舊案件，下次同步看到已改善會自動結案；仍有缺口時不變，導師可以手動結案。舊事件名稱照樣顯示。
+
+修改檔案：
+- `app/services/graduation_case_actions.py`：動作改成 `note`、`start`、`close`。`close` 只限導師，原因必填（詢問除外）。科辦 `can_view` 改成 False。
+- `app/services/graduation_case_service.py`：
+  - 新增 `_auto_close`；改善時自動結案，不再通知科辦。
+  - 刪除 `staff_users`、`awaiting_cases`。
+  - 「已過兩次檢核」改成「請向教務處確認」；舊待核對案件的文字改掉「科辦」。
+- `app/services/graduation_check_service.py`、`app/templates/notifications.html`：免責文字改成「本系統只幫你先對照。正式畢業資格審查由教務處負責（專四下、專五上教務處會請學生填寫自評表），以學校審核結果為準。」
+- `app/routes/graduation.py`：動作、事件、結案原因的中文標籤；`recheck` 改成管理員使用，完成後回到管理員首頁。
+- `app/routes/main.py`、`app/templates/dashboard.html`：科辦首頁只剩電子獎狀。
+- `app/templates/admin_dashboard.html`：新增「畢業門檻重新對照」區塊；科辦帳號說明改成「核准電子獎狀、管理表單下載區」。
+- `app/templates/student_graduation_check.html`：頁首加教務處自評表的說明（`data-registrar-note`）。
+- `app/templates/graduation_case.html`、`teacher_student.html`：狀態文字與結案說明改成提到教務處。
+- `app/models/graduation_case.py`：只改註解。沒有改資料表，**不需要 migration**。
+- 測試：改寫 `test_graduation_case_actions.py`、`test_graduation_case_sync.py`、`test_graduation_case_pages.py`、`test_graduation_dashboards.py`，`test_work_layer.py` 改 1 行。
+
+驗證結果：
+- 畢業相關測試與展示站、工作台共 128 項通過（`logs/test-runs/grad-green`）。
+- 本機展示站：
+  - 導師在案件頁只看到「留言、開始處理、結案」，結案原因必填；結案後狀態顯示「已結案（導師確認）」。
+  - 科辦首頁沒有畢業缺口，打開案件頁回 403。
+  - 管理員按「重新對照全科」後回到管理員首頁。
+  - 學生頁看得到教務處自評表說明。
+- 完整測試 **1316 通過、2 略過**（`logs/test-runs/registrar-full-20261109`，約 12 分鐘；包含同日科學會證明的修改，以及工作資料夾裡其他對話還沒提交的修改）。
+
+未完成：
+- 報告書、規格書寫的「科辦核對畢業缺口」要改成教務處審查、改善後自動結案。
+- 規格與流程圖的狀態圖（待科辦核對）要更新。
+
+## 2026-11-09 科學會證明改成提醒學生到學務處辦
+
+日期：2026-11-09（台灣時間）
+
+開發者：Claude（工作資料夾 `D:\democase\ai-wt-story`，分支 `feat/google-docs-autobiography`）
+
+原因：規格寫的「社團證明」其實是科學會證明（使用者 11-09 更正）。2026-11-09 科長訪談錄音（`docs/06_會議錄音與逐字稿/AI_會議紀錄_2026-11-09-TA證明與畢業資格審查詢問.md`）說明科學會歸類在社團，證明由學務處辦理：學生在學務處的表格填寫，社團指導老師蓋章後，交回學務處蓋章。科辦不開這種證明。使用者決定：改成提醒學生到學務處辦。
+
+修改檔案：
+- `app/services/certificate_service.py`：
+  - `eligible_kinds` 不再回傳 `club`，科辦只開服務證明與 TA 證明。
+  - 新增 `club_reminder`：經歷原文或標題寫到科學會、社團、社長、學生會時，回傳學務處提醒。只寫「班級幹部」的不提醒，因為訪談沒講到。
+  - `club` 的顯示名稱改成「科學會證明」（資料庫代碼不變）。`KINDS` 保留 `club`，讓之前已申請或已核准的社團證明照樣顯示、照樣能審，資料不刪。
+- `app/routes/certificate.py`：
+  - 新增樣板函式 `certificate_club_reminder`。
+  - 申請被拒時的訊息改成「社團、幹部證明請到學務處辦理」。
+- `app/templates/student_portfolio_form.html`：電子獎狀區塊在符合條件時顯示學務處提醒（`data-club-reminder`）。如果這筆經歷已有社團證明，而且沒有被退回，就不顯示提醒。
+- `tests/test_certificate_kinds_notices.py`：
+  - 修改原有的類別測試與經歷頁測試。
+  - 新增 4 項：社團紀錄只顯示提醒、不能申請；科學會幹部有提醒、班級幹部沒有；服務紀錄同時有申請按鈕和提醒；沒寫社團的紀錄沒有提醒。
+  - 原本「科辦清單顯示社團證明」的測試改成用舊資料驗證。
+
+驗證結果：
+- 相關測試 88 項通過（`logs/test-runs/kxh-related`，包含電子獎狀、獎懲記錄、展示站、工作台、ui01）。完整測試沒有跑。
+- 本機展示站：第一版時示範學生 5 筆「班級幹部」經歷都出現提醒；改成只認科學會、社團後，這 5 筆不再提醒（測試已涵蓋，沒有重開展示站）。
+- `app/templates/staff_certificates.html`、`app/models/certificate.py`：顯示名稱與說明改成科學會證明。
+
+未完成：
+- 流程圖 D-29「電子獎狀、TA 與社團證明流程圖」還畫著社團證明，要改成科學會證明並標示改由學務處辦（在 `D:\democase\ai\docs\images\`）。
+- 規格書與報告書寫的「社團證明」（F-56、科辦職責、學生第 23 點）要改成科學會證明、改由學務處辦。
+
 ## 2026-11-08 表單下載區（UC-28／F-53）
 
 日期：2026-11-08（台灣時間）

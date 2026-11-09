@@ -1,4 +1,4 @@
-"""畢業缺口案件：案件頁、角色動作、通知頁、學生詢問與科辦重新檢核。
+"""畢業缺口案件：案件頁、角色動作、通知頁、學生詢問與管理員重新檢核。
 
 GET 一律不建立案件、不改狀態、不寫事件、不發通知；
 唯一例外是打開案件頁時，把本人指向該案件的未讀通知標為已讀。
@@ -19,19 +19,17 @@ graduation_bp = Blueprint("graduation", __name__)
 
 STATUS_LABELS = {
     "pending": "待處理", "in_progress": "處理中",
-    "awaiting_verification": "待科辦核對", "closed": "已結案",
+    "awaiting_verification": "待確認（舊案件）", "closed": "已結案",
 }
-ACTION_LABELS = {
-    "note": "留言", "start": "開始處理", "submit": "送出待核對", "verify": "確認改善",
-    "reject": "退回", "close_no_gap": "以查無缺口結案",
-}
+ACTION_LABELS = {"note": "留言", "start": "開始處理", "close": "結案"}
 EVENT_LABELS = {
     "created": "建立案件", "student_note": "學生留言", "teacher_note": "導師留言",
     "started": "開始處理", "submitted": "送出待核對", "recalculated": "重新計算",
     "auto_verify": "資料改善，待核對", "verified": "科辦確認改善", "rejected": "科辦退回",
     "closed_no_gap": "以查無缺口結案", "data_changed": "資料變動",
-}
-CLOSE_REASON_LABELS = {"improved": "已確認改善", "no_gap": "查無缺口"}
+    "auto_closed": "重新對照後已無缺口，自動結案", "teacher_closed": "導師結案",
+}  # submitted、auto_verify、verified、rejected、closed_no_gap 是 11-09 以前的舊事件，留著讓舊紀錄看得懂
+CLOSE_REASON_LABELS = {"improved": "資料已改善", "no_gap": "查無缺口", "teacher": "導師確認", "answered": "已回覆"}
 CASE_TYPE_LABELS = {"gap": "缺口", "data_needed": "資料不足", "inquiry": "詢問"}
 
 
@@ -53,7 +51,7 @@ def _render_case(case, user, error=None, status=200):
         "graduation_case.html", user=user, case=case, events=events, error=error,
         available=actions.available_actions(case, user), item_label=item_label,
         status_labels=STATUS_LABELS,
-        action_labels={**ACTION_LABELS, "verify": "已處理"} if inquiry else ACTION_LABELS,
+        action_labels={**ACTION_LABELS, "close": "已回覆，結案"} if inquiry else ACTION_LABELS,
         event_labels={**EVENT_LABELS, "verified": "科辦已處理"} if inquiry else EVENT_LABELS,
         close_reason_labels={**CLOSE_REASON_LABELS, "improved": "已處理"} if inquiry else CLOSE_REASON_LABELS,
         type_labels=CASE_TYPE_LABELS,
@@ -143,9 +141,10 @@ def notification_open(notification_id):
     return redirect(url_for("graduation.notifications"))
 
 
-@graduation_bp.post("/staff/graduation/recheck")
-@role_required("staff")
+@graduation_bp.post("/admin/graduation/recheck")
+@role_required("admin")
 def recheck():
+    """重新對照全科（或指定學生）的畢業門檻。日期跨過專四下時要按一次，案件才會依新階段開立或結案。"""
     raw = request.form.get("student_id", "").strip()
     if raw:
         student = db.session.get(User, _parse_id(raw))
@@ -155,7 +154,7 @@ def recheck():
     else:
         case_service.sync_all()
     db.session.commit()
-    return redirect(url_for("main.staff_dashboard"))
+    return redirect(url_for("main.admin_dashboard"))
 
 
 def _parse_id(raw):

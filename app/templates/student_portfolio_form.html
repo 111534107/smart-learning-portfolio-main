@@ -35,10 +35,12 @@
   </section>
 
   {% set cert_kinds = certificate_kinds(portfolio) if portfolio else [] %}
-  {% if portfolio and (portfolio.certificate or cert_kinds) %}
+  {% set club_note = certificate_club_reminder(portfolio) if portfolio else None %}
+  {% if portfolio and (portfolio.certificate or cert_kinds or club_note) %}
   {% set cert = portfolio.certificate %}
   <section class="sheet mt-1" aria-labelledby="certificate-title">
     <div class="sheet__head"><h2 id="certificate-title">電子獎狀</h2></div>
+    {% if club_note and not (cert and cert.kind == "club" and cert.status != "returned") %}<p class="muted small mb-1" data-club-reminder>{{ club_note }}</p>{% endif %}
     {% if cert and cert.status == "approved" %}
     <p class="mb-1">科辦已核准，驗證碼 <span class="mono">{{ cert.verify_code }}</span>。</p>
     <a class="button button--small" href="{{ url_for('certificate.certificate_view', cert_id=cert.id) }}" target="_blank" rel="noopener">查看與列印獎狀</a>

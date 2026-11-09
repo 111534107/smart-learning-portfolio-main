@@ -1,17 +1,20 @@
 """科辦電子獎狀：外框固定，內文由系統先帶入、科辦核准前可以修改。
 
 規則（寫在這裡，方便報告時說明）：
-- 只有從「學校獎懲記錄」匯入的紀錄可以申請，科辦只開自己開得出來的三種證明：
+- 只有從「學校獎懲記錄」匯入的紀錄可以申請，科辦只開自己開得出來的兩種證明：
   - 服務證明：類別是服務學習（也就是科上派的服務）。
   - TA 證明：獎懲事由寫到「TA」「助教」或「教學助理」。
-  - 社團證明：獎懲事由寫到「社團」或「社長」。
   事由以匯入時的原文為準（學生之後改了經歷標題也不影響）。同一筆符合多種時由學生選一種，
   科辦審核時還能再改標題。（2026-11-08 判斷：規格只寫「加 TA 證明、社團證明」，沒寫條件，
   先用獎懲事由關鍵字，因為 TA 與社團在學校系統也都記成嘉獎。）
+- 科學會證明 2026-11-09 起不再由科辦開（規格原寫「社團證明」，指的是科學會）：訪談時科長說明
+  科學會歸類在社團，幹部證明走學務處的表格，學生填好、社團指導老師蓋章後交回學務處蓋章。
+  經歷寫到科學會、社團、學生會時改成提醒學生到學務處辦（club_reminder）。
+  之前已申請或已核准的（代碼仍是 club）照樣顯示、照樣能審，所以 KINDS 仍保留 club。
 - 電子獎狀是補充個別證明，不取代學校的獎懲記錄。
 - 核准時才產生 8 碼驗證碼；任何人可在 /verify 用驗證碼查到獎狀是否由本系統核發，姓名只顯示遮蔽後的樣子。
 - 核准或退回時寄站內通知給學生，連到獎狀或修改頁。
-- 新增其他證明類別（例如幹部證明）時，在 KINDS、CLOSINGS 與 eligible_kinds 各加一種；外框共用 templates/certificate.html。
+- 新增其他證明類別時，在 KINDS、CLOSINGS 與 eligible_kinds 各加一種；外框共用 templates/certificate.html。
 """
 
 import re
@@ -19,11 +22,13 @@ import secrets
 
 from app.models import AwardCertificate, SchoolAwardRecord
 
-KINDS = {"service": "服務證明", "ta": "TA 證明", "club": "社團證明"}
-KIND_HINTS = {"service": "科上派的服務", "ta": "擔任課程 TA（教學助理）", "club": "社團活動或社團幹部"}
-CLOSINGS = {"service": "熱心服務、表現認真", "ta": "協助課程教學、認真負責", "club": "積極參與社團、表現優良"}
+KINDS = {"service": "服務證明", "ta": "TA 證明", "club": "科學會證明"}
+KIND_HINTS = {"service": "科上派的服務", "ta": "擔任課程 TA（教學助理）", "club": "科學會幹部或活動"}
+CLOSINGS = {"service": "熱心服務、表現認真", "ta": "協助課程教學、認真負責", "club": "積極參與科學會、表現優良"}
 TA_PATTERN = re.compile(r"(?<![A-Za-z])TA(?![A-Za-z])|助教|教學助理", re.IGNORECASE)
-CLUB_WORDS = ("社團", "社長")
+CLUB_WORDS = ("科學會", "社團", "社長", "學生會")
+STUDENT_AFFAIRS_NOTE = ("科學會歸類在社團，科學會（含幹部）與其他社團的證明由學務處辦理，科辦不開："
+                        "到學務處拿表格填寫經歷，請社團指導老師蓋章，再交回學務處蓋章才算完整。蓋好章的證明可以拍照上傳到下面的「佐證」。")
 DEFAULT_ISSUER = "資訊管理科"
 CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # 不用 0、O、1、I，避免看錯
 SEMESTER_NAMES = {1: "第一學期", 2: "第二學期"}
@@ -50,9 +55,15 @@ def eligible_kinds(record):
         kinds.append("service")
     if TA_PATTERN.search(reason):
         kinds.append("ta")
-    if any(word in reason for word in CLUB_WORDS):
-        kinds.append("club")
     return kinds
+
+
+def club_reminder(record):
+    """經歷寫到科學會、社團、學生會時，回傳「到學務處辦證明」的提醒；其他回傳 None。"""
+    if record.deleted_at:
+        return None
+    text = f"{original_reason(record) if record.source == 'award_record' else ''} {record.title or ''}"
+    return STUDENT_AFFAIRS_NOTE if any(word in text for word in CLUB_WORDS) else None
 
 
 def can_apply(record, kind=None):
@@ -65,6 +76,16 @@ def _content(title):
     return re.sub(r"^\s*\d{3}[12]\s*學期", "", title).strip() or title
 
 
+TA_COURSE_PATTERN = re.compile(r"擔任\s*「?([^「」]{1,30}?)」?\s*(?:課程)?\s*(?:TA|助教|教學助理)", re.IGNORECASE)
+
+
+def ta_course(reason):
+    """從獎懲事由找出 TA 協助的課名（「擔任資料庫系統課程TA」→ 資料庫系統）；看不出來回傳 None。"""
+    match = TA_COURSE_PATTERN.search(_content(reason or ""))
+    course = match.group(1).strip() if match else ""
+    return course or None
+
+
 def default_body(record, kind="service"):
     student = record.student
     profile = student.student_profile
@@ -73,6 +94,11 @@ def default_body(record, kind="service"):
     if year and year <= 5 and profile and profile.admission_year:
         year = profile.admission_year + year - 1  # 年級換回民國學年度
     when = f"於 {year} 學年度{SEMESTER_NAMES.get(record.semester, '')}" if year and year > 5 else ""
+    course = ta_course(original_reason(record) or "") if kind == "ta" else None
+    if course:
+        # 11-09 科長訪談：TA 證明寫誰、哪一學期、協助哪一門課；不寫時數（公文核給時數和實際不同）
+        return (f"茲證明 本校五專資訊管理科 {student.display_name}{student_no} 同學，"
+                f"{when}擔任「{course}」課程 TA（教學助理），{CLOSINGS['ta']}，特此證明。")
     return (f"茲證明 本校五專資訊管理科 {student.display_name}{student_no} 同學，"
             f"{when}參與「{_content(record.title)}」，{CLOSINGS.get(kind, CLOSINGS['service'])}，特此證明。")
 

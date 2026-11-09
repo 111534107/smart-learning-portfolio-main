@@ -19,12 +19,12 @@
 
   <section class="work-panel">
     <h2>案件內容</h2>
-    {% if case.improved_pending %}<p>資料已改善，待科辦核對{% if case.initial_amount is not none %}（開案時還差 {{ case.initial_amount }} {{ case.unit }}）{% endif %}。</p>
+    {% if case.improved_pending %}<p>資料已改善，下次重新對照時會自動結案{% if case.initial_amount is not none %}（開案時還差 {{ case.initial_amount }} {{ case.unit }}）{% endif %}。</p>
     {% elif case.current_amount is not none %}<p>目前還差 {{ case.current_amount }} {{ case.unit }}（開案時 {{ case.initial_amount }} {{ case.unit }}）。</p>{% endif %}
     {% if case.detail %}<p>{{ case.detail }}</p>{% endif %}
     {% if case.basis %}<p class="small muted">依據：{{ case.basis }}</p>{% endif %}
-    {% if case.status == "closed" and case.close_reason == "improved" and case.case_type != "inquiry" %}
-    <p class="notice">已確認改善只代表這一筆缺口的資料與改善結果經過核對，不代表學生符合全部畢業資格。</p>
+    {% if case.status == "closed" and case.case_type != "inquiry" %}
+    <p class="notice">結案只代表這一筆缺口不再追蹤，不代表學生符合全部畢業資格；正式畢業資格審查由教務處負責。</p>
     {% endif %}
     {% if remedy %}<h3>補救方式</h3><p>{{ remedy }}</p>{% endif %}
   </section>
@@ -47,7 +47,7 @@
     <h2>可執行的動作</h2>
     <form class="form-stack" method="post" action="{{ url_for('graduation.case_action', case_id=case.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label class="field">說明或原因（留言、退回、查無缺口結案必填）
+      <label class="field">說明或原因（留言、結案必填，例如「教務處已確認補救」）
         <textarea name="note" rows="3" maxlength="1000"></textarea>
       </label>
       <div>

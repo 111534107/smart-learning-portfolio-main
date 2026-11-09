@@ -175,7 +175,7 @@ def evaluate(student, curriculum=None):
     else:
         overall = "short"
     return {"status": overall, "certificates": certificates, "credits": credits,
-            "note": "僅供提醒，正式畢業資格以學校學生畢業門檻審核委員會的審核結果為準。"}
+            "note": "僅供提醒，本系統只幫你先對照。正式畢業資格審查由教務處負責（專四下、專五上教務處會請學生填寫自評表），以學校審核結果為準。"}
 
 
 # ---- 判斷結果：階段、資料是否足夠、規則（spec 4.2、5.2）----
@@ -363,4 +363,4 @@ RESULT_LABELS = {
     "insufficient_data": ("資料不足", "tag--warn"), "transfer_pending": ("抵免待核對", "tag--warn"),
     "rule_unverified": ("待人工確認", "tag--warn"), "progress": ("修課中", "tag--warn"),
 }
-DISCLAIMER = "僅供提醒，正式畢業資格以學校學生畢業門檻審核委員會的審核結果為準。"
+DISCLAIMER = "僅供提醒，本系統只幫你先對照。正式畢業資格審查由教務處負責（專四下、專五上教務處會請學生填寫自評表），以學校審核結果為準。"

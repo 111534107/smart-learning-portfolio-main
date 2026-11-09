@@ -70,7 +70,7 @@
     {% for entry in grad_cases %}
     {% set case = entry.case %}
     <article class="snapshot-box mt-1">
-      <p><a href="{{ url_for('graduation.case_detail', case_id=case.id) }}"><b>{{ case.number }}</b></a>　{{ grad_item_labels.get(case.item, "一般詢問") }}　<span class="tag">{{ {"pending": "待處理", "in_progress": "處理中", "awaiting_verification": "待科辦核對", "closed": "已結案"}[case.status] }}</span>{% if case.improved_pending %}　資料已改善，待科辦核對{% elif case.current_amount is not none %}　還差 {{ case.current_amount }} {{ case.unit }}{% endif %}</p>
+      <p><a href="{{ url_for('graduation.case_detail', case_id=case.id) }}"><b>{{ case.number }}</b></a>　{{ grad_item_labels.get(case.item, "一般詢問") }}　<span class="tag">{{ {"pending": "待處理", "in_progress": "處理中", "awaiting_verification": "待確認（舊案件）", "closed": "已結案"}[case.status] }}</span>{% if case.improved_pending %}　資料已改善，下次重新對照時會自動結案{% elif case.current_amount is not none %}　還差 {{ case.current_amount }} {{ case.unit }}{% endif %}</p>
       <ul class="small">{% for event in entry.events %}<li>{{ event.created_at|taipei_time("%Y-%m-%d %H:%M") }}　{{ grad_event_labels.get(event.event_type, event.event_type) }}{% if event.note %}：{{ event.note }}{% endif %}</li>{% endfor %}</ul>
       {% if case.is_open %}
       <form class="form-stack" method="post" action="{{ url_for('graduation.case_action', case_id=case.id) }}">

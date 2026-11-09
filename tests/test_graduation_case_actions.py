@@ -74,47 +74,65 @@ def test_teacher_cannot_act_on_other_class(app):
     assert case.number in str(exc.value)
 
 
-def test_student_cannot_verify(app):
-    student, _, _, _, _ = make_world()
-    case = make_case(student, "awaiting_verification")
-    with pytest.raises(actions.CaseActionError) as exc:
-        actions.perform(case, student, "verify")
-    assert exc.value.status_code == 403
-    assert case.status == "awaiting_verification"
-
-
-def test_reject_requires_reason_and_returns_in_progress(app):
-    student, teacher, _, staff, _ = make_world()
-    case = make_case(student, "awaiting_verification")
-    with pytest.raises(actions.CaseActionError) as exc:
-        actions.perform(case, staff, "reject", "  ")
-    assert exc.value.status_code == 400
-    assert case.status == "awaiting_verification"
-    actions.perform(case, staff, "reject", "證照影本不清楚")
-    assert case.status == "in_progress"
-    assert notified(student, case) == 1 and notified(teacher, case) == 1
-
-
-def test_verify_closes_improved_and_clears_open_key(app):
-    student, teacher, _, staff, _ = make_world()
-    case = make_case(student, "awaiting_verification")
-    actions.perform(case, staff, "verify")
-    assert case.status == "closed" and case.close_reason == "improved"
-    assert case.open_key is None and case.closed_at is not None and case.closed_by_id == staff.id
-    assert notified(student, case) == 1 and notified(teacher, case) == 1
-
-
-def test_close_no_gap_records_distinct_reason(app):
+def test_staff_cannot_see_or_act_on_cases(app):
+    # 2026-11-09：畢業資格審查由教務處負責，科辦不參與畢業缺口案件
     student, _, _, staff, _ = make_world()
     case = make_case(student)
+    assert actions.can_view(case, staff) is False
+    assert actions.available_actions(case, staff) == []
+    for action in ("note", "start", "close"):
+        with pytest.raises(actions.CaseActionError) as exc:
+            actions.perform(case, staff, action, "x")
+        assert exc.value.status_code == 403
+
+
+def test_old_staff_actions_are_gone(app):
+    student, teacher, _, _, _ = make_world()
+    case = make_case(student, "awaiting_verification")
+    for action in ("submit", "verify", "reject", "close_no_gap"):
+        with pytest.raises(actions.CaseActionError) as exc:
+            actions.perform(case, teacher, action, "x")
+        assert exc.value.status_code == 400
+    assert case.status == "awaiting_verification"
+
+
+def test_teacher_close_requires_reason_and_notifies_student(app):
+    student, teacher, _, _, _ = make_world()
+    case = make_case(student)
     with pytest.raises(actions.CaseActionError) as exc:
-        actions.perform(case, staff, "close_no_gap", "")
-    assert exc.value.status_code == 400
-    actions.perform(case, staff, "close_no_gap", "經核對並無缺口")
-    assert case.status == "closed" and case.close_reason == "no_gap" and case.open_key is None
+        actions.perform(case, teacher, "close", "  ")
+    assert exc.value.status_code == 400 and case.status == "pending"
+    actions.perform(case, teacher, "close", "教務處已確認補救")
+    assert case.status == "closed" and case.close_reason == "teacher"
+    assert case.open_key is None and case.closed_at is not None and case.closed_by_id == teacher.id
+    assert notified(student, case) == 1 and notified(teacher, case) == 0
     with pytest.raises(actions.CaseActionError) as exc:
         actions.perform(case, student, "note", "還有問題")
     assert exc.value.status_code == 400
+
+
+def test_student_cannot_close(app):
+    student, _, _, _, _ = make_world()
+    case = make_case(student)
+    with pytest.raises(actions.CaseActionError) as exc:
+        actions.perform(case, student, "close", "我覺得沒問題")
+    assert exc.value.status_code == 403 and case.status == "pending"
+
+
+def test_teacher_can_close_old_awaiting_case(app):
+    student, teacher, _, _, _ = make_world()
+    case = make_case(student, "awaiting_verification")
+    assert "close" in actions.available_actions(case, teacher)
+    actions.perform(case, teacher, "close", "教務處自評表已核對")
+    assert case.status == "closed"
+
+
+def test_teacher_closes_inquiry_without_reason(app):
+    student, teacher, _, _, _ = make_world()
+    case = actions.create_inquiry(student, "請問證照可以抵免嗎")
+    actions.perform(case, teacher, "close")
+    assert case.status == "closed" and case.close_reason == "answered"
+    assert notified(student, case) == 1
 
 
 def test_inquiry_from_grade2_not_in_risk(app):
@@ -129,12 +147,9 @@ def test_inquiry_from_grade2_not_in_risk(app):
 
 def test_available_actions_by_role(app):
     student, teacher, other, staff, admin = make_world()
-    case = make_case(student, "awaiting_verification")
-    assert {"verify", "reject", "close_no_gap"} <= set(actions.available_actions(case, staff))
-    assert not {"verify", "reject", "close_no_gap"} & set(actions.available_actions(case, student))
-    assert "note" in actions.available_actions(case, teacher)
+    case = make_case(student)
+    assert actions.available_actions(case, student) == ["note", "start"]
+    assert actions.available_actions(case, teacher) == ["note", "start", "close"]
     assert actions.available_actions(case, other) == []
+    assert actions.available_actions(case, staff) == [] and actions.can_view(case, staff) is False
     assert actions.available_actions(case, admin) == [] and actions.can_view(case, admin) is False
-    pending = make_case(student, item="credits")
-    assert "start" in actions.available_actions(pending, student)
-    assert "submit" not in actions.available_actions(pending, student)
