@@ -1,5 +1,37 @@
 # 開發日誌
 
+## 2026-11-09 電子獎狀加上校徽與外框；安裝 pyotp；修業科目表代理設計
+
+日期：2026-11-09（台灣時間）
+
+開發者：Claude（工作資料夾 `D:\democase\ai-wt-story`，分支 `feat/google-docs-autobiography`）
+
+目標：照使用者提供的學校獎狀與數位證明書照片，先統一外觀。使用者說獎狀種類很多，先放校徽和外框。
+
+修改檔案：
+- `app/templates/certificate.html`：
+  - 上方加校徽。
+  - 學校名稱改成全銜「康寧學校財團法人康寧大學」。
+  - 外框改成綠色雙線，四角加方塊，比照學校數位證明系統。
+  - 內文、發證單位、驗證碼位置不變。
+- 新增 `app/static/img/ukn-emblem.png`：取自學校官網標誌 `https://www.ukn.edu.tw/var/file/0/1000/img/1417/mlogo.png` 的圖形部分，放大三倍。使用者提供的照片裡有真實姓名與學號，沒有存進專案。
+- `tests/test_award_certificates.py`：新增 1 項，檢查校徽、全銜、外框四角，以及校徽檔能取得。
+- `requirements.txt`：加 `pyotp==2.10.0`，給之後的 Authenticator 雙重驗證用。
+  - 安裝位置：`D:\democase\ai\.venv`，來源 PyPI。
+  - 移除方式：`D:\democase\ai\.venv\Scripts\python.exe -m pip uninstall pyotp`，並刪掉 `requirements.txt` 那一行。
+  - 目前還沒有程式使用它。
+
+驗證結果：
+- 電子獎狀相關測試 35 項通過（`logs/test-runs/emblem-green`）。
+- 本機展示站：科辦核准一張後，打開獎狀頁，看得到校徽、全銜與綠色雙線外框。
+
+其他：
+- 修業科目表代理：已看過資管科網頁上的 111、112、114 年度 PDF。都是電子檔，可以直接取出文字，不用 OCR。解析與檢查方式寫在 `docs/05_交接與專案管理/任務清單_11-09使用者決定.md`，還沒寫程式。
+- 任務清單同步更新：
+  - 個資遮罩：不另外做。
+  - 年級總覽：改給科辦與管理員看。
+  - 逐字稿的「香蕉烘焙」更正為修業科目表。
+
 ## 2026-11-09 使用者決定整理成任務清單；乾淨工作資料夾完整測試
 
 日期：2026-11-09（台灣時間）

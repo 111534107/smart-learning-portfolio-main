@@ -7,15 +7,20 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M2 8h11l3 3h14v17H2z' fill='%232448c9'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700&family=Noto+Sans+TC:wght@400;500&display=swap">
   <style>
-    /* 獎狀外框：固定版面，只有內文會變。印成 A4 直式。 */
-    :root { --frame: #3f6b4f; --ink: #1c2230; --muted: #5d636d; }
+    /* 獎狀外框：固定版面，只有內文會變。印成 A4 直式。
+       11-09 比照學校數位證明系統：上方校徽、學校全銜、綠色雙線外框與四角方塊（獎狀種類多，先統一外框與校徽）。 */
+    :root { --frame: #2f7d4a; --ink: #1c2230; --muted: #5d636d; }
     * { box-sizing: border-box; }
     body { margin: 0; background: #e9e6df; color: var(--ink); font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif; }
     .toolbar { display: flex; gap: .6rem; justify-content: center; align-items: center; padding: 1rem; flex-wrap: wrap; }
     .toolbar button, .toolbar a { font: inherit; padding: .5rem 1rem; border: 1px solid var(--ink); background: #fff; color: var(--ink); border-radius: 6px; cursor: pointer; text-decoration: none; }
     .toolbar .status { color: #b7791f; font-weight: 600; }
     .sheet { width: min(210mm, calc(100% - 2rem)); aspect-ratio: 210 / 297; margin: 0 auto 2rem; background: #fff; padding: 8mm; box-shadow: 0 10px 30px -15px rgb(0 0 0 / 40%); }
-    .frame { height: 100%; border: 3px solid var(--frame); outline: 1px solid var(--frame); outline-offset: -9px; padding: 14% 12% 8%; display: flex; flex-direction: column; text-align: center; }
+    .frame { position: relative; height: 100%; border: 7px solid var(--frame); box-shadow: inset 0 0 0 3px #fff, inset 0 0 0 5px var(--frame); padding: 6% 12% 8%; display: flex; flex-direction: column; text-align: center; }
+    .frame-corner { position: absolute; width: 22px; height: 22px; background: var(--frame); box-shadow: inset 0 0 0 4px #fff, inset 0 0 0 7px var(--frame); }
+    .frame-corner--tl { top: -14px; left: -14px; } .frame-corner--tr { top: -14px; right: -14px; }
+    .frame-corner--bl { bottom: -14px; left: -14px; } .frame-corner--br { bottom: -14px; right: -14px; }
+    .emblem { width: clamp(64px, 18%, 120px); height: auto; margin: 0 auto .6em; display: block; }
     .school { font-family: "Noto Serif TC", serif; font-size: clamp(1.1rem, 3.4vw, 1.75rem); letter-spacing: .1em; margin: 0; }
     .title { font-family: "Noto Serif TC", serif; font-size: clamp(1.3rem, 4.2vw, 2.2rem); letter-spacing: .5em; margin: 1.2em 0 1.4em; padding-left: .5em; }
     .body { text-align: left; font-size: clamp(.85rem, 2.4vw, 1.25rem); line-height: 2; white-space: pre-wrap; flex: 1; margin: 0; }
@@ -44,7 +49,10 @@
   </div>
   <article class="sheet" aria-label="{{ cert.title }}">
     <div class="frame">
-      <p class="school">康寧大學　資訊管理科</p>
+      <span class="frame-corner frame-corner--tl" aria-hidden="true"></span><span class="frame-corner frame-corner--tr" aria-hidden="true"></span>
+      <span class="frame-corner frame-corner--bl" aria-hidden="true"></span><span class="frame-corner frame-corner--br" aria-hidden="true"></span>
+      <img class="emblem" src="{{ url_for('static', filename='img/ukn-emblem.png') }}" alt="康寧大學校徽">
+      <p class="school">康寧學校財團法人康寧大學</p>
       <h1 class="title">{{ cert.title }}</h1>
       <p class="body">{{ cert.body }}</p>
       <p class="issuer">{{ cert.issuer }}</p>

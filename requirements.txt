@@ -13,3 +13,4 @@ onnxruntime==1.31.0
 pytesseract==0.3.13
 opencc-python-reimplemented==0.1.7
 pypdfium2==4.30.0
+pyotp==2.10.0
