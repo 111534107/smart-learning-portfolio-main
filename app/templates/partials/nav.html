@@ -76,10 +76,8 @@
     <a class="brand" href="{{ url_for('main.index') }}">
       <span class="brand__mark" aria-hidden="true">IM</span>
       <span>資管科學習歷程</span>
-      <span class="brand__issue">康寧大學 · 資訊管理科五專</span>
     </a>
     <nav class="masthead__links" aria-label="主要導覽">
-        <a href="{{ url_for('main.index') }}#route">我的五年</a>
         {{ font_switch() }}
         {% if active != "login" %}<a class="button button--small" href="{{ url_for('main.login') }}">登入</a>{% endif %}
     </nav>

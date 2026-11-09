@@ -104,3 +104,12 @@ def test_student_portfolio_page_stays_in_the_shared_student_experience():
     assert response.status_code == 200
     assert b'data-page="student-portfolio"' in response.data
     assert b"/static/css/design-system.css" in response.data
+
+
+def test_public_masthead_drops_route_link_and_school_subtitle():
+    """2026-11-09 使用者試用後要求：訪客頂端列拿掉「我的五年」和「康寧大學 · 資訊管理科五專」。"""
+    html = ui_app().test_client().get("/").get_data(as_text=True)
+    masthead = html.split('<header class="masthead">', 1)[1].split("</header>", 1)[0]
+    assert "我的五年" not in masthead and "#route" not in masthead
+    assert "brand__issue" not in masthead and "資訊管理科五專" not in masthead
+    assert "資管科學習歷程" in masthead and 'href="/login"' in masthead
