@@ -261,3 +261,26 @@ def test_google_login_control_visible_and_explains_unconfigured_state():
     assert '使用學校 Google Workspace 帳號登入' in page
     assert 'Google 登入尚未設定' in page
     assert 'disabled' in page and 'href="/auth/google' not in page
+
+
+def test_student_button_asks_google_for_student_domain_so_only_student_no_is_typed():
+    """2026-11-09 使用者：學校其他系統的 Google 登入只要打帳號，網域會直接顯示在框後面（Google 的 hd 參數）。"""
+    app, _ = school_app()
+    client = app.test_client()
+    params = parse_qs(urlparse(client.get("/auth/google").location).query)
+    assert params["hd"] == ["stu.ukn.edu.tw"]
+    staff = parse_qs(urlparse(client.get("/auth/google?who=staff").location).query)
+    assert staff["hd"] == ["ukn.edu.tw"]
+    page = client.get("/login").get_data(as_text=True)
+    assert 'href="/auth/google?who=staff"' in page and "只要輸入學號" in page
+
+
+def test_hd_is_only_a_hint_other_domains_are_still_rejected():
+    claims = {"sub": "outsider", "email": "someone@gmail.com", "email_verified": True}
+    app, _ = school_app(FakeGoogleLogin(claims))
+    client = app.test_client()
+    state = start(client)
+    response = client.get(f"/auth/google/callback?state={state}&code=c")
+    assert response.status_code in (400, 403)
+    with client.session_transaction() as current:
+        assert current.get("user_id") is None

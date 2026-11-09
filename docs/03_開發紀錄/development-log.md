@@ -1,5 +1,26 @@
 # 開發日誌
 
+## 2026-11-09 學校 Google 登入只要輸入學號（Google 的網域提示）
+
+日期：2026-11-09（台灣時間）
+
+開發者：Claude（工作資料夾 `D:\democase\ai-wt-story`，分支 `feat/google-docs-autobiography`）
+
+問題：
+- 使用者試用展示站：Google 一鍵登入按不了；Google 頁面還要自己打完整的 `@stu.ukn.edu.tw`。使用者附上學校其他系統的畫面，網域直接顯示在輸入框後面。
+- 按不了的原因：展示站是用工作區 `D:\democase\.claude\launch.json` 裡簡化的 `local-demo` 開的，它直接呼叫 `create_local_demo_app()`，跳過 `scripts/run_local_demo.py` 的 Google 設定（也跳過真實 OCR）；`.env` 的登入回傳網址還是舊的 5021 埠。
+
+做法：
+- `app/services/school_google_login.py`：`authorization_url` 多一個 `domain`，會放進 Google 的 `hd` 參數。
+- `app/routes/main.py`：`/auth/google` 預設帶學生網域 `stu.ukn.edu.tw`；`/auth/google?who=staff` 帶管理員設定的教職員網域（預設 `ukn.edu.tw`）。
+- `app/templates/login.html`：說明改成「學生只要輸入學號」，並加「教職員 Google 登入」連結。這個檔案另有其他對話未提交的修改（頂端列 `active="login"`），只提交本次這一行。
+- `hd` 只是給 Google 的提示，網域照樣由 Google 回傳的身分檢查；新增測試確認其他網域仍然被拒絕。
+- 工作區 `D:\democase\.claude\launch.json` 新增 `local-demo-full`：走 `run_local_demo.py`（Google、真實 OCR 都開），登入回傳網址指到 `http://127.0.0.1:5013/auth/google/callback`。這個檔案不在專案版本控制內。
+
+驗證：
+- 學校 Google 登入、Google Workspace 登入、雙重驗證、帳密登入測試：54 項通過（含新增 2 項）。
+- 展示站實測：按學生的 Google 按鈕後，Google 直接轉到學校的 stu.UKN 登入頁（`sso2.ukn.edu.tw`），帳號欄後面已顯示 `@stu.ukn.edu.tw`，只要打學號。沒有實際輸入帳密。
+
 ## 2026-11-09 首頁第六幕手機跑版修正
 
 日期：2026-11-09（台灣時間）

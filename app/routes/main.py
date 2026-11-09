@@ -114,7 +114,10 @@ def google_login():
     session.clear()
     session["google_login_state"] = g_login.new_state()
     session["google_login_next"] = safe_next(request.args.get("next"))
-    return redirect(g_login.authorization_url(current_app.config, session["google_login_state"]))
+    # 學生預設帶 stu.ukn.edu.tw；老師與職員從「教職員登入」進來帶管理員設定的教職員網域
+    from app.services import google_workspace
+    domain = google_workspace.settings()["staff_domain"] if request.args.get("who") == "staff" else g_login.DOMAIN
+    return redirect(g_login.authorization_url(current_app.config, session["google_login_state"], domain))
 
 
 @main_bp.get("/auth/google/callback")

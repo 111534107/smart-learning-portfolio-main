@@ -25,15 +25,20 @@ def new_state():
     return secrets.token_urlsafe(32)
 
 
-def authorization_url(config, state):
-    return AUTH_URL + "?" + urlencode({
+def authorization_url(config, state, domain=None):
+    """domain 會放進 Google 的 hd 參數：登入框後面直接顯示「@網域」，只要輸入帳號（學號），
+    也只列出這個網域的帳號。hd 只是給 Google 的提示，網域照樣由回傳的身分驗證。"""
+    params = {
         "client_id": config["GOOGLE_OAUTH_CLIENT_ID"],
         "redirect_uri": config["GOOGLE_LOGIN_REDIRECT_URI"],
         "response_type": "code",
         "scope": "openid email profile",
         "state": state,
         "prompt": "select_account",
-    })
+    }
+    if domain:
+        params["hd"] = domain
+    return AUTH_URL + "?" + urlencode(params)
 
 
 class HttpGoogleLoginClient:
