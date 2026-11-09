@@ -1229,9 +1229,9 @@ body[data-page="student-welcome"] .assistant { display: none; }
 .motion-ready [data-page="public-home"] [data-motion="bundle"] { transform: none; }
 
 @media (max-width: 960px) {
-  [data-page="public-home"] .cover.story-scene--scatter,
-  [data-page="public-home"] .story-scene__inner--bundle,
   [data-page="public-home"] .cover.story-scene--scatter { min-height: 580px; }
+  /* 第六幕在窄螢幕改成一欄：原本右欄最少 360px，手機上左欄被擠成一字寬、標題變成直排長條 */
+  [data-page="public-home"] .story-scene__inner--bundle { min-height: auto; grid-template-columns: minmax(0, 1fr); }
   [data-page="public-home"] .scatter { min-height: 480px; order: 2; }
   [data-page="public-home"] .route__stops { min-height: auto; grid-template-columns: repeat(5, minmax(140px, 1fr)); overflow-x: auto; padding: 2rem 1rem 3rem; }
   [data-page="public-home"] .route__stops { border-left: 0; }
