@@ -12,6 +12,8 @@
 {% block content %}
 {{ page_band("確認上傳內容", [(page_label, url_for('student.learning_profile') if document.document_type == "transcript" else url_for('student.learning_profile_credentials'))], note=document.display_name) }}
 <div class="page page--banded ocr-review">
+  {% if photo_check %}<p class="notice notice--warn mb-1" role="status" data-photo-check>{{ photo_check.message }}
+    <a href="{{ url_for('student.learning_profile_upload_page', type=document.document_type) }}">重新上傳</a></p>{% endif %}
   {% if document.extraction and document.extraction.provider == "demo" %}<p class="notice mb-1">本機模擬 OCR：辨識結果是合成資料，請修正後再確認；這不代表真實 OCR 已完成。</p>{% endif %}
 
   {# 左圖右表：電腦版原圖在左（跟著捲動）、確認表格在右；手機版改為單欄，原圖預設收合 #}

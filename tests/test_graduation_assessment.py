@@ -235,3 +235,30 @@ def test_check_today_uses_setting_override(app):
     db.session.add(SystemSetting(key=svc.TODAY_SETTING_KEY, value="2027-03-01"))
     db.session.flush()
     assert svc.check_today() == date(2027, 3, 1)
+
+
+def test_course_missing_from_every_curriculum_asks_advisor_and_staff(app):
+    """11-09 使用者決定：任何一年的科目表都沒有的課，提醒「請詢問班導與科辦」，不推算替代課程。"""
+    student = make_student(111)
+    today = date(2027, 3, 1)
+    fill_ended_terms(student, 111, today)
+    add_course(student, "火星探索實務", 3, school_year=111, semester="上")
+    add_course(student, "UI/UX設計基礎與應用", 3, school_year=111, semester="上")  # 只有 113 學年度入學的科目表有
+    detail = svc.assess(student, today=today)["items"]["required_credits"]["detail"]
+    assert "這門課在系統中找不到對應科目，請詢問班導與科辦：火星探索實務" in detail
+    assert "其他入學年度的修業科目表，請科辦確認：UI/UX設計基礎與應用" in detail
+    assert "替代" not in detail
+
+
+def test_unknown_course_is_recorded_once(app):
+    from app.models import AuditLog
+    from app.services import graduation_case_service
+    student = make_student(111)
+    today = date(2027, 3, 1)
+    fill_ended_terms(student, 111, today)
+    add_course(student, "火星探索實務", 3, school_year=111, semester="上")
+    graduation_case_service.sync_student(student, today=today)
+    graduation_case_service.sync_student(student, today=today)  # 同一批課名不重複記
+    rows = AuditLog.query.filter_by(action="graduation.course_unknown").all()
+    assert len(rows) == 1 and rows[0].target_id == student.id
+    assert rows[0].detail_json == {"courses": ["火星探索實務"]}

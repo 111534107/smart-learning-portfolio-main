@@ -73,6 +73,8 @@ def create_app(config_overrides=None):
     app.register_blueprint(forms_bp)
     from app.routes.two_factor import two_factor_bp
     app.register_blueprint(two_factor_bp)
+    from app.routes.account_password import account_password_bp
+    app.register_blueprint(account_password_bp)
 
     @app.cli.command("reset-2fa")
     @click.argument("username")

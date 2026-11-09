@@ -140,6 +140,7 @@ def credit_status(student, curriculum=None):
     courses, duplicates = _confirmed_courses(student)
     required = elective = 0
     unmatched = []
+    unknown = []  # 連其他入學年度的科目表都沒有同名科目（11-09 使用者決定：只提醒，不推算替代課程）
     for course in courses:
         if course.acquisition_status != "passed":
             continue
@@ -147,6 +148,9 @@ def credit_status(student, curriculum=None):
         credits = course.credits or 0
         if entry is None:
             unmatched.append(course.course_name)
+            key = normalize_course_name(course.course_name)
+            if not any(key in other for other_year, other in curriculum.items() if other_year != year and other):
+                unknown.append(course.course_name)
         elif entry["category"] in REQUIRED_CATEGORIES:
             required += credits
         elif entry["category"] in ELECTIVE_CATEGORIES:
@@ -167,7 +171,23 @@ def credit_status(student, curriculum=None):
     return {"status": status, "admission_year": year, "source": rule["source"],
             "earned": earned, "needed": {"required": rule["required"], "elective": rule["elective"],
                                          "total": rule["total"]},
-            "gaps": gaps, "unmatched": unmatched, "duplicates": duplicates, "reason": reason}
+            "gaps": gaps, "unmatched": unmatched, "unknown": unknown, "duplicates": duplicates, "reason": reason}
+
+
+UNKNOWN_COURSE_TEXT = "這門課在系統中找不到對應科目，請詢問班導與科辦"
+
+
+def unmatched_detail(credits):
+    """對不到科目表的課怎麼說：任何一年的科目表都沒有的，請學生詢問班導與科辦；
+    只有其他入學年度才有的，請科辦確認。系統不自動找替代課程。"""
+    unknown = credits.get("unknown") or []
+    others = [name for name in credits["unmatched"] if name not in unknown]
+    parts = []
+    if unknown:
+        parts.append(f"{UNKNOWN_COURSE_TEXT}：{'、'.join(unknown)}。")
+    if others:
+        parts.append(f"這些課只出現在其他入學年度的修業科目表，請科辦確認：{'、'.join(others)}。")
+    return "學分無法判斷。" + "".join(parts)
 
 
 def evaluate(student, curriculum=None):
@@ -288,9 +308,8 @@ def _credit_items(student, stage, curriculum):
                 for name in _CREDIT_ITEM_KEYS}
     if credits["unmatched"]:
         # 對不到科目表的課沒有算進學分，硬判會變成假缺口：三項都改為待人工確認
-        names = "、".join(credits["unmatched"])
-        return {name: _item("rule_unverified", basis=basis,
-                            detail=f"有課程對不到修業科目表，學分無法判斷，請科辦確認：{names}。")
+        detail = unmatched_detail(credits)
+        return {name: dict(_item("rule_unverified", basis=basis, detail=detail), unknown_courses=credits["unknown"])
                 for name in _CREDIT_ITEM_KEYS}
     pending = TransferCreditRecord.query.filter(TransferCreditRecord.student_id == student.id,
                                                 TransferCreditRecord.status != "completed").first()

@@ -26,6 +26,7 @@ from app.models import (
     User,
 )
 from app.services import admission_agent_service as agent
+from app.services.staff_accounts import STAFF_TITLES
 from app.services.admission_service import import_seed_programs, published_programs
 from app.services.admission_eligibility_service import validate_eligibility_condition
 from app.services.gemini_client import ai_ready
@@ -180,7 +181,49 @@ def accounts():
         user=get_current_user(),
         accounts=User.query.order_by(User.role.asc(), User.username.asc()).all(),
         admission_import=session.pop("admission_import", None),
+        staff_result=session.pop("staff_account_result", None),
+        staff_titles=STAFF_TITLES,
+        staff_domain=_staff_domain(),
     )
+
+
+def _staff_domain():
+    from app.services import google_workspace
+    return google_workspace.settings()["staff_domain"]
+
+
+@admin_bp.post("/admin/accounts/staff")
+@role_required("admin")
+def create_staff_account():
+    """新增老師、科辦、管理員帳號（不限人數）；科辦要選職稱。"""
+    from app.services import staff_accounts
+    try:
+        account = staff_accounts.create(get_current_user(), request.form, _staff_domain())
+    except ValueError as error:
+        db.session.rollback()
+        session["staff_account_result"] = {"error": str(error)}
+        return redirect(url_for("admin.accounts") + "#staff-create")
+    db.session.commit()
+    title = f"（{account.job_title}）" if account.job_title else ""
+    session["staff_account_result"] = {"created": f"已建立 {account.display_name}{title}，帳號 {account.username}。"}
+    return redirect(url_for("admin.accounts") + "#staff-create")
+
+
+@admin_bp.post("/admin/accounts/<int:user_id>/job-title")
+@role_required("admin")
+def set_job_title(user_id):
+    from app.services import staff_accounts
+    account = db.session.get(User, user_id)
+    if not account:
+        abort(404)
+    try:
+        staff_accounts.set_title(get_current_user(), account, request.form.get("job_title"),
+                                 request.form.get("job_title_other"))
+    except ValueError as error:
+        db.session.rollback()
+        abort(400, description=str(error))
+    db.session.commit()
+    return redirect(url_for("admin.accounts"))
 
 
 @admin_bp.post("/admin/accounts/admission-years")

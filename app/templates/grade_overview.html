@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "grade-overview" %}
+
+{% block title %}年級總覽｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "年級總覽") }}{% endblock %}
+
+{% block content %}
+<section class="work-shell">
+  <header class="work-heading">
+    <div><h1>年級總覽</h1>
+      <p>以年級為單位，看專一到專五的成績、證照、獎項與上傳檔案。只算學生已確認的資料；年級依入學學年度換算。</p></div>
+  </header>
+  <section class="work-panel">
+    <p class="small muted mb-1">在學學生 {{ overview.total }} 人{% if overview.unknown_grade %}，其中 {{ overview.unknown_grade }} 人還沒有入學學年度，無法分年級（請管理員在「帳號管理」匯入）{% endif %}。</p>
+    <div style="overflow-x: auto;">
+      <table class="data-table" data-grade-overview>
+        <thead><tr><th scope="col">年級</th><th scope="col">人數</th><th scope="col">平均成績</th><th scope="col">每人平均及格學分</th><th scope="col">證照（每人）</th><th scope="col">獎項</th><th scope="col">其他經歷</th><th scope="col">已確認上傳檔案</th></tr></thead>
+        <tbody>
+          {% for row in overview.rows %}
+          <tr data-grade="{{ row.grade }}">
+            <th scope="row">{{ row.label }}</th>
+            <td>{{ row.students }}</td>
+            <td>{{ row.average_score if row.average_score is not none else "—" }}</td>
+            <td>{{ row.average_credits if row.average_credits is not none else "—" }}</td>
+            <td>{{ row.credentials }}{% if row.credentials_per_student is not none %}（{{ row.credentials_per_student }}）{% endif %}</td>
+            <td>{{ row.awards }}</td>
+            <td>{{ row.experiences }}</td>
+            <td>{{ row.uploads }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="small muted mt-1">平均成績是所有已確認、有分數的課程平均；獎項是學生經歷裡「競賽」類；其他經歷是活動、服務、幹部。</p>
+  </section>
+</section>
+{% endblock %}

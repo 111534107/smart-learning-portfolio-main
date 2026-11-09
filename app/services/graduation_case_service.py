@@ -250,7 +250,21 @@ def sync_student(student, today=None, curriculum=None):
     needed = any(row["result"] == "insufficient_data" for row in credit_rows)
     source = next((row for row in credit_rows if row["result"] == "insufficient_data"), credit_rows[0])
     _sync_data_needed(student, "credits", needed, source, formal, advisors, events)
+    _record_unknown_courses(student, items["required_credits"].get("unknown_courses") or [])
     return events
+
+
+def _record_unknown_courses(student, names):
+    """找不到對應科目的課留一筆操作紀錄（同一批課名只記一次），科辦與管理員在操作紀錄查得到。"""
+    from app.models import AuditLog
+    if not names:
+        return
+    detail = {"courses": sorted(names)}
+    previous = (AuditLog.query.filter_by(action="graduation.course_unknown", target_type="user", target_id=student.id)
+                .order_by(AuditLog.id.desc()).first())
+    if previous is not None and previous.detail_json == detail:
+        return
+    audit_service.record(None, "graduation.course_unknown", "user", student.id, detail)
 
 
 def sync_all(today=None):

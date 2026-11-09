@@ -288,6 +288,19 @@ def learning_profile_generate():
     return redirect(url_for("student.learning_profile"))
 
 
+@student_bp.get("/student/journey.docx")
+@role_required("student")
+def journey_docx():
+    """評審意見 7：把五年資料匯出成可以修改的 Word。"""
+    from app.services import journey_docx as exporter
+    user = get_current_user()
+    audit_service.record(user, "student.journey_docx", "user", user.id, commit=True)
+    return send_file(
+        exporter.build(user), as_attachment=True, download_name=f"我的五年學習歷程-{user.display_name}.docx",
+        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+
+
 @student_bp.get("/student/learning-profile/outputs/<int:output_id>/docx")
 @role_required("student")
 def learning_profile_output_docx(output_id):
@@ -331,11 +344,23 @@ def learning_profile_document_review(document_id):
     review_courses = prepare_course_review_rows(result.get("courses") or [])
     return render_template(
         "learning_profile_review.html", user=user, document=document,
+        photo_check=_photo_check(document),
         next_path=safe_next(request.args.get("next")),
         review_result=review_result,
         review_courses=review_courses,
         review_groups=build_course_review_groups(review_courses),
     )
+
+
+def _photo_check(document):
+    """證照、成績單照片模糊或歪斜時提醒重拍（評審意見 3）；只提醒不擋。讀不到檔案就不提醒。"""
+    from app.services import photo_quality
+    try:
+        file_bytes = storage_service.read_bytes(document.file_path)
+    except Exception:
+        return None
+    result = photo_quality.check(file_bytes, document.display_name)
+    return result if result and result["message"] else None
 
 
 @student_bp.get("/student/learning-profile/documents/<int:document_id>/view")

@@ -1,3 +1,4 @@
+import hmac
 from datetime import datetime, timezone
 from functools import wraps
 
@@ -25,6 +26,16 @@ def get_current_user():
     user_id = session.get("user_id")
     user = db.session.get(User, user_id) if user_id else None
     if not user or not user.is_active:
+        return None
+    # 改密碼後其他裝置登出（app/services/password_policy.py）：指紋對不上就清掉這個 session。
+    # 上線前就登入、還沒有指紋的 session，第一次開頁面時補上。
+    from app.services import password_policy
+    current = password_policy.fingerprint(user)
+    saved = session.get(password_policy.SESSION_KEY)
+    if saved is None:
+        session[password_policy.SESSION_KEY] = current
+    elif not hmac.compare_digest(saved, current):
+        session.clear()
         return None
     return user
 
@@ -84,8 +95,10 @@ def _finish_login(user, next_path=None):
 
 
 def _complete_login(user, next_path=None):
+    from app.services import password_policy
     session.clear()
     session["user_id"] = user.id
+    session[password_policy.SESSION_KEY] = password_policy.fingerprint(user)
     destinations = {
         "student": "main.student_dashboard",
         "teacher": "main.teacher_dashboard",
@@ -360,6 +373,14 @@ def teacher_dashboard():
         category_keys=CATEGORY_KEYS,
         category_labels=CATEGORY_LABELS,
     )
+
+
+@main_bp.get("/grade-overview")
+@role_required("staff", "admin")
+def grade_overview():
+    """年級總覽（評審意見 5b）：科辦與管理員看專一到專五的統計，只算已確認資料。"""
+    from app.services import grade_overview as overview_service
+    return render_template("grade_overview.html", user=get_current_user(), overview=overview_service.build())
 
 
 @main_bp.get("/staff/dashboard")

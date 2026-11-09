@@ -16,6 +16,8 @@ class User(db.Model):
     email = db.Column(db.String(120), nullable=True)
     google_sub = db.Column(db.String(255), unique=True, nullable=True, index=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    # 教職員職稱（11-10）：科辦可以有很多人，用職稱區分主任、副主任、科助、其他行政人員；學生不用
+    job_title = db.Column(db.String(30), nullable=True)
     # 雙重驗證（11-09）：金鑰加密後存放（app/services/two_factor.py），開啟時間、最後用過的時間窗（防止同一組碼重用）
     two_factor_secret = db.Column(db.Text, nullable=True)
     two_factor_enabled_at = db.Column(db.DateTime, nullable=True)
