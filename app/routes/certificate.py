@@ -71,6 +71,47 @@ def staff_list():
     return render_template("staff_certificates.html", user=get_current_user(), pending=pending, done=done)
 
 
+@certificate_bp.get("/staff/certificates/new")
+@certificate_bp.post("/staff/certificates/new")
+@role_required("staff")
+def staff_issue():
+    """科辦直接開立：選學生、類別、事由（TA 填課名），送出就核准，轉到獎狀頁可以列印。"""
+    from app.models import StudentProfile, User
+    from app.services import audit_service
+    user = get_current_user()
+    students = (User.query.join(StudentProfile, StudentProfile.user_id == User.id)
+                .filter(User.role == "student", User.is_active.is_(True))
+                .order_by(StudentProfile.student_no).all())
+    form = request.form if request.method == "POST" else {}
+    this_year = service.roc_year(date.today())
+
+    def render(error=None, status=200):
+        return render_template("staff_certificate_issue.html", user=user, students=students, form=form,
+                               this_year=this_year, error=error), status
+
+    if request.method == "GET":
+        return render()
+    student_no = form.get("student_no", "").strip()
+    profile = StudentProfile.query.filter_by(student_no=student_no).first() if student_no else None
+    if not profile or not profile.user or profile.user.role != "student":
+        return render("找不到這個學號的學生，請從清單選擇。", 400)
+    year = form.get("school_year", "").strip()
+    semester = form.get("semester", "").strip()
+    try:
+        cert = service.staff_issue(
+            user, profile.user, form.get("kind", ""), form.get("event"),
+            int(year) if year.isdigit() else None, int(semester) if semester in ("1", "2") else None,
+            course=form.get("course"), body=form.get("body"))
+    except ValueError as error:
+        db.session.rollback()
+        return render(str(error), 400)
+    _notify_student(cert)
+    audit_service.record(user, "certificate.issue", "award_certificate", cert.id,
+                         f"{profile.student_no} {cert.title}")
+    db.session.commit()
+    return redirect(url_for("certificate.certificate_view", cert_id=cert.id))
+
+
 @certificate_bp.get("/staff/certificates/<int:cert_id>")
 @certificate_bp.post("/staff/certificates/<int:cert_id>")
 @role_required("staff")
@@ -117,7 +158,8 @@ def _render_review(user, cert, error=None):
 def _notify_student(cert):
     """核准或退回時寄站內通知給學生：核准連到獎狀，退回連到修改頁。"""
     if cert.status == "approved":
-        message = f"科辦已核准你的電子獎狀「{cert.title}」，可以查看與列印。"
+        verb = "開立" if cert.portfolio.source == "department_certificate" else "核准"
+        message = f"科辦已{verb}你的電子獎狀「{cert.title}」，可以查看與列印。"
         link = url_for("certificate.certificate_view", cert_id=cert.id)
     else:
         message = f"科辦退回你的電子獎狀申請「{cert.title}」：{cert.return_reason}"

@@ -12,7 +12,7 @@
 <div class="page">
   <h1 class="visually-hidden">電子獎狀</h1>
   <section class="work-panel">
-    <div class="work-panel__head"><div><h2>待核准的電子獎狀</h2><p>學生從學校獎懲記錄匯入的服務、TA 紀錄。點「審核」對照獎懲記錄，修改內文後核准或退回。</p></div></div>
+    <div class="work-panel__head"><div><h2>待核准的電子獎狀</h2><p>學生從學校獎懲記錄匯入的服務、TA 紀錄。點「審核」對照獎懲記錄，修改內文後核准或退回。科上要主動開證明時，按「開立電子獎狀」。</p></div><a class="button" href="{{ url_for('certificate.staff_issue') }}">開立電子獎狀</a></div>
     {% if pending %}
     <div class="table-wrap">
       <table class="data-table">

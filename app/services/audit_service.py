@@ -15,6 +15,7 @@ ACTION_LABELS = {
     "user.login": "教職員登入",
     "student.welcome_done": "看完歡迎頁",
     "portfolio.confirm": "確認經歷",
+    "certificate.issue": "科辦開立電子獎狀",
     "portfolio.delete": "刪除經歷",
     "portfolio.delete_blocked": "刪除經歷被擋下（已送審）",
     "evidence.upload": "上傳佐證",

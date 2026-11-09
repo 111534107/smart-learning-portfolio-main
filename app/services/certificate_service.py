@@ -103,6 +103,47 @@ def default_body(record, kind="service"):
             f"{when}參與「{_content(record.title)}」，{CLOSINGS.get(kind, CLOSINGS['service'])}，特此證明。")
 
 
+ISSUE_KINDS = ("service", "ta")  # 科辦直接開立只開這兩種；科學會證明由學務處辦
+
+
+def staff_issue(staff, student, kind, event, school_year, semester, course=None, body=None):
+    """科辦直接開立（2026-11-09 使用者決定）：不等學生申請，直接核准、給驗證碼。
+    同時在學生的經歷新增一筆來源「科辦電子獎狀」的紀錄，證明有地方掛、學生的五年裡也看得到。
+    school_year 是民國學年度；經歷裡和匯入的資料一樣換成年級。輸入錯誤丟 ValueError（訊息給科辦看）。"""
+    from datetime import date, datetime, timezone
+
+    from app.extensions import db
+    from app.models import Portfolio
+    from app.services.journey_service import grade_for
+
+    if kind not in ISSUE_KINDS:
+        raise ValueError("科辦只開服務證明與 TA 證明；科學會證明請學生到學務處辦理。")
+    event = (event or "").strip()
+    course = (course or "").strip()
+    if kind == "service" and not event:
+        raise ValueError("請填寫服務事由，例如「協助資管科課輔班擔任小老師」。")
+    if kind == "ta" and not course:
+        raise ValueError("TA 證明請填寫協助的課名。")
+    profile = student.student_profile
+    title = f"擔任「{course}」課程TA" if kind == "ta" else event
+    record = Portfolio(
+        student_id=student.id, title=title[:150], category="service", course_name=course or None,
+        school_year=grade_for(school_year, profile.admission_year if profile else None) or school_year,
+        semester=semester, source="department_certificate", status="confirmed",
+    )
+    db.session.add(record)
+    db.session.flush()
+    cert = AwardCertificate(
+        student_id=student.id, portfolio=record, kind=kind, title=KINDS[kind], issuer=DEFAULT_ISSUER,
+        body=(body or "").strip() or default_body(record, kind), status="approved",
+        issued_on=date.today(), verify_code=new_verify_code(),
+        reviewed_by_id=staff.id, reviewed_at=datetime.now(timezone.utc),
+    )
+    db.session.add(cert)
+    db.session.flush()
+    return cert
+
+
 def new_verify_code():
     while True:
         code = "".join(secrets.choice(CODE_ALPHABET) for _ in range(8))
@@ -117,6 +158,11 @@ def mask_name(name):
     if len(name) == 2:
         return name[0] + "○"
     return name[0] + "○" * (len(name) - 2) + name[-1]
+
+
+def roc_year(day):
+    """今天屬於哪個民國學年度（8 月起算新學年）。"""
+    return day.year - 1911 - (0 if day.month >= 8 else 1)
 
 
 def roc_date(day):
