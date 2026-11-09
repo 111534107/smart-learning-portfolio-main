@@ -230,6 +230,19 @@ def toggle_account_active(user_id):
     return redirect(url_for("admin.accounts"))
 
 
+@admin_bp.post("/admin/accounts/<int:user_id>/reset-two-factor")
+@role_required("admin")
+def reset_two_factor(user_id):
+    """使用者手機遺失、又沒有備用碼時，管理員重設；對方下次登入要重新設定。管理員自己的請用 flask reset-2fa。"""
+    from app.services import two_factor
+    target = db.session.get(User, user_id)
+    if target is None:
+        abort(404)
+    two_factor.reset(target, get_current_user())
+    db.session.commit()
+    return redirect(url_for("admin.accounts"))
+
+
 @admin_bp.post("/admin/accounts/<int:user_id>/school-email")
 @role_required("admin")
 def bind_school_email(user_id):

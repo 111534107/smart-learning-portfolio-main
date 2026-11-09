@@ -1,5 +1,68 @@
 # 開發日誌
 
+## 2026-11-09 雙重驗證：Authenticator 六位數驗證碼（所有使用者）
+
+日期：2026-11-09（台灣時間）
+
+開發者：Claude（工作資料夾 `D:\democase\ai-wt-story`，分支 `feat/google-docs-autobiography`）
+
+目標：評審意見第 1 項（帳密安全）。使用者決定：
+- 用 Authenticator 六位數驗證碼，不用電子郵件驗證碼。
+- 安裝 QR code 套件。
+- **所有使用者都要開**，原因是個資法與資安，不確定時一律都加。
+
+做法：
+- 帳號密碼或學校 Google 驗證成功後，先不寫入 `session["user_id"]`，只記「等待第二步」的帳號：
+  - 已開啟的人 → `/login/two-factor` 輸入六位數或備用碼。
+  - 還沒開、但規定要開的人 → `/login/two-factor/setup` 掃 QR code 設定，完成後顯示 10 組備用碼。
+  - 成功後才由 `main._complete_login` 真正登入，所以既有頁面的權限檢查都不用改。
+- 金鑰用 Fernet 加密後存放。加密金鑰取 `.env` 的 `TWO_FACTOR_KEY`，沒設就由 `SECRET_KEY` 推導。
+- 驗證接受前後 30 秒；同一個時間窗的碼不能用第二次。
+- 連續錯 5 次暫停 15 分鐘。
+- 備用碼只存雜湊值，用過作廢。
+- 帳號選單新增「雙重驗證」頁：
+  - 還沒開的人可以在這裡設定。
+  - 已開的人可以重新產生備用碼。
+  - 規定要開時不能自己關。
+- 管理員可在「帳號管理」重設別人的雙重驗證，帳號列表也會顯示每個人有沒有開。管理員自己的用伺服器指令 `flask reset-2fa 帳號` 重設。
+- 開啟、重設、使用備用碼、重產備用碼、驗證錯誤都寫進操作紀錄。
+- `TWO_FACTOR_REQUIRED` 預設開。自動化測試（`TESTING`）與本機展示站（`LOCAL_DEMO_MODE`）在 `create_app` 自動改成不強制：
+  - 原因：展示帳號密碼公開在登入頁，而且既有測試直接用密碼登入。
+  - 功能照樣能從帳號選單開。
+  - 這個設定在 `create_app` 裡處理，沒有動 `app/demo.py`，因為那個檔案有其他對話未提交的修改。
+
+修改檔案：
+- 新增：
+  - `app/services/two_factor.py`、`app/routes/two_factor.py`
+  - 模板 `two_factor_verify.html`、`two_factor_setup.html`、`two_factor_backup_codes.html`、`two_factor_account.html`、`partials/two_factor_setup_steps.html`
+  - 資料庫遷移 `migrations/versions/b20261109d01_add_two_factor.py`（接在 `b20261109c01` 之後）
+  - `tests/test_two_factor.py`（15 項）
+- 修改：
+  - `app/models/user.py`：三個欄位、`UserBackupCode`、`two_factor_enabled`
+  - `app/models/__init__.py`
+  - `app/routes/main.py`：`_finish_login` 分流、`_complete_login`
+  - `app/__init__.py`：註冊頁面、`reset-2fa` 指令、預設不強制的條件
+  - `app/config.py`、`app/routes/admin.py`（重設）、`app/templates/admin_accounts.html`、`app/templates/partials/nav.html`（帳號選單）、`app/services/audit_service.py`
+  - `requirements.txt`：`segno==1.6.6`、`cryptography==50.0.2`
+  - `.env.example`
+  - 教學文件 `docs/03_開發紀錄/01_參考與環境設定/雙重驗證_Authenticator六位數驗證碼_教學.md`：改成已完成，補上實作重點與移除方式。
+- 安裝：`segno` 1.6.6，來源 PyPI，裝在 `D:\democase\ai\.venv`。移除方式寫在教學文件第五節。`cryptography` 原本就因 Google 登入裝了。
+
+驗證結果：
+- `tests/test_two_factor.py` 15 項通過，涵蓋：
+  - 第一次登入強制設定，設定前進不了頁面。
+  - QR code 與手動金鑰、備用碼。
+  - 錯誤次數鎖定、同一組碼不能重用、備用碼只能用一次。
+  - 學校 Google 登入也要第二步。
+  - 管理員重設、非管理員不能重設、伺服器指令。
+  - 不強制模式、預設值、資料庫遷移。
+- 本機展示站：
+  - 導師帳號從帳號選單看得到 QR code 與金鑰。用 `pyotp` 代替手機算出六位數輸入後開啟成功，拿到 10 組備用碼。
+  - 登出再登入：密碼後停在輸入驗證碼頁，首頁回 401。輸入錯的碼顯示「還可以試 4 次」，用備用碼成功進入首頁。
+- 完整測試 **1354 通過、2 略過**（`logs/test-runs/two-factor-full-20261109`，約 11 分鐘）。
+
+未完成：評審意見第 1 項的另一半——密碼規則、改密碼後其他裝置強制登出。
+
 ## 2026-11-09 修業科目表代理：抓 PDF、程式解析、檢查、管理員確認
 
 日期：2026-11-09（台灣時間）

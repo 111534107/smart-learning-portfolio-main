@@ -76,6 +76,14 @@ def login():
 
 
 def _finish_login(user, next_path=None):
+    """帳號密碼或學校 Google 驗證成功後：要雙重驗證的人先到第二步（app/routes/two_factor.py），還不算登入。"""
+    from app.routes import two_factor as second_step
+    if user.role in ("student", "teacher", "staff", "admin") and second_step.needs_second_step(user):
+        return second_step.start(user, next_path)
+    return _complete_login(user, next_path)
+
+
+def _complete_login(user, next_path=None):
     session.clear()
     session["user_id"] = user.id
     destinations = {

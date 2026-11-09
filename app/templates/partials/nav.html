@@ -59,6 +59,7 @@
             {{ font_switch() }}
           </div>
           <button type="button" class="account-menu__item" data-tour-start hidden>看這頁的導覽</button>
+          <a class="account-menu__item" href="{{ url_for('two_factor.account_page') }}"{% if active == "雙重驗證" %} aria-current="page"{% endif %}>雙重驗證</a>
           <a class="account-menu__item" href="{{ url_for('main.help_page') }}"{% if active == "怎麼操作" %} aria-current="page"{% endif %}>怎麼操作</a>
           <form method="post" action="{{ url_for('main.logout') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -147,6 +148,7 @@
           <button type="button" class="account-menu__item" data-tour-start hidden>看這頁的導覽</button>
           {# 表單下載區（UC-28）：學生從帳號選單進入，主選單維持 5 項 #}
           <a class="account-menu__item" href="{{ url_for('forms.form_list') }}"{% if active == "表單下載" %} aria-current="page"{% endif %}>表單下載</a>
+          <a class="account-menu__item" href="{{ url_for('two_factor.account_page') }}"{% if active == "雙重驗證" %} aria-current="page"{% endif %}>雙重驗證</a>
           <a class="account-menu__item" href="{{ url_for('main.help_page') }}"{% if active == "怎麼操作" %} aria-current="page"{% endif %}>怎麼操作</a>
           <form method="post" action="{{ url_for('main.logout') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

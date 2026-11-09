@@ -41,6 +41,11 @@ ACTION_LABELS = {
     "curriculum.check": "檢查修業科目表更新",
     "curriculum.publish": "確認修業科目表",
     "curriculum.reject": "不採用修業科目表",
+    "two_factor.enable": "開啟雙重驗證",
+    "two_factor.reset": "重設雙重驗證",
+    "two_factor.failed": "雙重驗證碼錯誤",
+    "two_factor.backup_code": "使用雙重驗證備用碼",
+    "two_factor.backup_regenerate": "重新產生備用碼",
 }
 
 

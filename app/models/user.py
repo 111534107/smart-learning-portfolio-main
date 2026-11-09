@@ -16,6 +16,10 @@ class User(db.Model):
     email = db.Column(db.String(120), nullable=True)
     google_sub = db.Column(db.String(255), unique=True, nullable=True, index=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    # 雙重驗證（11-09）：金鑰加密後存放（app/services/two_factor.py），開啟時間、最後用過的時間窗（防止同一組碼重用）
+    two_factor_secret = db.Column(db.Text, nullable=True)
+    two_factor_enabled_at = db.Column(db.DateTime, nullable=True)
+    two_factor_last_counter = db.Column(db.Integer, nullable=True)
     created_at = db.Column(
         db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
     )
@@ -40,6 +44,21 @@ class User(db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+    @property
+    def two_factor_enabled(self):
+        return bool(self.two_factor_secret and self.two_factor_enabled_at)
+
+
+class UserBackupCode(db.Model):
+    """雙重驗證備用碼：手機遺失時登入用。只存雜湊值，用過就作廢。"""
+    __tablename__ = "user_backup_codes"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    code_hash = db.Column(db.String(255), nullable=False)
+    used_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
 
 class StudentProfile(db.Model):

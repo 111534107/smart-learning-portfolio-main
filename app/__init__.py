@@ -1,3 +1,4 @@
+import click
 from flask import Flask
 
 from app.config import Config
@@ -11,6 +12,9 @@ def create_app(config_overrides=None):
     if config_overrides:
         app.config.update(config_overrides)
     # 自動化測試沒指定時在請求裡直接辨識，既有測試上傳後就能拿到辨識結果
+    # 雙重驗證：自動化測試與本機展示站（帳號密碼公開在登入頁）預設不強制，仍可自己到帳號選單開啟
+    if (app.config.get("TESTING") or app.config.get("LOCAL_DEMO_MODE")) and "TWO_FACTOR_REQUIRED" not in (config_overrides or {}):
+        app.config["TWO_FACTOR_REQUIRED"] = False
     if app.config.get("TESTING") and "OCR_QUEUE_MODE" not in (config_overrides or {}):
         app.config["OCR_QUEUE_MODE"] = "inline"
     if app.config.get("DOCUMENT_OCR_ENGINE") == "rapidocr" and app.config.get("OCR_ENGINE") is None:
@@ -67,6 +71,22 @@ def create_app(config_overrides=None):
     app.register_blueprint(agent_plan_bp)
     app.register_blueprint(graduation_bp)
     app.register_blueprint(forms_bp)
+    from app.routes.two_factor import two_factor_bp
+    app.register_blueprint(two_factor_bp)
+
+    @app.cli.command("reset-2fa")
+    @click.argument("username")
+    def reset_two_factor_command(username):
+        """手機遺失時重設某個帳號的雙重驗證（只有能登入伺服器的人能用）。"""
+        from app.models import User
+        from app.services import two_factor
+        user = User.query.filter_by(username=username).first()
+        if user is None:
+            print(f"找不到帳號 {username}。")
+            return
+        two_factor.reset(user, None, reason="cli")
+        db.session.commit()
+        print(f"已重設 {username} 的雙重驗證，下次登入要重新設定。")
 
     @app.cli.command("agent-check")
     def agent_check_command():

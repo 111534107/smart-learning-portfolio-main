@@ -22,7 +22,7 @@ from app.models.learning_profile import (
     LearningProfileOutput,
     SourceDocument,
 )
-from app.models.user import StudentProfile, User
+from app.models.user import StudentProfile, User, UserBackupCode
 from app.models.admission import (
     AdmissionEligibilityRule,
     AdmissionProgram,
@@ -109,4 +109,5 @@ __all__ = [
     "FormItemVersion",
     "CurriculumVersion",
     "CurriculumCourse",
+    "UserBackupCode",
 ]

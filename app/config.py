@@ -23,6 +23,11 @@ class Config:
         f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    # 雙重驗證（11-09 使用者決定：所有使用者都要開）。自動化測試與本機展示站預設不強制（見 app/__init__.py）。
+    TWO_FACTOR_REQUIRED = os.getenv("TWO_FACTOR_REQUIRED", "true").strip().lower() not in ("0", "false", "no", "off")
+    TWO_FACTOR_ISSUER = os.getenv("TWO_FACTOR_ISSUER", "資管科學習歷程")
+    # 加密 Authenticator 金鑰用；沒設就由 SECRET_KEY 推導（換 SECRET_KEY 後大家要重設雙重驗證）
+    TWO_FACTOR_KEY = os.getenv("TWO_FACTOR_KEY")
     UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "instance/uploads")
     
     max_mb = int(os.getenv("MAX_CONTENT_LENGTH_MB", "10"))
