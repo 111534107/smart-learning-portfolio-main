@@ -56,6 +56,11 @@ def _drive_disconnected():
     return not (storage_service.configured(app.config) and storage_service.token_holder(app).connected)
 
 
+def _curriculum_pending():
+    from app.services.curriculum_agent_service import pending_count
+    return pending_count()
+
+
 def admin_todos():
     """回傳待辦卡清單；每張卡：key、label（標題）、count、hint（說明）、href（處理頁）。"""
     since = datetime.now(timezone.utc) - timedelta(days=OCR_FAILURE_DAYS)
@@ -77,6 +82,9 @@ def admin_todos():
          "hint": "最近一次抓取失敗，網址可能失效，請更新或改用上傳", "href": url_for("admin.agent_home") + "#public-sources"},
         {"key": "pending-mapping", "label": "資料分類待核對", "count": pending_mapping,
          "hint": "簡章評分項目、報考資格還沒確認對應到哪一類資料", "href": url_for("admin.programs")},
+        {"key": "curriculum", "label": "修業科目表待確認", "count": _curriculum_pending(),
+         "hint": "代理從資管科網頁抓到新版本或檢查不通過，確認後畢業門檻才會使用",
+         "href": url_for("admin.curriculum_home")},
         {"key": "classes-without-advisor", "label": "班級還沒指派導師", "count": len(classes_without_advisor()),
          "hint": "有學生的班級還沒有導師負責", "href": url_for("admin.classes")},
         {"key": "ocr-failures", "label": f"近 {OCR_FAILURE_DAYS} 天 OCR 辨識失敗",

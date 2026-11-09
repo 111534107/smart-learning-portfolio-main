@@ -38,6 +38,9 @@ ACTION_LABELS = {
     "form.republish": "重新上架表單",
     "form_category.create": "新增表單分類",
     "form_category.update": "修改表單分類",
+    "curriculum.check": "檢查修業科目表更新",
+    "curriculum.publish": "確認修業科目表",
+    "curriculum.reject": "不採用修業科目表",
 }
 
 

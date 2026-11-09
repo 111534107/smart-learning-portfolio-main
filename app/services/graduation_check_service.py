@@ -32,8 +32,14 @@ CREDIT_RULES = {
     113: {"total": 220, "required": 181, "elective": 39, "source": "113 學年度入學五專修業科目表"},
 }
 
+def credit_rule(year):
+    """該入學年度的總學分規則：管理員確認過的修業科目表版本優先（11-09 代理），沒有就用上面核對過的常數。"""
+    from app.services.curriculum_agent_service import credit_rule as published_rule
+    return published_rule(year) or CREDIT_RULES.get(year)
+
+
 # 修業科目表的「科目類別」歸為必修或選修。校外實習、微學分歸入選修，這是依科目表排列的判斷，待科辦確認。
-REQUIRED_CATEGORIES = ("校定必修", "院定必修", "一般科目必修", "進階分類通識", "專業必修")
+REQUIRED_CATEGORIES = ("校定必修", "院定必修", "一般科目必修", "進階分類通識", "通識選修", "專業必修")  # 通識選修：110 以前入學才有，計入必修
 ELECTIVE_CATEGORIES = ("專業選修", "校外實習", "微學分")
 
 
@@ -124,7 +130,7 @@ def _confirmed_courses(student):
 def credit_status(student, curriculum=None):
     profile = student.student_profile
     year = profile.admission_year if profile else None
-    rule = CREDIT_RULES.get(year)
+    rule = credit_rule(year)
     curriculum = load_curriculum() if curriculum is None else curriculum
     table = curriculum.get(year)
     if rule is None or table is None:

@@ -52,7 +52,27 @@ def load_curriculum(path=None):
                 continue
             year[key] = {"name": row["科目名稱"], "category": row["科目類別"], "group": row["學群"],
                          "source": row["出處"]}
+    if path is None:
+        _overlay_published(curriculum)
     return curriculum
+
+
+def _overlay_published(curriculum):
+    """管理員確認過的修業科目表版本（11-09 修業科目表代理）取代同年度 CSV；學群沿用 CSV 同名科目的學群。"""
+    from app.services.curriculum_agent_service import published_versions
+    versions = published_versions()
+    if not versions:
+        return
+    groups = {key: entry["group"] for table in curriculum.values() for key, entry in table.items()}
+    for year, version in versions.items():
+        table = {}
+        for course in version.courses:
+            key = normalize_course_name(course.name)
+            if key in table and table[key]["category"] in PROFESSIONAL_CATEGORIES:
+                continue
+            table[key] = {"name": course.name, "category": course.category, "group": groups.get(key, ""),
+                          "source": f"{year} 學年度入學五專修業科目表（管理員確認版）：{version.source_url}"}
+        curriculum[year] = table
 
 
 def load_department_groups(path=None):

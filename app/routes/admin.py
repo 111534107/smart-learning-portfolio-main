@@ -638,6 +638,58 @@ def agent_extract(change_id):
 
 # ---------- 導師班級 ----------
 
+# ---------- 修業科目表代理（11-09）：抓 PDF、程式解析、管理員確認才生效 ----------
+
+@admin_bp.get("/admin/curriculum")
+@role_required("admin")
+def curriculum_home():
+    from app.models import CurriculumVersion
+    from app.services import curriculum_agent_service as curriculum
+    versions = (CurriculumVersion.query
+                .order_by(CurriculumVersion.admission_year.desc(), CurriculumVersion.id.desc()).all())
+    pending = [v for v in versions if v.status in ("candidate", "check_failed")]
+    published = {v.admission_year: v for v in versions if v.status == "published"}
+    return render_template("admin_curriculum.html", user=get_current_user(), pending=pending, published=published,
+                           history=[v for v in versions if v.status in ("superseded", "rejected")][:20],
+                           index_url=curriculum.INDEX_URL, min_year=curriculum.MIN_YEAR,
+                           message=request.args.get("message"), error=request.args.get("error"))
+
+
+@admin_bp.post("/admin/curriculum/check")
+@role_required("admin")
+def curriculum_check():
+    from app.services import curriculum_agent_service as curriculum
+    try:
+        outcome = curriculum.check_updates(get_current_user())
+    except Exception as exc:  # 網站連不上等
+        db.session.rollback()
+        return redirect(url_for("admin.curriculum_home", error=f"抓取失敗：{str(exc)[:120]}"))
+    parts = [f"新的候選版本 {len(outcome['created'])} 份", f"沒有變動 {len(outcome['unchanged'])} 份"]
+    if outcome["failed"]:
+        parts.append(f"檢查不通過 {len(outcome['failed'])} 份")
+    if outcome["errors"]:
+        parts.append(f"下載或讀取失敗 {len(outcome['errors'])} 份")
+    return redirect(url_for("admin.curriculum_home", message="、".join(parts) + "。"))
+
+
+@admin_bp.post("/admin/curriculum/<int:version_id>/<decision>")
+@role_required("admin")
+def curriculum_decide(version_id, decision):
+    from app.models import CurriculumVersion
+    from app.services import curriculum_agent_service as curriculum
+    version = db.session.get(CurriculumVersion, version_id)
+    if version is None or decision not in ("publish", "reject"):
+        abort(404)
+    try:
+        (curriculum.publish if decision == "publish" else curriculum.reject)(version, get_current_user())
+    except curriculum.CurriculumError as exc:
+        db.session.rollback()
+        return redirect(url_for("admin.curriculum_home", error=str(exc)))
+    db.session.commit()
+    done = "已確認，畢業門檻改用這一版" if decision == "publish" else "已設為不採用"
+    return redirect(url_for("admin.curriculum_home", message=f"{version.admission_year} 學年度：{done}。"))
+
+
 @admin_bp.get("/admin/classes")
 @admin_bp.post("/admin/classes")
 @role_required("admin")

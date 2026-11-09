@@ -107,6 +107,7 @@ def test_admin_todo_counts_come_from_existing_data():
         "pending-changes": 1,
         "failed-sources": 1,            # 只看最近一次檢查
         "pending-mapping": 2,           # 評分項目 1＋報考資格 1
+        "curriculum": 0,                # 11-09 修業科目表代理：這份資料沒有候選版本
         "classes-without-advisor": 1,   # 資管五乙
         "ocr-failures": 1,              # 30 天前的不算
     }

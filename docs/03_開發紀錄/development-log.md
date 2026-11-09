@@ -1,5 +1,73 @@
 # 開發日誌
 
+## 2026-11-09 修業科目表代理：抓 PDF、程式解析、檢查、管理員確認
+
+日期：2026-11-09（台灣時間）
+
+開發者：Claude（工作資料夾 `D:\democase\ai-wt-story`，分支 `feat/google-docs-autobiography`）
+
+目標：使用者要求修業科目表由代理主動抓取，不要讓科助一份一份上傳。專題規則規定 AI 不得自行發布規則，所以改成「代理抓、程式解析、檢查通過才成為候選、管理員確認才生效」。
+
+做法：
+- 來源是資管科「修業科目表」頁面 `https://im.ukn.edu.tw/p/405-1028-609,c82-1.php`，有 99～114 學年度共 16 份 PDF。只抓 109 以後入學的（`MIN_YEAR`）；替代課程對照表不抓。
+- PDF 是電子檔，用 `pypdfium2`（原本就有）取出文字，**不用 OCR，數字也不經 AI**。
+  - 每列格式是「中文名 英文名 學分 時數 各學期… 備註」。
+  - 中文名切到最後一個含中文字的詞，所以 `JAVA程式語言`、`Office VBA應用` 也能正確讀出。
+  - 英文名太長被換行時，會接回同一列。
+- 區段類別：左欄是直書，取出的文字對不上，所以用區段裡的科目判斷。
+  - 全民國防教育＝校定必修；實務專題＝院定必修；國文＝一般科目必修；全是進階分類通識＝進階分類通識。
+  - 通識選修（110 以前才有）＝通識選修；程式設計等＝專業必修。
+  - 第二頁起：名稱有「實習」＝校外實習，「微學分」開頭＝微學分，其餘＝專業選修。
+  - 認不出來就留空，讓檢查失敗，不猜。
+- 檢查（任一項不過就是「檢查不通過」，不能確認）：
+  - 區段類別都認得。
+  - 各區段學分加總＝小計。
+  - 讀到「總畢業學分數需修滿…」。
+  - 必修科目加總＝必修學分。
+  - 必修＋選修＝總學分。
+  - 科目數 ≥ 50。
+- 差異：和同年度已確認版或人工核對 CSV 比；沒有就往前找最近年度。結果列出新增、刪除、學分變動，白話摘要由程式產生。
+- 同一檔案（SHA-256 相同）再抓不會重複建立。確認新版時，同年度舊的確認版改成「已被取代」。
+- 確認後，畢業門檻改用這一版：
+  - `graduation_check_service.credit_rule()` 取總學分。
+  - `eligibility_service.load_curriculum()` 用確認版取代同年度 CSV。
+  - 沒確認的年度沿用 CSV 與 111、113 的常數。
+- 必修類別加入「通識選修」（110 以前入學的 2 學分，計入必修 181）。
+
+修改檔案：
+- 新增：
+  - `app/services/curriculum_parser.py`（解析、檢查、差異、讀網頁連結）
+  - `app/services/curriculum_agent_service.py`（下載、建立版本、確認、不採用、給畢業門檻用的查詢）
+  - `app/models/curriculum.py`（`curriculum_versions`、`curriculum_courses`）
+  - `migrations/versions/b20261109c01_add_curriculum_versions.py`（接在 `b20261108f01` 之後）
+  - `app/templates/admin_curriculum.html`
+- 修改：
+  - `app/routes/admin.py`：`/admin/curriculum`、`/admin/curriculum/check`、`/admin/curriculum/<id>/<publish|reject>`，只限管理員。
+  - `app/services/admin_todos.py`：管理員首頁待辦加「修業科目表待確認」。
+  - `app/templates/partials/nav.html`：管理員「課程與招生」選單加「修業科目表」。
+  - `app/services/audit_service.py`：操作紀錄中文名稱。
+  - `app/models/__init__.py`、`app/services/eligibility_service.py`、`app/services/graduation_check_service.py`。
+- 測試：
+  - 新增 `tests/test_curriculum_parser.py`（9 項）、`tests/test_curriculum_agent.py`（11 項）。
+  - 夾具 `tests/fixtures/curriculum/`：110、111、114 官方 PDF 與網頁 HTML，都是公開資料。
+
+驗證結果：
+- 111 學年度解析結果和人工核對的 CSV **完全一致**；113 也一致（另外比對）。109～114 六份全部檢查通過，都是總 220、必修 181、選修 39。
+- 新測試 20 項，以及畢業門檻、資料庫遷移、管理員、展示站等相關測試，共 145 項通過。
+- 完整測試 1337 通過、2 略過、1 失敗（`logs/test-runs/curriculum-full-20261109`）。
+  - 失敗的是 `test_admin_dashboard_todos.py`：它逐一列出管理員待辦卡，沒有新的「修業科目表待確認」卡。已補上預期值，重跑該檔與修業科目表、畢業門檻測試，33 項通過。
+  - 完整測試開始後才改了「差異往前找最近年度」，修業科目表的測試已另外重跑通過。
+- 本機展示站實際連到資管科網站：
+  - 約 2 秒建立 6 份候選版本。
+  - 112 和 111 比對的重點：新增 3 門、刪除 5 門，例如「生成式人工智慧之應用」從選修改成必修。
+  - 確認 112 後，首頁待辦剩 5 份。
+- 過程中修了一個問題：檢查資料表是否存在時另開連線，在 SQLite 記憶體資料庫會把還沒提交的資料退回。已改成沿用目前的連線。
+
+另外：
+- 新增 `docs/03_開發紀錄/01_參考與環境設定/雙重驗證_Authenticator六位數驗證碼_教學.md`，寫雙重驗證的原理、設定步驟、安裝與移除。功能還沒寫。
+
+下一步：正式主機要跑資料庫遷移 `b20261109c01`；管理員到「修業科目表」按檢查並逐年確認。
+
 ## 2026-11-09 電子獎狀加上校徽與外框；安裝 pyotp；修業科目表代理設計
 
 日期：2026-11-09（台灣時間）
