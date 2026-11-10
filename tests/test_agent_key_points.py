@@ -28,6 +28,7 @@ EXTRACTED = {"programs": [
          {"text": "要繳北商官網下載的自我推薦摘要表（表A）與課程學習成果工作內容與貢獻度表（表B），電腦打字並親簽。",
           "source_page": "第 70 頁"},
          {"text": "   ", "source_page": "70"},
+         {"text": "書面資料審查所繳交資料不再歸還，請自行留存。", "source_page": "70"},
      ] + [{"text": f"第 {n} 條提醒", "source_page": "70"} for n in range(20)],
      "eligibility_rules": []},
 ]}
@@ -49,11 +50,12 @@ def test_extraction_keeps_requirement_page_and_highlights(app):
     with app.app_context():
         program = db.session.get(AdmissionProgram, program_id)
         items = {item.source_item_name: item for item in program.items}
-        assert items["專業成果"].requirement == "專題製作成果，以資訊系統製作為主。（第70頁）"
+        assert items["專業成果"].requirement == "專題製作成果，以資訊系統製作為主。（PDF 第70頁）"
         assert items["學習能力"].requirement is None
         texts = [h["text"] for h in program.highlights]
         assert "表A" in texts[0] and program.highlights[0]["page"] == "第 70 頁"
         assert "" not in [t.strip() for t in texts]  # 空白的不收
+        assert not any("不再歸還" in t for t in texts)  # 每系都有的一般說明不收
         assert len(texts) <= agent.MAX_HIGHLIGHTS
 
 
@@ -110,3 +112,28 @@ def test_seed_highlights_reach_student_word_and_assistant(app):
         program_id = program.id
     html = login(app, "stu").get("/student/targets").get_data(as_text=True)
     assert "data-highlights" in html and "表A" in html
+
+
+def test_brochure_without_program_code_matches_existing_program_by_name(app):
+    """11-11 真實驗收：簡章附錄的志願代碼印成「--」，用學校＋科系對照已有的校系；同學年度已有就不重建。"""
+    extracted = {"programs": [{**EXTRACTED["programs"][0], "program_code": "--", "admission_year": 116,
+                               "department_name": "資訊管理系(臺北校區)"},
+                              {**EXTRACTED["programs"][0], "program_code": "--", "admission_year": 115}]}
+    source_id = make_source(app)
+    with app.app_context():
+        agent.check_source(db.session.get(PublicSource, source_id), admin(app), fetch=fake_fetch(b"%PDF x"))
+        task = agent.extract_programs(agent.PublicSourceChange.query.one(), admin(app),
+                                      generate=lambda prompt, schema, files: extracted)
+        assert task.result_json["created"] == ["208003"]  # 116 新建；115 已有正式版，略過
+        assert task.result_json["skipped"] == ["208003"]
+
+
+def test_made_up_code_is_replaced_and_duplicates_skipped(app):
+    """11-11 真實驗收：AI 對同一系多給一個編出來的代碼（108001），要改回已有代碼並略過重複。"""
+    made_up = {**EXTRACTED["programs"][0], "program_code": "108001"}
+    source_id = make_source(app)
+    with app.app_context():
+        agent.check_source(db.session.get(PublicSource, source_id), admin(app), fetch=fake_fetch(b"%PDF y"))
+        task = agent.extract_programs(agent.PublicSourceChange.query.one(), admin(app),
+                                      generate=lambda prompt, schema, files: {"programs": [made_up, EXTRACTED["programs"][0]]})
+        assert task.result_json["created"] == ["208003"] and task.result_json["skipped"] == ["208003"]

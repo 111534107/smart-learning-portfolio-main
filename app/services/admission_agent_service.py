@@ -355,9 +355,9 @@ def _extract_prompt(keywords, page_text=None):
 - items：備審資料（第二階段）的每個評分項目名稱與加權百分比（整數，照原文）
 - categories：建議這個項目對應的資料類別，只能從這些代碼選：{categories}
 - requirement：這個評分項目要繳什麼、怎麼評（照簡章的「繳交資料」與「評分標準」整理成一兩句，不要加自己的建議）；簡章沒寫就留空
-- source_page：這個項目在簡章的頁碼（照頁面上印的頁碼）
+- source_page：這個項目在 PDF 檔的第幾頁（從第 1 頁開始數的數字，不是頁面上印的頁碼）
 - highlights：學生準備備審時最容易漏掉的重點，最多 {max_highlights} 條，每條一句話、附 source_page 頁碼。只收簡章明確寫的：
-  要另外下載或親簽的表格、字數或頁數上限、必繳與選繳的分別、缺件以零分計、報名前要具備的檢定程度、入學後的畢業門檻。
+  要另外下載或親簽的表格（繳交資料欄寫到的也一定要列，例如「自我推薦摘要表」）、字數或頁數上限、必繳與選繳的分別、缺件以零分計、報名前要具備的檢定程度、入學後的畢業門檻。
   一般說明（例如「資料不退還」）不要列。
 - eligibility_rules：只擷取簡章明確寫出的第一階段報名資格；每筆包含 rule_group（同組條件必須同時符合，不同組是替代資格）、condition_type（student_status、credential、competition）、operator、value_json、description（保留簡章原意）及 source_location（頁碼／章節）。
 - value_json 只使用可直接對照學生結構化資料的欄位：學籍可用 field（class_name 或 admission_year）及 values；證照可用 name、min_level、issuer、issue_date_from、issue_date_to；競賽只可表達是否有已確認競賽經歷。
@@ -441,6 +441,18 @@ def _eligibility_candidate(raw, source_url, sort_order):
     }
 
 
+def _normalize_name(text):
+    return re.sub(r"[\s　()（）]|臺北校區|台北校區|桃園校區|臺北|台北|桃園", "", text or "").replace("台", "臺")
+
+
+def _code_by_name(school, department):
+    """同校同系（名稱去掉空白、括號、校區）已經有校系時，回傳它的志願代碼；找不到或不只一個就回 None。"""
+    school_key, dept_key = _normalize_name(school), _normalize_name(department)
+    codes = {p.program_code for p in AdmissionProgram.query.all()
+             if _normalize_name(p.school_name) == school_key and _normalize_name(p.department_name) == dept_key}
+    return codes.pop() if len(codes) == 1 else None
+
+
 def extract_programs(change, requester, generate=None):
     """把變更的簡章交給 AI 擷取，建立候選校系版本。generate 可以換成假的（測試用）。"""
     task = _start_task("admission_extract", requester, "public_source_change", change.id)
@@ -467,10 +479,16 @@ def extract_programs(change, requester, generate=None):
             year = int(raw.get("admission_year"))
         except (TypeError, ValueError):
             year = 0
+        # 簡章附錄的志願代碼常印成「--」，AI 還可能自己編一個（11-11 實測編出 108001）：
+        # 學校＋科系對得到已有的校系，就一律用已有的代碼
+        code = _code_by_name(str(raw.get("school_name", "")), department) or code
+        if code in created:  # 同一份簡章同系出現兩次
+            skipped.append(code)
+            continue
         if not re.fullmatch(r"\d{6}", code) or not 100 <= year <= 200 or not any(k in department for k in keywords):
             skipped.append(code or department)
             continue
-        if AdmissionProgram.query.filter_by(program_code=code, admission_year=year, data_origin="agent").first():
+        if AdmissionProgram.query.filter_by(program_code=code, admission_year=year).first():  # 同學年度已有（含人工核對過的）就不重建
             skipped.append(code)
             continue
         program = AdmissionProgram(
@@ -557,13 +575,15 @@ def _save_schedule(schedule, change, source):
 
 
 MAX_HIGHLIGHTS = 8
+# 每個校系都有、對學生沒有幫助的一般說明（11-11 實測 AI 還是會列）
+GENERIC_NOTE = re.compile(r"不再歸還|不退還|不予退還|自行(備份)?留存|未盡事宜")
 
 
 def _page_label(page):
     page = str(page or "").strip()
     if not page:
         return ""
-    return f"第{page}頁" if page.isdigit() else page
+    return f"PDF 第{page}頁" if page.isdigit() else page  # 11-11 實測：AI 給的是 PDF 檔的頁數
 
 
 def _requirement_text(item):
@@ -582,7 +602,7 @@ def _highlights(raw):
         if not isinstance(entry, dict):
             continue
         text = " ".join(str(entry.get("text") or "").split())[:200]
-        if not text or text in seen:
+        if not text or text in seen or GENERIC_NOTE.search(text):
             continue
         seen.add(text)
         result.append({"text": text, "page": _page_label(entry.get("source_page"))})
