@@ -36,6 +36,16 @@
   <section class="work-panel" data-grad-recheck>
     <div class="work-panel__head"><div><h2>畢業門檻重新對照</h2><p>學生改資料時系統會自動對照；學期跨到專四下或專五上時，按一次讓全科案件依新階段開立或結案。正式畢業資格審查由教務處負責。</p></div>
       <form method="post" action="{{ url_for('graduation.recheck') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small button--line" type="submit">重新對照全科</button></form></div>
+    <form class="form-stack mt-1" method="post" action="{{ url_for('graduation.save_check_dates') }}" data-check-dates>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <h3>教務處檢核日期（本學年）</h3>
+      <p class="small muted">填了以後，專四、專五學生和導師會看到還有幾天。空白代表還沒公布。</p>
+      {% if check_dates_error %}<p class="notice notice--warn">{{ check_dates_error }}</p>{% endif %}
+      <label class="field">第一次檢核（專四下）<input type="date" name="first" value="{{ check_dates.first.isoformat() if check_dates.first else '' }}"></label>
+      <label class="field">第二次檢核（專五上）<input type="date" name="second" value="{{ check_dates.second.isoformat() if check_dates.second else '' }}"></label>
+      <label class="field">模擬今天（展示用，空白＝用真正的今天）<input type="date" name="today" value="{{ check_dates.today.isoformat() if check_dates.today else '' }}"></label>
+      <div><button class="button button--small" type="submit">儲存檢核日期</button></div>
+    </form>
   </section>
 
   <section class="work-panel">

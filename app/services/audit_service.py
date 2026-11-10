@@ -20,6 +20,7 @@ ACTION_LABELS = {
     "staff.account.create": "新增教職員帳號",
     "staff.job_title.update": "修改職稱",
     "student.journey_docx": "匯出五年資料 Word",
+    "graduation.check_dates": "設定畢業檢核日期",
     "graduation.course_unknown": "成績有找不到對應科目的課",
     "portfolio.delete": "刪除經歷",
     "portfolio.delete_blocked": "刪除經歷被擋下（已送審）",

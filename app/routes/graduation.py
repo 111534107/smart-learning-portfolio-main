@@ -157,6 +157,18 @@ def recheck():
     return redirect(url_for("main.admin_dashboard"))
 
 
+@graduation_bp.post("/admin/graduation/check-dates")
+@role_required("admin")
+def save_check_dates():
+    """管理員設定教務處兩次檢核日期與模擬今天。"""
+    from app.services import check_dates
+    try:
+        check_dates.save(get_current_user(), request.form)
+    except ValueError as exc:
+        return redirect(url_for("main.admin_dashboard", check_dates_error=str(exc)))
+    return redirect(url_for("main.admin_dashboard"))
+
+
 def _parse_id(raw):
     """只接受 ASCII 數字的編號；其他（含全形、上標等 Unicode 數字）回傳 0，查無此人。"""
     if not (raw.isascii() and raw.isdigit()) or len(raw) > 18:

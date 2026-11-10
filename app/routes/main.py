@@ -18,6 +18,7 @@ from app.content.five_year_plan import FIVE_YEAR_PLAN, NEXT_STOPS
 from app.services.admission_sample import load_sample_programs
 from app.services.journey_service import GRADE_LABELS, current_grade, CATEGORY_KEYS, CATEGORY_LABELS, EXPERIENCE_CATEGORIES, build_journey
 from app.services import school_google_login as g_login
+from app.services import check_dates as check_dates_service
 
 main_bp = Blueprint("main", __name__)
 
@@ -416,6 +417,8 @@ def admin_dashboard():
         student_count=User.query.filter_by(role="student", is_active=True).count(),
         teacher_count=User.query.filter_by(role="teacher", is_active=True).count(),
         staff_count=User.query.filter_by(role="staff", is_active=True).count(),
+        check_dates=check_dates_service.dates(),
+        check_dates_error=request.args.get("check_dates_error"),
     )
 
 

@@ -22,6 +22,25 @@
   </header>
 
   <p class="tag {{ tag }}" role="status" data-grad-overall="{{ overall }}">{{ label }}</p>
+  {% if countdown %}<p class="notice mb-1" data-check-countdown>{{ countdown.text }}</p>{% endif %}
+
+  <section class="work-panel" aria-labelledby="warning-heading" data-semester-warning>
+    <h2 id="warning-heading">各學期預警</h2>
+    <p class="small muted">{{ warning_note }}</p>
+    {% if warnings.reason %}<p>{{ warnings.reason }}</p>{% endif %}
+    {% set flagged = warnings.terms|rejectattr("level", "equalto", "ok")|list %}
+    {% for term in flagged %}
+    {% set wlabel, wtag = warning_labels[term.level] %}
+    <div class="work-panel mt-1" data-warning-term="{{ term.level }}">
+      <h3>{{ term.label }} <span class="tag {{ wtag }}">{{ wlabel }}</span></h3>
+      <p>{{ term.message }}</p>
+      {% if term.still_failed %}<p class="small">還沒補及格：{% for c in term.still_failed %}{{ c.name }}（{{ c.score }} 分{% if c.required %}，必修{% endif %}）{% if not loop.last %}、{% endif %}{% endfor %}</p>{% endif %}
+      {% if term.recovered %}<p class="small muted">之後已補及格：{{ term.recovered|map(attribute="name")|join("、") }}</p>{% endif %}
+    </div>
+    {% endfor %}
+    {% if warnings.terms and not flagged %}<p data-warning-all-ok>已結束的 {{ warnings.terms|length }} 個學期都沒有不及格。</p>
+    {% elif warnings.counts.ok %}<p class="small muted">其他 {{ warnings.counts.ok }} 個學期沒有不及格。</p>{% endif %}
+  </section>
 
   <section class="work-panel" aria-labelledby="cert-heading">
     <h2 id="cert-heading">專業證照（至少 3 張，累計數字）</h2>

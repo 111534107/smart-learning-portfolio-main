@@ -60,7 +60,14 @@
   </section>
   {% endif %}
   <section class="work-panel" data-grad-student>
-    <div class="work-panel__head"><div><h2>畢業門檻提醒</h2><p>下一次檢核：{{ grad_next_check }}。</p></div></div>
+    <div class="work-panel__head"><div><h2>畢業門檻提醒</h2><p>下一次檢核：{{ grad_next_check }}。</p>{% if grad_countdown %}<p class="small" data-check-countdown>{{ grad_countdown.text }}</p>{% endif %}</div></div>
+    {% set flagged = semester_warnings.terms|rejectattr("level", "equalto", "ok")|list %}
+    <div data-semester-warning>
+      <h3>各學期預警</h3>
+      {% for term in flagged %}{% set wlabel, wtag = warning_labels[term.level] %}
+      <p class="small" data-warning-term="{{ term.level }}"><strong>{{ term.label }}</strong> <span class="tag {{ wtag }}">{{ wlabel }}</span> {{ term.message }}</p>
+      {% else %}<p class="small">{% if semester_warnings.terms %}已結束的學期都沒有不及格。{% else %}{{ semester_warnings.reason }}{% endif %}</p>{% endfor %}
+    </div>
     <ul class="rule-item-list">
       {% for item, data in grad_assessment["items"].items() %}
       {% set rlabel, rtag = grad_result_labels[data.result] %}
