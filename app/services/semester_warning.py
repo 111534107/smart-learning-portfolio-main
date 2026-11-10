@@ -92,13 +92,22 @@ def build(student, today=None, curriculum=None):
             year = year - admission + 1
         if year is not None:
             no_semester.add(year)
-    terms = []
+    terms, unmarked = [], []
     for year, semester in reversed(stage["ended_terms"]):
         grade = year - admission + 1
         term = _term(grade, semester, by_term.get((grade, semester), []), passed_names, table)
         if term["level"] == "no_data" and grade in no_semester:
-            term["message"] = "這一年有成績，但沒有標上下學期，請到成績確認頁補上學期，才能分學期提醒。"
+            term["grade"] = grade
+            unmarked.append(term)
+            continue
         counts[term["level"]] += 1
         terms.append(term)
+    if unmarked:  # 沒標學期的合併成一行，不要每個學期重複同一句
+        grades = sorted({t["grade"] for t in unmarked})
+        label = f"專{grades[0]}" if len(grades) == 1 else f"專{grades[0]}～專{grades[-1]}"
+        counts["no_data"] += 1
+        terms.append({"label": label, "level": "no_data", "attempted": 0, "failed_credits": 0,
+                      "still_failed": [], "recovered": [],
+                      "message": "有成績，但沒有標上下學期，請到成績確認頁補上學期，才能分學期提醒。"})
     reason = "" if terms else "還沒有已結束的學期。"
     return {"terms": terms, "counts": counts, "stage": stage, "reason": reason}

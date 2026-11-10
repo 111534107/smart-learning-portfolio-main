@@ -154,5 +154,6 @@ def test_courses_without_semester_get_specific_message():
         add_course(student.id, "模擬國文", 2, 80, 1, None)
         db.session.commit()
         terms = {t["label"]: t for t in semester_warning.build(student, today=TODAY, curriculum=CURRICULUM)["terms"]}
-        assert "沒有標上下學期" in terms["專1上"]["message"] and "沒有標上下學期" in terms["專1下"]["message"]
+        assert "沒有標上下學期" in terms["專1"]["message"]  # 專一上、下合併成一行
+        assert "專1上" not in terms and "專1下" not in terms
         assert "請先上傳並確認成績單" in terms["專2上"]["message"]

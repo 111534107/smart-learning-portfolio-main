@@ -638,6 +638,9 @@ fieldset.field legend { padding: 0; margin-bottom: .35rem; }
 .band__crumbs a { text-decoration: none; color: var(--muted); }
 .band__crumbs a:hover { color: var(--ink); text-decoration: underline; }
 .band__crumbs [aria-current="page"] { color: var(--accent); }
+/* 手機上層數多時整項換行，不要把「首頁」「活動與經歷」拆成一字一行（11-10 手機檢查） */
+.band__crumbs { flex-wrap: wrap; row-gap: .2rem; }
+.band__crumbs > * { white-space: nowrap; }
 .band__note { margin-left: auto; display: flex; align-items: center; padding: 0 1.5rem; font-size: var(--fs-sm); color: var(--ink-soft); }
 /* 首頁的「下一步」卡片：整張可以點，只出現在「我的五年」 */
 .next-card { display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap; margin-bottom: 1.5rem; padding: 1rem 1.25rem; background: var(--accent-soft); border-left: 4px solid var(--accent); text-decoration: none; color: var(--ink); }
