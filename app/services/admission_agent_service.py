@@ -1,5 +1,8 @@
-"""招生資料 Agent（系統亮點第二、三階段）。
+"""招生資料 Agent（系統亮點第一、二、三階段）。
 
+第一階段：上網找來源（2026-11-04 使用者：Agent 要自己上網找，不是人工登記網址）
+    Agent 用 Gemini 內建的 Google 搜尋找招生簡章與備審資料準備指引 → 只收學校（.edu.tw）與政府（.gov.tw）網域 →
+    自動登記成來源。搜尋只會新增「要監看的來源」，不會發布任何招生資料。
 第二階段：偵測更新
     管理者登記官方來源（網址或上傳簡章 PDF）→ Agent 下載並計算內容雜湊（sha256）→
     和上一次比對，內容改變就建立一筆「變更」(public_source_changes) 通知管理者。
@@ -14,6 +17,7 @@ import hashlib
 import re
 import ssl
 import urllib.request
+from urllib.parse import urlsplit
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -31,7 +35,7 @@ from app.models import (
     PublicSourceSnapshot,
 )
 from app.services.gap_service import ALL_LABELS
-from app.services.gemini_client import AIUnavailable, generate_json
+from app.services.gemini_client import AIUnavailable, generate_json, search_web
 
 USER_AGENT = "KNU-IM-Portfolio-Agent/1.0 (school project; yearly admission brochure check)"
 MAX_DOWNLOAD = 30 * 1024 * 1024
@@ -113,6 +117,75 @@ def _finish(task, status, result=None, error=None):
     task.finished_at = _now()
     db.session.commit()
     return task
+
+
+# ---------- 第一階段：上網找來源 ----------
+
+OFFICIAL_SUFFIXES = (".edu.tw", ".gov.tw")
+AGENT_SOURCE_PREFIX = "Agent 找到："
+
+
+def official_url(url):
+    """只有學校（.edu.tw）與政府（.gov.tw）網站算官方來源；看主機名稱結尾，不看網址裡有沒有出現這些字。"""
+    parts = urlsplit(url or "")
+    host = (parts.hostname or "").lower()
+    return parts.scheme in ("http", "https") and host.endswith(OFFICIAL_SUFFIXES)
+
+
+def resolve_url(uri):
+    """搜尋結果多半是 Google 的轉址連結：追到最後的真正網址。先只讀標頭（HEAD）；
+    有些學校網站不接受 HEAD（實測 11-04），再改用一般請求（GET，不讀內容）。都失敗回傳 None。"""
+    for method in ("HEAD", "GET"):
+        try:
+            request = urllib.request.Request(uri, headers={"User-Agent": USER_AGENT}, method=method)
+            with urllib.request.urlopen(request, timeout=15, context=_ssl_context()) as response:
+                return response.geturl()
+        except Exception:  # 轉址失效、對方拒絕：換下一種方法，最後就跳過這筆
+            continue
+    return None
+
+
+def default_search_queries(roc_year=None):
+    """預設搜尋：今年與明年的二技技優甄審、日間部申請入學簡章，以及資管系的備審資料準備指引。"""
+    year = roc_year or date.today().year - 1911
+    queries = []
+    for y in (year, year + 1):
+        queries += [
+            f"{y} 學年度 二技技優甄審 招生簡章 技專校院招生委員會聯合會",
+            f"{y} 學年度 日間部二技申請入學 招生簡章 資訊管理系",
+            f"{y} 學年度 二技 資訊管理系 備審資料準備指引",
+        ]
+    return queries
+
+
+def discover_sources(requester, queries=None, search=None, resolve=None):
+    """讓 Agent 自己上網找官方來源並登記；回傳這次的 agent_task。search／resolve 測試時換成假的。"""
+    search = search or search_web
+    resolve = resolve or resolve_url
+    queries = queries or default_search_queries()
+    task = _start_task("admission_source_search", requester, None, None)
+    known = {source.url for source in PublicSource.query.all()}
+    added, already, unofficial = [], 0, 0
+    try:
+        for query in queries:
+            for found in search(query).get("sources", []):
+                url = resolve(found["uri"])
+                if not url or not official_url(url):
+                    unofficial += 1
+                    continue
+                if url in known:
+                    already += 1
+                    continue
+                title = (found.get("title") or urlsplit(url).hostname or url).strip()
+                add_source(AGENT_SOURCE_PREFIX + title, url=url)
+                known.add(url)
+                added.append(url)
+    except AIUnavailable as exc:
+        db.session.rollback()
+        db.session.add(task)
+        return _finish(task, "failed", {"queries": queries, "added": added}, error=f"上網搜尋失敗：{exc}")
+    return _finish(task, "succeeded", {"queries": queries, "added": added, "already_known": already,
+                                       "skipped_unofficial": unofficial})
 
 
 # ---------- 第二階段：偵測更新 ----------

@@ -202,7 +202,7 @@ def test_admin_can_run_patrol_from_agent_page(app):
 
     assert response.status_code == 302
     assert AgentTask.query.filter_by(task_type="agent_patrol").count() == 1
-    assert "讓 Agent 巡查一次" in client.get("/admin/agent").get_data(as_text=True)
+    assert "讓 Agent 上網找資料並巡查" in client.get("/admin/agent").get_data(as_text=True)
 
 
 # ---------- 使用者觸發（T6、T7）----------
@@ -456,7 +456,7 @@ def test_agent_buttons_tell_the_user_to_wait(app):
     admin_html = login(app, "admin").get("/admin/agent").get_data(as_text=True)
 
     assert 'data-busy-text="小助手正在規劃' in html
-    assert 'data-busy-text="Agent 巡查中' in admin_html
+    assert 'data-busy-text="Agent 上網找資料並巡查中' in admin_html
 
 
 # ---------- 邊做邊顯示（DEMO-01） ----------

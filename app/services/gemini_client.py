@@ -129,3 +129,27 @@ def chat(contents, tools, system_instruction, api_key=None, opener=urllib.reques
         return payload["candidates"][0]["content"]
     except (KeyError, IndexError):
         raise AIUnavailable("小助手這次沒有產生回答，請換個方式再問一次。") from None
+
+
+def search_web(query, api_key=None, opener=urllib.request.urlopen):
+    """讓 Gemini 用內建的 Google 搜尋找網頁（grounding），回傳 {"text": 摘要, "sources": [{"title", "uri"}]}。
+
+    sources 的 uri 多半是 Google 的轉址連結，呼叫端要自己追到真正的網址再判斷是不是官方來源。
+    Google 搜尋工具不能和 JSON 格式輸出一起用，所以這裡只拿文字與來源清單。
+    """
+    payload = _post({
+        "contents": [{"role": "user", "parts": [{"text": (
+            "請用 Google 搜尋找臺灣官方招生資料（學校或政府網站上的招生簡章、備審資料準備指引），"
+            "只列出跟這個查詢直接相關的官方頁面或 PDF，用一兩句話說明找到什麼。\n查詢：" + query)}]}],
+        "tools": [{"google_search": {}}],
+        "generationConfig": {"temperature": 0.2},
+    }, api_key, opener)
+    try:
+        candidate = payload["candidates"][0]
+    except (KeyError, IndexError):
+        raise AIUnavailable("Gemini 這次沒有回傳搜尋結果，請再試一次。") from None
+    text = "".join(part.get("text", "") for part in candidate.get("content", {}).get("parts", []))
+    chunks = (candidate.get("groundingMetadata") or {}).get("groundingChunks") or []
+    sources = [{"title": chunk["web"].get("title", ""), "uri": chunk["web"]["uri"]}
+               for chunk in chunks if isinstance(chunk.get("web"), dict) and chunk["web"].get("uri")]
+    return {"text": text.strip(), "sources": sources}

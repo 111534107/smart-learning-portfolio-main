@@ -42,6 +42,12 @@
 - 參考資料夾 `docs/02_需求與設計/04_原始資料與參考/參考資料/` 有真實個資：**不要提交、不要送外部 AI**。
 - 另有兩個待合併分支：`feat/layout-system`（版型系統，1070 通過）、`feat/agent-web-search`（Agent 上網找來源，1048 通過），都從 `fd004cc` 開出，合併前問使用者。不推送。
 
+## 2026-11-04 Claude：升學 Agent 自己上網找來源（另一個分支，待合併）
+
+- 分支 `feat/agent-web-search`（`D:\democase\_worktrees\ai-wt-agent-search`），從 `fd004cc` 開出。未推送、未合併。
+- Agent 巡查第一步用 Gemini 內建 Google 搜尋找二技簡章與備審指引，只收 `.edu.tw`／`.gov.tw`，自動登記成來源；擷取結果仍需管理員核准。真實搜尋一次找到 14 個官方來源。
+- 另外兩個待合併分支：`feat/layout-system`（版型系統）。三個分支都從 `fd004cc` 開出，彼此改的檔案不同（版型改模板與樣式、這裡改招生 Agent），合併時只有日誌與交接最上面會衝突。
+
 ## 2026-11-03 Claude：兩個分支已合併進主開發分支（最新，先讀）
 
 - `feat/google-docs-autobiography` 最新為兩次合併（`23a1f82` 校園主題、`d8ec10e` 學校 Google 登入）加本次紀錄；完整測試 1043 通過、2 略過。未推送，未合併 `main`。

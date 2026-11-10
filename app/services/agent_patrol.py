@@ -1,6 +1,6 @@
-"""升學 Agent 的背景巡查：T1 檢查官方來源有沒有更新 → T2 把更新的簡章擷取成候選校系。
+"""升學 Agent 的背景巡查：T0 上網找官方來源 → T1 檢查官方來源有沒有更新 → T2 把更新的簡章擷取成候選校系。
 
-排程（flask agent-patrol）或管理員在「招生資料 Agent」頁按「讓 Agent 巡查一次」時執行。
+排程（flask agent-patrol）或管理員在「招生資料 Agent」頁按「讓 Agent 上網找資料並巡查」時執行。
 擷取結果都是候選（status=candidate），管理員核准後學生才看得到；Agent 不會自己發布。
 AI 不能用時改走固定流程：照樣檢查來源，擷取（需要 AI）留給管理員之後處理。
 """
@@ -11,14 +11,15 @@ from app.services import admission_agent_service as admission_agent
 from app.services.agent_engine import AiDecider, Tool, ToolError, run
 from app.services.gemini_client import ai_ready
 
-GOAL = "請巡查招生資料的官方來源：先檢查有沒有更新，再把等待擷取的簡章擷取成候選校系，最後總結這次做了什麼、管理員要處理什麼。"
+GOAL = "請巡查招生資料的官方來源：先上網搜尋有沒有新的官方招生簡章或備審資料準備指引，再檢查有沒有更新，再把等待擷取的簡章擷取成候選校系，最後總結這次做了什麼、管理員要處理什麼。"
 
 INSTRUCTION = """你是康寧大學資管科學習歷程系統的「資管科小助手」，現在做背景巡查。
 規則：
-1. 先用工具檢查官方來源，再列出等待擷取的變更；只擷取列出來的變更編號，不要自己編號碼。
+1. 先用 search_sources 上網找新的官方來源（可以自己決定關鍵字，例如學年度、二技技優甄審、日間部二技申請入學、資管系備審指引），
+   再檢查官方來源、列出等待擷取的變更；只擷取列出來的變更編號，不要自己編號碼。
 2. 擷取的結果（候選校系、候選日程）只是「候選」，要等管理員核准；總結時不要說已經發布或學生已經看得到。
 3. 工具回傳錯誤時，說明原因，不要一直重試同一個動作。
-4. 不要用 Markdown 符號（例如 ** 或 #）。最後用繁體中文、三句話以內總結：檢查了幾個來源、哪些有更新、建立了哪些候選校系、管理員下一步要做什麼。"""
+4. 不要用 Markdown 符號（例如 ** 或 #）。最後用繁體中文、三句話以內總結：上網找到幾個新來源、檢查了幾個來源、哪些有更新、建立了哪些候選校系、管理員下一步要做什麼。"""
 
 AUTO = "auto"
 
@@ -27,7 +28,18 @@ def patrol_decider(chat=None):
     return AiDecider(INSTRUCTION, chat=chat)
 
 
-def _tools(requester, fetch, generate):
+def _tools(requester, fetch, generate, search=None, resolve=None):
+    def search_sources(query=""):
+        queries = [query.strip()] if query.strip() else None
+        task = admission_agent.discover_sources(requester, queries=queries, search=search, resolve=resolve)
+        if task.status != "succeeded":
+            raise ToolError(task.error_message or "上網搜尋失敗。")
+        result = task.result_json
+        added = result.get("added", [])
+        text = f"上網搜尋 {len(result.get('queries', []))} 組關鍵字，找到 {len(added)} 個新的官方來源"
+        text += f"（另有 {result.get('already_known', 0)} 個已登記、{result.get('skipped_unofficial', 0)} 個非官方網站略過）。"
+        return {"summary": text, "added": added}
+
     def check_sources():
         tasks = admission_agent.check_all(requester, fetch=fetch or admission_agent.fetch_url)
         if not tasks:
@@ -68,6 +80,9 @@ def _tools(requester, fetch, generate):
                 "skipped": len(task.result_json.get("skipped", []))}
 
     return [
+        Tool("search_sources", "上網找官方來源", "用 Google 搜尋臺灣學校或政府網站上的二技招生簡章與備審資料準備指引，"
+             "新的官方網址會自動登記成來源（只監看，不發布）。query 留空就用預設關鍵字。", search_sources,
+             params={"query": "搜尋關鍵字，例如「116 學年度 二技技優甄審 招生簡章」；留空用預設關鍵字"}),
         Tool("check_sources", "檢查官方來源", "下載所有登記的招生官方網址，和上次比對有沒有更新。", check_sources),
         Tool("list_pending_changes", "列出待擷取的更新", "列出已偵測到、還沒擷取的來源變更與編號。", list_pending_changes),
         Tool("extract_change", "擷取成候選校系", "把一個變更的簡章交給 AI，擷取資管相關校系的備審加權與重要日程，建立候選版本。",
@@ -75,10 +90,12 @@ def _tools(requester, fetch, generate):
     ]
 
 
-def _fixed_plan(can_extract):
-    """AI 不能用時的固定流程：檢查 → 列出 → 逐一擷取（有 AI 才擷取）→ 總結。"""
+def _fixed_plan(can_extract, can_search=False):
+    """固定流程：上網找來源（有 AI 才能搜尋）→ 檢查 → 列出 → 逐一擷取（有 AI 才擷取）→ 總結。"""
     def plan(goal, steps, tools):
         done = [step["tool"] for step in steps]
+        if can_search and "search_sources" not in done:
+            return {"tool": "search_sources", "args": {"query": ""}}
         if "check_sources" not in done:
             return {"tool": "check_sources", "args": {}}
         if "list_pending_changes" not in done:
@@ -93,7 +110,8 @@ def _fixed_plan(can_extract):
         check = next(s for s in steps if s["tool"] == "check_sources")["summary"]
         created = [code for s in steps if s["tool"] == "extract_change" for code in s["result"].get("created", [])]
         schedule = sum(s["result"].get("schedule_created", 0) for s in steps if s["tool"] == "extract_change")
-        parts = [f"巡查完成：{check}"]
+        searched = next((s for s in steps if s["tool"] == "search_sources"), None)
+        parts = [f"巡查完成：{searched['summary']}" if searched else "巡查完成：（AI 不能用，這次沒有上網找新來源）", check]
         if created:
             parts.append(f"建立 {len(created)} 個候選校系（{'、'.join(created)}），請到招生資料 Agent 頁比對後核准。")
         if schedule:
@@ -106,10 +124,11 @@ def _fixed_plan(can_extract):
     return plan
 
 
-def run_patrol(requester, decide=AUTO, fetch=None, generate=None):
-    """執行一次巡查。decide=AUTO：有設定 AI 就讓 AI 決定，否則走固定流程。fetch／generate 測試時換成假的。"""
+def run_patrol(requester, decide=AUTO, fetch=None, generate=None, search=None, resolve=None):
+    """執行一次巡查。decide=AUTO：有設定 AI 就讓 AI 決定，否則走固定流程。fetch／generate／search／resolve 測試時換成假的。"""
     if decide == AUTO:
         decide = patrol_decider() if ai_ready() else None
     can_extract = generate is not None or ai_ready()
-    return run(task_type="agent_patrol", goal=GOAL, tools=_tools(requester, fetch, generate), requester=requester,
-               decide=decide, fallback=_fixed_plan(can_extract), max_steps=8)
+    can_search = search is not None or ai_ready()
+    return run(task_type="agent_patrol", goal=GOAL, tools=_tools(requester, fetch, generate, search, resolve),
+               requester=requester, decide=decide, fallback=_fixed_plan(can_extract, can_search), max_steps=12)
