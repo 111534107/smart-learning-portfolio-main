@@ -78,6 +78,7 @@ def _gap(student, program):
             "mapping_unconfirmed": item["mapping_pending"],
             "brochure_requirement": item.get("requirement"),  # 簡章原文整理的要繳什麼（2026-11-10）
         } for item in gap["items"]],
+        "highlights": [f"{h['text']}（{h['page']}）" if h.get("page") else h["text"] for h in (program.highlights or [])],
         "source": program.source_note,
         "source_url": program.source_url,
     }

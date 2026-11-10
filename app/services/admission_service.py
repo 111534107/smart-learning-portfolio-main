@@ -26,6 +26,19 @@ CATEGORY_NAME_TO_KEY = {
 MAPPING_STATUS = {"確定": "confirmed", "待確認": "pending"}
 
 
+def parse_highlights(text):
+    """CSV「重點提醒」欄：多條用「｜」分開，每條結尾可附「（第N頁）」。回傳 [{"text", "page"}] 或 None。"""
+    import re
+    result = []
+    for part in (text or "").split("｜"):
+        part = part.strip()
+        if not part:
+            continue
+        match = re.search(r"（(第[^）]*頁)）$", part)
+        result.append({"text": part[:match.start()].strip() if match else part, "page": match.group(1) if match else ""})
+    return result or None
+
+
 def _category_keys(text):
     names = [name.strip() for name in (text or "").replace("、", "；").split("；") if name.strip()]
     unknown = [name for name in names if name not in CATEGORY_NAME_TO_KEY]
@@ -58,6 +71,7 @@ def import_seed_programs(path=SEED_FILE, status="published"):
                 source_note=row["資料來源"] or None,
                 source_url=row.get("來源網址") or None,
                 status=status,
+                highlights=parse_highlights(row.get("重點提醒")),
                 data_origin="manual",
             )
             db.session.add(program)
@@ -66,6 +80,8 @@ def import_seed_programs(path=SEED_FILE, status="published"):
         program = programs[key]
         if program is None:
             continue
+        if not program.highlights and row.get("重點提醒"):
+            program.highlights = parse_highlights(row["重點提醒"])
         program.items.append(AdmissionRequirementItem(
             source_item_name=row["原始項目名稱"],
             weight_percent=int(row["加權百分比"]),
@@ -99,6 +115,9 @@ def refresh_seed_details(path=SEED_FILE):
         if row.get("來源網址") and not program.source_url:
             program.source_url = row["來源網址"]
             program.source_note = row["資料來源"] or program.source_note
+        if row.get("重點提醒") and not program.highlights:
+            program.highlights = parse_highlights(row["重點提醒"])
+            updated += 1
         if row.get("要求說明") and not item.requirement:
             item.requirement = row["要求說明"]
             touched = True

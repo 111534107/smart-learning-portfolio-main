@@ -85,6 +85,7 @@ def fetch_url(url):
 
 
 def _extension(content_type, url):
+    content_type = (content_type or "").split(";")[0].strip().lower()  # 「text/html; charset=utf-8」也認得
     if content_type in EXTENSIONS:
         return EXTENSIONS[content_type]
     suffix = Path(url.split("?")[0]).suffix.lower().lstrip(".")
@@ -213,11 +214,44 @@ def check_source(source, requester, fetch=fetch_url, content=None, content_type=
                        "size": len(content), "content_type": content_type, "extension": extension},
             status="candidate",
         ))
-        return _finish(task, "succeeded", {"changed": True, "hash": digest, "first": previous is None})
+        linked = []
+        if extension == "html" and official_url(source.url):
+            linked = follow_brochure_links(source, content)
+        return _finish(task, "succeeded", {"changed": True, "hash": digest, "first": previous is None,
+                                           "linked_sources": linked})
     except Exception as exc:  # 失敗也要留下紀錄，管理者才知道
         db.session.rollback()
         db.session.add(task)
         return _finish(task, "failed", error=f"抓取失敗：{exc}")
+
+
+LINK = re.compile(r"""<a\b[^>]*?href\s*=\s*["']([^"'#]+)["'][^>]*>(.*?)</a>""", re.I | re.S)
+BROCHURE_WORDS = re.compile(r"簡章|甄審|招生|備審|日程")
+MAX_LINKED = 10
+LINKED_PREFIX = "Agent 從頁面找到："
+
+
+def follow_brochure_links(source, content):
+    """官方網頁更新時，把頁面上的簡章 PDF 連結登記成新來源（2026-11-10）。
+
+    只收：.pdf 結尾、連結文字或檔名有「簡章／甄審／招生／備審／日程」、而且是學校或政府網站；
+    已經登記過的不重複，一次最多 MAX_LINKED 個。登記的來源一樣要經過檢查、擷取、管理員核准。
+    """
+    from urllib.parse import urljoin
+    known = {item.url for item in PublicSource.query.all()}
+    added = []
+    for href, label in LINK.findall(_decode(content)):
+        url = urljoin(source.url, href.strip())
+        text = " ".join(re.sub(r"<[^>]+>", " ", label).split())
+        if (not urlsplit(url).path.lower().endswith(".pdf") or not official_url(url)
+                or not BROCHURE_WORDS.search(text + url) or url in known):
+            continue
+        add_source((LINKED_PREFIX + (text or url.rsplit("/", 1)[-1]))[:150], url=url)
+        known.add(url)
+        added.append(url)
+        if len(added) >= MAX_LINKED:
+            break
+    return added
 
 
 def check_all(requester, fetch=fetch_url):
@@ -265,8 +299,18 @@ EXTRACT_SCHEMA = {
                                 "name": {"type": "STRING"},
                                 "weight": {"type": "INTEGER"},
                                 "categories": {"type": "ARRAY", "items": {"type": "STRING"}},
+                                "requirement": {"type": "STRING"},
+                                "source_page": {"type": "STRING"},
                             },
                             "required": ["name", "weight", "categories"],
+                        },
+                    },
+                    "highlights": {
+                        "type": "ARRAY",
+                        "items": {
+                            "type": "OBJECT",
+                            "properties": {"text": {"type": "STRING"}, "source_page": {"type": "STRING"}},
+                            "required": ["text"],
                         },
                     },
                 },
@@ -303,12 +347,18 @@ SCHEDULE_CHANNELS = {"skill_review"}
 
 def _extract_prompt(keywords, page_text=None):
     categories = "、".join(f"{key}（{label}）" for key, label in ALL_LABELS.items())
+    max_highlights = MAX_HIGHLIGHTS
     prompt = f"""以下是臺灣「二技技優甄審」的招生簡章或其附錄。請擷取科系名稱包含「{'、'.join(keywords)}」的每一個志願：
 - program_code：志願代碼（6 位數字）
 - admission_year：學年度（民國年，例如 116）
 - school_name、department_name、admission_category（招生類別，例如「管理類四」）
 - items：備審資料（第二階段）的每個評分項目名稱與加權百分比（整數，照原文）
 - categories：建議這個項目對應的資料類別，只能從這些代碼選：{categories}
+- requirement：這個評分項目要繳什麼、怎麼評（照簡章的「繳交資料」與「評分標準」整理成一兩句，不要加自己的建議）；簡章沒寫就留空
+- source_page：這個項目在簡章的頁碼（照頁面上印的頁碼）
+- highlights：學生準備備審時最容易漏掉的重點，最多 {max_highlights} 條，每條一句話、附 source_page 頁碼。只收簡章明確寫的：
+  要另外下載或親簽的表格、字數或頁數上限、必繳與選繳的分別、缺件以零分計、報名前要具備的檢定程度、入學後的畢業門檻。
+  一般說明（例如「資料不退還」）不要列。
 - eligibility_rules：只擷取簡章明確寫出的第一階段報名資格；每筆包含 rule_group（同組條件必須同時符合，不同組是替代資格）、condition_type（student_status、credential、competition）、operator、value_json、description（保留簡章原意）及 source_location（頁碼／章節）。
 - value_json 只使用可直接對照學生結構化資料的欄位：學籍可用 field（class_name 或 admission_year）及 values；證照可用 name、min_level、issuer、issue_date_from、issue_date_to；競賽只可表達是否有已確認競賽經歷。
 
@@ -442,7 +492,9 @@ def extract_programs(change, requester, generate=None):
             db.session.add(AdmissionRequirementItem(
                 rule_version_id=program.id, source_item_name=str(item.get("name", "")).strip()[:100] or "（未命名）",
                 weight_percent=weight, mapped_categories=",".join(keys), mapping_status="pending", sort_order=order,
+                requirement=_requirement_text(item),
             ))
+        program.highlights = _highlights(raw.get("highlights"))
         official_url = None if source.url.startswith("upload://") else source.url
         raw_rules = raw.get("eligibility_rules")
         if not isinstance(raw_rules, list) or not raw_rules:
@@ -504,6 +556,41 @@ def _save_schedule(schedule, change, source):
     return created, skipped
 
 
+MAX_HIGHLIGHTS = 8
+
+
+def _page_label(page):
+    page = str(page or "").strip()
+    if not page:
+        return ""
+    return f"第{page}頁" if page.isdigit() else page
+
+
+def _requirement_text(item):
+    """評分項目的「要繳什麼」，後面附頁碼，方便管理員回簡章核對。沒寫就是 None。"""
+    text = " ".join(str(item.get("requirement") or "").split())[:500]
+    if not text:
+        return None
+    page = _page_label(item.get("source_page"))
+    return f"{text}（{page}）" if page else text
+
+
+def _highlights(raw):
+    """重點提醒：去掉空白、重複，最多 MAX_HIGHLIGHTS 條。"""
+    result, seen = [], set()
+    for entry in raw if isinstance(raw, list) else []:
+        if not isinstance(entry, dict):
+            continue
+        text = " ".join(str(entry.get("text") or "").split())[:200]
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        result.append({"text": text, "page": _page_label(entry.get("source_page"))})
+        if len(result) >= MAX_HIGHLIGHTS:
+            break
+    return result or None
+
+
 def compare_with_published(program):
     """和同一志願代碼「最近一年的正式版」比對加權，給管理者核准前看。"""
     previous = (AdmissionProgram.query.filter(
@@ -511,10 +598,20 @@ def compare_with_published(program):
         AdmissionProgram.status == "published",
         AdmissionProgram.id != program.id,
     ).order_by(AdmissionProgram.admission_year.desc()).first())
-    old = {item.source_item_name: item.weight_percent for item in previous.items} if previous else {}
-    new = {item.source_item_name: item.weight_percent for item in program.items}
-    rows = [{"name": name, "old": old.get(name), "new": new.get(name)}
-            for name in list(new) + [n for n in old if n not in new]]
-    for row in rows:
+    old_items = {item.source_item_name: item for item in previous.items} if previous else {}
+    new_items = {item.source_item_name: item for item in program.items}
+    rows = []
+    for name in list(new_items) + [n for n in old_items if n not in new_items]:
+        old, new = old_items.get(name), new_items.get(name)
+        row = {"name": name, "old": old.weight_percent if old else None, "new": new.weight_percent if new else None,
+               "old_requirement": old.requirement if old else None,
+               "new_requirement": new.requirement if new else None}
         row["changed"] = row["old"] != row["new"]
+        # 要繳的資料改了也要讓管理員看到（只比對字，不比對頁碼括號）
+        row["requirement_changed"] = bool(old and new and _strip_page(old.requirement) != _strip_page(new.requirement))
+        rows.append(row)
     return {"previous": previous, "rows": rows}
+
+
+def _strip_page(text):
+    return re.sub(r"（第[^）]*頁）$", "", (text or "").strip())

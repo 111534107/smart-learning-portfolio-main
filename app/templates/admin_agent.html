@@ -140,7 +140,7 @@
         {% elif task.task_type == "agent_patrol" and task.result_json %}<span class="small">{{ task.result_json.summary }}</span>
         {% elif task.task_type == "admission_source_search" and task.result_json %}<span class="small">找到 {{ task.result_json.added|length }} 個新的官方來源（已登記 {{ task.result_json.already_known }}、非官方略過 {{ task.result_json.skipped_unofficial }}）</span>
         {% elif task.result_json and task.result_json.created is defined %}<span class="small">新增 {{ task.result_json.created|length }} 個候選，略過 {{ task.result_json.skipped|length }} 個</span>
-        {% elif task.result_json %}<span class="small">{{ "有更新" if task.result_json.changed else "沒有更新" }}</span>{% endif %}
+        {% elif task.result_json %}<span class="small">{{ "有更新" if task.result_json.changed else "沒有更新" }}{% if task.result_json.linked_sources %}，從頁面找到 {{ task.result_json.linked_sources|length }} 份簡章 PDF 並登記成來源{% endif %}</span>{% endif %}
       </li>
       {% else %}
       <li class="muted">還沒有執行紀錄。</li>

@@ -114,6 +114,12 @@ def build_package_docx(student, program):
         document.add_heading("簡章要求", level=1)
         for item in requirements:
             document.add_paragraph(f"{item.source_item_name}（{item.weight_percent}%）：{item.requirement}", style="List Bullet")
+    if program.highlights:
+        document.add_heading("重點提醒", level=2)
+        for highlight in program.highlights:
+            page = f"（{highlight['page']}）" if highlight.get("page") else ""
+            document.add_paragraph(f"{highlight['text']}{page}", style="List Bullet")
+    if requirements or program.highlights:
         if program.source_note:
             document.add_paragraph(f"來源：{program.source_note}" + (f"　{program.source_url}" if program.source_url else ""))
 

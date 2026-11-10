@@ -56,6 +56,12 @@
               <ul class="target-program__weights">
                 {% for item in gap["items"] %}<li><span>{{ item.name }}{% if item.requirement %}<small class="muted" data-requirement>{{ item.requirement }}</small>{% endif %}</span><strong>{{ item.weight }}%</strong></li>{% endfor %}
               </ul>
+              {% if program.highlights %}
+              <div class="target-program__highlights" data-highlights>
+                <h4>簡章重點提醒</h4>
+                <ul>{% for h in program.highlights %}<li>{{ h.text }}{% if h.page %}<small class="muted">（{{ h.page }}）</small>{% endif %}</li>{% endfor %}</ul>
+              </div>
+              {% endif %}
               {% else %}<p class="small muted">{% if track == "transfer" %}考試科目與資料需求請看招生簡章。{% else %}此校系的採計項目尚未列出，請看招生簡章。{% endif %}</p>{% endif %}
             </div>
             <div class="target-program__actions">

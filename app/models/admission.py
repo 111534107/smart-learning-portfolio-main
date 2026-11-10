@@ -30,6 +30,8 @@ class AdmissionProgram(db.Model):
     status = db.Column(db.String(20), nullable=False, default="candidate", index=True)
     data_origin = db.Column(db.String(20), nullable=False, default="manual")
     checked_at = db.Column(db.Date, nullable=True)
+    # 簡章重點提醒（2026-11-10）：[{"text": ..., "page": ...}]，例如特殊表格、字數頁數限制、門檻
+    highlights = db.Column(db.JSON, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=_utcnow)
 
     items = db.relationship(

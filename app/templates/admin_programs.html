@@ -34,10 +34,17 @@
         {% if diff.previous %}和 {{ diff.previous.admission_year }} 學年度正式版比較：{% else %}沒有前一年的正式版可以比較。{% endif %}</p>
       {% if diff.previous %}
       <ul class="agent-diff__rows">
-        {% for row in diff["rows"] %}<li class="{{ 'is-changed' if row.changed else '' }}">{{ row.name }}：{{ row.old if row.old is not none else "（新項目）" }}{% if row.old is not none %}%{% endif %} → {{ row.new if row.new is not none else "（已刪除）" }}{% if row.new is not none %}%{% endif %}</li>{% endfor %}
+        {% for row in diff["rows"] %}<li class="{{ 'is-changed' if row.changed or row.requirement_changed else '' }}">{{ row.name }}：{{ row.old if row.old is not none else "（新項目）" }}{% if row.old is not none %}%{% endif %} → {{ row.new if row.new is not none else "（已刪除）" }}{% if row.new is not none %}%{% endif %}{% if row.requirement_changed %}<br><small>要繳的資料改了：{{ row.old_requirement or "（沒寫）" }} → {{ row.new_requirement or "（沒寫）" }}</small>{% endif %}</li>{% endfor %}
       </ul>
       {% endif %}
       <p class="small muted">請核對下方加權與對應類別都正確，再按「核准為正式」。核准後，學生只會看到最新學年度的版本。</p>
+    </div>
+    {% endif %}
+    {% if program.highlights %}
+    <div class="agent-diff mb-1" data-highlights>
+      <h3>簡章重點</h3>
+      <ul class="small">{% for h in program.highlights %}<li>{{ h.text }}{% if h.page %}（{{ h.page }}）{% endif %}</li>{% endfor %}</ul>
+      {% if program.data_origin == "agent" and program.status == "candidate" %}<p class="small muted">Agent 整理的重點，核准前請回簡章核對頁碼。</p>{% endif %}
     </div>
     {% endif %}
     {% set eligibility_state = namespace(verified=(program.eligibility_rules|length > 0)) %}
@@ -114,7 +121,7 @@
         <tbody>
           {% for item in program.items %}
           <tr>
-            <td><b>{{ item.source_item_name }}</b></td>
+            <td><b>{{ item.source_item_name }}</b>{% if item.requirement %}<br><small class="muted" data-requirement>{{ item.requirement }}</small>{% endif %}</td>
             <td class="mono">{{ item.weight_percent }}%</td>
             <td colspan="3">
               <form class="admin-item-form" method="post" action="{{ url_for('admin.program_item_update', item_id=item.id) }}">
