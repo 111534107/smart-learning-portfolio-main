@@ -464,12 +464,25 @@ def extract_programs(change, requester, generate=None):
     if not path:
         return _finish(task, "failed", error="找不到這次抓取的檔案，請重新檢查來源。")
     keywords = current_app.config["AGENT_PROGRAM_KEYWORDS"]
-    if path.suffix == ".pdf":
-        prompt, files = _extract_prompt(keywords), [("application/pdf", path.read_bytes())]
-    else:
-        prompt, files = _extract_prompt(keywords, _html_to_text(path.read_bytes())), []
+    # 11-11：AI 不讀檔案，一律先在本機轉成文字（PDF 文字層，掃描檔走系統 OCR），再交給管理員設定的 AI
+    from app.services import ai_gateway
     try:
-        result = (generate or generate_json)(prompt, EXTRACT_SCHEMA, files)
+        page_text = ai_gateway.document_text(path)
+    except (AIUnavailable, RuntimeError):
+        page_text = ""
+    except Exception:  # 壞掉或加密的 PDF
+        page_text = ""
+    if generate is None and not ai_gateway.ready():
+        return _finish(task, "failed", error="AI 沒有開啟：請管理員到「AI 設定」啟用至少一家 AI。")
+    if not page_text.strip() and generate is None:
+        return _finish(task, "failed", error="這份簡章讀不到文字，也沒辦法用 OCR 辨識，請改上傳文字版 PDF。")
+    prompt = _extract_prompt(keywords, page_text)
+    provider = None
+    try:
+        if generate is not None:
+            result = generate(prompt, EXTRACT_SCHEMA, [])
+        else:
+            result, provider = ai_gateway.generate_json(prompt, EXTRACT_SCHEMA)
     except AIUnavailable as exc:
         return _finish(task, "failed", error=str(exc))
 
@@ -531,7 +544,7 @@ def extract_programs(change, requester, generate=None):
     schedule_created, schedule_skipped = _save_schedule(result.get("schedule") or {}, change, source,
                                                         source_text=_source_text(path))
     change.status = "extracted"
-    return _finish(task, "succeeded", {"created": created, "skipped": skipped,
+    return _finish(task, "succeeded", {"provider": provider, "created": created, "skipped": skipped,
                                        "schedule_created": schedule_created, "schedule_skipped": schedule_skipped})
 
 

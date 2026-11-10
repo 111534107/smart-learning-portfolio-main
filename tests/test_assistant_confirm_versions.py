@@ -715,6 +715,8 @@ def test_award_import_counts_toward_school_turns(app, monkeypatch):
     calls = []
     app.config.update(AI_ENABLED=True, AI_PROVIDER="gemini", AI_API_KEY="school-key-for-test")
     monkeypatch.setattr(gemini_client, "generate_json", lambda *a, **k: calls.append(1) or {"rows": []})
+    from app.services import ai_gateway  # 11-11：AI 不讀檔案，先轉成文字（這裡直接給轉好的文字）
+    monkeypatch.setattr(ai_gateway, "document_text", lambda path: "獎懲記錄 嘉獎一次")
     client = login(app)
 
     def upload():

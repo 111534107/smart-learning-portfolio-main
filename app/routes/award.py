@@ -28,14 +28,17 @@ def _owned_award_document_or_404(document_id):
 
 def _read_rows(user, stored_path, safe_name):
     """請 AI 逐列讀出；學校金鑰每人每天有次數限制，AI 沒讀出來就退回次數。"""
-    if not award_record_service.gemini_client.ai_ready():
-        return award_record_service.extract_rows(stored_path, safe_name)
+    from app.services import ai_gateway
+    from app.services.deidentify import known_values_for
+    known = known_values_for(user)
+    if not ai_gateway.ready():
+        return award_record_service.extract_rows(stored_path, safe_name, known)
     try:
         ai_quota_service.consume(user)
     except ai_quota_service.QuotaExceeded:
         return [], [f"今天學校 AI 的 {current_app.config.get('SCHOOL_AI_DAILY_LIMIT', 5)} 次已經用完了，"
                     "明天會恢復；現在可以對照上方的原始檔，自己填寫下面的表格。"]
-    rows, warnings = award_record_service.extract_rows(stored_path, safe_name)
+    rows, warnings = award_record_service.extract_rows(stored_path, safe_name, known)
     if not rows:
         ai_quota_service.refund(user)
     return rows, warnings

@@ -49,7 +49,7 @@ ROW_SCHEMA = {
     "required": ["rows"],
 }
 
-PROMPT = """這是一位學生從學校系統下載的「獎懲記錄查詢」。請逐列讀出表格，每一列一筆，不要合併、不要漏列，
+PROMPT = """下面是一位學生從學校系統下載的「獎懲記錄查詢」，已經用 OCR 轉成文字、個資換成代號。請逐列讀出表格，每一列一筆，不要合併、不要漏列，
 事由要完整照抄原文。看不清楚的字就照你看到的寫，不要自己編。
 category 依事由判斷：參加比賽或得獎→competition；協助科上、服務、志工→service；班級幹部、小老師→leadership；
 其他校內活動→activity；都不像→none。"""
@@ -88,16 +88,21 @@ def record_key(*parts):
     return sha256("|".join(str(part) for part in parts).encode("utf-8")).hexdigest()
 
 
-def extract_rows(file_path, display_name):
-    """把檔案交給 AI 逐列讀出。回傳 (rows, warnings)；沒有 AI 時 rows 是空的。"""
-    if not gemini_client.ai_ready():
+def extract_rows(file_path, display_name, known=()):
+    """請 AI 逐列讀出。回傳 (rows, warnings)；沒有 AI 時 rows 是空的。
+
+    11-11 使用者規則：AI 不能讀圖片。檔案先在本機轉成文字（PDF 文字層，掃描檔或照片走系統 OCR），
+    再把學生的姓名、學號等個資換成代號（known），才交給管理員設定的 AI（app/services/ai_gateway.py）。
+    """
+    from app.services import ai_gateway
+    if not ai_gateway.ready():
         return [], ["尚未接上 AI，請對照上方的原始檔，自己把要匯入的列填進下面的表格。"]
     mime_type = MIME_TYPES.get(Path(display_name).suffix.lower())
     if not mime_type:
         return [], ["這種檔案 AI 讀不了，請改傳 PDF 或照片，或自己填寫下面的表格。"]
     try:
-        result = gemini_client.generate_json(PROMPT, ROW_SCHEMA, files=[(mime_type, Path(file_path).read_bytes())])
-    except gemini_client.AIUnavailable as exc:
+        result, _provider = ai_gateway.generate_json(PROMPT, ROW_SCHEMA, documents=[file_path], known=known)
+    except (gemini_client.AIUnavailable, RuntimeError) as exc:  # RuntimeError：OCR 讀不了這個檔案
         return [], [f"AI 這次沒有讀出來：{exc} 你可以重新上傳，或自己填寫下面的表格。"]
     return result.get("rows") or [], []
 

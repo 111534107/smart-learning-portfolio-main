@@ -128,7 +128,8 @@ def run_patrol(requester, decide=AUTO, fetch=None, generate=None, search=None, r
     """執行一次巡查。decide=AUTO：有設定 AI 就讓 AI 決定，否則走固定流程。fetch／generate／search／resolve 測試時換成假的。"""
     if decide == AUTO:
         decide = patrol_decider() if ai_ready() else None
-    can_extract = generate is not None or ai_ready()
+    from app.services import ai_gateway
+    can_extract = generate is not None or ai_gateway.ready()  # 11-11：任何一家管理員啟用的 AI 都可以擷取
     can_search = search is not None or ai_ready()
     return run(task_type="agent_patrol", goal=GOAL, tools=_tools(requester, fetch, generate, search, resolve),
                requester=requester, decide=decide, fallback=_fixed_plan(can_extract, can_search), max_steps=12)

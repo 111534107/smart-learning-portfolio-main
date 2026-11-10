@@ -9,6 +9,8 @@ def no_real_ai(monkeypatch):
     """測試一律不讀 .env 裡真的 AI 金鑰，避免連網路、花額度或洩漏金鑰。"""
     monkeypatch.setattr(Config, "AI_ENABLED", False)
     monkeypatch.setattr(Config, "AI_API_KEY", "")
+    monkeypatch.setattr(Config, "OPENAI_API_KEY", "")
+    monkeypatch.setattr(Config, "ANTHROPIC_API_KEY", "")
 
 
 @pytest.fixture(autouse=True)

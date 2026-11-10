@@ -90,7 +90,7 @@ def _post(body, api_key, opener, model=None):
     raise AIUnavailable(f"Google 的 AI 現在太忙（HTTP {busy_code}），已經重試並換過備用模型，請過幾分鐘再試。") from None
 
 
-def generate_json(prompt, schema, files=None, api_key=None, opener=urllib.request.urlopen, uploaded=None):
+def generate_json(prompt, schema, files=None, api_key=None, opener=urllib.request.urlopen, uploaded=None, model=None):
     """送出提示詞（可附 PDF 或圖片），回傳 Gemini 依 schema 產生的 dict。
 
     files：[(MIME 類型, 檔案 bytes), ...]
@@ -106,7 +106,7 @@ def generate_json(prompt, schema, files=None, api_key=None, opener=urllib.reques
     payload = _post({
         "contents": [{"role": "user", "parts": parts}],
         "generationConfig": {"responseMimeType": "application/json", "responseSchema": schema, "temperature": 0.4},
-    }, api_key, opener)
+    }, api_key, opener, model=model)
     try:
         return json.loads(payload["candidates"][0]["content"]["parts"][0]["text"])
     except (KeyError, IndexError, json.JSONDecodeError):

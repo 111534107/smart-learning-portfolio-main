@@ -83,7 +83,7 @@ def test_upload_without_ai_goes_to_review_with_blank_rows(tmp_path):
 
 
 def test_upload_with_ai_shows_classified_rows(tmp_path, monkeypatch):
-    monkeypatch.setattr(service, "extract_rows", lambda path, name: (ROWS, []))
+    monkeypatch.setattr(service, "extract_rows", lambda path, name, known=(): (ROWS, []))
     app = records_app(tmp_path)
     client = app.test_client()
     login(client)
@@ -98,7 +98,7 @@ def test_upload_with_ai_shows_classified_rows(tmp_path, monkeypatch):
 
 
 def test_confirm_creates_records_with_school_source(tmp_path, monkeypatch):
-    monkeypatch.setattr(service, "extract_rows", lambda path, name: (ROWS, []))
+    monkeypatch.setattr(service, "extract_rows", lambda path, name, known=(): (ROWS, []))
     app = records_app(tmp_path)
     client = app.test_client()
     login(client)
@@ -128,7 +128,7 @@ def test_confirm_creates_records_with_school_source(tmp_path, monkeypatch):
 
 
 def test_confirm_twice_does_not_duplicate(tmp_path, monkeypatch):
-    monkeypatch.setattr(service, "extract_rows", lambda path, name: (ROWS, []))
+    monkeypatch.setattr(service, "extract_rows", lambda path, name, known=(): (ROWS, []))
     app = records_app(tmp_path)
     client = app.test_client()
     login(client)
@@ -144,7 +144,7 @@ def test_confirm_twice_does_not_duplicate(tmp_path, monkeypatch):
 
 
 def test_confirm_rejects_row_without_valid_category(tmp_path, monkeypatch):
-    monkeypatch.setattr(service, "extract_rows", lambda path, name: (ROWS, []))
+    monkeypatch.setattr(service, "extract_rows", lambda path, name, known=(): (ROWS, []))
     app = records_app(tmp_path)
     client = app.test_client()
     login(client)
@@ -239,7 +239,7 @@ def test_same_reason_in_different_terms_is_not_treated_as_duplicate(tmp_path, mo
         {"date": "2025/06/30", "name": "嘉獎", "count": 1, "reason": "全勤", "revoked": ""},
         {"date": "2025/12/30", "name": "嘉獎", "count": 1, "reason": "全勤", "revoked": ""},
     ]
-    monkeypatch.setattr(service, "extract_rows", lambda path, name: (rows, []))
+    monkeypatch.setattr(service, "extract_rows", lambda path, name, known=(): (rows, []))
     app = records_app(tmp_path)
     client = app.test_client()
     login(client)
@@ -256,7 +256,7 @@ def test_same_reason_in_different_terms_is_not_treated_as_duplicate(tmp_path, mo
 
 
 def test_same_row_is_saved_once_even_after_student_deletes_portfolio(tmp_path, monkeypatch):
-    monkeypatch.setattr(service, "extract_rows", lambda path, name: (ROWS, []))
+    monkeypatch.setattr(service, "extract_rows", lambda path, name, known=(): (ROWS, []))
     app = records_app(tmp_path)
     client = app.test_client()
     login(client)
@@ -280,7 +280,7 @@ def test_punishments_are_saved_with_revoked_flag_and_listed_on_their_own_page(tm
         {"date": "2025/03/01", "name": "警告", "count": 1, "reason": "1132學期上課遲到", "revoked": ""},
         {"date": "2024/06/12", "name": "小過", "count": 1, "reason": "1122學期未繳交作業", "revoked": "已銷"},
     ]
-    monkeypatch.setattr(service, "extract_rows", lambda path, name: (rows, []))
+    monkeypatch.setattr(service, "extract_rows", lambda path, name, known=(): (rows, []))
     app = records_app(tmp_path)
     client = app.test_client()
     login(client)
@@ -301,7 +301,7 @@ def test_punishments_are_saved_with_revoked_flag_and_listed_on_their_own_page(tm
 
 
 def test_punishments_are_not_shown_in_portfolio_or_autobiography(tmp_path, monkeypatch):
-    monkeypatch.setattr(service, "extract_rows", lambda path, name: (ROWS, []))
+    monkeypatch.setattr(service, "extract_rows", lambda path, name, known=(): (ROWS, []))
     app = records_app(tmp_path)
     client = app.test_client()
     login(client)

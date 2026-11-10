@@ -790,6 +790,24 @@ def class_delete(advisor_id):
     return redirect(url_for("admin.classes"))
 
 
+@admin_bp.get("/admin/ai")
+@admin_bp.post("/admin/ai")
+@role_required("admin")
+def ai_settings_page():
+    """選要用哪幾家 AI、模型、先後順序（11-11 使用者決定）。金鑰只放 .env，這裡只顯示有沒有設定。"""
+    from app.services import ai_gateway
+    message = None
+    if request.method == "POST":
+        rows = []
+        for name in ai_gateway.PROVIDERS:
+            if request.form.get(f"enabled_{name}"):
+                rows.append((request.form.get(f"order_{name}", type=int) or 99, name))
+        ai_gateway.save(get_current_user(), [name for _order, name in sorted(rows)],
+                        {name: request.form.get(f"model_{name}", "") for name in ai_gateway.PROVIDERS})
+        message = "已儲存。之後呼叫 AI 會照這個順序，前一家不能用就自動換下一家。"
+    return render_template("admin_ai.html", user=get_current_user(), providers=ai_gateway.status(), message=message)
+
+
 @admin_bp.get("/admin/ocr")
 @admin_bp.post("/admin/ocr")
 @role_required("admin")

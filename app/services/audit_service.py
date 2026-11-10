@@ -15,6 +15,7 @@ ACTION_LABELS = {
     "user.login": "教職員登入",
     "admin.login_failed": "管理員登入密碼錯誤",
     "admin.login_security": "設定管理員登入網段",
+    "ai.settings": "調整 AI 設定",
     "student.welcome_done": "看完歡迎頁",
     "portfolio.confirm": "確認經歷",
     "certificate.issue": "科辦開立電子獎狀",

@@ -43,6 +43,11 @@ class Config:
     GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     AUTOBIOGRAPHY_AI_PROVIDER = os.getenv("AUTOBIOGRAPHY_AI_PROVIDER", "gemini").lower()
     OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b")
+    OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434")
+    # 其他 AI 的金鑰（11-11）：只放 .env；用哪幾家、模型、順序由管理員在「AI 設定」頁決定（app/services/ai_gateway.py）
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+    OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")  # DeepSeek、Groq 等相容服務改這裡
+    ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
     # Google Drive 原型只在本機明確啟用，且 OAuth 與 Picker 設定齊全時開放。
     GOOGLE_DRIVE_PREVIEW_ENABLED = os.getenv("GOOGLE_DRIVE_PREVIEW_ENABLED", "false").lower() == "true"
     GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "")
