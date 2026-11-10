@@ -181,3 +181,16 @@ def test_program_whose_weights_do_not_add_to_100_is_not_created(app):
         task = agent.extract_programs(agent.PublicSourceChange.query.one(), admin(app),
                                       generate=lambda prompt, schema, files: {"programs": [bad]})
         assert task.result_json["created"] == [] and task.result_json["skipped"] == ["208003"]
+
+
+def test_zero_weight_document_items_are_dropped(app):
+    """11-11 本機 qwen2.5:14b 實測：把要繳的文件也列成 0% 項目。"""
+    noisy = {**EXTRACTED["programs"][0], "items": [{"name": "歷年成績單", "weight": 0, "categories": []}]
+             + EXTRACTED["programs"][0]["items"]}
+    source_id = make_source(app)
+    with app.app_context():
+        agent.check_source(db.session.get(PublicSource, source_id), admin(app), fetch=fake_fetch(b"%PDF w"))
+        agent.extract_programs(agent.PublicSourceChange.query.one(), admin(app),
+                               generate=lambda prompt, schema, files: {"programs": [noisy]})
+        program = AdmissionProgram.query.filter_by(data_origin="agent").one()
+        assert [item.source_item_name for item in program.items] == ["專業成果", "學習能力"]
