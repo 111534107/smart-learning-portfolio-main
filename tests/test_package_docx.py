@@ -44,8 +44,9 @@ def test_package_follows_weighted_chapter_order_and_lists_records():
     assert "班級學藝股長" in joined
     headings = [line for line in text if line[:2].isdigit() and "　" in line]
     assert [line[:2] for line in headings] == [f"{n:02d}" for n in range(1, 11)]
-    # 北商資管：成績、證照、競賽、專題各 30%；活動／服務 10%；自傳、讀書計畫不在加權項目中
+    # 北商資管（115 簡章第 70 頁，2026-11-10 核對）：學習能力 30% 含成績、自傳讀書計畫、幹部社團；
+    # 專業成果（專題）、證照各 30%；競賽只在「其他」10%
     assert [line[3:] for line in headings] == [
-        "封面與目錄", "報名資格證明", "歷年成績單與排名", "證照證明", "競賽成果",
-        "專題／作品集", "社團與幹部經歷", "其他有利審查資料", "自傳", "讀書計畫",
+        "封面與目錄", "報名資格證明", "歷年成績單與排名", "自傳", "讀書計畫", "證照證明",
+        "專題／作品集", "社團與幹部經歷", "競賽成果", "其他有利審查資料",
     ]

@@ -76,7 +76,10 @@ def _gap(student, program):
             "missing": [ALL_LABELS[k] for k in item["missing"]],
             "documents_to_prepare": [ALL_LABELS[k] for k in item["documents"]],
             "mapping_unconfirmed": item["mapping_pending"],
+            "brochure_requirement": item.get("requirement"),  # 簡章原文整理的要繳什麼（2026-11-10）
         } for item in gap["items"]],
+        "source": program.source_note,
+        "source_url": program.source_url,
     }
 
 

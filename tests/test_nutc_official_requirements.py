@@ -39,9 +39,30 @@ def test_seed_matches_official_brochure():
             # 簡章把競賽成果寫在「其他有助於審查之資料」
             assert "competition" in items["其他"].category_keys
             assert "competition" not in items["個人特質與專業技能"].category_keys
-        # 沒核對過的學校不受影響
+        # 北商資管：同一本聯招會簡章第 70 頁，要另繳表A、表B
         other, other_items = items_of("208003")
-        assert other.source_url is None and other_items["專業成果"].mapping_status == "pending"
+        assert other.source_url == JOINT_URL and "第70頁" in other.source_note
+        assert "表A" in other_items["專業成果"].requirement
+
+
+JOINT_URL = "https://enrollstudents.nfu.edu.tw/download/20251121001/25845"
+
+
+def test_every_seed_program_is_checked_against_brochure():
+    """種子資料與展示站全國校系都已依 115 學年度簡章核對（2026-11-10）：每項都有說明、來源，且加權合計 100。"""
+    from pathlib import Path
+    content = Path(__file__).resolve().parent.parent / "app" / "content"
+    app = make_app()
+    with app.app_context():
+        import_seed_programs()
+        import_seed_programs(content / "admission_demo_national_116.csv")
+        programs = AdmissionProgram.query.all()
+        assert len(programs) == 36  # 種子 4 + 展示站全國 32
+        for program in programs:
+            assert program.source_url in (URL, JOINT_URL), program.program_code
+            assert sum(item.weight_percent for item in program.items) == 100, program.program_code
+            for item in program.items:
+                assert item.mapping_status == "confirmed" and item.requirement, (program.program_code, item.source_item_name)
 
 
 def test_refresh_upgrades_existing_pending_items_but_keeps_admin_choices():
@@ -96,3 +117,18 @@ def test_admin_import_button_reports_updates():
     client.post("/login", data={"username": "admin", "password": "pw"})
     response = client.post("/admin/programs/import-seed", follow_redirects=True)
     assert "依核對過的簡章更新 1 個項目" in response.get_data(as_text=True)
+
+
+def test_assistant_gap_tool_tells_brochure_requirement_and_source():
+    from app.services.assistant_tools import _gap
+    app = make_app()
+    with app.app_context():
+        import_seed_programs()
+        student = User(username="stu2", display_name="合成學生", role="student")
+        student.set_password("pw")
+        db.session.add(student)
+        db.session.commit()
+        program, _ = items_of("208003")
+        result = _gap(student, program)
+        assert result["source_url"] == JOINT_URL and "第70頁" in result["source"]
+        assert any("表A" in (item["brochure_requirement"] or "") for item in result["items"])
