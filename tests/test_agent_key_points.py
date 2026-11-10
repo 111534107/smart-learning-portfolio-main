@@ -168,3 +168,16 @@ def test_date_check_reads_roc_and_western_formats():
     for text in ("115.4.20", "115/04/20", "115年4月20日", "2026-04-20", "115 . 4 . 20"):
         assert agent._date_in_text(dt(2026, 4, 20), text), text
     assert not agent._date_in_text(dt(2026, 4, 2), "115.4.20")
+
+
+def test_program_whose_weights_do_not_add_to_100_is_not_created(app):
+    """11-11 本機 Ollama 實測：把「書面資料審查 100%」和評分標準都列成項目，合計 200%。"""
+    bad = {**EXTRACTED["programs"][0], "items": [
+        {"name": "書面資料審查", "weight": 100, "categories": []},
+        {"name": "書審資料評分標準", "weight": 100, "categories": []}]}
+    source_id = make_source(app)
+    with app.app_context():
+        agent.check_source(db.session.get(PublicSource, source_id), admin(app), fetch=fake_fetch(b"%PDF z"))
+        task = agent.extract_programs(agent.PublicSourceChange.query.one(), admin(app),
+                                      generate=lambda prompt, schema, files: {"programs": [bad]})
+        assert task.result_json["created"] == [] and task.result_json["skipped"] == ["208003"]

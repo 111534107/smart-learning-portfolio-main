@@ -27,7 +27,7 @@ PROVIDERS = {
     "openai": {"label": "OpenAI 或相容服務（DeepSeek、Groq 等）", "key_env": "OPENAI_API_KEY",
                "default_model": "gpt-4o-mini"},
     "anthropic": {"label": "Anthropic Claude", "key_env": "ANTHROPIC_API_KEY", "default_model": "claude-haiku-5-5"},
-    "ollama": {"label": "本機 Ollama（不連外網）", "key_env": None, "default_model": "qwen2.5:7b"},
+    "ollama": {"label": "本機 Ollama（不連外網）", "key_env": None, "default_model": "qwen2.5-coder:7b"},
 }
 MIN_TEXT = 20  # PDF 文字層少於這麼多字，當成掃描檔改用 OCR
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg"}

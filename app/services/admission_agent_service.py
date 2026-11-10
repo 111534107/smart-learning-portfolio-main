@@ -497,6 +497,13 @@ def extract_programs(change, requester, generate=None):
         # 簡章附錄的志願代碼常印成「--」，AI 還可能自己編一個（11-11 實測編出 108001）：
         # 學校＋科系對得到已有的校系，就一律用已有的代碼
         code = _code_by_name(str(raw.get("school_name", "")), department) or code
+        try:  # 11-11 本機小模型實測會把「書面資料審查 100%」也當評分項目：加權合計不是 100 就不建立
+            total = sum(int(item.get("weight", 0)) for item in raw.get("items", []))
+        except (TypeError, ValueError):
+            total = -1
+        if total != 100:
+            skipped.append(code or department)
+            continue
         if code in created:  # 同一份簡章同系出現兩次
             skipped.append(code)
             continue

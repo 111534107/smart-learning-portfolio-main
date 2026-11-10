@@ -38,7 +38,7 @@
         </tbody>
       </table>
     </div>
-    <p class="small muted">本機 Ollama 不連外網，要先在伺服器安裝 Ollama 並下載模型（例如 <span class="mono">ollama pull qwen2.5:7b</span>）。OpenAI 欄也可以接 DeepSeek、Groq 等相容服務，網址在 .env 的 OPENAI_BASE_URL。</p>
+    <p class="small muted">本機 Ollama 不連外網；模型存放位置由電腦的 OLLAMA_MODELS 設定決定（本機是 <span class="mono">D:\AI\OllamaModels</span>），模型欄要填已下載的名稱（例如 <span class="mono">qwen2.5-coder:7b</span>）。本機小模型讀長篇簡章不準，建議放在最後當備援。OpenAI 欄也可以接 DeepSeek、Groq 等相容服務，網址在 .env 的 OPENAI_BASE_URL。</p>
     <div><button class="button" type="submit">儲存</button></div>
   </form>
 </section>
