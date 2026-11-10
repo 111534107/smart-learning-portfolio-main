@@ -15,6 +15,8 @@ def create_app(config_overrides=None):
     # 雙重驗證：自動化測試與本機展示站（帳號密碼公開在登入頁）預設不強制，仍可自己到帳號選單開啟
     if (app.config.get("TESTING") or app.config.get("LOCAL_DEMO_MODE")) and "TWO_FACTOR_REQUIRED" not in (config_overrides or {}):
         app.config["TWO_FACTOR_REQUIRED"] = False
+    if (app.config.get("TESTING") or app.config.get("LOCAL_DEMO_MODE")) and "ADMIN_TWO_FACTOR_REQUIRED" not in (config_overrides or {}):
+        app.config["ADMIN_TWO_FACTOR_REQUIRED"] = False
     if app.config.get("TESTING") and "OCR_QUEUE_MODE" not in (config_overrides or {}):
         app.config["OCR_QUEUE_MODE"] = "inline"
     if app.config.get("DOCUMENT_OCR_ENGINE") == "rapidocr" and app.config.get("OCR_ENGINE") is None:
@@ -133,9 +135,13 @@ def create_app(config_overrides=None):
         title, message = error_texts[error.code]
         if request.accept_mimetypes.best == "application/json":
             return jsonify(error=title, message=message), error.code
+        from flask import session
+        from app.services.admin_guard import LOGGED_OUT
         next_path = request.full_path.rstrip("?") if error.code == 401 and request.method == "GET" else None
-        return render_template("error_page.html", user=get_current_user(), code=error.code, title=title,
-                               message=message, next_path=next_path), error.code
+        user = get_current_user()
+        admin_logged_out = error.code == 401 and bool(session.pop(LOGGED_OUT, None))
+        return render_template("error_page.html", user=user, code=error.code, title=title,
+                               message=message, next_path=next_path, admin_logged_out=admin_logged_out), error.code
 
     for code in error_texts:
         app.register_error_handler(code, friendly_error)

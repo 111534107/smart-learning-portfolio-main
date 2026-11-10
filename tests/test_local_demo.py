@@ -109,7 +109,8 @@ def test_local_demo_accounts_open_only_their_role_workspaces():
 def test_local_demo_login_page_shows_the_current_synthetic_credentials():
     client = create_local_demo_app().test_client()
 
-    page = client.get("/login").get_data(as_text=True)
+    # 11-10 登入頁分開：各角色的示範帳號列在自己的登入頁
+    page = "".join(client.get(path).get_data(as_text=True) for path in ("/login", "/staff/login", "/admin/login"))
 
     for username in ("student_demo", "teacher_demo", "staff_demo", "admin_demo"):
         assert username in page

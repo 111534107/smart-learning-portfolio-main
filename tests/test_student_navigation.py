@@ -89,7 +89,8 @@ def test_login_page_lists_demo_accounts_only_when_configured(tmp_path):
     app.config["DEMO_ACCOUNTS"] = DEMO_ACCOUNTS
     demo_page = app.test_client().get("/login").get_data(as_text=True)
     assert "Demo 快速登入" in demo_page
-    assert "teacher_demo" in demo_page
+    assert "student_demo" in demo_page
+    assert "teacher_demo" in app.test_client().get("/staff/login").get_data(as_text=True)  # 11-10 登入頁分開
     assert "demo2026" in demo_page
 
     app.config["FLASK_ENV"] = "production"

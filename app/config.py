@@ -26,6 +26,10 @@ class Config:
     # 雙重驗證（11-09 使用者決定：所有使用者都要開）。自動化測試與本機展示站預設不強制（見 app/__init__.py）。
     TWO_FACTOR_REQUIRED = os.getenv("TWO_FACTOR_REQUIRED", "true").strip().lower() not in ("0", "false", "no", "off")
     TWO_FACTOR_ISSUER = os.getenv("TWO_FACTOR_ISSUER", "資管科學習歷程")
+    # 管理員登入頁（11-10 使用者決定）：就算有人把 TWO_FACTOR_REQUIRED 關掉，管理員仍一定要六位數驗證碼；
+    # 閒置 15 分鐘登出。自動化測試與本機展示站預設不強制驗證碼（見 app/__init__.py）。
+    ADMIN_TWO_FACTOR_REQUIRED = True
+    ADMIN_IDLE_MINUTES = int(os.getenv("ADMIN_IDLE_MINUTES", "15"))
     # 加密 Authenticator 金鑰用；沒設就由 SECRET_KEY 推導（換 SECRET_KEY 後大家要重設雙重驗證）
     TWO_FACTOR_KEY = os.getenv("TWO_FACTOR_KEY")
     UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "instance/uploads")

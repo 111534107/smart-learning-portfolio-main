@@ -19,6 +19,7 @@ from app.services.admission_sample import load_sample_programs
 from app.services.journey_service import GRADE_LABELS, current_grade, CATEGORY_KEYS, CATEGORY_LABELS, EXPERIENCE_CATEGORIES, build_journey
 from app.services import school_google_login as g_login
 from app.services import check_dates as check_dates_service
+from app.services import admin_guard
 
 main_bp = Blueprint("main", __name__)
 
@@ -38,6 +39,12 @@ def get_current_user():
     elif not hmac.compare_digest(saved, current):
         session.clear()
         return None
+    if user.role == "admin":
+        from app.services import admin_guard
+        if not admin_guard.session_ok(session):
+            session.clear()
+            session[admin_guard.LOGGED_OUT] = True  # 401 頁面引導回管理員登入頁
+            return None
     return user
 
 
@@ -67,30 +74,101 @@ def _google_ready():
     return g_login.configured(current_app.config) and google_workspace.settings()["enabled"]
 
 
-@main_bp.route("/login", methods=["GET", "POST"])
-def login():
-    from app.services.flow import safe_next
-    next_path = safe_next(request.values.get("next"))
-    if request.method == "GET":
-        return render_template("login.html", next_path=next_path, google_login_enabled=_google_ready())
+# 2026-11-10 使用者決定：登入頁分成學生、老師與科辦、管理員三個；管理員入口不放在公開頁面。
+PORTALS = {
+    "student": {"roles": {"student"}, "template": "login.html", "endpoint": "main.login"},
+    "staff": {"roles": {"teacher", "staff"}, "template": "login_staff.html", "endpoint": "main.staff_login"},
+    "admin": {"roles": {"admin"}, "template": "admin_login.html", "endpoint": "main.admin_login"},
+}
+WRONG_PAGE = {
+    ("student", "staff"): "學生請到學生登入頁登入。",
+    ("staff", "student"): "老師與科辦人員請到教職員登入頁登入。",
+}
 
+
+def _portal_of(role):
+    return next((name for name, portal in PORTALS.items() if role in portal["roles"]), "student")
+
+
+def _render_portal(portal, status=200, **context):
+    from app.services.flow import safe_next
+    context.setdefault("next_path", safe_next(request.values.get("next")))
+    return render_template(PORTALS[portal]["template"], portal=portal, google_login_enabled=_google_ready(),
+                           **context), status
+
+
+def _password_login(portal):
+    """三個登入頁共用：只讓這一頁的角色登入。管理員帳號在其他頁一律回「帳號或密碼錯誤」，不透露它存在。"""
+    from app.services import admin_guard
     username = request.form.get("username", "").strip()
     password = request.form.get("password", "")
+    if portal == "admin" and admin_guard.locked(username):
+        return _render_portal(portal, 429, error="密碼錯太多次，請 15 分鐘後再試。")
     user = User.query.filter_by(username=username).first()
-    if not user or not user.check_password(password):
-        return render_template("login.html", error="帳號或密碼錯誤", next_path=next_path,
-                               google_login_enabled=_google_ready()), 401
+    ok = bool(user and user.check_password(password))
+    if not ok or (user.role == "admin") != (portal == "admin"):
+        if portal == "admin":
+            admin_guard.record_failure(username)
+        return _render_portal(portal, 401, error="帳號或密碼錯誤")
     if not user.is_active:  # 密碼對了才說明已停用，不讓人用來試哪些帳號存在
-        return render_template("login.html", error="這個帳號已停用，請洽系統管理員。", next_path=next_path,
-                               google_login_enabled=_google_ready()), 403
+        return _render_portal(portal, 403, error="這個帳號已停用，請洽系統管理員。")
+    known = any(user.role in item["roles"] for item in PORTALS.values())
+    if known and user.role not in PORTALS[portal]["roles"]:
+        return _render_portal(portal, 403, error=WRONG_PAGE[(_portal_of(user.role), portal)],
+                               wrong_page=_portal_of(user.role))
+    return _finish_login(user, _render_next())
 
-    return _finish_login(user, next_path)
+
+def _render_next():
+    from app.services.flow import safe_next
+    return safe_next(request.values.get("next"))
+
+
+@main_bp.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "GET":
+        return _render_portal("student")
+    return _password_login("student")
+
+
+@main_bp.route("/staff/login", methods=["GET", "POST"])
+def staff_login():
+    if request.method == "GET":
+        return _render_portal("staff")
+    return _password_login("staff")
+
+
+@main_bp.route("/admin/login", methods=["GET", "POST"])
+def admin_login():
+    from app.services import admin_guard
+    if not admin_guard.ip_allowed():
+        return render_template("admin_login.html", portal="admin", blocked=True), 403
+    if request.method == "GET":
+        return _render_portal("admin")
+    return _password_login("admin")
+
+
+@main_bp.post("/admin/login-security")
+def save_login_security():
+    from app.services import admin_guard
+    user = get_current_user()
+    if not user:
+        abort(401)
+    if user.role != "admin":
+        abort(403)
+    try:
+        message = admin_guard.save_networks(user, request.form.get("networks", ""))
+    except ValueError as error:
+        db.session.rollback()
+        return redirect(url_for("main.admin_dashboard", login_security_error=str(error)) + "#login-security")
+    return redirect(url_for("main.admin_dashboard", login_security_message=message) + "#login-security")
 
 
 def _finish_login(user, next_path=None):
     """帳號密碼或學校 Google 驗證成功後：要雙重驗證的人先到第二步（app/routes/two_factor.py），還不算登入。"""
     from app.routes import two_factor as second_step
-    if user.role in ("student", "teacher", "staff", "admin") and second_step.needs_second_step(user):
+    admin_must = user.role == "admin" and current_app.config.get("ADMIN_TWO_FACTOR_REQUIRED", True)
+    if user.role in ("student", "teacher", "staff", "admin") and (admin_must or second_step.needs_second_step(user)):
         return second_step.start(user, next_path)
     return _complete_login(user, next_path)
 
@@ -100,6 +178,10 @@ def _complete_login(user, next_path=None):
     session.clear()
     session["user_id"] = user.id
     session[password_policy.SESSION_KEY] = password_policy.fingerprint(user)
+    if user.role == "admin":
+        import time
+        from app.services import admin_guard
+        session[admin_guard.LAST_SEEN] = time.time()
     destinations = {
         "student": "main.student_dashboard",
         "teacher": "main.teacher_dashboard",
@@ -109,8 +191,7 @@ def _complete_login(user, next_path=None):
     endpoint = destinations.get(user.role)
     if not endpoint:
         session.clear()
-        return render_template("login.html", error="此帳號尚未設定可用角色",
-                               google_login_enabled=_google_ready()), 403
+        return _render_portal("student", 403, error="此帳號尚未設定可用角色")
     # 每次登入都記（規格 M11）；學生首頁也用 student.login 判斷是不是很久沒來（「好久不見」那一幕）
     action = "student.login" if user.role == "student" else "user.login"
     db.session.add(AuditLog(user_id=user.id, action=action, ip_address=request.remote_addr))
@@ -128,6 +209,7 @@ def google_login():
     session.clear()
     session["google_login_state"] = g_login.new_state()
     session["google_login_next"] = safe_next(request.args.get("next"))
+    session["google_login_portal"] = "staff" if request.args.get("who") == "staff" else "student"
     # 學生預設帶 stu.ukn.edu.tw；老師與職員從「教職員登入」進來帶管理員設定的教職員網域
     from app.services import google_workspace
     domain = google_workspace.settings()["staff_domain"] if request.args.get("who") == "staff" else g_login.DOMAIN
@@ -138,14 +220,14 @@ def google_login():
 def google_login_callback():
     expected = session.pop("google_login_state", None)
     next_path = session.pop("google_login_next", None)
+    portal = session.pop("google_login_portal", "student")
     if not expected or request.args.get("state") != expected:
         enabled = _google_ready()
         message = ("請從登入頁按「使用學校 Google 帳號登入」重新開始。"
                    if enabled else "學校 Google 登入尚未設定，請先完成 Google Cloud 設定。")
-        return render_template("login.html", error=message, google_login_enabled=enabled), 400
+        return _render_portal(portal, 400, error=message, next_path=None)
     if request.args.get("error") or not request.args.get("code"):
-        return render_template("login.html", error="未完成 Google 登入，請重試。",
-                               google_login_enabled=_google_ready()), 403
+        return _render_portal(portal, 403, error="未完成 Google 登入，請重試。", next_path=None)
     try:
         claims = g_login.client_for(current_app).verify_code(request.args["code"])
     except g_login.GoogleLoginError as error:
@@ -153,8 +235,7 @@ def google_login_callback():
         cause = error.__cause__
         current_app.logger.warning("學校 Google 登入驗證失敗：%s：%s", type(cause).__name__ if cause else "GoogleLoginError",
                                    str(cause or error)[:300])
-        return render_template("login.html", error="Google 登入驗證失敗，請重試。",
-                               google_login_enabled=_google_ready()), 403
+        return _render_portal(portal, 403, error="Google 登入驗證失敗，請重試。", next_path=None)
     from app.services import google_workspace
     name = claims.get("name") if isinstance(claims, dict) else None
     if isinstance(name, str):
@@ -165,9 +246,11 @@ def google_login_callback():
         name = None
     # 規則見 services/google_workspace.py：學生第一次登入自動建帳號，教職員只限管理員建好的帳號
     user, message = google_workspace.resolve(claims, name)
+    if user is not None and user.role == "admin":  # 管理員只能從管理員登入頁，用帳號密碼加驗證碼
+        user, message = None, "這個 Google 帳號不能用來登入。"
     if user is None:
         db.session.rollback()
-        return render_template("login.html", error=message, google_login_enabled=True), 403
+        return _render_portal(portal, 403, error=message, next_path=None)
     if name:
         user.display_name = name
     return _finish_login(user, next_path)
@@ -175,8 +258,10 @@ def google_login_callback():
 
 @main_bp.post("/logout")
 def logout():
+    user = get_current_user()
+    portal = _portal_of(user.role) if user else "student"
     session.clear()
-    return redirect(url_for("main.login"))
+    return redirect(url_for(PORTALS[portal]["endpoint"]))
 
 
 def role_required(*allowed_roles):
@@ -419,6 +504,10 @@ def admin_dashboard():
         staff_count=User.query.filter_by(role="staff", is_active=True).count(),
         check_dates=check_dates_service.dates(),
         check_dates_error=request.args.get("check_dates_error"),
+        login_networks=admin_guard.networks_text(),
+        login_security_message=request.args.get("login_security_message"),
+        login_security_error=request.args.get("login_security_error"),
+        current_ip=request.remote_addr,
     )
 
 

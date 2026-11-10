@@ -98,7 +98,7 @@ def test_opening_google_callback_directly_shows_help_on_login_page():
     response = client.get("/auth/google/callback")
 
     assert response.status_code == 400
-    assert "登入系統" in response.get_data(as_text=True)
+    assert "學生登入" in response.get_data(as_text=True)
     assert "請從登入頁" in response.get_data(as_text=True)
     assert google.codes == []
 
@@ -271,8 +271,9 @@ def test_student_button_asks_google_for_student_domain_so_only_student_no_is_typ
     assert params["hd"] == ["stu.ukn.edu.tw"]
     staff = parse_qs(urlparse(client.get("/auth/google?who=staff").location).query)
     assert staff["hd"] == ["ukn.edu.tw"]
-    page = client.get("/login").get_data(as_text=True)
-    assert 'href="/auth/google?who=staff"' in page and "只要輸入學號" in page
+    assert "只要輸入學號" in client.get("/login").get_data(as_text=True)
+    # 11-10 登入頁分開：教職員的 Google 按鈕在教職員登入頁
+    assert 'href="/auth/google?who=staff"' in client.get("/staff/login").get_data(as_text=True)
 
 
 def test_hd_is_only_a_hint_other_domains_are_still_rejected():
