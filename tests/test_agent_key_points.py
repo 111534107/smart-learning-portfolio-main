@@ -83,6 +83,7 @@ def test_html_source_follows_brochure_pdf_links(app):
       <a href="/downloads/116/skill/116_skill_general.pdf">116學年度二技技優甄審招生簡章</a>
       <a href="https://www.jctv.ntut.edu.tw/downloads/116/skill/116_date.pdf">116 重要日程表 簡章附錄</a>
       <a href="/news/123">最新消息</a>
+      <a href="/downloads/115/enter/115_enter_A14.pdf">甄審總成績複查申請表</a>
       <a href="https://evil.example.com/116_skill.pdf">二技招生簡章（非官方）</a>
       <a href="/downloads/116/skill/116_skill_general.pdf">重複的簡章連結</a>
     </body></html>""".encode("utf-8")
@@ -137,3 +138,33 @@ def test_made_up_code_is_replaced_and_duplicates_skipped(app):
         task = agent.extract_programs(agent.PublicSourceChange.query.one(), admin(app),
                                       generate=lambda prompt, schema, files: {"programs": [made_up, EXTRACTED["programs"][0]]})
         assert task.result_json["created"] == ["208003"] and task.result_json["skipped"] == ["208003"]
+
+
+def test_schedule_keeps_only_dates_in_source_and_merges_duplicates(app):
+    """11-11 網頁實測：日程同一件事出現 2～3 筆、還有原文沒有的 116 學年度日期。"""
+    page = "<html><body>115學年度重要日程 網路報名 115.4.20(一)10:00起至115.4.23(四)17:00止 ".encode("utf-8") + \
+        "放榜 115年5月25日 </body></html>".encode("utf-8")
+    schedule = {"channel": "skill_review", "admission_year": 115, "events": [
+        {"name": "網路報名", "start": "2026-04-20 00:00", "end": "2026-04-23 23:59"},
+        {"name": "考生網路報名", "start": "2026-04-20 10:00", "end": "2026-04-23 17:00"},  # 同一件事，有寫時間
+        {"name": "就讀志願序統一分發放榜", "start": "2026-05-25 10:00"},
+        {"name": "統一分發放榜", "start": "2026-05-25 10:00"},  # 同一件事
+        {"name": "116 網路報名", "start": "2027-05-17 00:00", "end": "2027-05-21 23:59"},  # 原文沒有
+    ]}
+    with app.app_context():
+        source = agent.add_source("聯招會日程", url="https://www.jctv.ntut.edu.tw/enter/date.php")
+        agent.check_source(source, admin(app), fetch=lambda url: (page, "text/html"))
+        task = agent.extract_programs(agent.PublicSourceChange.query.one(), admin(app),
+                                      generate=lambda prompt, schema, files: {"programs": [], "schedule": schedule})
+        db.session.commit()
+        events = agent.AdmissionScheduleEvent.query.filter_by(status="candidate").order_by("start_at").all()
+        assert [(e.name, e.start_at.strftime("%m-%d %H:%M")) for e in events] == [
+            ("網路報名", "04-20 10:00"), ("就讀志願序統一分發放榜", "05-25 10:00")]
+        assert task.result_json["schedule_skipped"] == 1
+
+
+def test_date_check_reads_roc_and_western_formats():
+    from datetime import datetime as dt
+    for text in ("115.4.20", "115/04/20", "115年4月20日", "2026-04-20", "115 . 4 . 20"):
+        assert agent._date_in_text(dt(2026, 4, 20), text), text
+    assert not agent._date_in_text(dt(2026, 4, 2), "115.4.20")

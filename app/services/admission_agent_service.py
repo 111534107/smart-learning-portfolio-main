@@ -227,6 +227,8 @@ def check_source(source, requester, fetch=fetch_url, content=None, content_type=
 
 LINK = re.compile(r"""<a\b[^>]*?href\s*=\s*["']([^"'#]+)["'][^>]*>(.*?)</a>""", re.I | re.S)
 BROCHURE_WORDS = re.compile(r"簡章|甄審|招生|備審|日程")
+# 同一頁常有很多表單也含「甄審」「招生」（11-11 實測 115 聯招會下載頁），不是簡章就不登記
+FORM_WORDS = re.compile(r"申請表|切結書|複查|委託書|同意書|報名表|一覽表")
 MAX_LINKED = 10
 LINKED_PREFIX = "Agent 從頁面找到："
 
@@ -244,7 +246,7 @@ def follow_brochure_links(source, content):
         url = urljoin(source.url, href.strip())
         text = " ".join(re.sub(r"<[^>]+>", " ", label).split())
         if (not urlsplit(url).path.lower().endswith(".pdf") or not official_url(url)
-                or not BROCHURE_WORDS.search(text + url) or url in known):
+                or not BROCHURE_WORDS.search(text + url) or FORM_WORDS.search(text) or url in known):
             continue
         add_source((LINKED_PREFIX + (text or url.rsplit("/", 1)[-1]))[:150], url=url)
         known.add(url)
@@ -526,7 +528,8 @@ def extract_programs(change, requester, generate=None):
                 **_eligibility_candidate(raw_rule, official_url, order),
             ))
         created.append(code)
-    schedule_created, schedule_skipped = _save_schedule(result.get("schedule") or {}, change, source)
+    schedule_created, schedule_skipped = _save_schedule(result.get("schedule") or {}, change, source,
+                                                        source_text=_source_text(path))
     change.status = "extracted"
     return _finish(task, "succeeded", {"created": created, "skipped": skipped,
                                        "schedule_created": schedule_created, "schedule_skipped": schedule_skipped})
@@ -539,8 +542,47 @@ def _parse_time(text):
         return None
 
 
-def _save_schedule(schedule, change, source):
-    """把擷取到的日程存成候選；日期看不懂、結束比開始早的項目略過。回傳 (新增數, 略過數)。"""
+def _source_text(path):
+    """原文文字，用來核對 AI 給的日期真的寫在原文裡。讀不到（例如掃描檔）回傳空字串。"""
+    try:
+        if path.suffix == ".pdf":
+            import pypdfium2 as pdfium
+            pdf = pdfium.PdfDocument(str(path))
+            return " ".join(pdf[i].get_textpage().get_text_bounded() for i in range(len(pdf)))
+        return _html_to_text(path.read_bytes())
+    except Exception:
+        return ""
+
+
+def _date_in_text(moment, text):
+    """原文要寫著這一天（民國或西元，. / - 年月日都算）。11-11 實測 AI 會編出原文沒有的 116 學年度日期。"""
+    compact = re.sub(r"\s+", "", text)
+    for year in (moment.year - 1911, moment.year):
+        pattern = rf"(?<!\d){year}[./\-年]0?{moment.month}[./\-月]0?{moment.day}(?!\d)"
+        if re.search(pattern, compact):
+            return True
+    return False
+
+
+def _name_key(name):
+    return re.sub(r"[^\w]", "", name or "")
+
+
+def _same_event(a, b):
+    """同一件事的不同寫法：一個名稱包含另一個，或有 4 個字以上相同的連續片段。"""
+    a, b = _name_key(a), _name_key(b)
+    if not a or not b:
+        return False
+    if a in b or b in a:
+        return True
+    return any(a[i:i + 4] in b for i in range(len(a) - 3))
+
+
+def _save_schedule(schedule, change, source, source_text=""):
+    """把擷取到的日程存成候選；日期看不懂、結束比開始早的項目略過。回傳 (新增數, 略過數)。
+
+    11-11 實測修正：原文讀得到文字時，開始日期不在原文裡的不收（AI 編的）；
+    同一天、名稱是同一件事的只留一筆（有寫幾點的優先）。"""
     if schedule.get("channel") not in SCHEDULE_CHANNELS:
         return 0, 0
     try:
@@ -557,12 +599,19 @@ def _save_schedule(schedule, change, source):
         if not name or start is None or bad_end or (end and end < start) or not 2000 <= start.year <= 2100:
             skipped += 1
             continue
-        duplicate = AdmissionScheduleEvent.query.filter(
+        if source_text and not _date_in_text(start, source_text):
+            skipped += 1
+            continue
+        same_day = [e for e in AdmissionScheduleEvent.query.filter(
             AdmissionScheduleEvent.channel == schedule["channel"], AdmissionScheduleEvent.admission_year == year,
-            AdmissionScheduleEvent.name == name, AdmissionScheduleEvent.start_at == start,
-            AdmissionScheduleEvent.end_at.is_(end) if end is None else AdmissionScheduleEvent.end_at == end,
-            AdmissionScheduleEvent.status.in_(["candidate", "published"])).first()
-        if duplicate:
+            AdmissionScheduleEvent.status.in_(["candidate", "published"])).all()
+            if e.start_at.date() == start.date() and (e.end_at.date() if e.end_at else None) == (end.date() if end else None)
+            and _same_event(e.name, name)]
+        if same_day:
+            existing = same_day[0]
+            # 已有的只寫日期（00:00）、這次有寫幾點：用這次的時間更新候選
+            if existing.status == "candidate" and existing.start_at.time() == datetime.min.time() and start.time() != datetime.min.time():
+                existing.start_at, existing.end_at = start, end
             continue
         db.session.add(AdmissionScheduleEvent(
             channel=schedule["channel"], admission_year=year, name=name, start_at=start, end_at=end,
