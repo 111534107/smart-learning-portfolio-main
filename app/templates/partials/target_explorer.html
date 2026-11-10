@@ -54,7 +54,7 @@
               <h4>採計項目</h4>
               {% if gap["items"] %}
               <ul class="target-program__weights">
-                {% for item in gap["items"] %}<li><span>{{ item.name }}</span><strong>{{ item.weight }}%</strong></li>{% endfor %}
+                {% for item in gap["items"] %}<li><span>{{ item.name }}{% if item.requirement %}<small class="muted" data-requirement>{{ item.requirement }}</small>{% endif %}</span><strong>{{ item.weight }}%</strong></li>{% endfor %}
               </ul>
               {% else %}<p class="small muted">{% if track == "transfer" %}考試科目與資料需求請看招生簡章。{% else %}此校系的採計項目尚未列出，請看招生簡章。{% endif %}</p>{% endif %}
             </div>

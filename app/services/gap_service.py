@@ -145,6 +145,7 @@ def analyze_gap(student, program, journey=None, evidence=None):
             "next_key": min((key for key in keys if levels[key] < 1), key=lambda key: levels[key], default=None),
             "counts": {key: totals.get(key, 0) for key in record_keys},
             "mapping_pending": item.mapping_status != "confirmed",
+            "requirement": item.requirement,
         })
     for entry in items:
         open_part = 0 if entry["fraction"] is None else 1 - entry["fraction"]

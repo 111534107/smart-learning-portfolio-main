@@ -27,7 +27,7 @@ from app.models import (
 )
 from app.services import admission_agent_service as agent
 from app.services.staff_accounts import STAFF_TITLES
-from app.services.admission_service import import_seed_programs, published_programs
+from app.services.admission_service import import_seed_programs, published_programs, refresh_seed_details
 from app.services.admission_eligibility_service import validate_eligibility_condition
 from app.services.gemini_client import ai_ready
 from app.services.gap_service import ALL_LABELS
@@ -473,7 +473,11 @@ def programs():
 @role_required("admin")
 def programs_import_seed():
     created = import_seed_programs()
-    return redirect(url_for("admin.programs", message=f"已匯入 {created} 個志願" if created else "種子資料都已存在，沒有新增"))
+    updated = refresh_seed_details()
+    parts = [f"已匯入 {created} 個志願" if created else "沒有新的志願"]
+    if updated:
+        parts.append(f"依核對過的簡章更新 {updated} 個項目")
+    return redirect(url_for("admin.programs", message="，".join(parts)))
 
 
 @admin_bp.post("/admin/programs/<int:program_id>/toggle-status")

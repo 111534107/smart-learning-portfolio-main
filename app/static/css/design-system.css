@@ -1762,3 +1762,5 @@ body[data-page="student-welcome"] .assistant { display: none; }
   .masthead:not(.masthead--app) .masthead__links { margin-left: auto; flex-wrap: nowrap; }
   .masthead:not(.masthead--app) .masthead__links a { padding: .4rem .5rem; white-space: nowrap; }
 }
+/* 目標校系「採計項目」下方的簡章說明（11-10 中科大簡章核對） */
+[data-requirement] { display: block; margin-top: .15rem; font-size: var(--fs-xs); line-height: 1.5; }

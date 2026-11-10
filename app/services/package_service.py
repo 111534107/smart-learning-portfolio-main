@@ -109,6 +109,13 @@ def build_package_docx(student, program):
     document.add_paragraph(f"導師確認：{REVIEW_TEXT.get(review.status, '尚未送導師確認') if review else '尚未送導師確認'}")
     if gap["readiness"] is not None:
         document.add_paragraph(f"資料準備度：{gap['readiness']}%（依校系加權計算，僅供參考）")
+    requirements = [item for item in program.items if item.requirement]
+    if requirements:
+        document.add_heading("簡章要求", level=1)
+        for item in requirements:
+            document.add_paragraph(f"{item.source_item_name}（{item.weight_percent}%）：{item.requirement}", style="List Bullet")
+        if program.source_note:
+            document.add_paragraph(f"來源：{program.source_note}" + (f"　{program.source_url}" if program.source_url else ""))
 
     for position, chapter in enumerate(chapters, start=1):
         # 印出來的章節編號依實際順序 01、02、03…，不保留原始編號
