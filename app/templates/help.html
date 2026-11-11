@@ -8,22 +8,98 @@
 
 {% block content %}
 {{ page_band("怎麼操作") }}
-<div class="page page--banded help">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/student-v2/help.css') }}">
+<div class="page page--banded help help-v2">
   <p class="help__lead">點問題看答案。找不到的話，右下角可以問小助手。</p>
-  <p><button type="button" class="button button--line" data-tour-replay="{{ tour_page }}" data-tour-replay-url="{{ tour_url }}">重看我的角色導覽</button></p>
+
+  <div class="help-v2__tools">
+    <label class="help-v2__search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+      <input type="search" id="help-q" placeholder="搜尋：上傳、自傳、確認…" aria-label="搜尋操作說明" autocomplete="off">
+    </label>
+    <button type="button" class="button button--line" data-tour-replay="{{ tour_page }}" data-tour-replay-url="{{ tour_url }}">重看我的角色導覽</button>
+  </div>
+
+  {% if user.role == "student" %}
+  <section class="help-v2__quick" aria-label="快速上手">
+    <ol class="help-v2__steps">
+      <li><a class="help-v2__step" href="{{ url_for('student.learning_profile_upload_page') }}"><b>先放資料</b><span>上傳成績單、證照，新增活動。上傳後要按「確認」才算數。</span></a></li>
+      <li><a class="help-v2__step" href="{{ url_for('student.target_list') }}"><b>選目標校系</b><span>選想申請的學校，看準備度和還缺哪些資料。</span></a></li>
+      <li><a class="help-v2__step" href="{{ url_for('student.autobiography') }}"><b>寫自傳、請導師確認</b><span>AI 草稿只是起點，改成自己的話，再送導師確認。</span></a></li>
+    </ol>
+  </section>
+
+  <section class="help__section help-v2__tips" aria-labelledby="help-tips">
+    <h2 id="help-tips">手勢與小技巧</h2>
+    <div class="help-v2__gest">
+      <div><b>哪裡可以打字</b><span>有框、旁邊寫「可直接修改」的地方點進去就能打。</span></div>
+      <div><b>佐證不用找按鈕</b><span>電腦上把照片、證明拖到活動卡片上，就會放進那一筆。</span></div>
+      <div><b>字太小、太亮</b><span>右上角帳號選單 → 字體大小、深色模式、玻璃效果。</span></div>
+      <div><b>只看某一年</b><span>活動與經歷上方的年級分頁、類別小膠囊可以篩選。</span></div>
+      <div><b>導覽擋到了</b><span>點暗處或按「略過」就離開，Esc 也可以。</span></div>
+      <div><b>手機操作</b><span>下方分頁列切換頁面；小助手從底部拉起，往下拉就關。</span></div>
+    </div>
+  </section>
+  {% endif %}
+
+  <div class="help-v2__faq" data-help-faq>
   {% for section in sections %}
-  <section class="help__section" aria-labelledby="help-{{ loop.index }}">
+  <section class="help__section" aria-labelledby="help-{{ loop.index }}" data-help-section>
     <h2 id="help-{{ loop.index }}">{{ section.title }}</h2>
     {% for item in section["items"] %}
-    <details class="help__item">
-      <summary>{{ item.q }}</summary>
+    <details class="help__item" data-help-item>
+      <summary><span class="help-v2__q">{{ item.q }}</span></summary>
       <p class="help__answer">{{ item.a }}</p>
-      <a class="button button--small" href="{{ url_for(item.link) }}">{{ item.label }} →</a>
+      <a class="button button--small button--line" href="{{ url_for(item.link) }}">{{ item.label }} →</a>
     </details>
     {% endfor %}
   </section>
   {% endfor %}
+  </div>
+  <p class="help-v2__none" data-help-none hidden>找不到相關說明，試試問右下角的小助手。</p>
 </div>
 {% endblock %}
 
 {% block footer %}{{ footer() }}{% endblock %}
+
+{% block scripts %}
+<script>
+/* 搜尋常見問題：符合的展開、標出關鍵字；清空就恢復 */
+(function () {
+  var input = document.getElementById("help-q");
+  if (!input) return;
+  var items = [].slice.call(document.querySelectorAll("[data-help-item]"));
+  var none = document.querySelector("[data-help-none]");
+  items.forEach(function (item) {
+    item._q = item.querySelector(".help-v2__q");
+    item._a = item.querySelector(".help__answer");
+    item._qText = item._q.textContent;
+    item._aText = item._a.textContent;
+  });
+  function mark(el, text, q) {
+    el.textContent = "";
+    if (!q) { el.textContent = text; return; }
+    text.split(q).forEach(function (part, i) {
+      if (i) { var m = document.createElement("mark"); m.textContent = q; el.appendChild(m); }
+      el.appendChild(document.createTextNode(part));
+    });
+  }
+  input.addEventListener("input", function () {
+    var q = input.value.trim();
+    var shown = 0;
+    items.forEach(function (item) {
+      var hit = !q || (item._qText + item._aText).indexOf(q) !== -1;
+      item.hidden = !hit;
+      item.open = !!q && hit;
+      mark(item._q, item._qText, q);
+      mark(item._a, item._aText, q);
+      if (hit) shown += 1;
+    });
+    document.querySelectorAll("[data-help-section]").forEach(function (section) {
+      section.hidden = !section.querySelector("[data-help-item]:not([hidden])");
+    });
+    none.hidden = shown > 0;
+  });
+})();
+</script>
+{% endblock %}

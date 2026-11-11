@@ -1,5 +1,33 @@
 # 開發日誌
 
+## 2026-11-11 學生端 v2：活動與經歷、怎麼操作、導覽外觀
+
+日期：2026-11-11（台灣時間）
+
+開發者：Claude（分支 `feat/v2-portfolio-help-tour`，工作資料夾 `D:\democase\_worktrees\ai-wt-v2-portfolio`，從 `preview/student-v2` 的 `b9519b6` 開出）
+
+範圍：只換外觀與互動，不改後端、資料、表單欄位名稱、`data-tour` 步驟內容、`id`、連結。沒動 `base.html`、`nav.html`、`shell.css`、`tokens.css`、小助手、成績單證照頁、畢業門檻、缺件檢查頁。
+
+做了什麼：
+- 活動與經歷列表 `D:\democase\_worktrees\ai-wt-v2-portfolio\app\templates\student_portfolio.html`：
+  - 原本四個類別區塊合成一個檔案櫃：年級分頁（全部、專一～專五，有民國學年度或未填年級時多一個「未分年級」）、四類（活動、競賽、服務學習、幹部經歷）篩選小膠囊，前端篩選；選了類別，「新增一筆」直接帶 `?category=`。
+  - 卡片依序發下來（deal 動畫），草稿虛線框，未確認的卡片底部「確認內容正確」（原本的 `student.portfolio_confirm` 表單）；狀態標籤、適用校系、點學校亮卡片（DEMO-03）都保留。
+  - 「你的 N 筆活動，最能用在…」改玻璃卡；新增一筆是虛線格。
+  - 佐證拖到某一張卡片上：每張卡片有一個隱藏的原本上傳表單（`student.evidence_upload`），放開就送出，回到該筆編輯頁。拖到卡片以外只提示，不會建立新資料（原本沒有「從檔案新增一筆」的路由）。
+- 新增、編輯 `D:\democase\_worktrees\ai-wt-v2-portfolio\app\templates\student_portfolio_form.html`：上方「可直接修改」說明，每個輸入框右上角標「可直接修改」，框有底色、手機字級至少 16px；類別改膠囊；編輯頁把檔案拖進整頁任何地方，會放進原本的「新增佐證」上傳框（觸發原本的預覽、大小檢查），再按「上傳佐證」。
+- 樣式 `D:\democase\_worktrees\ai-wt-v2-portfolio\app\static\css\student-v2\portfolio.css`（只在 `data-ui="student-v2"` 生效），從頁面模板載入。
+- 怎麼操作 `D:\democase\_worktrees\ai-wt-v2-portfolio\app\templates\help.html` ＋ `app\static\css\student-v2\help.css`：可搜尋的常見問題（即時篩選、標出關鍵字、沒有結果時提示問小助手，內容仍來自 `app\content\help.py`）；學生多「快速上手三步」與「手勢與小技巧」；「重看我的角色導覽」按鈕原功能不變。老師、科辦、管理員頁也能用（變數都有預設值）。
+- 導覽 `D:\democase\_worktrees\ai-wt-v2-portfolio\app\static\js\components.js` ＋ `app\static\css\student-v2\tour.css`：
+  - 外觀換成示範 `kit.js`：暗底加亮框、玻璃說明卡（步數、上一步、下一步、略過），點暗處離開；Esc、← →、Tab 鎖在卡片內都保留。
+  - 觸發改成：第一次進一頁（含首頁，首頁仍等小人物走完）只在上方出現「第一次來這頁？看 30 秒導覽／不用」，手機放在底部分頁列上方；按「不用」記住不再問。上方「導覽」按鈕、說明頁「重看導覽」（`?tour=1`）仍直接播。
+  - `tour.css` 由 `components.js` 第一次用到導覽時載入（全角色共用，不動 `base.html`），變數都寫 `var(--x, 預設值)`。
+- 「減少動態」時：卡片不發牌、不旋轉，導覽框與邀請不做動畫。
+
+驗證：
+- 完整 pytest：1442 通過、5 略過（16 分鐘）；最後修改後再跑相關 8 個測試檔 64 通過。
+- 展示站 `http://127.0.0.1:5083`（`DEMO_PORT=5083`、`TWO_FACTOR_REQUIRED=false`）：學生 113534901 看過活動與經歷列表、新增頁、怎麼操作，桌面 1280px 與手機 375px、淺色與深色；年級分頁＋類別篩選、類別帶入新增連結、導覽邀請→播放→點暗處離開；老師 teacher01 工作台出現邀請並播放導覽（上一步／下一步正常）；用程式產生的拖放事件把一個測試檔放到「資管科迎新宿營」卡片上，走原本路由上傳成功並回到編輯頁。
+- 沒驗證：真人用滑鼠從檔案總管拖檔；編輯頁的整頁拖放；iPhone 實機字級；Firefox／Safari。
+
 ## 2026-11-11 學生端 v2 搬進正式系統：共用外殼＋成績單／證照 OCR 頁
 
 日期：2026-11-11（台灣時間）
