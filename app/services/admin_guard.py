@@ -73,23 +73,16 @@ def save_networks(actor, text):
 
 
 # ---------- 錯誤次數 ----------
-
-def _aware(moment):
-    return moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)
-
+# 2026-11-12 起改由 app/services/login_guard.py 統一處理三個登入頁與雙重驗證。
 
 def locked(username):
-    """最近 15 分鐘，同一個帳號或同一個 IP 錯了 5 次以上。"""
-    since = datetime.now(timezone.utc) - timedelta(minutes=LOCK_MINUTES)
-    ip = request.remote_addr
-    recent = (AuditLog.query.filter_by(action=FAILED_ACTION).order_by(AuditLog.id.desc()).limit(200).all())
-    count = sum(1 for row in recent if _aware(row.created_at) >= since
-                and (row.ip_address == ip or (row.detail_json or {}).get("username") == username))
-    return count >= MAX_FAILURES
+    from app.services import login_guard
+    return login_guard.password_status("admin", username)[0]
 
 
 def record_failure(username):
-    audit_service.record(None, FAILED_ACTION, detail={"username": (username or "")[:100]}, commit=True)
+    from app.services import login_guard
+    login_guard.record_password_failure("admin", username)
 
 
 # ---------- 閒置 ----------

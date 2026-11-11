@@ -1,5 +1,23 @@
 # 開發日誌
 
+## 2026-11-12 登入錯誤次數限制：學生、教職員頁與雙重驗證
+
+日期：2026-11-12（台灣時間）
+
+開發者：Claude（分支 `feat/login-lockout`，工作資料夾 `D:\democase\_worktrees\ai-wt-login-lockout`）
+
+- 新服務 `D:\democase\_worktrees\ai-wt-login-lockout\app\services\login_guard.py`，三個登入頁（`/login`、`/staff/login`、`/admin/login`）與雙重驗證共用，規則比照 11-10 管理員頁：
+  - 同一個帳號 15 分鐘內密碼錯 5 次鎖 15 分鐘；管理員頁同一個 IP 錯 5 次也鎖，學生與教職員頁因為全班共用學校對外 IP，同一個 IP 放寬到 30 次。
+  - 雙重驗證碼同一個帳號錯 5 次鎖 15 分鐘。原本記在 session（清 Cookie 就能重試），改成跟管理員密碼鎖定一樣從操作紀錄（資料庫 `audit_logs`）計算。沒有新資料表，所以**沒有新增 Alembic 遷移**。
+  - 登入成功或管理員解除鎖定後，之前的錯誤不再計入。
+- 訊息：「帳號或密碼錯誤（還可以再試 N 次，錯 5 次會鎖 15 分鐘）」；鎖住時「密碼錯太多次，這個帳號暫時鎖住了。請 M 分鐘後再試，或請系統管理員解除鎖定」，M 依最早那筆錯誤計算。第 5 次錯就直接顯示鎖定（HTTP 429；原本管理員頁第 5 次仍回 401，測試已一併更新）。
+- 操作紀錄新動作：`student.login_failed`、`staff.login_failed`、`account.locked`（鎖定那一刻記一筆）、`account.unlocked`。
+- 帳號管理（`/admin/accounts`）被鎖帳號顯示「登入已鎖定」與「解除鎖定」按鈕（`POST /admin/accounts/<id>/unlock-login`）。
+- `admin_guard.locked`／`record_failure` 保留，改呼叫 `login_guard`。
+- 測試：新增 `tests/test_login_lockout.py`（三頁各自鎖、清 Cookie 仍鎖、時間到解鎖、成功登入歸零、不連坐其他帳號、管理員解鎖並寫紀錄、非管理員不能解鎖、雙重驗證清 Cookie 仍鎖）。完整 pytest：1452 通過、2 略過。
+- 展示站（`scripts/run_demo.py`，`DEMO_PORT=5077`）實測：學生 `113534901` 連錯 5 次，提示 4→3→2→1 次後鎖定；清 Cookie 後輸入正確密碼仍顯示鎖定（429）。教職員 `teacher_demo` 同樣。
+- 沒有在瀏覽器實測：雙重驗證鎖定、管理員按「解除鎖定」（展示站管理員要 Authenticator），這兩項只有自動測試。
+
 ## 2026-11-11 學生端設計示範 v2（只在測試資料夾，正式系統沒改）
 
 日期：2026-11-11（台灣時間）

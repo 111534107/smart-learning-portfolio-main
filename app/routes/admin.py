@@ -176,6 +176,7 @@ def toggle_match_filter(option_id):
 @admin_bp.get("/admin/accounts")
 @role_required("admin")
 def accounts():
+    from app.services import login_guard
     return render_template(
         "admin_accounts.html",
         user=get_current_user(),
@@ -184,6 +185,7 @@ def accounts():
         staff_result=session.pop("staff_account_result", None),
         staff_titles=STAFF_TITLES,
         staff_domain=_staff_domain(),
+        locked_usernames=login_guard.locked_usernames(),
     )
 
 
@@ -282,6 +284,19 @@ def reset_two_factor(user_id):
     if target is None:
         abort(404)
     two_factor.reset(target, get_current_user())
+    db.session.commit()
+    return redirect(url_for("admin.accounts"))
+
+
+@admin_bp.post("/admin/accounts/<int:user_id>/unlock-login")
+@role_required("admin")
+def unlock_login(user_id):
+    """密碼或驗證碼錯太多次被鎖住時，管理員確認是本人後解除；之前的錯誤次數歸零。"""
+    from app.services import login_guard
+    target = db.session.get(User, user_id)
+    if target is None:
+        abort(404)
+    login_guard.unlock(get_current_user(), target)
     db.session.commit()
     return redirect(url_for("admin.accounts"))
 
