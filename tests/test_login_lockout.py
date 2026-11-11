@@ -1,4 +1,5 @@
-"""學生、教職員、管理員登入頁與雙重驗證的錯誤次數限制（2026-11-12）。次數記在資料庫，清 Cookie 也繞不過。"""
+"""管理員登入頁與雙重驗證的錯誤次數限制（2026-11-12）。次數記在資料庫，清 Cookie 也繞不過。
+學生與教職員登入頁不鎖帳號。"""
 import pyotp
 import pytest
 
@@ -8,7 +9,7 @@ from tests.test_login_portals import logged_in_role, make_app, post_login
 
 pytestmark = pytest.mark.real_login_routes
 
-PAGES = [("/login", "stu"), ("/staff/login", "teacher"), ("/admin/login", "admin")]
+PAGES = [("/admin/login", "admin")]
 
 
 def age_failures(app):
@@ -41,50 +42,56 @@ def test_each_login_page_locks_after_five_wrong_passwords(path, username):
         assert logged_in_role(fresh) is not None
 
 
-def test_success_resets_the_count():
+@pytest.mark.parametrize("path,username", [("/login", "stu"), ("/staff/login", "teacher")])
+def test_student_and_staff_pages_never_lock(path, username):
     app = make_app()
     client = app.test_client()
+    for _ in range(8):
+        response = post_login(client, path, username, "wrong")
+        assert response.status_code == 401 and "還可以" not in response.get_data(as_text=True)
+    post_login(client, path, username)
+    with app.app_context():
+        assert logged_in_role(client) is not None
+        assert AuditLog.query.filter_by(action="account.locked").count() == 0
+
+
+def test_success_resets_the_count():
+    app = make_app(ADMIN_TWO_FACTOR_REQUIRED=False)
+    client = app.test_client()
     for _ in range(4):
-        post_login(client, "/login", "stu", "wrong")
-    post_login(client, "/login", "stu")
-    response = post_login(app.test_client(), "/login", "stu", "wrong")
+        post_login(client, "/admin/login", "admin", "wrong")
+    post_login(client, "/admin/login", "admin")
+    response = post_login(app.test_client(), "/admin/login", "admin", "wrong")
     assert response.status_code == 401 and "還可以再試 4 次" in response.get_data(as_text=True)
 
 
-def test_other_accounts_are_not_locked_by_one_students_mistakes():
-    app = make_app()
-    with app.app_context():
-        other = User(username="stu2", display_name="合成學生二", role="student")
-        other.set_password("pw")
-        db.session.add(other)
-        db.session.commit()
+def test_admin_can_unlock_two_factor_lock_and_it_is_logged():
+    app = make_app(TWO_FACTOR_REQUIRED=True, ADMIN_TWO_FACTOR_REQUIRED=False)
+    enroll(app)
     client = app.test_client()
+    post_login(client, "/login", "stu")
     for _ in range(5):
-        post_login(client, "/login", "stu", "wrong")
-    post_login(client, "/login", "stu2")
-    with app.app_context():
-        assert logged_in_role(client) == "student"
-
-
-def test_admin_can_unlock_and_it_is_logged():
-    app = make_app(ADMIN_TWO_FACTOR_REQUIRED=False)
-    for _ in range(5):
-        post_login(app.test_client(), "/login", "stu", "wrong")
-    admin = app.test_client()
-    post_login(admin, "/admin/login", "admin")
-    page = admin.get("/admin/accounts").get_data(as_text=True)
-    assert "登入已鎖定" in page and "解除鎖定" in page
+        client.post("/login/two-factor", data={"code": "000000"})
     with app.app_context():
         stu_id = User.query.filter_by(username="stu").one().id
+    admin = app.test_client()
+    with admin.session_transaction() as sess:
+        sess["user_id"] = admin_user_id(app)
+        sess["admin_last_seen"] = __import__("time").time()
+    page = admin.get("/admin/accounts").get_data(as_text=True)
+    assert "登入已鎖定" in page and "解除鎖定" in page
     assert admin.post(f"/admin/accounts/{stu_id}/unlock-login").status_code == 302
     assert "登入已鎖定" not in admin.get("/admin/accounts").get_data(as_text=True)
     with app.app_context():
-        row = AuditLog.query.filter_by(action="account.unlocked").one()
-        assert row.target_id == stu_id
-    student = app.test_client()
-    post_login(student, "/login", "stu")
+        assert AuditLog.query.filter_by(action="account.unlocked").one().target_id == stu_id
+    fresh = app.test_client()
+    post_login(fresh, "/login", "stu")
+    assert fresh.get("/login/two-factor").status_code == 200
+
+
+def admin_user_id(app):
     with app.app_context():
-        assert logged_in_role(student) == "student"
+        return User.query.filter_by(username="admin").one().id
 
 
 def test_non_admin_cannot_unlock():

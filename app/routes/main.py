@@ -102,12 +102,16 @@ def _password_login(portal):
     from app.services import login_guard
     username = request.form.get("username", "").strip()
     password = request.form.get("password", "")
-    is_locked, minutes = login_guard.password_status(portal, username)
+    # 只有管理員頁鎖帳號（2026-11-12 使用者決定）：學號、教職員帳號容易被別人知道，
+    # 在學生與教職員頁鎖帳號，任何人輸錯 5 次就能讓對方 15 分鐘登不進來。
+    is_locked, minutes = login_guard.password_status(portal, username) if portal == "admin" else (False, 0)
     if is_locked:
         return _render_portal(portal, 429, error=login_guard.locked_message(minutes))
     user = User.query.filter_by(username=username).first()
     ok = bool(user and user.check_password(password))
     if not ok or (user.role == "admin") != (portal == "admin"):
+        if portal != "admin":
+            return _render_portal(portal, 401, error="帳號或密碼錯誤")
         left = login_guard.record_password_failure(portal, username)
         return _render_portal(portal, 429 if left <= 0 else 401, error=login_guard.wrong_password_message(left))
     if not user.is_active:  # 密碼對了才說明已停用，不讓人用來試哪些帳號存在
