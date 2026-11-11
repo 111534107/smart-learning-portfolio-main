@@ -28,6 +28,12 @@
       <span class="small">點圖片放大</span>
     </button>
     {% elif document.preview_kind == "pdf" %}
+    {# PDF 也顯示第一頁預覽（辨識時產生的圖）；沒有預覽檔就只留開啟按鈕 #}
+    {% set preview_url = url_for('student.learning_profile_document_preview', document_id=document.id) %}
+    <button type="button" class="source-doc__image" data-lightbox="{{ preview_url }}" aria-label="放大 {{ document.display_name }} 第一頁">
+      <img src="{{ preview_url }}" alt="{{ document.display_name }} 第一頁" onerror="this.parentElement.hidden = true">
+      <span class="small">點圖片放大</span>
+    </button>
     <a class="button button--small button--line" href="{{ source_url }}" target="_blank" rel="noopener">在新分頁開啟 PDF</a>
     {% else %}
     <p class="muted small">這種檔案無法預覽，請改用 PDF、PNG 或 JPG。</p>
