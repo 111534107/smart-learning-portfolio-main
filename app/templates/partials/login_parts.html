@@ -12,8 +12,8 @@
 <form method="post" action="{{ action }}" class="form-stack">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   {% if next_path %}<input type="hidden" name="next" value="{{ next_path }}">{% endif %}
-  <label class="field">{{ username_label }}{% if username_hint %} <small>{{ username_hint }}</small>{% endif %}<input name="username" autocomplete="username" required></label>
-  <label class="field">密碼<input name="password" type="password" autocomplete="current-password" required></label>
+  <label class="field">{{ username_label }}{% if username_hint %} <small>{{ username_hint }}</small>{% endif %}<input name="username" autocomplete="username" maxlength="100" required></label>
+  <label class="field">密碼<span class="password-field"><input name="password" type="password" autocomplete="current-password" maxlength="256" required><button type="button" class="password-field__toggle" data-password-toggle aria-label="顯示密碼" aria-pressed="false" title="顯示密碼"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path class="password-field__slash" d="M4 4l16 16"/></svg></button></span></label>
   <button class="button" type="submit">登入 →</button>
 </form>
 {% endmacro %}

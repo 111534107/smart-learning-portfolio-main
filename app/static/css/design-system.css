@@ -1773,3 +1773,14 @@ body[data-page="student-welcome"] .assistant { display: none; }
 }
 /* 目標校系「採計項目」下方的簡章說明（11-10 中科大簡章核對） */
 [data-requirement] { display: block; margin-top: .15rem; font-size: var(--fs-xs); line-height: 1.5; }
+
+/* 登入頁密碼眼睛（2026-11-12） */
+.password-field { position: relative; display: block; }
+.password-field input { width: 100%; padding-right: 2.75rem; }
+.password-field__toggle {
+  position: absolute; top: 50%; right: .35rem; transform: translateY(-50%);
+  display: grid; place-items: center; width: 2.25rem; height: 2.25rem;
+  border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer;
+}
+.password-field__toggle:hover, .password-field__toggle:focus-visible { color: var(--ink); outline: 2px solid currentColor; outline-offset: 1px; }
+.password-field__toggle[aria-pressed="true"] .password-field__slash { display: none; }

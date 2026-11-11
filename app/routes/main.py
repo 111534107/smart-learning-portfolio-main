@@ -107,7 +107,7 @@ def _password_login(portal):
     is_locked, minutes = login_guard.password_status(portal, username) if portal == "admin" else (False, 0)
     if is_locked:
         return _render_portal(portal, 429, error=login_guard.locked_message(minutes))
-    user = User.query.filter_by(username=username).first()
+    user = User.query.filter_by(username=username).first() if len(username) <= 100 else None
     ok = bool(user and user.check_password(password))
     if not ok or (user.role == "admin") != (portal == "admin"):
         if portal != "admin":
