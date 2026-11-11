@@ -1,5 +1,27 @@
 # 開發日誌
 
+## 2026-11-11 學生端 v2：畢業門檻、缺件檢查兩頁換外觀
+
+日期：2026-11-11（台灣時間）
+
+開發者：Claude（分支 `feat/student-v2-grad-gap`，工作資料夾 `D:\democase\_worktrees\ai-wt-v2-grad-gap`，從 `preview/student-v2`（`b9519b6`）開出）。
+
+範圍：只換模板結構與樣式，不改後端、資料、表單送出、`data-tour`、`id`、既有連結；只限這兩頁。沒動 `base.html`、`nav.html`、`shell.css`、`tokens.css`、小助手、成績單證照頁。
+
+做了什麼：
+- 畢業門檻 `D:\democase\_worktrees\ai-wt-v2-grad-gap\app\templates\student_graduation_check.html`：
+  - 各學期預警改成十格學期條（舊→新；已結束學期依 `semester_warning` 的 level 上色，斜線＝有不及格、紅斜線＝請找導師；之後的學期虛線，第一格標「現在」）。點格子只顯示那一學期細節；沒有 JS 時有不及格的學期細節全部直接列出。
+  - 證照改成三個位子（已採計的實卡、缺的虛線卡連到證照頁）；學分改成進度條，原表格收進「看表格」；各項目判斷結果改小卡（有缺口的卡淡橘底）；更正或諮詢表單照原本 POST。
+  - 樣式 `D:\democase\_worktrees\ai-wt-v2-grad-gap\app\static\css\student-v2\graduation.css`，互動 `D:\democase\_worktrees\ai-wt-v2-grad-gap\app\static\js\student-v2\graduation.js`。
+- 缺件檢查 `D:\democase\_worktrees\ai-wt-v2-grad-gap\app\templates\student_gap.html`：結構不變，只加 `g2gap` 外層、準備度改玻璃卡、目錄加 `data-toc-bars`。方塊填滿、準備度往上數、點方塊看細節沿用 `components.js`；新樣式 `D:\democase\_worktrees\ai-wt-v2-grad-gap\app\static\css\student-v2\gap.css`（膠囊切換、圓角方塊與填滿色、細節卡、目錄加權長條、導師確認時間軸圓點、深色「產出備審資料」卡與檢查清單；深色模式另配色）。目錄長條依序長出來 `D:\democase\_worktrees\ai-wt-v2-grad-gap\app\static\js\student-v2\gap.js`。
+- 兩頁的 CSS 都用 `<link>` 放在 content 區塊內（`base.html` 沒有 head 區塊，又不能改它）。
+- 減少動態：CSS 關掉所有動畫與轉場，JS 偵測到就不加「等待」狀態，直接顯示最後結果。學分條、目錄條的「捲到才長」另加 4 秒保底，觀察器沒觸發也不會停在 0。
+
+驗證：
+- 完整 pytest：1445 passed、2 skipped（16 分鐘；之後只改了 CSS／JS，模板沒再動）。
+- 展示站 `http://127.0.0.1:5047`（`scripts/run_demo.py`＋`seed_graduation_demo(2026-10-15)`，`DEMO_PORT=5047`、`TWO_FACTOR_REQUIRED=false`，啟動腳本在 scratchpad）。學生 `grad_demo_fail` 看畢業門檻（專三下必修不及格「要注意」、必修學分有缺口與案件）、學生 `113534902` 看缺件檢查（送審時間軸、檢查清單）。桌面 1280、手機 375，淺色、深色都看過；手機無水平捲動（scrollWidth＝375）。
+- 沒驗證：瀏覽器窗格在背景，動畫本身（格子彈出、方塊填滿、數字往上數）沒有實際看到播放，截圖是注入「關閉動畫」樣式後的最後狀態；只用程式確認 class 與寬度正確。也沒在實機 iPhone 上看。
+
 ## 2026-11-11 學生端 v2 搬進正式系統：共用外殼＋成績單／證照 OCR 頁
 
 日期：2026-11-11（台灣時間）

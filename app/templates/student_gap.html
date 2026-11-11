@@ -11,7 +11,9 @@
 
 {% block content %}
 {{ page_band("備審資料", [("目標校系", url_for('student.target_list', track=target_track))]) }}
-<div class="page page--banded">
+{# 學生端 v2 外觀（2026-11-11）：樣式在 css/student-v2/gap.css，只在這頁載入；資料、表單、連結不變 #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/student-v2/gap.css') }}">
+<div class="page page--banded g2gap">
   <nav class="target-switch" aria-label="切換目標校系">
     {% for target in targets %}
     <a href="{{ url_for('student.target_gap', program_id=target.id) }}"{% if target.id == program.id %} aria-current="page"{% endif %}>{{ target.school_name|replace("國立", "") }} {{ target.department_name }}</a>
@@ -28,7 +30,7 @@
       {% endif %}
       <p>方塊越寬，佔分越多；裝得越滿，準備得越完整。點方塊看細節。</p>
     </div>
-    <div class="readiness" data-tour="這裡整理你已確認的資料。" data-tour-order="1">
+    <div class="readiness sv2-glass" data-tour="這裡整理你已確認的資料。" data-tour-order="1">
       {% if gap.readiness is not none %}
       <strong><span data-count="{{ gap.readiness }}">{{ gap.readiness }}</span><small>%</small></strong>
       <span>準備度</span>
@@ -78,7 +80,7 @@
     <section class="sheet" aria-labelledby="toc-title">
       <div class="sheet__head"><h2 id="toc-title">這個校系的備審目錄</h2></div>
       <p class="muted small mb-1">佔分越高的章節排越前面。</p>
-      <ol class="toc">
+      <ol class="toc" data-toc-bars>
         {% for chapter in chapters %}
         <li><span>{{ chapter.title }} <span class="mono">原 {{ chapter.code }}</span></span>{% if chapter.weight %}<span class="toc__bar" style="--w: {{ chapter.weight }};" title="相關加權 {{ chapter.weight }}%"><i></i></span>{% else %}<span class="mono">{{ "固定章節" if chapter.code in ("01", "02") else "此校系未列加權" }}</span>{% endif %}{% if chapter.evidence %}<ul class="toc__evidence">{% for item in chapter.evidence %}<li>{{ item.name }}</li>{% endfor %}</ul>{% endif %}</li>
         {% endfor %}
@@ -145,6 +147,7 @@
     </aside>
   </div>
 </div>
+<script src="{{ url_for('static', filename='js/student-v2/gap.js') }}" defer></script>
 {% endblock %}
 
 {% block footer %}{{ footer() }}{% endblock %}
