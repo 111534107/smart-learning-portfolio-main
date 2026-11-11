@@ -147,3 +147,32 @@ def test_confirmed_package_has_no_unconfirmed_marks():
     package = _build("confirmed")
     assert "尚未經導師確認" not in _all_text(package)
     assert "尚未經導師確認" not in package.sections[0].header.paragraphs[0].text
+
+
+def test_confirmed_evidence_images_are_placed_in_two_column_grid(tmp_path):
+    from PIL import Image
+    from app.models import PortfolioEvidence
+
+    image = tmp_path / "award.png"
+    Image.new("RGB", (400, 300), "steelblue").save(image)
+    pdf = tmp_path / "award.pdf"
+    pdf.write_bytes(b"%PDF-1.4")
+    app = create_app({"SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:", "TESTING": True, "UPLOAD_FOLDER": str(tmp_path)})
+    with app.app_context():
+        db.create_all()
+        import_seed_programs()
+        student, program = _seed_student("confirmed")
+        record = Portfolio.query.filter_by(title="商業類技藝競賽 佳作").one()
+        draft = Portfolio.query.filter_by(title="未確認的比賽").one()
+        db.session.add_all([
+            PortfolioEvidence(portfolio_id=record.id, evidence_type="file", display_name="award.png", file_path=str(image)),
+            PortfolioEvidence(portfolio_id=record.id, evidence_type="file", display_name="award.pdf", file_path=str(pdf)),
+            PortfolioEvidence(portfolio_id=draft.id, evidence_type="file", display_name="draft.png", file_path=str(image)),
+        ])
+        db.session.commit()
+        package = Document(build_package_docx(student, program))
+
+    assert len(package.inline_shapes) == 1  # PDF 不放、未確認經歷的圖不放
+    grid = next(t for t in package.tables if t._tbl.xml.count("<pic:pic") == 1)
+    assert len(grid.columns) == 2
+    assert "商業類技藝競賽 佳作" in grid.rows[0].cells[0].text
