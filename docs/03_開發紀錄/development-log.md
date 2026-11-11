@@ -30,6 +30,26 @@ un_demo.py`，用 Playwright（本機 Chrome）登入 113534901：1280px、375px
 - 註：5061 是瀏覽器封鎖的埠，改用 5071。
 
 沒做／沒驗證：iPhone 實機、Safari／Firefox（折射在非 Chromium 自動停用）、真實成績單 OCR 的核對頁長表格手機版只看了證照核對頁；學生其他頁面只套到共用外殼與變數，個別版面沒有逐頁調整。
+## 2026-11-11 小助手換成學生端設計示範 v2 的外觀
+
+日期：2026-11-11（台灣時間）
+
+開發者：Claude（分支 `feat/student-v2-assistant`，工作資料夾 `D:\democase\_worktrees\ai-wt-assistant-v2`，從 `28c982a` 開出；沒有動 `D:\democase\ai-wt-story` 的程式）
+
+起因：使用者滿意 `D:\democase\_design-demo\student-v2\` 的設計示範，要分頁搬進正式系統；小助手是最頭痛的部分。另一個對話（分支 `student-v2-shell-ocr`）同時在做共用外殼、`tokens.css`、`base.html`／`nav.html`，所以這裡只碰小助手。
+
+做了什麼（只換外觀與互動，後端與 API 沒改）：
+- 新增 `app/static/css/student-v2/assistant.css`：照示範 `common.css` 的 `.as-*`。用 `.assistant.as-v2` 蓋過 `design-system.css` 的舊樣式，class 名稱、`data-assistant*` 掛鉤都沿用。顏色一律寫 `var(--card, #f8f4ee)` 這種帶預設值的變數；`tokens.css` 合併後會自動跟著深色模式。沒有新增 tokens 檔，也沒改 `base.html`、`nav.html`、`theme-campus.css`、`design-system.css`、`agent-hub.css`。
+- `app/templates/partials/assistant.html`：根元素加 `as-v2`；按鈕改成對話框圖示加文字（手機只剩圖示、文字留給螢幕閱讀器）；加手機拉把手 `data-assistant-grab`；送出鈕改成圓形箭頭（保留隱藏文字「送出」）。建議問題、我的待辦、免責聲明照舊。
+- `app/static/js/components.js` 小助手那段：等待時改成打字中的三個點（`role=status`，螢幕閱讀器念「正在查資料」）；輸入框隨內容長高；手機往下拉把手超過 80px 就關閉；開啟時 `<html>` 加 `as-open`。同意式計畫、站內連結、待辦連結、依帳號分開的 `sessionStorage`、Enter 送出／Shift+Enter 換行／選字中不送出都沒改。
+- 外觀：電腦是右下角膠囊按鈕，視窗是圓角卡片從右下長出來；手機是圓形按鈕，視窗從底部拉上來。輸入框字級 `max(16px, …)`，iPhone 不會自動放大。「減少動態」時動畫全關、視窗直接出現。
+
+驗證：
+- 完整 pytest：`1444 passed, 2 skipped`（885 秒）；小助手相關 `test_assistant.py`、`test_assistant_plans.py`、`test_assistant_confirm_versions.py`、`test_font_size_switch.py` 另跑一次也全過。
+- 展示站 `assistant-v2-5067`（`D:\democase\ai-wt-story\.claude\launch.json`，埠 5067；5061 是瀏覽器封鎖的埠不能用）。用 Playwright（Edge）登入學生 113534901、導師 teacher01，各在桌面 1280px、手機 375px 打開小助手問一題：沒有 AI 金鑰，回「學校的 AI 目前沒有開啟」並附站內連結；老師的四個建議問題正常顯示；送出後看得到三個點；輸入框 16px；沒有頁面錯誤。另測手機往下拉關閉、Shift+Enter 換行、選字中 Enter 不送出、減少動態時 `animation: none` 且視窗可見，都正常。
+- 截圖 12 張放在共用筆記資料夾 `assistant-v2-shots\`（不進 Git）。
+
+沒驗證：真實 AI 回答與同意式計畫卡片的新外觀（沒有金鑰，計畫卡片只靠 CSS 推估）；深色模式（要等 `tokens.css` 合併）；真的 iPhone Safari 與實體觸控拖拉（只用 Edge 模擬）。首頁第一次來的導覽遮罩 z-index 比小助手高，這是原本的行為，沒改。
 
 ## 2026-11-11 學生端設計示範 v2（只在測試資料夾，正式系統沒改）
 
