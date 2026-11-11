@@ -425,3 +425,44 @@
   /* 狀態章不要把第二行撐高 */
   [data-ui="student-v2"] .record-group .course-table td[data-label="狀態"] { display: flex; align-items: center; height: 1.25rem; }
 }
+
+/* 11-12 手機核對頁：壓平年級／學期／群組三層外框，資料列滿版、字縮小，一眼看出缺漏與不及格 */
+@media (max-width: 720px) {
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-headline { padding: 10px 12px; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-headline h2 { margin: 0; font-size: var(--fs-base); line-height: 1.35; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-headline p { margin: 2px 0 0; font-size: var(--fs-xs); }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .score-group { padding: 0; overflow: hidden; border-radius: 14px; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .score-group > summary { padding: .4rem .75rem; font-size: var(--fs-sm); }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] :is(.score-group__body, .course-year-group__body, .course-review-semester) { margin: 0; padding: 0; border: 0; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-semester > summary { margin: 0; padding: .25rem .75rem; border-radius: 0; font-size: var(--fs-xs); }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section { margin: 0; padding: 0; border: 0; border-radius: 0; box-shadow: none; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section h4 { margin: 0; padding: .2rem .75rem; border-radius: 0; font-size: var(--fs-xs); }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section h4::after { content: none; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-editor { margin: 0; padding: 0; overflow: hidden; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr:not(.sv2-open) { min-height: 2.25rem; padding-block: 0; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr:not(.sv2-open) input { min-height: 2.1rem; font-size: .875rem; }
+  /* 一眼看出：不及格成績紅字、缺值橘底 */
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] tr[data-review-kind="failed"] td[data-label="成績"] input { color: var(--danger); font-weight: 900; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] td.field-pending input { background: var(--warn-soft); }
+  /* 展開列：原圖不放大，欄位兩欄 */
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr.sv2-open > td.sv2-crop { max-width: 100%; padding: 4px 6px; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr.sv2-open > td.sv2-crop img { height: 2rem; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr.sv2-open > td.sv2-crop::before { display: none; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr.sv2-open td { min-width: 0; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr.sv2-open input { min-height: 2.25rem; width: 100%; }
+  /* 底部儲存列不要蓋住最後幾列 */
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-main { padding-bottom: 6rem; }
+}
+/* 註記欄不得超出表格（電腦版重補修標籤曾凸出卡片外） */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-notes-cell { min-width: 0; overflow: hidden; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-notes { max-width: 100%; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-notes .note-chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 720px) {
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-main > p.review-warning,
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-main > .notice { margin: 4px 0; font-size: var(--fs-xs); line-height: 1.45; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-filter-bar { padding: 8px 10px; gap: 6px; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-filter-bar :is(button, select) { min-height: 2.25rem; padding: .2rem .7rem; font-size: var(--fs-sm); }
+}
+@media (max-width: 720px) {
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] p.review-warning { margin: 4px 0; font-size: var(--fs-xs); line-height: 1.45; }
+}
