@@ -12,6 +12,13 @@
 
 {% block content %}
 {{ page_band(page_label) }}
+{# 學生端 v2：檔案拖進整頁就上傳（js/student-v2-drop.js，走原本的上傳表單與路由） #}
+<div class="sv2-drop" aria-hidden="true"><b>放開就上傳</b><small>系統會用 OCR 辨識{{ page_label }}</small></div>
+<form class="sv2-drop-form" method="post" action="{{ url_for('student.learning_profile_document_upload') }}" enctype="multipart/form-data" data-sv2-drop-form>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="document_type" value="{{ kind }}">
+  {# 檔案欄位由 js/student-v2-drop.js 在拖放時才建立：列表頁本身不放上傳欄位（上傳有自己的頁面） #}
+</form>
 <div class="page page--banded">
   <div class="list-head">
     <p class="muted">{% if kind == "transcript" %}從學校系統下載歷年成績單（PDF 或圖片）後上傳{% else %}拍下或掃描證照正面後上傳{% endif %}，確認內容就會放進「我的五年」。</p>
@@ -28,14 +35,14 @@
         <div class="record-group__head"><h2 id="docs-title">我上傳的文件</h2><span class="muted small">{{ documents|length }} 份</span></div>
         {% if documents %}
         <div class="table-wrap">
-          <table class="data-table">
+          <table class="data-table sv2-table sv2-table--docs">
             <thead><tr><th>檔案</th><th>狀態</th><th>上傳時間</th><th><span class="visually-hidden">操作</span></th></tr></thead>
-            <tbody>
+            <tbody class="sv2-deal">
               {% for document in documents %}
               <tr>
                 <td>{{ document.display_name }}</td>
-                <td>{{ status_chip(record_state(document)) }}</td>
-                <td class="mono small">{{ document.created_at|taipei_time("%Y-%m-%d") }}</td>
+                <td data-label="狀態">{{ status_chip(record_state(document)) }}</td>
+                <td class="mono small" data-label="上傳">{{ document.created_at|taipei_time("%Y-%m-%d") }}</td>
                 <td>{% if document.status in ("queued", "processing") %}<a class="button button--small button--line" href="{{ url_for('student.learning_profile_document_processing', document_id=document.id) }}">辨識中…</a>
                   {% else %}<a class="button button--small {{ 'button--line' if document.status == 'confirmed' else '' }}" href="{{ url_for('student.learning_profile_document_review', document_id=document.id) }}">{{ "修改" if document.status == "confirmed" else "確認" }}</a>
                   <form class="inline-form" method="post" action="{{ url_for('student.learning_profile_document_reanalyze', document_id=document.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small button--line" type="submit" title="重新辨識會建立新的待確認草稿；已確認的資料會保留到再次確認。">重新辨識</button></form>{% endif %}</td>
@@ -56,7 +63,7 @@
         <div class="table-wrap">
           <table class="data-table course-table">
             <thead><tr><th>年級</th><th>學期</th><th>課程</th><th>學分</th><th>分數</th><th>狀態</th></tr></thead>
-            <tbody>
+            <tbody class="sv2-deal">
               {% for course in courses %}
               <tr><td data-label="年級">{{ course.school_year or course.grade_level or "—" }}</td><td data-label="學期">{{ course.semester or "—" }}</td><td data-label="課程">{{ course.course_name }}</td><td data-label="學分">{{ course.credits if course.credits is not none else "—" }}</td><td data-label="分數">{{ course.score if course.score is not none else (course.status_mark or "—") }}</td><td data-label="狀態">{{ status_chip(record_state(course)) }}</td></tr>
               {% endfor %}
@@ -72,7 +79,7 @@
       <section class="record-group" style="--slot: var(--year-2);" aria-labelledby="credentials-title">
         <div class="record-group__head"><h2 id="credentials-title">證照</h2><span class="muted small">{{ credentials|length }} 張</span></div>
         {% if credentials %}
-        <div class="record-cards">
+        <div class="record-cards sv2-deal">
           {% for credential in credentials %}
           <article class="record-card">
             <div class="record-card__meta">{{ status_chip(record_state(credential)) }}{% if credential.level %}<span class="tag tag--info">{{ credential.level }}</span>{% endif %}{% if credential.issue_date %}<span class="tag mono">{{ credential.issue_date.isoformat() }}</span>{% else %}<span class="tag tag--warn">未填取得日期</span>{% endif %}</div>
@@ -104,3 +111,5 @@
 {% endblock %}
 
 {% block footer %}{{ footer() }}{% endblock %}
+
+{% block scripts %}{% if user and user.role == "student" %}<script src="{{ url_for('static', filename='js/student-v2-drop.js') }}" defer></script>{% endif %}{% endblock %}

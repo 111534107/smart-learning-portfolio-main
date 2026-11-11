@@ -1,5 +1,36 @@
 # 開發日誌
 
+## 2026-11-11 學生端 v2 搬進正式系統：共用外殼＋成績單／證照 OCR 頁
+
+日期：2026-11-11（台灣時間）
+
+開發者：Claude（分支 `feat/student-v2-shell`，工作資料夾 `D:\democase\_worktrees\ai-wt-student-v2`，從 `28c982a` 開出；沒有動 `D:\democase\ai-wt-story` 的未提交修改）
+
+範圍：只換外觀和互動，不改後端；只限學生角色。示範的首頁、自傳還沒搬。
+
+做了什麼：
+- 共用外殼（只有學生頁載入）：`D:\democase\_worktrees\ai-wt-student-v2\app	emplatesase.html` 依 `user.role == "student"` 在 `<html>` 加 `data-ui="student-v2"`，載入 `app\static\css\student-v2	okens.css`、`shell.css`、`ocr.css` 與 `app\static\js\student-v2.js`；所有選擇器都以 `[data-ui="student-v2"]` 開頭，老師、科辦、管理員頁不受影響。
+  - `tokens.css`：示範的 `--bg --surface --card --ink --soft --line --accent --accent-soft --warn --on --glass --glass-line --ctl-h`，含深色；並把舊變數（`--paper`、`--sheet`、`--muted` 等）對到新配色，舊元件跟著換色。
+  - `shell.css`：玻璃膠囊頂端列、我的資料分頁膠囊、頁名大標題、按鈕統一 2.5rem、輸入框有框有底色、手機底部分頁列（往下捲縮成一顆）。
+  - `partials
+av.html`：學生帳號選單拿掉原本「小／中／大」，改由 `student-v2.js` 插入字體大小滑桿（14–24px，靠近刻度吸附）、淺色／深色／跟系統、折射開關（只有 Chromium）、玻璃效果滑桿；設定存 localStorage（`ui-theme`、`ui-fs`、`ui-glass-v`、`ui-lens`）。選單項目與連結都保留。
+  - `base.html` 的 head 先套用深淺色與字體，包在 IIFE 裡，不留全域變數。
+- 成績單／證照四頁（`learning_profile.html`、`_upload.html`、`_processing.html`、`_review.html`）：
+  - 列表表格手機改一列一張卡（成績表以課名當標題）；證照卡片、文件列表依序發牌（deal）。
+  - 拖檔案到整頁出現「放開就上傳，系統會用 OCR 辨識」，放開後把檔案放進原本的上傳表單、走原本路由 `student.learning_profile_document_upload`（`app\static\js\student-v2-drop.js`）；選檔按鈕保留。列表頁多一個隱藏的同路由表單。
+  - 辨識中：原有掃描線改主色，加三張閃爍骨架卡，讀完時翻成主色依序彈出。
+  - 核對頁：保留 AI 註記、確認、欄位修改；把頁內寫死的白底藍色改成本套配色（深色可讀），欄位標題加「可直接修改」，待確認欄位用虛線橘框、鎖住的成績用斜線底。篩選腳本更新標題時只改文字 span，不會蓋掉標示。
+  - 「減少動態」時動畫全部關掉、卡片強制 opacity 1。
+- 測試：`tests	est_student_nav.py` 的字體切換檢查改成滑桿，新增學生頁載入 v2 與 head 先套主題的測試。
+
+驗證：
+- 完整 pytest：見下方結果。`tests	est_review_grade_filter.cjs` 6 項通過。
+- 展示站 `DEMO_PORT=5071 TWO_FACTOR_REQUIRED=false scripts
+un_demo.py`，用 Playwright（本機 Chrome）登入 113534901：1280px、375px × 淺色、深色截圖成績單、證照、上傳頁；帳號選單；字體滑桿設 20px 重整後仍是 20px；模擬拖檔到證照列表 → 進到辨識中頁 → 自動轉到核對頁；手機分頁列顯示；減少動態下卡片 opacity 都是 1；頁面無 JS 錯誤。teacher01 登入工作台：沒有 `data-ui`、沒有載入 student-v2 檔案。
+- 註：5061 是瀏覽器封鎖的埠，改用 5071。
+
+沒做／沒驗證：iPhone 實機、Safari／Firefox（折射在非 Chromium 自動停用）、真實成績單 OCR 的核對頁長表格手機版只看了證照核對頁；學生其他頁面只套到共用外殼與變數，個別版面沒有逐頁調整。
+
 ## 2026-11-11 學生端設計示範 v2（只在測試資料夾，正式系統沒改）
 
 日期：2026-11-11（台灣時間）

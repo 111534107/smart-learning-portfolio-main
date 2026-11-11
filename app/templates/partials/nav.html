@@ -141,10 +141,7 @@
         </button>
         <div class="account-menu__panel" id="account-menu-panel" hidden>
           <p class="account-menu__who">{{ name }}<small>學生</small></p>
-          <div class="account-menu__row">
-            <span class="account-menu__label" aria-hidden="true">字體大小</span>
-            {{ font_switch() }}
-          </div>
+          {# 字體大小（14–24px 滑桿）、外觀、玻璃效果、折射：由 js/student-v2.js 插在這裡（2026-11-11 學生端 v2） #}
           <button type="button" class="account-menu__item" data-tour-start hidden>看這頁的導覽</button>
           {# 表單下載區（UC-28）：學生從帳號選單進入，主選單維持 5 項 #}
           <a class="account-menu__item" href="{{ url_for('forms.form_list') }}"{% if active == "表單下載" %} aria-current="page"{% endif %}>表單下載</a>

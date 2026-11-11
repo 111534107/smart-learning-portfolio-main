@@ -55,7 +55,8 @@ def test_tools_are_in_the_account_menu_and_notifications_stay_outside(client):
     panel = re.search(r'<div class="account-menu__panel" id="account-menu-panel" hidden>.*?</form>\s*</div>', top, re.S).group(0)
 
     assert 'class="account-menu__button" data-menu-toggle aria-expanded="false" aria-controls="account-menu-panel"' in top
-    for piece in ('class="font-switch"', "data-tour-start", 'href="/help"', 'action="/logout"'):
+    # 2026-11-11 學生端 v2：字體大小改成滑桿，由 js/student-v2.js 插在帳號名稱下面
+    for piece in ("data-tour-start", 'href="/help"', 'action="/logout"'):
         assert piece in panel, piece
     assert "通知" not in nav
     assert 'class="snav-bell" href="/notifications"' in top
@@ -113,3 +114,15 @@ def test_menu_script_handles_escape_and_outside_clicks():
     assert 'toggle.setAttribute("aria-expanded", String(open))' in block
     assert 'event.key !== "Escape"' in block and "toggle.focus()" in block
     assert 'document.addEventListener("click"' in block
+
+
+def test_student_pages_load_v2_shell_and_apply_theme_before_drawing(client):
+    """學生端 v2（2026-11-11）：學生頁載入 student-v2 樣式，head 先套用深淺色、字體，且不留全域變數。"""
+    html = client.get("/student/dashboard").get_data(as_text=True)
+    head = html.split("</head>")[0]
+    assert 'data-ui="student-v2"' in html.split("<head>")[0]
+    for name in ("tokens.css", "shell.css", "ocr.css"):
+        assert f"css/student-v2/{name}" in head
+    assert 'localStorage.getItem("ui-theme")' in head
+    assert "(function () {" in head.split('localStorage.getItem("ui-theme")')[0].rsplit("<script>", 1)[1]
+    assert "js/student-v2.js" in html

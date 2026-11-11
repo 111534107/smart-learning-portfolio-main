@@ -1,0 +1,197 @@
+/* 學生端 v2：成績單、證照（OCR）四頁（2026-11-11，樣式照設計示範 data.html 的成績單／證照）
+   頁面：learning-profile（列表）、learning-profile-upload（上傳）、learning-profile-processing（辨識中）、
+         learning-profile-review（核對確認）。只在 <html data-ui="student-v2"> 下生效。
+   重點：手機表格一列一張卡；拖檔案整頁提示；辨識中掃描線＋閃爍骨架卡；完成後卡片依序發下來（deal）；
+         「減少動態」時直接顯示，不停在透明。 */
+
+[data-ui="student-v2"] body[data-page^="learning-profile"] .page { width: min(1100px, calc(100% - 32px)); }
+
+/* ---------- 發牌動畫：卡片依序落下 ---------- */
+@keyframes sv2-deal { from { opacity: 0; transform: translateY(-24px) rotate(-2deg); } }
+[data-ui="student-v2"] .sv2-deal > * { animation: sv2-deal .5s cubic-bezier(.2, .9, .3, 1) backwards; }
+[data-ui="student-v2"] .sv2-deal > :nth-child(2) { animation-delay: .05s; }
+[data-ui="student-v2"] .sv2-deal > :nth-child(3) { animation-delay: .1s; }
+[data-ui="student-v2"] .sv2-deal > :nth-child(4) { animation-delay: .15s; }
+[data-ui="student-v2"] .sv2-deal > :nth-child(5) { animation-delay: .2s; }
+[data-ui="student-v2"] .sv2-deal > :nth-child(6) { animation-delay: .25s; }
+[data-ui="student-v2"] .sv2-deal > :nth-child(7) { animation-delay: .3s; }
+[data-ui="student-v2"] .sv2-deal > :nth-child(n+8) { animation-delay: .35s; }
+
+/* ---------- 列表頁：櫃子、表格、證照卡 ---------- */
+[data-ui="student-v2"] .list-head { display: flex; justify-content: space-between; align-items: center; gap: 12px 20px; flex-wrap: wrap; margin-bottom: 18px; }
+[data-ui="student-v2"] .list-head p { margin: 0; color: var(--soft); font-weight: 700; }
+[data-ui="student-v2"] .record-group__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+[data-ui="student-v2"] .record-group__head h2 { margin: 0; font-size: var(--fs-lg); font-weight: 900; }
+[data-ui="student-v2"] :is(.sv2-table, .course-table) { width: 100%; border-collapse: collapse; font-size: var(--ctl-fs); }
+[data-ui="student-v2"] :is(.sv2-table, .course-table) :is(th, td) { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; background: none; }
+[data-ui="student-v2"] :is(.sv2-table, .course-table) th { color: var(--soft); font-size: var(--fs-sm); font-weight: 700; }
+[data-ui="student-v2"] :is(.sv2-table, .course-table) tbody tr { transition: background .2s; }
+[data-ui="student-v2"] :is(.sv2-table, .course-table) tbody tr:hover { background: var(--accent-soft); }
+[data-ui="student-v2"] :is(.sv2-table, .course-table) td .inline-form { display: inline; margin-left: 4px; }
+[data-ui="student-v2"] .record-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
+[data-ui="student-v2"] .record-card {
+  position: relative; display: flex; flex-direction: column; gap: 6px; min-height: 150px; padding: 16px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow);
+  transform: rotate(var(--r, 0deg));
+  transition: transform .25s cubic-bezier(.2, 1.2, .3, 1), box-shadow .25s, border-color .25s;
+}
+[data-ui="student-v2"] .record-cards > .record-card:nth-child(3n+1) { --r: -.7deg; }
+[data-ui="student-v2"] .record-cards > .record-card:nth-child(3n+2) { --r: .5deg; }
+[data-ui="student-v2"] .record-card:hover { transform: translateY(-6px) rotate(0); border-color: var(--accent); box-shadow: 0 22px 40px -22px rgb(70 50 30 / .45); }
+[data-ui="student-v2"] .record-card h3 { margin: 10px 0 0; font-size: var(--fs-base); line-height: 1.35; }
+[data-ui="student-v2"] .record-card p { margin: 0; color: var(--soft); font-size: var(--fs-sm); }
+[data-ui="student-v2"] .paper-empty {
+  display: grid; place-items: center; min-height: 140px; padding: 16px; border: 1.5px dashed var(--line); border-radius: 14px;
+  background: none; color: var(--soft); font-weight: 700; text-align: center; text-decoration: none;
+}
+[data-ui="student-v2"] a.paper-empty:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+[data-ui="student-v2"] .outputs-disclosure { margin-top: 1.25rem; padding: 1rem 1.25rem; border: 1px solid var(--line); border-radius: 22px; background: var(--card); }
+
+/* 手機：表格一列一張卡（第一格當標題，最後一格的按鈕放右邊） */
+@media (max-width: 720px) {
+  [data-ui="student-v2"] :is(.sv2-table, .course-table),
+  [data-ui="student-v2"] :is(.sv2-table, .course-table) tbody,
+  [data-ui="student-v2"] :is(.sv2-table, .course-table) tr,
+  [data-ui="student-v2"] :is(.sv2-table, .course-table) td { display: block; }
+  [data-ui="student-v2"] :is(.sv2-table, .course-table) thead { display: none; }
+  [data-ui="student-v2"] :is(.sv2-table, .course-table) tr {
+    display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; margin-bottom: 10px; padding: 12px 14px;
+    border: 1px solid var(--line); border-radius: 14px; background: var(--card); box-shadow: var(--shadow);
+  }
+  [data-ui="student-v2"] :is(.sv2-table, .course-table) td { grid-column: 1; padding: 0; border: 0; color: var(--soft); font-size: var(--fs-sm); }
+  [data-ui="student-v2"] :is(.sv2-table, .course-table) td:first-child { color: var(--ink); font-size: var(--fs-base); font-weight: 900; }
+  [data-ui="student-v2"] :is(.sv2-table, .course-table) td[data-label]:not(:first-child)::before { content: attr(data-label) "："; }
+  [data-ui="student-v2"] :is(.sv2-table, .course-table) td:last-child { grid-column: 2; grid-row: 1 / span 4; align-self: center; text-align: right; color: var(--ink); }
+  [data-ui="student-v2"] :is(.sv2-table, .course-table) td:last-child[data-label]::before { content: none; }
+  [data-ui="student-v2"] .sv2-table--docs td:last-child { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+  [data-ui="student-v2"] .sv2-table--docs td:last-child .inline-form { margin: 0; }
+  [data-ui="student-v2"] .sv2-table--docs td:last-child .button { width: 100%; }
+  /* 成績表：課名當卡片標題，年級、學期、學分、分數排在下面 */
+  [data-ui="student-v2"] .course-table td[data-label="課程"] { order: -1; color: var(--ink); font-size: var(--fs-base); font-weight: 900; }
+  [data-ui="student-v2"] .course-table td[data-label="課程"]::before { content: none !important; }
+  [data-ui="student-v2"] .course-table td:first-child { color: var(--soft); font-size: var(--fs-sm); font-weight: 400; }
+  [data-ui="student-v2"] .course-table td:first-child::before { content: attr(data-label) "："; }
+  [data-ui="student-v2"] .course-table td:last-child { grid-row: 1 / span 6; }
+  [data-ui="student-v2"] .record-cards { grid-template-columns: 1fr 1fr; gap: 12px; }
+  [data-ui="student-v2"] .record-card { min-height: 120px; padding: 12px; }
+  [data-ui="student-v2"] .table-wrap { overflow: visible; border: 0; }
+}
+
+/* ---------- 拖檔案：整頁出現「放開就上傳」 ---------- */
+[data-ui="student-v2"] .sv2-drop {
+  position: fixed; inset: 12px; z-index: 60; display: none; place-items: center; align-content: center; gap: 8px;
+  border: 2px dashed var(--accent); border-radius: 26px; background: color-mix(in srgb, var(--surface) 88%, transparent);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  color: var(--accent); text-align: center; pointer-events: none;
+}
+[data-ui="student-v2"] .sv2-drop b { font-size: var(--fs-xl); font-weight: 900; }
+[data-ui="student-v2"] .sv2-drop small { color: var(--soft); font-size: var(--fs-sm); font-weight: 700; }
+[data-ui="student-v2"].sv2-dropping .sv2-drop { display: grid; animation: sv2-grow .35s cubic-bezier(.25, 1.4, .35, 1); }
+[data-ui="student-v2"] .sv2-drop-form { display: none; }
+
+/* 上傳頁的拖放框 */
+[data-ui="student-v2"] .dropzone {
+  min-height: 200px; border: 1.5px dashed var(--line); border-radius: 18px; background: var(--surface);
+  transition: background .2s, border-color .2s, transform .35s cubic-bezier(.3, 1.6, .4, 1);
+}
+[data-ui="student-v2"] .dropzone:hover,
+[data-ui="student-v2"] .dropzone.is-dragging,
+[data-ui="student-v2"] .dropzone:focus-within,
+[data-ui="student-v2"].sv2-dropping .dropzone { border-color: var(--accent); background: var(--accent-soft); }
+[data-ui="student-v2"] .dropzone.is-chosen { border-style: solid; border-color: var(--accent); }
+[data-ui="student-v2"] .dropzone__hint b { color: var(--accent); }
+[data-ui="student-v2"] .dropzone__hint b::before { content: "＋"; display: block; font-size: 2rem; line-height: 1; margin-bottom: 4px; }
+[data-ui="student-v2"] .upload-kind { margin: 0; }
+
+/* ---------- 辨識中：掃描線、閃爍骨架卡 ---------- */
+[data-ui="student-v2"] .ocr-sheet { border-radius: 18px; background: var(--card); box-shadow: 0 22px 40px -18px rgb(70 50 30 / .55); border: 1px solid var(--line); }
+[data-ui="student-v2"] .ocr-sheet__ghost span { background: var(--stripe); }
+[data-ui="student-v2"] .ocr-sheet__ghost span:first-child { background: var(--line); }
+[data-ui="student-v2"] .ocr-sheet__beam {
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--accent) 18%, transparent));
+  border-bottom-color: var(--accent);
+  box-shadow: 0 6px 16px -4px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+[data-ui="student-v2"] .ocr-stamp { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--card) 90%, transparent); border-radius: 14px; }
+[data-ui="student-v2"] .ocr-stamp--failed { border-color: var(--danger); color: var(--danger); }
+[data-ui="student-v2"] .ocr-panel__title { font-family: var(--font); }
+[data-ui="student-v2"] .ocr-timeline { border-color: var(--line); }
+[data-ui="student-v2"] .ocr-ruler__track { border-color: var(--line); border-radius: 99px; overflow: hidden; }
+[data-ui="student-v2"] .ocr-ruler__head b { font-family: var(--font); }
+
+[data-ui="student-v2"] .sv2-skeleton { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+[data-ui="student-v2"] .sv2-skeleton > div {
+  display: grid; gap: 8px; align-content: start; min-height: 96px; padding: 12px;
+  border: 1px solid var(--line); border-radius: 14px; background: var(--card); box-shadow: var(--shadow);
+}
+[data-ui="student-v2"] .sv2-skeleton > div > i {
+  display: block; height: .7rem; border-radius: 6px;
+  background: linear-gradient(90deg, var(--stripe), var(--line), var(--stripe)) 0 0 / 200% 100%;
+  animation: sv2-shim 1.1s linear infinite;
+}
+[data-ui="student-v2"] .sv2-skeleton > div > i:first-child { width: 45%; height: .6rem; }
+[data-ui="student-v2"] .sv2-skeleton > div > i:last-child { width: 70%; }
+[data-ui="student-v2"] .sv2-skeleton > div:nth-child(2) > i { animation-delay: .15s; }
+[data-ui="student-v2"] .sv2-skeleton > div:nth-child(3) > i { animation-delay: .3s; }
+@keyframes sv2-shim { to { background-position: -200% 0; } }
+/* 讀完：骨架停止閃爍，卡片翻成主色、依序彈一下 */
+[data-ui="student-v2"] .sv2-skeleton.is-done > div { border-color: var(--accent); animation: sv2-deal .5s cubic-bezier(.2, .9, .3, 1) backwards; }
+[data-ui="student-v2"] .sv2-skeleton.is-done > div:nth-child(2) { animation-delay: .08s; }
+[data-ui="student-v2"] .sv2-skeleton.is-done > div:nth-child(3) { animation-delay: .16s; }
+[data-ui="student-v2"] .sv2-skeleton.is-done > div > i { animation: none; background: var(--accent-soft); }
+@media (max-width: 720px) {
+  [data-ui="student-v2"] .ocr-desk { grid-template-columns: 1fr; }
+  [data-ui="student-v2"] .sv2-skeleton > div { min-height: 72px; }
+}
+
+/* ---------- 核對確認頁：把頁內寫死的白底、藍色換成本套配色（深色也看得清楚） ---------- */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] :is(.review-headline, .review-filter-bar, .credential-editor, .academic-summary, .score-group, .course-review-section, .review-savebar) {
+  background: var(--card); border-color: var(--line); color: var(--ink);
+}
+[data-ui="student-v2"] body[data-page="learning-profile-review"] :is(.review-headline, .credential-editor, .academic-summary, .score-group) { border-radius: 22px; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .review-filter-bar { border-radius: 999px; padding: 8px 12px; box-shadow: var(--shadow); top: 76px; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .review-savebar { border-radius: 999px; bottom: 12px; margin-inline: auto; max-width: 760px; box-shadow: 0 14px 34px -16px rgb(70 50 30 / .45); border: 1px solid var(--line); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .ocr-trace { background: var(--surface); border-color: var(--line); border-radius: 16px; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] :is(.review-headline p, .empty, .score-lock-status, .review-savebar__count, .score-group__best, .note-source, .course-year-group__top-three) { color: var(--soft); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] :is(.course-review-section h4, .course-review-section thead tr, .course-review-section thead th) { background: var(--bg); color: var(--ink); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] :is(.course-review-semester > summary) { background: var(--accent-soft); color: var(--ink); border-radius: 14px; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] :is(.course-review-semester > summary::after, .course-year-group > summary::after, .highest-mark) { color: var(--accent); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section :is(th, td) { border-color: var(--line); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section td[data-label]::before { color: var(--soft); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .review-view { min-height: var(--ctl-h); border-color: var(--line); background: var(--card); color: var(--ink); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .review-view[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--on); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tr.needs-review,
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-editor .needs-review { background: color-mix(in srgb, var(--warn-soft) 55%, transparent); box-shadow: inset 4px 0 0 var(--warn); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section.failed h4 { background: var(--danger-soft); color: var(--danger); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section.pending h4 { background: var(--warn-soft); color: var(--warn); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] :is(.review-warning, .confidence-low, .confidence-unknown, .note-text, .pending-badge) { color: var(--warn); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .note-chip { background: var(--stripe); color: var(--ink); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .note-chip--failed { background: var(--danger-soft); color: var(--danger); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .note-chip--ok { background: var(--accent-soft); color: var(--accent); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .note-chip--info { background: var(--accent-soft); color: var(--ink); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .note-chip--warn { background: var(--warn-soft); color: var(--warn); }
+/* 可以打字的欄位：有框、有底色；待確認的用虛線橘框；被鎖住的成績是灰底斜線 */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] :is(.course-review-section, .course-editor, .credential-editor, .edit-table) input:not([type="checkbox"], [type="radio"]) {
+  border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink);
+}
+[data-ui="student-v2"] body[data-page="learning-profile-review"] :is(.course-review-section, .course-editor) input.value-pending,
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section td.field-low input { border: 1.5px dashed var(--warn); background: var(--warn-soft); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] :is(.course-review-section, .course-editor) input.score-locked {
+  background: repeating-linear-gradient(135deg, var(--stripe) 0 6px, transparent 6px 12px), var(--surface); color: var(--soft); border-style: solid;
+}
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .credential-field-preview { background: #fff; border-color: var(--line); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr { animation: sv2-deal .45s cubic-bezier(.2, .9, .3, 1) backwards; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr:nth-child(2) { animation-delay: .04s; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr:nth-child(3) { animation-delay: .08s; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr:nth-child(4) { animation-delay: .12s; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr:nth-child(n+5) { animation-delay: .16s; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .credential-editor { animation: sv2-deal .5s cubic-bezier(.2, .9, .3, 1) backwards; }
+
+/* 減少動態：所有卡片直接顯示（shell.css 已把動畫全部關掉；這裡再保險一次，絕不停在透明） */
+@media (prefers-reduced-motion: reduce) {
+  [data-ui="student-v2"] :is(.sv2-deal > *, .record-card, .sv2-skeleton > div, .course-review-section tbody tr, .credential-editor, .ocr-sheet__img.is-loaded) { opacity: 1 !important; transform: none !important; }
+}
+
+/* 核對頁：原檔預覽、「其他資訊」摺疊區 */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] :is(.source-doc, .review-more) { background: var(--card); border: 1px solid var(--line); border-radius: 18px; color: var(--ink); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .review-more > summary { background: none; color: var(--ink); }

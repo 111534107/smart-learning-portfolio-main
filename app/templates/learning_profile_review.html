@@ -55,7 +55,7 @@
     {% if is_transcript %}
     <section class="sheet" aria-labelledby="course-table-title">
       <div class="sheet__head">
-        <div><h2 id="course-table-title">課程</h2><p class="muted small">年級填 1～5，或民國學年度（例如 113）。抵、免、補不是分數，請在「註記」選擇。</p></div>
+        <div><h2 id="course-table-title">課程 <span class="sv2-editable"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>可直接修改</span></h2><p class="muted small">年級填 1～5，或民國學年度（例如 113）。抵、免、補不是分數，請在「註記」選擇。</p></div>
         <button class="button button--small button--line" type="button" data-add-row="course-table">＋ 新增一門課</button>
       </div>
       <div class="table-wrap">
@@ -81,7 +81,7 @@
     {% else %}
     <section class="sheet" aria-labelledby="credential-table-title">
       <div class="sheet__head">
-        <div><h2 id="credential-table-title">證照</h2><p class="muted small">取得日期決定這張證照放在哪一個年級。</p></div>
+        <div><h2 id="credential-table-title">證照 <span class="sv2-editable"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>可直接修改</span></h2><p class="muted small">取得日期決定這張證照放在哪一個年級。</p></div>
         <button class="button button--small button--line" type="button" data-add-row="credential-table">＋ 新增一張證照</button>
       </div>
       <div class="table-wrap">
@@ -400,7 +400,7 @@
 </div>
 {% macro course_table(entries, group, semester, kind, heading, document, result) %}
 <section class="course-review-section {{ kind }}">
-  <h4 data-heading="{{ heading }}">{{ heading }}（{{ entries|length }} 門）</h4>
+  <h4 data-heading="{{ heading }}"><span data-heading-text>{{ heading }}（{{ entries|length }} 門）</span> <span class="sv2-editable"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>可直接修改</span></h4>
   <div class="course-editor">
     <table>
       <thead><tr><th scope="col">科目</th><th scope="col">學分</th><th scope="col">成績</th><th scope="col">第幾學期</th><th scope="col">年級</th><th scope="col">核對提示與來源</th></tr></thead>
@@ -501,7 +501,7 @@
 {% endif %}
 {% endfor %}
 <section class="credential-editor">
-  <h2>證照資料</h2>
+  <h2>證照資料 <span class="sv2-editable"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>可直接修改</span></h2>
   {% if credentials|length > 1 %}<p>本檔案有 {{ credentials|length }} 筆證照；下方表單只修改第一筆，其餘筆會保留。若需逐筆修改，請使用下方進階 JSON 編輯。</p>{% endif %}
   {% if credentials %}
     {% set credential = credentials[0] %}
@@ -644,7 +644,7 @@
           const visibleRows = Array.from(section.querySelectorAll('tr[data-course-index]')).filter((row) => !row.hidden);
           section.hidden = visibleRows.length === 0;
           const heading = section.querySelector('h4');
-          if (heading) heading.textContent = `${heading.dataset.heading}（${visibleRows.length} 門）`;
+          if (heading) (heading.querySelector('[data-heading-text]') || heading).textContent = `${heading.dataset.heading}（${visibleRows.length} 門）`;
         }
         for (const semester of group.querySelectorAll('.course-review-semester')) {
           const semesterCount = Array.from(semester.querySelectorAll('tr[data-course-index]')).filter((row) => !row.hidden).length;
