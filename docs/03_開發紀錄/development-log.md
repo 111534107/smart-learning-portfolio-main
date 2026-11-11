@@ -1,5 +1,15 @@
 # 開發日誌
 
+## 2026-11-12 上線前文件：未合併分支比對、上線檢查清單、四角色驗收表
+
+日期：2026-11-12（台灣時間）｜分支 `feat/release-docs`（`D:\democase\_worktrees\ai-wt-release-docs`），從 `28c982a` 開出；只整理文件，沒有改既有程式。
+
+- `docs/05_交接與專案管理/未合併分支比對_2026-11-12.md`：四條分支用 `git cherry`、`git merge-tree` 模擬（沒有真的合併）。建議 `feat/admission-notice` 整條合併但遷移 `b20261110a01` 要改接最新 head（否則兩個 head）；`feat/layout-system` 先問使用者（與學生端 V2 外殼重疊）；`feat/verify-1028`（27 個衝突檔）與 `feat/ocr-background-queue` 不合併，需要的功能另開分支重做。
+- `docs/05_交接與專案管理/上線前檢查清單_2026-11-12.md`：28 個遷移（最新 head `b20261110h01`，11-11 之後沒有新遷移）、環境變數名稱、管理員開站操作（含「匯入種子資料」）、反向代理取真實 IP（程式目前沒有 `ProxyFix`，需另開工作）。SMTP 變數名稱待 `feat/email-notify` 定案。
+- 新增唯讀腳本 `scripts/preflight_check.py`：`.env` 只報有／沒有／空白／像範例值，不印值；資料庫只 `SELECT alembic_version` 與程式 head 比對。用 `ai-wt-story\.env` 實測：缺 `TWO_FACTOR_KEY`、`FLASK_ENV` 不是 production；本機 MySQL 未啟動，資料庫段回報無法讀取（結束代碼 2）。
+- `docs/05_交接與專案管理/四角色逐頁人工驗收表_2026-11-12.docx`（老師簽名用，橫式，78 項，含實際結果、通過、簽名欄）與同名 `.md`。頁面由 `app.url_map` 與模板整理，含 11-11 的 AI 設定頁與三個登入頁。
+- 未做：沒有跑測試（沒改既有程式）；驗收表沒有實際操作過。
+
 ## 2026-11-11 學生端設計示範 v2（只在測試資料夾，正式系統沒改）
 
 日期：2026-11-11（台灣時間）
