@@ -5,11 +5,13 @@
   "teacher": ["誰還沒選目標校系？", "誰在等我確認？", "檢查學生的自傳", "專題報告要交什麼？"],
 }[user.role] %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/agent-hub.css') }}">
-<div class="assistant" data-assistant data-endpoint="{{ url_for('assistant.assistant_ask') }}" data-user="{{ user.id }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/student-v2/assistant.css') }}">
+<div class="assistant as-v2" data-assistant data-endpoint="{{ url_for('assistant.assistant_ask') }}" data-user="{{ user.id }}">
   <button class="assistant__toggle" type="button" data-assistant-toggle aria-expanded="false" aria-controls="assistant-panel">
-    <span class="assistant__dot" aria-hidden="true"></span>資管科小助手
+    <svg class="as-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 10h.01M12 10h.01M16 10h.01"/></svg><span class="as-label">資管科小助手</span>
   </button>
   <section class="assistant__panel" id="assistant-panel" hidden aria-label="資管科小助手">
+    <div class="as-grab" data-assistant-grab aria-hidden="true"></div>
     <header class="assistant__head">
       <div><b>資管科小助手</b><small>問操作、規定、進度；規劃前會先問你</small></div>
       {% if user.role == "student" %}<a class="assistant__history-button" href="{{ url_for('agent_plan.issues') }}">我的待辦</a>{% endif %}
@@ -27,7 +29,7 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label class="visually-hidden" for="assistant-input">輸入問題</label>
       <textarea id="assistant-input" name="message" rows="1" maxlength="1500" placeholder="輸入問題，Enter 送出" required></textarea>
-      <button class="button button--small" type="submit">送出</button>
+      <button class="as-send" type="submit" aria-label="送出"><svg class="as-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg><span class="vh">送出</span></button>
     </form>
     <p class="assistant__note">AI 回答僅供參考，以科辦公告為準。</p>
   </section>

@@ -381,8 +381,32 @@ document.querySelectorAll("[data-assistant]").forEach((root) => {
     panel.hidden = !open;
     toggles[0].setAttribute("aria-expanded", String(open));
     root.classList.toggle("is-open", open);
-    if (open) input.focus();
+    document.documentElement.classList.toggle("as-open", open);
+    panel.style.transform = "";
+    if (open) { log.scrollTop = log.scrollHeight; input.focus({ preventScroll: true }); }
   };
+  // 手機：往下拉把手關閉
+  const grab = root.querySelector("[data-assistant-grab]");
+  if (grab) {
+    let startY = null;
+    grab.addEventListener("pointerdown", (event) => { startY = event.clientY; grab.setPointerCapture(event.pointerId); panel.classList.add("is-dragging"); });
+    grab.addEventListener("pointermove", (event) => {
+      if (startY === null) return;
+      panel.style.transform = `translateY(${Math.max(0, event.clientY - startY)}px)`;
+    });
+    const release = (event) => {
+      if (startY === null) return;
+      const moved = event.clientY - startY;
+      startY = null;
+      panel.classList.remove("is-dragging");
+      panel.style.transform = "";
+      if (moved > 80) setOpen(false);
+    };
+    grab.addEventListener("pointerup", release);
+    grab.addEventListener("pointercancel", release);
+  }
+  // 輸入框隨內容長高（最多 120px）
+  input.addEventListener("input", () => { input.style.height = "auto"; input.style.height = `${Math.min(input.scrollHeight, 120)}px`; });
   toggles.forEach((button) => button.addEventListener("click", () => setOpen(panel.hidden)));
   document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !panel.hidden) setOpen(false); });
 
@@ -392,8 +416,15 @@ document.querySelectorAll("[data-assistant]").forEach((root) => {
     add("user", text);
     input.value = "";
     send.disabled = true;
-    const waiting = add("bot", "正在查資料…");
-    waiting.classList.add("is-waiting");
+    input.style.height = "";
+    // 打字中的三個點（螢幕閱讀器念「正在查資料」）
+    const waiting = document.createElement("div");
+    waiting.className = "assistant__msg assistant__msg--bot as-typing is-waiting";
+    waiting.setAttribute("role", "status");
+    waiting.setAttribute("aria-label", "正在查資料");
+    waiting.innerHTML = "<i></i><i></i><i></i>";
+    log.append(waiting);
+    log.scrollTop = log.scrollHeight;
     const data = new FormData();
     data.append("csrf_token", form.querySelector("[name=csrf_token]").value);
     data.append("message", text);
