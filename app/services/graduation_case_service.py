@@ -16,7 +16,7 @@ from sqlalchemy.exc import IntegrityError
 from app.extensions import db
 from app.models import (ClassAdvisor, GraduationCase, GraduationCaseEvent, Notification,
                         StudentProfile, User)
-from app.services import audit_service
+from app.services import audit_service, email_notify
 from app.services import graduation_check_service as check
 
 CREDIT_ITEMS = ("required_credits", "elective_credits", "total_credits")
@@ -70,6 +70,7 @@ def record_event(case, event_type, actor=None, *, to_status=None, amount_after=N
         seen.add(user.id)
         db.session.add(Notification(recipient_id=user.id, case_id=case.id, event_id=event.id,
                                     message=(message or f"案件 {case.number} 有更新")[:255]))
+        email_notify.notify(user, "graduation_case")  # 電子郵件跟站內通知同時；失敗只記錄
     db.session.flush()
     return event
 
@@ -251,6 +252,8 @@ def sync_student(student, today=None, curriculum=None):
     source = next((row for row in credit_rows if row["result"] == "insufficient_data"), credit_rows[0])
     _sync_data_needed(student, "credits", needed, source, formal, advisors, events)
     _record_unknown_courses(student, items["required_credits"].get("unknown_courses") or [])
+    from app.services import reminders
+    reminders.sync(student, assessment["stage"], advisors, today=today, curriculum=curriculum)
     return events
 
 

@@ -48,6 +48,15 @@
     </form>
   </section>
 
+  <section class="work-panel" id="email-notify" data-email-notify-admin>
+    <div class="work-panel__head"><div><h2>電子郵件通知</h2><p>畢業缺口案件、各學期預警、檢核日期倒數會同時寄信給學生與導師（學生、導師可在帳號設定自己關閉）。{% if email_smtp_ready %}SMTP 已設定，會真的寄信。{% else %}目前沒有設定 SMTP（或是展示站），不會寄信，只寫進記錄檔與操作紀錄。{% endif %}</p></div></div>
+    <form class="form-stack mt-1" method="post" action="{{ url_for('main.save_email_notify') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="field"><span><input type="checkbox" name="enabled"{% if email_notify_enabled %} checked{% endif %}> 全系統啟用電子郵件通知</span></label>
+      <div><button class="button button--small" type="submit">儲存</button></div>
+    </form>
+  </section>
+
   <section class="work-panel" id="login-security" data-login-security>
     <div class="work-panel__head"><div><h2>管理員登入安全</h2><p>管理員登入網址不放在公開頁面：<code>/admin/login</code>。{% if config.get('ADMIN_TWO_FACTOR_REQUIRED') %}一定要六位數驗證碼{% else %}六位數驗證碼目前沒有強制（本機展示站或測試）{% endif %}，密碼錯 5 次鎖 15 分鐘，閒置 15 分鐘自動登出。</p></div></div>
     <form class="form-stack mt-1" method="post" action="{{ url_for('main.save_login_security') }}">

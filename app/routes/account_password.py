@@ -6,7 +6,7 @@
 """
 import time
 
-from flask import Blueprint, render_template, request, session
+from flask import Blueprint, redirect, render_template, request, session, url_for
 
 from app.extensions import db
 from app.models import AuditLog
@@ -21,8 +21,10 @@ MAX_FAILURES = 5
 
 
 def _render(user, status=200, **context):
+    from app.services import email_notify
     return render_template("account_password.html", user=user, rules=password_policy.rules_text(),
-                           google_only=bool(user.google_sub), **context), status
+                           google_only=bool(user.google_sub), email_saved=request.args.get("email_saved"),
+                           email_global=email_notify.globally_enabled(), **context), status
 
 
 @account_password_bp.get("/account/password")
@@ -59,3 +61,15 @@ def password_change():
     db.session.commit()
     session[password_policy.SESSION_KEY] = password_policy.fingerprint(user)  # 這台留著，其他裝置登出
     return _render(user, done=True)
+
+
+@account_password_bp.post("/account/email-notify")
+@role_required("student", "teacher")
+def email_notify_toggle():
+    """學生、導師自己開關電子郵件通知（站內通知照常）。"""
+    from app.services import audit_service
+    user = get_current_user()
+    user.email_notify = request.form.get("email_notify") == "on"
+    audit_service.record(user, "user.email_notify", "user", user.id, {"enabled": user.email_notify})
+    db.session.commit()
+    return redirect(url_for("account_password.password_page", email_saved=1) + "#email-notify")

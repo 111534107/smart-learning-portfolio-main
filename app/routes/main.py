@@ -164,6 +164,20 @@ def save_login_security():
     return redirect(url_for("main.admin_dashboard", login_security_message=message) + "#login-security")
 
 
+@main_bp.post("/admin/email-notify")
+def save_email_notify():
+    """管理員全域開關電子郵件通知（關掉後只剩站內通知）。"""
+    from app.services import email_notify
+    user = get_current_user()
+    if not user:
+        abort(401)
+    if user.role != "admin":
+        abort(403)
+    email_notify.set_globally_enabled(request.form.get("enabled") == "on", user)
+    db.session.commit()
+    return redirect(url_for("main.admin_dashboard") + "#email-notify")
+
+
 def _finish_login(user, next_path=None):
     """帳號密碼或學校 Google 驗證成功後：要雙重驗證的人先到第二步（app/routes/two_factor.py），還不算登入。"""
     from app.routes import two_factor as second_step
@@ -503,6 +517,8 @@ def admin_dashboard():
         teacher_count=User.query.filter_by(role="teacher", is_active=True).count(),
         staff_count=User.query.filter_by(role="staff", is_active=True).count(),
         check_dates=check_dates_service.dates(),
+        email_notify_enabled=_email_notify_enabled(),
+        email_smtp_ready=_email_smtp_ready(),
         check_dates_error=request.args.get("check_dates_error"),
         login_networks=admin_guard.networks_text(),
         login_security_message=request.args.get("login_security_message"),
@@ -548,3 +564,13 @@ def inject_student_progress():
         return {"student_progress": student_progress(user), "has_transfer_record": has_transfer,
                 "agent_todos": open_todo_count(user)}
     return {}
+
+
+def _email_notify_enabled():
+    from app.services import email_notify
+    return email_notify.globally_enabled()
+
+
+def _email_smtp_ready():
+    from app.services import email_notify
+    return email_notify.smtp_ready()

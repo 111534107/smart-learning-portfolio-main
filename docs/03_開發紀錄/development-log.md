@@ -1,5 +1,23 @@
 # 開發日誌
 
+## 2026-11-12 電子郵件通知（分支 feat/email-notify）
+
+日期：2026-11-12（台灣時間）
+
+開發者：Claude（工作資料夾 `D:\democase\_worktrees\ai-wt-email-notify`，分支 `feat/email-notify`，未推送、未合併）
+
+做了什麼：
+- 新服務 `D:\democase\_worktrees\ai-wt-email-notify\app\services\email_notify.py`：跟站內通知同一個時機寄信。信件只寫「有新的提醒（種類），請登入查看」與系統連結，不寫成績、缺口數字、案件細節。
+- 畢業缺口案件：`graduation_case_service.record_event` 每建一則站內通知就寄一封（建立、退回處理中、自動結案、導師／學生操作的狀態改變都走這裡），收件者與站內通知相同（學生、導師）。
+- 各學期預警、檢核日期倒數：原本只在畫面即時算，沒有通知。新服務 `D:\democase\_worktrees\ai-wt-email-notify\app\services\reminders.py` 在畢業缺口同步最後檢查：某學期變成「要注意／請找導師討論」通知學生與導師（同學期同等級一次）；檢核日前 30、7、1 天內各提醒學生一次。用新欄位 `notifications.notify_key` 去重。同步的時機：學生確認成績、抵免、管理員「重新對照全科」。**沒有排程**，倒數提醒要等有人觸發同步才會出現。
+- 設定：`.env` 的 `MAIL_SMTP_HOST`、`MAIL_SMTP_PORT`、`MAIL_SMTP_USER`、`MAIL_SMTP_PASSWORD`、`MAIL_SENDER`、`MAIL_SITE_URL`（範例寫在 `D:\democase\_worktrees\ai-wt-email-notify\app\config.py`，沒有真實帳密）。主機或寄件人沒填、測試（TESTING）、本機展示站（LOCAL_DEMO_MODE）一律不寄，只寫記錄檔與操作紀錄（狀態 logged）。
+- 失敗：重試 2 次（`MAIL_RETRIES`），仍失敗只記錄，不丟例外。每封信寫一筆操作紀錄 `email.notify`（收件者用使用者編號，detail 記主旨、種類、sent／logged／failed、次數；依操作紀錄規則不記信箱）。
+- 開關：學生、導師在「修改密碼」頁（帳號選單）下方的「電子郵件通知」勾選；管理員首頁有「全系統啟用電子郵件通知」。
+- 遷移 `D:\democase\_worktrees\ai-wt-email-notify\migrations\versions\b20261112m01_email_notify.py`（接 `b20261110h01`）：`users.email_notify`、`notifications.notify_key`。登入鎖定分支若也加遷移，合併時要調整 down_revision。
+- 測試 `D:\democase\_worktrees\ai-wt-email-notify\tests\test_email_notify.py`（7 個）：缺口案件寄給學生與導師且不重複、沒設定 SMTP 不寄但有紀錄、個人關閉與全域關閉、寄信失敗重試且不影響、學期預警只通知一次、檢核倒數提醒、帳號與管理員開關頁面。
+
+待使用者提供：學校的 SMTP 主機、連接埠、寄件帳號與密碼（或應用程式密碼）、寄件人名稱、系統正式網址。
+
 ## 2026-11-11 學生端設計示範 v2（只在測試資料夾，正式系統沒改）
 
 日期：2026-11-11（台灣時間）
