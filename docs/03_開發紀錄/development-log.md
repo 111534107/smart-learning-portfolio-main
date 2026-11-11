@@ -21,10 +21,10 @@ av.html`：學生帳號選單拿掉原本「小／中／大」，改由 `student
   - 辨識中：原有掃描線改主色，加三張閃爍骨架卡，讀完時翻成主色依序彈出。
   - 核對頁：保留 AI 註記、確認、欄位修改；把頁內寫死的白底藍色改成本套配色（深色可讀），欄位標題加「可直接修改」，待確認欄位用虛線橘框、鎖住的成績用斜線底。篩選腳本更新標題時只改文字 span，不會蓋掉標示。
   - 「減少動態」時動畫全部關掉、卡片強制 opacity 1。
-- 測試：`tests	est_student_nav.py` 的字體切換檢查改成滑桿，新增學生頁載入 v2 與 head 先套主題的測試。
+- 測試：`tests\test_student_nav.py` 的字體切換檢查改成滑桿，新增學生頁載入 v2 與 head 先套主題的測試。
 
 驗證：
-- 完整 pytest：見下方結果。`tests	est_review_grade_filter.cjs` 6 項通過。
+- 完整 pytest：1443 通過、2 略過、2 失敗；2 項失敗都是本次造成（成績表 class 字串、列表頁不得有檔案欄位），已修正，相關 5 個測試檔 41 項重跑通過；修正後沒有再跑一次完整測試。`tests\test_review_grade_filter.cjs` 6 項通過。
 - 展示站 `DEMO_PORT=5071 TWO_FACTOR_REQUIRED=false scripts
 un_demo.py`，用 Playwright（本機 Chrome）登入 113534901：1280px、375px × 淺色、深色截圖成績單、證照、上傳頁；帳號選單；字體滑桿設 20px 重整後仍是 20px；模擬拖檔到證照列表 → 進到辨識中頁 → 自動轉到核對頁；手機分頁列顯示；減少動態下卡片 opacity 都是 1；頁面無 JS 錯誤。teacher01 登入工作台：沒有 `data-ui`、沒有載入 student-v2 檔案。
 - 註：5061 是瀏覽器封鎖的埠，改用 5071。
