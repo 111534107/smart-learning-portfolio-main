@@ -12,8 +12,10 @@
 
 {% block content %}
 {{ page_band(page_title, [("活動與經歷", url_for('student.portfolio_list'))], note=portfolio.title if portfolio else "") }}
-<div class="page narrow page--banded">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/student-v2/portfolio.css') }}">
+<div class="page narrow page--banded pf-form" data-pf-form>
   <section class="sheet">
+    <p class="pf-form__lead small muted"><span class="sv2-editable"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>可直接修改</span> 有框的地方點進去就能打字{% if portfolio %}；佐證檔案可以直接拖進這一頁{% endif %}。</p>
     {% if request.args.get("locked") %}<p class="alert mb-1" role="alert">{{ locked_message }}</p>{% endif %}
     {% if error %}
     <div class="mb-1">
@@ -95,3 +97,32 @@
 {% endblock %}
 
 {% block footer %}{{ footer() }}{% endblock %}
+
+{% block scripts %}
+{% if portfolio %}
+<script>
+/* 學生端 v2：把檔案拖進這一頁任何地方，都放進下方「新增佐證」（原本的上傳表單），確認後按「上傳佐證」 */
+(function () {
+  var page = document.querySelector("[data-pf-form]");
+  var input = page && page.querySelector('.dropzone__input');
+  if (!input) return;
+  var depth = 0;
+  var hasFiles = function (event) { return event.dataTransfer && [].indexOf.call(event.dataTransfer.types || [], "Files") !== -1; };
+  document.addEventListener("dragenter", function (event) { if (hasFiles(event)) { depth += 1; page.classList.add("is-dropping"); } });
+  document.addEventListener("dragleave", function () { depth -= 1; if (depth <= 0) { depth = 0; page.classList.remove("is-dropping"); } });
+  document.addEventListener("dragover", function (event) { if (hasFiles(event)) event.preventDefault(); });
+  document.addEventListener("drop", function (event) {
+    if (!hasFiles(event)) return;
+    depth = 0; page.classList.remove("is-dropping");
+    if (event.target.closest && event.target.closest(".dropzone")) return; // 拖在框裡交給原本的元件
+    event.preventDefault();
+    var files = event.dataTransfer.files;
+    if (!files.length) return;
+    try { var box = new DataTransfer(); box.items.add(files[0]); input.files = box.files; } catch (e) { input.files = files; }
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    input.closest(".sheet").scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

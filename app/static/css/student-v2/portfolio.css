@@ -1,0 +1,186 @@
+/* 活動與經歷（列表、新增、編輯）學生端 v2 外觀（2026-11-11）
+   照設計示範 _design-demo/student-v2/data.html 的「活動與經歷」：年級分頁、類別小膠囊、卡片依序發下來、草稿虛線框、
+   「你的 N 筆活動，最能用在…」玻璃卡、新增一筆虛線格、拖檔案當佐證。只用 tokens.css 的變數，深淺色都可。
+   只在學生頁（html[data-ui="student-v2"]）生效。 */
+
+[data-ui="student-v2"] .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- 「你的 N 筆活動，最能用在…」：玻璃卡 ---------- */
+[data-ui="student-v2"] .pf-fit {
+  margin: 0 0 1.25rem;
+  padding: 18px 22px;
+  border: 1px solid var(--glass-line);
+  border-radius: 22px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--gblur)) saturate(var(--gsat));
+  backdrop-filter: blur(var(--gblur)) saturate(var(--gsat));
+  box-shadow: var(--shadow);
+}
+[data-ui="student-v2"] .pf-fit .fit-brief__title { font-family: inherit; font-size: clamp(1.15rem, 2.4vw, 1.5rem); font-weight: 900; color: var(--ink); }
+[data-ui="student-v2"] .pf-fit .fit-brief__name { background-image: linear-gradient(transparent 62%, var(--accent-soft) 62%); }
+[data-ui="student-v2"] .pf-fit .fit-brief__row {
+  border: 1px solid var(--line); border-radius: 16px; background: var(--card); color: var(--ink); box-shadow: none; padding: .6rem .8rem;
+}
+[data-ui="student-v2"] .pf-fit .fit-brief__rank {
+  display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%;
+  background: var(--accent); color: var(--on); font-family: inherit; font-size: .95rem;
+}
+[data-ui="student-v2"] .pf-fit .fit-brief__row { align-items: center; }
+[data-ui="student-v2"] .fit-pick.is-fit-lit { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 2px var(--accent); }
+[data-ui="student-v2"] .pf-fit :is(.fit-brief__meta, .fit-brief__hint, .muted) { color: var(--soft); }
+
+/* ---------- 檔案櫃：年級分頁、類別小膠囊 ---------- */
+[data-ui="student-v2"] .pf-cabinet {
+  background: var(--card); border: 1px solid var(--line); border-radius: 24px;
+  box-shadow: 0 30px 60px -40px rgb(70 50 30 / .35); overflow: hidden; margin-bottom: 1.25rem;
+}
+[data-ui="student-v2"] .pf-tabs {
+  display: flex; padding: 14px 14px 0; background: var(--bg); border-bottom: 1px solid var(--line);
+  overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
+}
+[data-ui="student-v2"] .pf-tabs::-webkit-scrollbar { display: none; }
+[data-ui="student-v2"] .pf-tab {
+  flex: 0 0 auto; margin-bottom: -1px; padding: 10px 18px 12px; border: 1px solid transparent; border-radius: 14px 14px 0 0;
+  background: none; color: var(--soft); font: inherit; font-weight: 900; white-space: nowrap; cursor: pointer;
+}
+[data-ui="student-v2"] .pf-tab small { margin-left: 6px; font-weight: 700; }
+[data-ui="student-v2"] .pf-tab[aria-selected="true"] { background: var(--card); border-color: var(--line); border-bottom-color: var(--card); color: var(--ink); }
+[data-ui="student-v2"] .pf-tab:focus-visible,
+[data-ui="student-v2"] .pf-cat:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+[data-ui="student-v2"] .pf-cats { display: flex; flex-wrap: wrap; gap: 8px; padding: 18px 22px 4px; }
+[data-ui="student-v2"] .pf-cat {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 2.25rem; padding: 0 14px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--ink);
+  font: inherit; font-size: .875rem; font-weight: 700; cursor: pointer;
+  transition: transform .45s cubic-bezier(.3, 1.8, .4, 1), background .2s, color .2s;
+}
+[data-ui="student-v2"] .pf-cat b {
+  display: grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 99px;
+  background: var(--accent-soft); color: var(--accent); font-size: .8125rem;
+}
+[data-ui="student-v2"] .pf-cat:active { transform: scale(1.1); transition-duration: .12s; }
+[data-ui="student-v2"] .pf-cat[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--on); }
+[data-ui="student-v2"] .pf-cat[aria-pressed="true"] b { background: var(--card); }
+
+/* ---------- 卡片 ---------- */
+[data-ui="student-v2"] .pf-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px; padding: 22px; }
+[data-ui="student-v2"] .pf-card {
+  position: relative; display: flex; flex-direction: column; gap: 10px; padding: 14px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow);
+  transform: rotate(var(--r, 0deg));
+  transition: transform .25s cubic-bezier(.2, 1.2, .3, 1), box-shadow .25s, border-color .25s, opacity .25s;
+}
+[data-ui="student-v2"] .pf-card[hidden] { display: none; }
+[data-ui="student-v2"] .is-dealt .pf-card { animation: pf-deal .5s cubic-bezier(.2, .9, .3, 1) backwards; animation-delay: var(--d, 0s); }
+@keyframes pf-deal { from { opacity: 0; transform: translateY(-24px) rotate(calc(var(--r, 0deg) * -3)); } }
+[data-ui="student-v2"] .pf-card:hover,
+[data-ui="student-v2"] .pf-card:focus-within {
+  transform: translateY(-4px) rotate(0); border-color: var(--accent); box-shadow: 0 22px 40px -22px rgb(70 50 30 / .45);
+}
+[data-ui="student-v2"] .pf-card.is-draft { border-style: dashed; border-color: var(--soft); }
+[data-ui="student-v2"] .pf-card__body {
+  display: flex; flex-direction: column; gap: 8px; padding: 0; border: 0; background: none; box-shadow: none; color: var(--ink); text-decoration: none;
+}
+[data-ui="student-v2"] .pf-card__body:hover { box-shadow: none; }
+[data-ui="student-v2"] .pf-card__body:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; border-radius: 10px; }
+[data-ui="student-v2"] .pf-card__top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+[data-ui="student-v2"] .pf-card__kind { color: var(--accent); font-size: .875rem; font-weight: 700; }
+[data-ui="student-v2"] .pf-card__kind::before {
+  content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--slot, var(--accent)); vertical-align: .1em;
+}
+[data-ui="student-v2"] .pf-card h3 { margin: 4px 0 0; font-size: 1.0625rem; line-height: 1.35; color: var(--ink); }
+[data-ui="student-v2"] .pf-card__body p {
+  margin: 0; color: var(--soft); font-size: .9375rem; line-height: 1.7;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+[data-ui="student-v2"] .pf-card .record-card__photo { border-radius: 10px; border-color: var(--line); }
+[data-ui="student-v2"] .pf-card .tag { border-radius: 99px; }
+[data-ui="student-v2"] .pf-card .fit-line { border-radius: 0 10px 10px 0; background: var(--surface); color: var(--ink); }
+[data-ui="student-v2"] .pf-card .fit-line__label { color: var(--soft); }
+[data-ui="student-v2"] .pf-card .fit-line__school { border-radius: 10px; background: var(--card); color: var(--ink); border-color: var(--line); }
+[data-ui="student-v2"] .pf-card .fit-line--empty { background: transparent; color: var(--soft); }
+[data-ui="student-v2"] .pf-card__confirm { margin-top: auto; }
+[data-ui="student-v2"] .pf-card__confirm .button { width: 100%; justify-content: center; }
+[data-ui="student-v2"] .pf-card.is-drop-target { border: 2px dashed var(--accent); background: var(--accent-soft); transform: scale(1.02); }
+[data-ui="student-v2"] .pf-card.is-uploading { opacity: .6; pointer-events: none; }
+[data-ui="student-v2"] .pf-card.is-uploading::after {
+  content: "上傳佐證中…"; position: absolute; inset: 0; display: grid; place-items: center; border-radius: inherit;
+  background: var(--glass); color: var(--accent); font-weight: 900;
+}
+
+/* 新增一筆：虛線格 */
+[data-ui="student-v2"] .pf-add {
+  display: grid; place-items: center; align-content: center; gap: 6px; min-height: 180px; padding: 14px;
+  border: 1.5px dashed var(--line); border-radius: 16px; color: var(--soft); text-align: center; text-decoration: none; font-weight: 700;
+  transition: background .2s, border-color .2s, color .2s;
+}
+[data-ui="student-v2"] .pf-add b { color: var(--ink); font-size: 1rem; }
+[data-ui="student-v2"] .pf-add small { font-size: .8125rem; font-weight: 400; }
+[data-ui="student-v2"] .pf-add__plus { font-size: 2rem; line-height: 1; color: var(--accent); }
+[data-ui="student-v2"] .pf-add:hover,
+[data-ui="student-v2"] .pf-add:focus-visible,
+[data-ui="student-v2"] .pf-add.is-nudge { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+[data-ui="student-v2"] .pf-empty,
+[data-ui="student-v2"] .pf-drop-hint { margin: 0; padding: 0 22px 22px; color: var(--soft); text-align: center; }
+[data-ui="student-v2"] .pf-drop-hint { color: var(--accent); font-weight: 700; }
+
+/* 拖檔案進頁面：整個檔案櫃亮起來，提示放在卡片上 */
+[data-ui="student-v2"] .pf-page.is-dropping .pf-cabinet { outline: 2px dashed var(--accent); outline-offset: 4px; }
+[data-ui="student-v2"] .pf-page.is-dropping .pf-card { border-style: dashed; border-color: var(--accent); }
+
+/* ---------- 新增、編輯表單：一看就知道能打字 ---------- */
+[data-ui="student-v2"] .pf-form .sheet { padding: clamp(1rem, 3vw, 1.6rem); }
+[data-ui="student-v2"] .pf-form .form-stack { gap: 1.1rem; }
+[data-ui="student-v2"] .pf-form .field { position: relative; color: var(--ink); font-weight: 700; }
+[data-ui="student-v2"] .pf-form .field small { color: var(--soft); font-weight: 400; }
+[data-ui="student-v2"] .pf-form label.field:has(> input, > textarea, > select)::after {
+  content: "可直接修改"; position: absolute; top: 0; right: 0;
+  color: var(--accent); font-size: .75rem; font-weight: 700;
+}
+[data-ui="student-v2"] .pf-form :is(input:not([type="radio"], [type="checkbox"], [type="file"], [type="hidden"]), textarea, select) {
+  width: 100%; margin-top: 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink);
+  font-size: max(16px, 1rem); font-weight: 400;
+}
+[data-ui="student-v2"] .pf-form :is(input, textarea, select):focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); background: var(--card); }
+[data-ui="student-v2"] .pf-form textarea { min-height: 6.5rem; line-height: 1.7; }
+[data-ui="student-v2"] .pf-form fieldset.field { border: 1px solid var(--line); border-radius: 18px; padding: 12px 16px 16px; }
+[data-ui="student-v2"] .pf-form legend { padding: 0 6px; font-weight: 900; }
+[data-ui="student-v2"] .pf-form .choice-group { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+[data-ui="student-v2"] .pf-form .choice { padding: 0; border: 0; background: none; box-shadow: none; transform: none; }
+[data-ui="student-v2"] .pf-form .choice span {
+  display: grid; place-items: center; min-height: var(--ctl-h); padding: 0 14px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--card); color: var(--ink); box-shadow: none; transition: background .2s, color .2s, transform .45s cubic-bezier(.3, 1.8, .4, 1);
+}
+[data-ui="student-v2"] .pf-form .choice:hover span { border-color: var(--accent); }
+[data-ui="student-v2"] .pf-form .choice input:checked + span { background: var(--ink); border-color: var(--ink); color: var(--on); box-shadow: none; }
+[data-ui="student-v2"] .pf-form .choice input:checked + span b { color: var(--on); }
+[data-ui="student-v2"] .pf-form .story-fields { background: var(--surface); }
+[data-ui="student-v2"] .pf-form .story-fields :is(input, textarea) { background: var(--card); }
+[data-ui="student-v2"] .pf-form .dropzone { border: 1.5px dashed var(--line); border-radius: 16px; background: var(--surface); color: var(--soft); }
+[data-ui="student-v2"] .pf-form .dropzone:hover,
+[data-ui="student-v2"] .pf-form.is-dropping .dropzone { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+[data-ui="student-v2"] .pf-form.is-dropping #evidence-title::after { content: "　放開就放進這裡"; color: var(--accent); font-size: .9rem; }
+[data-ui="student-v2"] .pf-form .evidence-tile { border-radius: 12px; overflow: hidden; }
+
+@media (max-width: 720px) {
+  [data-ui="student-v2"] .pf-cards { grid-template-columns: 1fr 1fr; gap: 12px; padding: 14px; }
+  [data-ui="student-v2"] .pf-card { padding: 12px; transform: none; }
+  [data-ui="student-v2"] .pf-card__body p { -webkit-line-clamp: 2; }
+  [data-ui="student-v2"] .pf-card h3 { font-size: .9375rem; }
+  [data-ui="student-v2"] .pf-add { min-height: 140px; }
+  [data-ui="student-v2"] .pf-add small { display: none; }
+  [data-ui="student-v2"] .pf-cats { padding: 14px 14px 0; }
+  [data-ui="student-v2"] .pf-fit { padding: 14px 16px; }
+}
+@media (max-width: 380px) {
+  [data-ui="student-v2"] .pf-cards { grid-template-columns: 1fr; }
+  [data-ui="student-v2"] .pf-add { min-height: 96px; grid-auto-flow: column; gap: 10px; }
+}
+
+/* 系統設定「減少動態」：卡片直接顯示 */
+@media (prefers-reduced-motion: reduce) {
+  [data-ui="student-v2"] .is-dealt .pf-card { animation: none; }
+  [data-ui="student-v2"] .pf-card,
+  [data-ui="student-v2"] .pf-card:hover { transform: none; transition: none; opacity: 1; }
+  [data-ui="student-v2"] .pf-cat { transition: none; }
+}

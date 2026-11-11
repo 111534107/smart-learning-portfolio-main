@@ -815,7 +815,7 @@ document.querySelectorAll("[data-photo-form]").forEach((form) => {
 
 // ---------- 網頁導覽：一步一步指出畫面上的功能 ----------
 // 頁面上有 data-tour="一句話" data-tour-order="1" 的元素就是步驟；看不到的元素（例如手機版隱藏）自動略過。
-// 首頁第一次來會自動播一次（瀏覽器記住），其他頁按上方「導覽」才播；Esc 結束、← → 換步。
+// 第一次進一頁只在上方出現「看 30 秒導覽／不用」（不直接蓋住畫面），按上方「導覽」或從說明頁重看才播；Esc、點暗處結束，← → 換步。
 (() => {
   const page = document.body.dataset.page || "page";
   const steps = () => [...document.querySelectorAll("[data-tour]")]
@@ -829,6 +829,18 @@ document.querySelectorAll("[data-photo-form]").forEach((form) => {
   let list = [];
   let returnFocus = null;
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // 學生端 v2 導覽外觀（暗底加亮框、玻璃說明卡）：第一次用到時才載入 tour.css，老師頁也一樣
+  const loadStyle = () => {
+    if (document.getElementById("tour-v2-css")) return;
+    const self = document.querySelector('script[src*="js/components.js"]');
+    if (!self) return;
+    const link = document.createElement("link");
+    link.id = "tour-v2-css";
+    link.rel = "stylesheet";
+    link.href = self.src.replace(/js\/components\.js.*$/, "css/student-v2/tour.css");
+    document.head.appendChild(link);
+  };
+  const markSeen = () => { try { localStorage.setItem(`tour-seen-${page}`, "1"); } catch (e) { /* 存不了也沒關係 */ } };
 
   const place = () => {
     if (!layer) return;
@@ -840,8 +852,8 @@ document.querySelectorAll("[data-photo-form]").forEach((form) => {
     spot.style.width = `${rect.width + pad * 2}px`;
     spot.style.height = `${rect.height + pad * 2}px`;
     const card = layer.querySelector(".tour__card");
-    const below = rect.bottom + 14 + card.offsetHeight < window.innerHeight;
-    const top = below ? rect.bottom + 14 : rect.top - card.offsetHeight - 14;
+    const below = rect.bottom + 16 + card.offsetHeight < window.innerHeight;
+    const top = below ? rect.bottom + 16 : rect.top - card.offsetHeight - 16;
     card.style.top = `${Math.min(Math.max(12, top), window.innerHeight - card.offsetHeight - 12)}px`;
     card.style.left = `${Math.min(Math.max(12, rect.left), window.innerWidth - card.offsetWidth - 12)}px`;
   };
@@ -886,6 +898,8 @@ document.querySelectorAll("[data-photo-form]").forEach((form) => {
     list = steps();
     if (!list.length) return;
     close();
+    removeInvite();
+    loadStyle();
     returnFocus = document.activeElement;
     layer = document.createElement("div");
     layer.className = "tour";
@@ -893,27 +907,45 @@ document.querySelectorAll("[data-photo-form]").forEach((form) => {
     layer.setAttribute("aria-modal", "true");
     layer.setAttribute("aria-label", "網頁導覽");
     layer.innerHTML = '<div class="tour__spot"></div>'
-      + '<div class="tour__card"><p class="tour__text" aria-live="polite"></p>'
-      + '<div class="tour__actions"><span class="tour__count"></span>'
-      + '<button type="button" class="tour__skip" data-tour-close>結束</button>'
-      + '<button type="button" class="button button--small button--line" data-tour-prev>← 上一步</button>'
-      + '<button type="button" class="button button--small" data-tour-next>下一步 →</button></div></div>';
+      + '<div class="tour__card"><p class="tour__count"></p><p class="tour__text" aria-live="polite"></p>'
+      + '<div class="tour__actions">'
+      + '<button type="button" class="tour__skip" data-tour-close>略過</button><span class="tour__gap"></span>'
+      + '<button type="button" class="tour__prev" data-tour-prev>← 上一步</button>'
+      + '<button type="button" class="tour__next" data-tour-next>下一步 →</button></div></div>';
     document.body.appendChild(layer);
     layer.querySelector("[data-tour-close]").addEventListener("click", close);
     layer.querySelector("[data-tour-prev]").addEventListener("click", () => go(index - 1));
     layer.querySelector("[data-tour-next]").addEventListener("click", () => go(index + 1));
+    // 點暗處（說明卡以外）就離開
+    layer.addEventListener("click", (event) => { if (!event.target.closest(".tour__card")) close(); });
     document.addEventListener("keydown", onKey);
     window.addEventListener("resize", place);
     window.addEventListener("scroll", place, { passive: true });
     go(0);
-    try { localStorage.setItem(`tour-seen-${page}`, "1"); } catch (e) { /* 存不了也沒關係 */ }
+    markSeen();
+  };
+  // 第一次進這一頁：不直接蓋住畫面，上方出現一條小提示，要看才播
+  let invite = null;
+  function removeInvite() { if (invite) { invite.remove(); invite = null; } }
+  const offer = () => {
+    if (!steps().length || layer || invite) return;
+    loadStyle();
+    invite = document.createElement("div");
+    invite.className = "tour-invite";
+    invite.setAttribute("role", "status");
+    invite.innerHTML = '<span>第一次來這頁？</span>'
+      + '<button type="button" class="tour-invite__go" data-tour-invite-go>看 30 秒導覽</button>'
+      + '<button type="button" class="tour-invite__no" data-tour-invite-no>不用</button>';
+    document.body.appendChild(invite);
+    invite.querySelector("[data-tour-invite-go]").addEventListener("click", start);
+    invite.querySelector("[data-tour-invite-no]").addEventListener("click", () => { removeInvite(); markSeen(); });
   };
   if (startButton) startButton.addEventListener("click", start);
   document.querySelectorAll("[data-tour-replay]").forEach((button) => button.addEventListener("click", () => {
     try { localStorage.removeItem(`tour-seen-${button.dataset.tourReplay}`); } catch (e) { /* 沒關係 */ }
     window.location.href = button.dataset.tourReplayUrl || "/student/dashboard";
   }));
-  // 首頁第一次來自動播；「好久不見」那一幕還在的話等它關掉，也等小人物走完
+  // 從「怎麼操作」按「重看導覽」（?tour=1）直接播；第一次來只出現邀請。首頁要等「好久不見」那一幕關掉、小人物走完
   if (new URLSearchParams(window.location.search || "").get("tour") === "1") {
     start();
   } else if (page === "student-dashboard") {
@@ -921,7 +953,7 @@ document.querySelectorAll("[data-photo-form]").forEach((form) => {
     try { seen = localStorage.getItem(`tour-seen-${page}`) === "1"; } catch (e) { seen = true; }
     if (!seen) {
       const waitForWalker = () => {
-        if (document.documentElement.dataset.journeyWalked === "true") { start(); return; }
+        if (document.documentElement.dataset.journeyWalked === "true") { offer(); return; }
         let started = false;
         let fallback = null;
         const begin = () => {
@@ -929,7 +961,7 @@ document.querySelectorAll("[data-photo-form]").forEach((form) => {
           started = true;
           clearTimeout(fallback);
           document.removeEventListener("journey:walked", begin);
-          start();
+          offer();
         };
         document.addEventListener("journey:walked", begin, { once: true });
         fallback = setTimeout(begin, 6000);
@@ -940,6 +972,10 @@ document.querySelectorAll("[data-photo-form]").forEach((form) => {
       };
       wait();
     }
+  } else if (page !== "help") {
+    let seen = false;
+    try { seen = localStorage.getItem(`tour-seen-${page}`) === "1"; } catch (e) { seen = true; }
+    if (!seen) setTimeout(offer, 900);
   }
 })();
 
