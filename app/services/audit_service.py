@@ -26,6 +26,7 @@ ACTION_LABELS = {
     "graduation.check_dates": "設定畢業檢核日期",
     "graduation.course_unknown": "成績有找不到對應科目的課",
     "email.notify": "電子郵件通知",
+    "calendar.reset": "重設行事曆訂閱網址",
     "email.settings": "設定電子郵件通知（全域）",
     "user.email_notify": "修改自己的電子郵件通知開關",
     "portfolio.delete": "刪除經歷",

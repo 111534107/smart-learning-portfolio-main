@@ -1,5 +1,22 @@
 # 開發日誌
 
+## 2026-11-12 備審時間線加到 Google 日曆（行事曆訂閱 .ics，分支 feat/email-notify）
+
+日期：2026-11-12（台灣時間）
+
+開發者：Claude（工作資料夾 `D:\democase\_worktrees\ai-wt-email-notify`，分支 `feat/email-notify`，未推送、未合併）
+
+起因：使用者問能不能用學生的 Google 日曆通知備審時間線。比較兩種做法後，使用者選「行事曆訂閱網址」（不用申請 Google 日曆權限、不存學生權杖）；系統直接寫進日曆（Calendar API）留待之後需要再做。
+
+做了什麼：
+- 新服務 `D:\democase\_worktrees\ai-wt-email-notify\app\services\calendar_feed.py`：產生 .ics，內容是二技技優甄審最新日程、目標校系各管道日程（同管道同年只列一次；用去年日程時標「去年日程，僅供參考」）、教務處兩次畢業檢核日期（全天事件）。時間以台灣時間換成 UTC 輸出；只放日程名稱、說明與官方連結，不放成績或個資。
+- 每位學生一條私密網址 `/calendar/<代碼>.ics`（`users.calendar_token`，第一次開「招生時程」頁自動產生），不用登入就能抓（Google 日曆伺服器要來抓）；代碼錯、帳號停用回 404。
+- 「招生時程」頁（`/student/schedule`）最上面新增「加到 Google 日曆」：網址、三步驟說明（透過網址新增、設預設通知）、「重設網址」按鈕（舊網址立刻失效，寫操作紀錄 `calendar.reset`）。
+- 遷移沿用同分支的 `D:\democase\_worktrees\ai-wt-email-notify\migrations\versions\b20261112m01_email_notify.py`，多加 `users.calendar_token`（唯一）。
+- 測試 `D:\democase\_worktrees\ai-wt-email-notify\tests\test_calendar_feed.py`（5 個）：.ics 格式與時區、跳脫與每行 75 位元組折行、內容含二技日程與檢核日期、頁面顯示網址且免登入可抓、重設後舊網址失效、停用帳號 404。
+
+限制：Google 大約幾小時到一天才重抓一次；提醒時間要學生自己在 Google 日曆設定（訂閱日曆的提醒無法由系統指定）。展示站用 `localhost` 網址時 Google 抓不到（Google 伺服器連不到本機），要正式網址才能真的訂閱；本機可以下載 .ics 匯入測試。
+
 ## 2026-11-12 電子郵件通知（分支 feat/email-notify）
 
 日期：2026-11-12（台灣時間）

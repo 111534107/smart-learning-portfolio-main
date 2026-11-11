@@ -1,4 +1,4 @@
-"""電子郵件通知：users.email_notify、notifications.notify_key
+"""電子郵件通知與行事曆訂閱：users.email_notify、users.calendar_token、notifications.notify_key
 
 2026-11-12：學生、導師可在帳號設定關閉郵件通知；各學期預警與檢核日期倒數的通知用 notify_key 去重。
 
@@ -22,6 +22,10 @@ def upgrade():
     if inspector.has_table("users") and "email_notify" not in {c["name"] for c in inspector.get_columns("users")}:
         with op.batch_alter_table("users") as batch:
             batch.add_column(sa.Column("email_notify", sa.Boolean(), nullable=False, server_default=sa.true()))
+    if inspector.has_table("users") and "calendar_token" not in {c["name"] for c in sa.inspect(op.get_bind()).get_columns("users")}:
+        with op.batch_alter_table("users") as batch:
+            batch.add_column(sa.Column("calendar_token", sa.String(length=64), nullable=True))
+            batch.create_unique_constraint("uq_users_calendar_token", ["calendar_token"])
     if inspector.has_table("notifications") and inspector.has_table("users") and "notify_key" not in {
             c["name"] for c in inspector.get_columns("notifications")}:
         with op.batch_alter_table("notifications") as batch:
@@ -39,3 +43,6 @@ def downgrade():
     if inspector.has_table("users") and "email_notify" in {c["name"] for c in inspector.get_columns("users")}:
         with op.batch_alter_table("users") as batch:
             batch.drop_column("email_notify")
+    if inspector.has_table("users") and "calendar_token" in {c["name"] for c in sa.inspect(op.get_bind()).get_columns("users")}:
+        with op.batch_alter_table("users") as batch:
+            batch.drop_column("calendar_token")
