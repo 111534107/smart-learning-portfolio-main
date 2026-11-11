@@ -139,7 +139,7 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="list-head">
       <p class="muted">第 {{ version }} 版。AI 草稿只是起點，請改成你自己的話；每次儲存都會留下一版。<span class="mono" data-char-total></span></p>
-      {% if backup_label %}<p class="small {{ 'muted' if backup_label != '備份失敗' else 'notice notice--warn' }}" role="status">{{ backup_label }}{% if backup_label == '備份失敗' %}：這一版仍已存在系統裡，只是學校端的 Word 備份沒有存成功，下次儲存會再備份一次。{% else %}（每一版都會另存一份 Word 檔）{% endif %}</p>{% endif %}
+      {% if backup_label %}<p class="small {{ 'muted' if backup_label != '備份失敗' else 'notice notice--warn' }}" role="status">{{ backup_label }}{% if backup_label == '備份失敗' %}：這一版仍已存在系統裡，只是學校端的 Word 備份自動重試後仍沒有存成功，下次儲存也會再補一次。 <button class="button button--line" type="submit" formaction="{{ url_for('student.autobiography_backup_retry', output_id=draft.id) }}" formnovalidate>再試一次</button>{% elif backup_label == '備份中' %}：存檔已完成，Word 備份正在背景處理，重新整理頁面可看最新狀態。{% else %}（每一版都會另存一份 Word 檔，並註明修改者與時間）{% endif %}</p>{% endif %}
       <div class="record-card__actions">
         <a class="button button--line" href="{{ url_for('student.autobiography_versions', program_id=program.id) }}">版本紀錄</a>
         <a class="button button--line" href="{{ url_for('student.autobiography', program_id=program.id, redo=1) }}">重新回答問題</a>

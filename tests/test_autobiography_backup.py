@@ -80,7 +80,7 @@ def test_generate_backs_up_docx_locally(app):
     assert "學生stu" in text
     assert "第 1 版" in text
     assert "專二做網頁設計" in text
-    assert "自傳_111534100_" in location and "第1版.docx" in location
+    assert "自傳_111534100_" in location and "第1版_AI產生_" in location and location.endswith(".docx")
     assert "autobiography" in location
 
     page = client.get(f"/student/autobiography?program_id={program_id(app)}").get_data(as_text=True)
@@ -129,7 +129,7 @@ def test_saved_edits_are_backed_up(app, monkeypatch):
 
     assert len(calls) == 2
     assert all(folder == "autobiography" for _, folder, _ in calls)
-    assert calls[1][2].endswith("第2版.docx")
+    assert "第2版_學生本人_" in calls[1][2]
     with app.app_context():
         newest = LearningProfileOutput.query.order_by(LearningProfileOutput.id.desc()).first()
         assert newest.content_json["backup_location"]
@@ -211,3 +211,140 @@ def test_admin_storage_page_mentions_autobiography_backup(app):
 
     assert "自傳備份" in page
     assert storage_service.FOLDER_NAME in page
+
+
+# ---- 背景備份、重試與修改者標示 ----
+
+def test_save_does_not_wait_for_backup(tmp_path, monkeypatch):
+    app = make_app(tmp_path, AUTOBIOGRAPHY_BACKUP_MODE="manual")
+    calls = _count_saves(monkeypatch)
+    client = login(app)
+    output_id = generate(app, client)
+
+    content = content_of(app, output_id)
+    assert calls == []
+    assert content["backup_status"] == "pending" and content["paragraphs"]
+    page = client.get(f"/student/autobiography?program_id={program_id(app)}").get_data(as_text=True)
+    assert "備份中" in page and "存檔已完成" in page
+
+    from app.services import autobiography_backup
+    assert autobiography_backup.run_job(app, output_id, sleep=lambda s: None)
+    assert content_of(app, output_id)["backup_status"] == "done"
+    assert len(calls) == 1
+
+
+def test_thread_mode_backs_up_in_background(tmp_path):
+    from app.services import autobiography_backup
+    app = make_app(tmp_path, AUTOBIOGRAPHY_BACKUP_MODE="thread")
+    client = login(app)
+    output_id = generate(app, client)
+    assert autobiography_backup.wait_until_idle(timeout=10)
+    assert content_of(app, output_id)["backup_status"] == "done"
+
+
+def test_backup_failure_is_retried(app, monkeypatch):
+    real = storage_service.save
+    attempts = []
+
+    def flaky(*args, **kwargs):
+        attempts.append(1)
+        if len(attempts) < 3:
+            raise storage_service.StorageUnavailable("Drive 太慢")
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(storage_service, "save", flaky)
+    client = login(app)
+    output_id = generate(app, client)
+
+    content = content_of(app, output_id)
+    assert len(attempts) == 3
+    assert content["backup_status"] == "done" and content["backup_location"]
+    assert content["backup_attempts"] == 3
+
+
+def test_backup_still_failing_shows_retry_and_next_save_catches_up(app, monkeypatch):
+    real = storage_service.save
+    broken = {"on": True}
+    attempts = []
+
+    def maybe(*args, **kwargs):
+        attempts.append(1)
+        if broken["on"]:
+            raise storage_service.StorageUnavailable("Drive 斷線")
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(storage_service, "save", maybe)
+    client = login(app)
+    output_id = generate(app, client)
+
+    content = content_of(app, output_id)
+    assert len(attempts) == app.config.get("AUTOBIOGRAPHY_BACKUP_MAX_ATTEMPTS", 3)
+    assert content["backup_status"] == "failed" and "Drive 斷線" in content["backup_error"]
+    page = client.get(f"/student/autobiography?program_id={program_id(app)}").get_data(as_text=True)
+    assert "備份失敗" in page and "再試一次" in page
+
+    # 「再試一次」：恢復後重新排入
+    broken["on"] = False
+    response = client.post(f"/student/autobiography/{output_id}/backup-retry")
+    assert response.status_code == 302
+    assert content_of(app, output_id)["backup_status"] == "done"
+
+    # 下次存檔會補之前失敗的版本
+    broken["on"] = True
+    client.post("/student/autobiography/generate", data={"program_id": program_id(app), **ANSWERS})
+    with app.app_context():
+        failed_id = LearningProfileOutput.query.order_by(LearningProfileOutput.id.desc()).first().id
+    assert content_of(app, failed_id)["backup_status"] == "failed"
+    broken["on"] = False
+    count = len(content_of(app, failed_id)["paragraphs"])
+    client.post(f"/student/autobiography/{failed_id}/save", data={f"paragraph_{i}": "再改" for i in range(count)})
+    assert content_of(app, failed_id)["backup_status"] == "done"
+
+
+def test_other_student_cannot_retry_backup(app, monkeypatch):
+    monkeypatch.setattr(storage_service, "save", lambda *a, **k: (_ for _ in ()).throw(
+        storage_service.StorageUnavailable("x")))
+    output_id = generate(app, login(app))
+    other = login(app, "other")
+    assert other.post(f"/student/autobiography/{output_id}/backup-retry").status_code == 403
+
+
+def _docx_text(app, location):
+    with app.app_context():
+        return "\n".join(p.text for p in Document(io.BytesIO(storage_service.read_bytes(location))).paragraphs)
+
+
+def test_backup_names_student_editor(app):
+    client = login(app)
+    output_id = generate(app, client)
+    count = len(content_of(app, output_id)["paragraphs"])
+    client.post(f"/student/autobiography/{output_id}/save", data={f"paragraph_{i}": "我改的" for i in range(count)})
+    with app.app_context():
+        newest_id = LearningProfileOutput.query.order_by(LearningProfileOutput.id.desc()).first().id
+    location = content_of(app, newest_id)["backup_location"]
+    assert "_學生本人_" in location
+    assert "修改者：學生本人" in _docx_text(app, location)
+
+
+def test_backup_names_teacher_editor(app):
+    from app.services import autobiography_backup
+    output_id = generate(app, login(app))
+    with app.app_context():
+        teacher = User(username="tea", display_name="王老師", role="teacher")
+        teacher.set_password("pw")
+        db.session.add(teacher)
+        db.session.commit()
+        output = db.session.get(LearningProfileOutput, output_id)
+        count = len(output.content_json["paragraphs"])
+        saved = autobiography_service.save_edits(output, ["導師改的"] * count, teacher, comments=[""] * count)
+        saved_id = saved.id
+    content = content_of(app, saved_id)
+    location = content["backup_location"]
+    assert "_導師王老師_" in location
+    assert "修改者：導師 王老師" in _docx_text(app, location)
+    assert content["saved_at"]
+    with app.app_context():
+        teacher = User.query.filter_by(username="tea").one()
+        assert autobiography_backup.editor_label(content, teacher) == "導師 王老師"
+    versions = login(app).get(f"/student/autobiography/versions?program_id={program_id(app)}").get_data(as_text=True)
+    assert "王老師" in versions and "導師修改" in versions

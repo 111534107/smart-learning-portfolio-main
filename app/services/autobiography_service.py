@@ -257,7 +257,7 @@ def generate_draft(student, program, answers, generate=None, api_key=None):
         "editor_role": "ai",
         "based_on": previous.id if previous else None,
     }
-    content["backup_location"] = autobiography_backup.backup(student, program, content)
+    autobiography_backup.mark_pending(content)
     output = LearningProfileOutput(
         student_id=student.id,
         output_type=OUTPUT_TYPE,
@@ -268,6 +268,7 @@ def generate_draft(student, program, answers, generate=None, api_key=None):
     )
     db.session.add(output)
     db.session.commit()
+    autobiography_backup.schedule_after_save(current_app._get_current_object(), output)
     return output
 
 
@@ -331,10 +332,8 @@ def _next_version(student_id, program_id):
 
 
 def _backup_existing(student_id, content):
-    """存修改／取回的新版本也要備份到學校端；找不到學生或校系時當作備份失敗。"""
-    student = db.session.get(User, student_id)
-    program = db.session.get(AdmissionProgram, content.get("program_id"))
-    content["backup_location"] = autobiography_backup.backup(student, program, content) if student and program else ""
+    """存修改／取回的新版本也要備份到學校端：先標成待備份，commit 後交給背景佇列。"""
+    autobiography_backup.mark_pending(content)
 
 
 def save_edits(output, texts, editor, comments=None):
@@ -379,6 +378,7 @@ def save_edits(output, texts, editor, comments=None):
     )
     db.session.add(new_version)
     db.session.commit()
+    autobiography_backup.schedule_after_save(current_app._get_current_object(), new_version)
     return new_version
 
 
@@ -415,6 +415,7 @@ def save_imported(output, paragraphs, editor, origin):
     )
     db.session.add(new_version)
     db.session.commit()
+    autobiography_backup.schedule_after_save(current_app._get_current_object(), new_version)
     return new_version
 
 

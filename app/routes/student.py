@@ -1496,6 +1496,21 @@ def autobiography_save(output_id):
     return redirect(url_for("student.autobiography", program_id=output.content_json["program_id"], saved=1))
 
 
+@student_bp.post("/student/autobiography/<int:output_id>/backup-retry")
+@role_required("student")
+def autobiography_backup_retry(output_id):
+    """備份失敗時的「再試一次」：重新排進背景備份，存檔本身不受影響。"""
+    user = get_current_user()
+    output = db.session.get(LearningProfileOutput, output_id)
+    if not output or output.output_type != autobiography_service.OUTPUT_TYPE:
+        abort(404)
+    if output.student_id != user.id:
+        abort(403)
+    autobiography_backup.retry(current_app._get_current_object(), output)
+    return redirect(url_for(
+        "student.autobiography", program_id=output.content_json.get("program_id")))
+
+
 @student_bp.get("/student/autobiography/versions")
 @role_required("student")
 def autobiography_versions():
