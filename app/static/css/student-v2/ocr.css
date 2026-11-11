@@ -195,3 +195,71 @@
 /* 核對頁：原檔預覽、「其他資訊」摺疊區 */
 [data-ui="student-v2"] body[data-page="learning-profile-review"] :is(.source-doc, .review-more) { background: var(--card); border: 1px solid var(--line); border-radius: 18px; color: var(--ink); }
 [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-more > summary { background: none; color: var(--ink); }
+
+/* ================= 成績單核對：快速對照原圖（2026-11-11 第二輪） =================
+   每門課一張卡：最上面是「原圖這一列」截圖，下面科目一整行、學分／成績／學期／年級一排（手機 2×2）。
+   要核對的卡左邊有橘色邊；「下一筆要核對」跳到的卡會亮框。 */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr {
+  grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .5rem .75rem; padding: .85rem 1rem;
+  border-bottom: 1px solid var(--line); scroll-margin: 140px 0 120px;
+  transition: box-shadow .3s, background .3s;
+}
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr > td:first-child { grid-column: 1 / -1; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section td.course-notes-cell { grid-column: 1 / -1; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section td[data-label]::before {
+  content: attr(data-label); display: block; margin-bottom: .2rem; color: var(--soft); font-size: var(--fs-xs); font-weight: 700;
+}
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section td:first-child input { font-size: var(--fs-md); font-weight: 800; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section input { min-height: 2.5rem; }
+/* 原圖這一列 */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] td.sv2-crop {
+  order: -1; grid-column: 1 / -1; display: block; padding: 4px; border: 1px solid var(--line); border-radius: 10px;
+  background: #fff; overflow: hidden;
+}
+[data-ui="student-v2"] body[data-page="learning-profile-review"] td.sv2-crop::before {
+  content: "原圖"; display: inline-block; margin: 0 0 4px; padding: 0 8px; border-radius: 99px;
+  background: var(--accent); color: #fff; font-size: var(--fs-xs); font-weight: 700;
+}
+[data-ui="student-v2"][data-theme="dark"] body[data-page="learning-profile-review"] td.sv2-crop::before { color: #171411; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] td.sv2-crop img { display: block; width: 100%; max-height: 4.5rem; object-fit: contain; object-position: left center; }
+/* 要核對的卡 */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tr[data-attention="true"] { box-shadow: inset 4px 0 0 var(--warn); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tr.sv2-focus {
+  background: var(--accent-soft); box-shadow: inset 4px 0 0 var(--accent), 0 0 0 2px var(--accent);
+}
+/* 註記縮小一點，不搶欄位 */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-notes { gap: .25rem .5rem; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .note-source a { color: var(--accent); }
+/* 原圖整張：電腦版黏在左邊、讓開頂端列 */
+@media (min-width: 961px) {
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-layout .source-doc { top: 88px; max-height: calc(100vh - 104px); }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-layout .course-review-section tr { grid-template-columns: minmax(0, 2.2fr) repeat(4, minmax(0, 1fr)); }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-layout .course-review-section tbody tr > td:first-child { grid-column: auto; }
+}
+/* 儲存列：確認、修改數、下一筆 */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .review-savebar { gap: .6rem; flex-wrap: wrap; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .sv2-next { margin-left: auto; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .sv2-next b { margin-left: 4px; color: var(--accent); font-variant-numeric: tabular-nums; }
+@media (max-width: 720px) {
+  /* 手機核對頁是專心做事的頁：收起底部分頁列，儲存列貼底，小助手讓到上面 */
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .sv2-tabbar { display: none; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .assistant:not(.is-open) { bottom: 84px !important; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-savebar { bottom: max(10px, env(safe-area-inset-bottom)); padding: 8px; border-radius: 22px; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-savebar__count { display: none; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-savebar .button { flex: 1; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: .75rem; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-filter-bar { border-radius: 22px; }
+}
+/* 收合／展開字樣用主色（頁內原本寫死藍色） */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] :is(.course-year-group, .course-review-semester, .score-group) > summary::after { color: var(--accent); }
+/* 小助手讓到儲存列上面（所有寬度） */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .assistant:not(.is-open) { bottom: 96px !important; }
+@media (max-width: 720px) {
+  /* 手機：原圖這一列放大到看得清楚，左右滑看整列 */
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] td.sv2-crop { overflow-x: auto; overscroll-behavior-x: contain; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] td.sv2-crop img { width: auto; max-width: none; height: 2.75rem; max-height: none; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .sv2-next { font-size: 0; flex: 0 0 auto; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .sv2-next::before { content: "下一筆"; font-size: var(--fs-sm); }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .sv2-next b { font-size: var(--fs-sm); }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .assistant:not(.is-open) { bottom: 84px !important; }
+}
