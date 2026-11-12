@@ -37,11 +37,18 @@
         {% set version = item.latest_version %}
         <li class="forms-row">
           <div class="forms-row__text">
-            <b>{{ item.title }}</b> <span class="tag">{{ extension(version.original_filename) }}</span>
+            <b>{{ item.title }}</b> {% if version %}<span class="tag">{{ extension(version.original_filename) }}</span>{% else %}<span class="tag">學校網站</span>{% endif %}
             {% if item.description %}<p class="small">{{ item.description }}</p>{% endif %}
-            <p class="muted small">更新日期 {{ version.created_at|taipei_time("%Y-%m-%d") }}{% if version.version_no > 1 %} · 第 {{ version.version_no }} 版{% endif %}</p>
+            {% if version %}<p class="muted small">更新日期 {{ version.created_at|taipei_time("%Y-%m-%d") }}{% if version.version_no > 1 %} · 第 {{ version.version_no }} 版{% endif %}</p>{% endif %}
+            {% if item.source_url %}
+              {% if item.link_status == "broken" %}
+              <p class="small"><span class="tag tag--warn">連結可能已失效，請洽科辦</span> <span class="muted">學校網站上的這份表單目前打不開。</span></p>
+              {% else %}
+              <p class="small"><a href="{{ item.source_url }}" target="_blank" rel="noopener noreferrer">到學校網站看這份表單</a></p>
+              {% endif %}
+            {% endif %}
           </div>
-          <a class="button button--small" href="{{ url_for('forms.form_download', item_id=item.id) }}">下載</a>
+          {% if version %}<a class="button button--small" href="{{ url_for('forms.form_download', item_id=item.id) }}">下載</a>{% endif %}
         </li>
         {% endfor %}
       </ul>

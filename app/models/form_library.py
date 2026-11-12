@@ -36,6 +36,11 @@ class FormItem(db.Model):
     open_to_students = db.Column(db.Boolean, nullable=False, default=False)
     open_to_teachers = db.Column(db.Boolean, nullable=False, default=False)
     is_published = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    # 學校網站上的原始連結（選填）。學校網站改版後連結常失效，科辦或管理員按「檢查連結」會更新下面三欄。
+    source_url = db.Column(db.String(500), nullable=True)
+    link_status = db.Column(db.String(20), nullable=True)  # ok 正常／broken 失效／unsure 無法確認；還沒檢查是空的
+    link_detail = db.Column(db.String(100), nullable=True)  # 給科辦看的原因，例如「HTTP 404」「連線逾時」
+    link_checked_at = db.Column(db.DateTime, nullable=True)
     created_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=_utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)

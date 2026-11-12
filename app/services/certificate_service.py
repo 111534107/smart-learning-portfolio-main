@@ -14,6 +14,7 @@
 - 電子獎狀是補充個別證明，不取代學校的獎懲記錄。
 - 核准時才產生 8 碼驗證碼；任何人可在 /verify 用驗證碼查到獎狀是否由本系統核發，姓名只顯示遮蔽後的樣子。
 - 核准或退回時寄站內通知給學生，連到獎狀或修改頁。
+- 活動證明（activity）2026-11-12 新增：只有科辦批量開立會用到（見 certificate_batch_service.py），學生不能自己申請。
 - 新增其他證明類別時，在 KINDS、CLOSINGS 與 eligible_kinds 各加一種；外框共用 templates/certificate.html。
 """
 
@@ -22,7 +23,7 @@ import secrets
 
 from app.models import AwardCertificate, SchoolAwardRecord
 
-KINDS = {"service": "服務證明", "ta": "TA 證明", "club": "科學會證明"}
+KINDS = {"service": "服務證明", "ta": "TA 證明", "club": "科學會證明", "activity": "活動證明"}
 KIND_HINTS = {"service": "科上派的服務", "ta": "擔任課程 TA（教學助理）", "club": "科學會幹部或活動"}
 CLOSINGS = {"service": "熱心服務、表現認真", "ta": "協助課程教學、認真負責", "club": "積極參與科學會、表現優良"}
 TA_PATTERN = re.compile(r"(?<![A-Za-z])TA(?![A-Za-z])|助教|教學助理", re.IGNORECASE)
