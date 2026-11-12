@@ -1280,14 +1280,41 @@ def schedule():
     user = get_current_user()
     targets = StudentTarget.query.filter_by(student_id=user.id).order_by(StudentTarget.selected_at).all()
     school_links = load_school_links()
+    from app.services import calendar_feed
+    calendar_url = url_for("student.calendar_ics", token=calendar_feed.commit_token(user), _external=True)
     return render_template(
         "student_schedule.html",
         user=user,
+        calendar_url=calendar_url,
         skill=latest_timeline("skill_review"),
         checked_on=CHECKED_ON,
         targets=[{"program": t.program, "schedule": timeline(t.program), "channel_label": channel_label(t.program),
                   "links": admission_links(t.program, school_links)} for t in targets],
     )
+
+
+@student_bp.post("/student/calendar/reset")
+@role_required("student")
+def calendar_reset():
+    """重設行事曆訂閱網址（網址外流時用）；舊網址立刻失效。"""
+    from app.services import audit_service, calendar_feed
+    user = get_current_user()
+    calendar_feed.reset_token(user)
+    audit_service.record(user, "calendar.reset", "user", user.id)
+    db.session.commit()
+    return redirect(url_for("student.schedule") + "#calendar")
+
+
+@student_bp.get("/calendar/<token>.ics")
+def calendar_ics(token):
+    """行事曆訂閱（不用登入，靠私密網址）。Google 日曆伺服器會定期來抓。"""
+    from app.services import calendar_feed
+    student = calendar_feed.find_student(token)
+    if student is None:
+        abort(404)
+    body = calendar_feed.build_ics(student)
+    return current_app.response_class(body, mimetype="text/calendar", headers={
+        "Content-Disposition": 'inline; filename="schedule.ics"', "Cache-Control": "no-store"})
 
 
 @student_bp.post("/student/agent/advise")

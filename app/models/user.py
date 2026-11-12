@@ -27,6 +27,10 @@ class User(db.Model):
     display_name = db.Column(db.String(100), nullable=False)
     role = db.Column(db.String(30), nullable=False, default="student", index=True)
     email = db.Column(db.String(120), nullable=True)
+    # 電子郵件通知開關（帳號設定可關）；管理員另有全域開關（system_settings.email_notify_enabled）
+    # 備審時間線行事曆訂閱的私密網址代碼（app/services/calendar_feed.py）；重設後舊網址失效
+    calendar_token = db.Column(db.String(64), unique=True, nullable=True)
+    email_notify = db.Column(db.Boolean, nullable=False, default=True, server_default=db.true())
     google_sub = db.Column(db.String(255), unique=True, nullable=True, index=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     # 教職員職稱（11-10）：科辦可以有很多人，用職稱區分主任、副主任、科助、其他行政人員；學生不用

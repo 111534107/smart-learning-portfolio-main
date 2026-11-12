@@ -14,6 +14,22 @@
     <a class="button button--small button--quiet" href="{{ url_for('student.matching') }}">推薦排序</a>
   </div>
 
+  <section class="sheet mb-1" id="calendar" aria-labelledby="calendar-title" data-calendar-feed>
+    <h2 id="calendar-title">加到 Google 日曆</h2>
+    <p class="small">把下面這條網址加到 Google 日曆，二技日程、目標校系日程和畢業檢核日期就會出現在你的日曆，之後自動更新（Google 大約幾小時到一天更新一次）。</p>
+    <p><input class="mono" readonly value="{{ calendar_url }}" aria-label="行事曆訂閱網址" style="width:100%"></p>
+    <ol class="small">
+      <li>電腦開 Google 日曆，左邊「其他日曆」旁的「＋」→「透過網址新增」。</li>
+      <li>貼上網址，按「新增日曆」。</li>
+      <li>要提醒的話，在「資管科備審時間線」的設定裡加「預設通知」，例如前 3 天。</li>
+    </ol>
+    <p class="small muted">這條網址等於你的私人鑰匙，不要給別人。不小心外流就按重設，舊網址會立刻失效，日曆要重新加一次。</p>
+    <form method="post" action="{{ url_for('student.calendar_reset') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="button button--small button--line" type="submit">重設網址</button>
+    </form>
+  </section>
+
   {% if skill %}
   <section class="sheet mb-1" aria-labelledby="skill-title">
     <div class="sheet__head"><h2 id="skill-title">{{ skill.year }} 學年度{{ skill.channel_label }}重要日程</h2></div>

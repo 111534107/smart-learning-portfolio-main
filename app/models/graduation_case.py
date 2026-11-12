@@ -92,13 +92,16 @@ class Notification(db.Model):
     """
 
     __tablename__ = "notifications"
-    __table_args__ = (db.UniqueConstraint("recipient_id", "event_id", name="uq_notification_recipient_event"),)
+    __table_args__ = (db.UniqueConstraint("recipient_id", "event_id", name="uq_notification_recipient_event"),
+                      db.UniqueConstraint("recipient_id", "notify_key", name="uq_notification_recipient_key"))
 
     id = db.Column(db.Integer, primary_key=True)
     recipient_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     case_id = db.Column(db.Integer, db.ForeignKey("graduation_cases.id"), nullable=True, index=True)
     event_id = db.Column(db.Integer, db.ForeignKey("graduation_case_events.id"), nullable=True)
     message = db.Column(db.String(255), nullable=False, default="")
+    # 各學期預警、檢核日期倒數這類沒有案件事件的提醒，用這個鍵去重（同一人同一鍵只通知一次）
+    notify_key = db.Column(db.String(120), nullable=True)
     link = db.Column(db.String(255), nullable=True)  # 站內路徑，例如 /certificates/3；只接受 / 開頭
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
     read_at = db.Column(db.DateTime, nullable=True)

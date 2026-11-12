@@ -32,6 +32,25 @@ class Config:
     ADMIN_IDLE_MINUTES = int(os.getenv("ADMIN_IDLE_MINUTES", "15"))
     # 加密 Authenticator 金鑰用；沒設就由 SECRET_KEY 推導（換 SECRET_KEY 後大家要重設雙重驗證）
     TWO_FACTOR_KEY = os.getenv("TWO_FACTOR_KEY")
+    # 電子郵件通知（2026-11-12，app/services/email_notify.py）。只放 .env，不要把真實帳密寫進程式或文件。
+    # .env 範例（數值換成學校提供的）：
+    #   MAIL_SMTP_HOST=smtp.example.edu.tw
+    #   MAIL_SMTP_PORT=587
+    #   MAIL_SMTP_USER=notify@example.edu.tw
+    #   MAIL_SMTP_PASSWORD=（學校給的密碼或應用程式密碼）
+    #   MAIL_SENDER=資管科學習歷程 <notify@example.edu.tw>
+    #   MAIL_SITE_URL=https://（系統網址）
+    # 主機或寄件人沒填、自動化測試、本機展示站：一律不寄信，只寫記錄檔與操作紀錄。
+    MAIL_SMTP_HOST = os.getenv("MAIL_SMTP_HOST", "")
+    MAIL_SMTP_PORT = int(os.getenv("MAIL_SMTP_PORT", "587"))
+    MAIL_SMTP_USER = os.getenv("MAIL_SMTP_USER", "")
+    MAIL_SMTP_PASSWORD = os.getenv("MAIL_SMTP_PASSWORD", "")
+    MAIL_SENDER = os.getenv("MAIL_SENDER", "")
+    MAIL_USE_TLS = os.getenv("MAIL_USE_TLS", "true").strip().lower() not in ("0", "false", "no", "off")
+    MAIL_USE_SSL = os.getenv("MAIL_USE_SSL", "false").strip().lower() in ("1", "true", "yes", "on")
+    MAIL_SITE_URL = os.getenv("MAIL_SITE_URL", "")
+    MAIL_RETRIES = int(os.getenv("MAIL_RETRIES", "2"))
+    MAIL_TIMEOUT = int(os.getenv("MAIL_TIMEOUT", "10"))
     UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "instance/uploads")
     
     max_mb = int(os.getenv("MAX_CONTENT_LENGTH_MB", "10"))

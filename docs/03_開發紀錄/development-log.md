@@ -192,6 +192,40 @@ un_demo.py`，用 Playwright（本機 Chrome）登入 113534901：1280px、375px
 - 測試：新增 `tests/test_login_lockout.py`（三頁各自鎖、清 Cookie 仍鎖、時間到解鎖、成功登入歸零、不連坐其他帳號、管理員解鎖並寫紀錄、非管理員不能解鎖、雙重驗證清 Cookie 仍鎖）。完整 pytest：1452 通過、2 略過。
 - 展示站（`scripts/run_demo.py`，`DEMO_PORT=5077`）實測：學生 `113534901` 連錯 5 次，提示 4→3→2→1 次後鎖定；清 Cookie 後輸入正確密碼仍顯示鎖定（429）。教職員 `teacher_demo` 同樣。
 - 沒有在瀏覽器實測：雙重驗證鎖定、管理員按「解除鎖定」（展示站管理員要 Authenticator），這兩項只有自動測試。
+## 2026-11-12 備審時間線加到 Google 日曆（行事曆訂閱 .ics，分支 feat/email-notify）
+
+日期：2026-11-12（台灣時間）
+
+開發者：Claude（工作資料夾 `D:\democase\_worktrees\ai-wt-email-notify`，分支 `feat/email-notify`，未推送、未合併）
+
+起因：使用者問能不能用學生的 Google 日曆通知備審時間線。比較兩種做法後，使用者選「行事曆訂閱網址」（不用申請 Google 日曆權限、不存學生權杖）；系統直接寫進日曆（Calendar API）留待之後需要再做。
+
+做了什麼：
+- 新服務 `D:\democase\_worktrees\ai-wt-email-notify\app\services\calendar_feed.py`：產生 .ics，內容是二技技優甄審最新日程、目標校系各管道日程（同管道同年只列一次；用去年日程時標「去年日程，僅供參考」）、教務處兩次畢業檢核日期（全天事件）。時間以台灣時間換成 UTC 輸出；只放日程名稱、說明與官方連結，不放成績或個資。
+- 每位學生一條私密網址 `/calendar/<代碼>.ics`（`users.calendar_token`，第一次開「招生時程」頁自動產生），不用登入就能抓（Google 日曆伺服器要來抓）；代碼錯、帳號停用回 404。
+- 「招生時程」頁（`/student/schedule`）最上面新增「加到 Google 日曆」：網址、三步驟說明（透過網址新增、設預設通知）、「重設網址」按鈕（舊網址立刻失效，寫操作紀錄 `calendar.reset`）。
+- 遷移沿用同分支的 `D:\democase\_worktrees\ai-wt-email-notify\migrations\versions\b20261112m01_email_notify.py`，多加 `users.calendar_token`（唯一）。
+- 測試 `D:\democase\_worktrees\ai-wt-email-notify\tests\test_calendar_feed.py`（5 個）：.ics 格式與時區、跳脫與每行 75 位元組折行、內容含二技日程與檢核日期、頁面顯示網址且免登入可抓、重設後舊網址失效、停用帳號 404。
+
+限制：Google 大約幾小時到一天才重抓一次；提醒時間要學生自己在 Google 日曆設定（訂閱日曆的提醒無法由系統指定）。展示站用 `localhost` 網址時 Google 抓不到（Google 伺服器連不到本機），要正式網址才能真的訂閱；本機可以下載 .ics 匯入測試。
+
+## 2026-11-12 電子郵件通知（分支 feat/email-notify）
+
+日期：2026-11-12（台灣時間）
+
+開發者：Claude（工作資料夾 `D:\democase\_worktrees\ai-wt-email-notify`，分支 `feat/email-notify`，未推送、未合併）
+
+做了什麼：
+- 新服務 `D:\democase\_worktrees\ai-wt-email-notify\app\services\email_notify.py`：跟站內通知同一個時機寄信。信件只寫「有新的提醒（種類），請登入查看」與系統連結，不寫成績、缺口數字、案件細節。
+- 畢業缺口案件：`graduation_case_service.record_event` 每建一則站內通知就寄一封（建立、退回處理中、自動結案、導師／學生操作的狀態改變都走這裡），收件者與站內通知相同（學生、導師）。
+- 各學期預警、檢核日期倒數：原本只在畫面即時算，沒有通知。新服務 `D:\democase\_worktrees\ai-wt-email-notify\app\services\reminders.py` 在畢業缺口同步最後檢查：某學期變成「要注意／請找導師討論」通知學生與導師（同學期同等級一次）；檢核日前 30、7、1 天內各提醒學生一次。用新欄位 `notifications.notify_key` 去重。同步的時機：學生確認成績、抵免、管理員「重新對照全科」。**沒有排程**，倒數提醒要等有人觸發同步才會出現。
+- 設定：`.env` 的 `MAIL_SMTP_HOST`、`MAIL_SMTP_PORT`、`MAIL_SMTP_USER`、`MAIL_SMTP_PASSWORD`、`MAIL_SENDER`、`MAIL_SITE_URL`（範例寫在 `D:\democase\_worktrees\ai-wt-email-notify\app\config.py`，沒有真實帳密）。主機或寄件人沒填、測試（TESTING）、本機展示站（LOCAL_DEMO_MODE）一律不寄，只寫記錄檔與操作紀錄（狀態 logged）。
+- 失敗：重試 2 次（`MAIL_RETRIES`），仍失敗只記錄，不丟例外。每封信寫一筆操作紀錄 `email.notify`（收件者用使用者編號，detail 記主旨、種類、sent／logged／failed、次數；依操作紀錄規則不記信箱）。
+- 開關：學生、導師在「修改密碼」頁（帳號選單）下方的「電子郵件通知」勾選；管理員首頁有「全系統啟用電子郵件通知」。
+- 遷移 `D:\democase\_worktrees\ai-wt-email-notify\migrations\versions\b20261112m01_email_notify.py`（接 `b20261110h01`）：`users.email_notify`、`notifications.notify_key`。登入鎖定分支若也加遷移，合併時要調整 down_revision。
+- 測試 `D:\democase\_worktrees\ai-wt-email-notify\tests\test_email_notify.py`（7 個）：缺口案件寄給學生與導師且不重複、沒設定 SMTP 不寄但有紀錄、個人關閉與全域關閉、寄信失敗重試且不影響、學期預警只通知一次、檢核倒數提醒、帳號與管理員開關頁面。
+
+待使用者提供：學校的 SMTP 主機、連接埠、寄件帳號與密碼（或應用程式密碼）、寄件人名稱、系統正式網址。
 
 ## 2026-11-11 學生端設計示範 v2（只在測試資料夾，正式系統沒改）
 
