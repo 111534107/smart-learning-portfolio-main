@@ -182,6 +182,52 @@ def test_student_edits_are_saved_and_go_into_word(app):
     assert "我修改過的第1段" in text
 
 
+def test_synthetic_transcript_to_excluded_evidence_and_word(app):
+    from tests.test_document_ocr_candidates import FakeOcrEngine, synthetic_png_bytes
+    from app.models import DocumentExtraction, SourceDocument
+
+    app.config.update(DOCUMENT_ANALYSIS_PROVIDER="offline_ocr", OCR_ENGINE=FakeOcrEngine("課程：模擬資料結構 學分：3 分數：88"))
+    client = login(app)
+    upload = client.post("/student/learning-profile/documents", data={
+        "document_type": "transcript",
+        "file": (io.BytesIO(synthetic_png_bytes((3200, 800))), "synthetic.png"),
+    }, content_type="multipart/form-data")
+    assert upload.status_code == 302
+    with app.app_context():
+        source = SourceDocument.query.one()
+        extraction = DocumentExtraction.query.one()
+        assert not LearningCourseRecord.query.filter_by(course_name="模擬資料結構").count()
+        source_id, revision = source.id, extraction.result_json["draft_revision"]
+    response = client.post(f"/student/learning-profile/documents/{source_id}/review/confirm", data={
+        "draft_revision": revision,
+        "courses_json": '[{"school_year":"3","semester":"上","course_name":"模擬資料結構","credits":"3","score":"88"}]',
+        "credentials_json": "[]",
+    })
+    assert response.status_code == 302
+    with app.app_context():
+        student = User.query.filter_by(username="stu").one()
+        assert LearningCourseRecord.query.filter_by(student_id=student.id, course_name="模擬資料結構").count() == 1
+        record = Portfolio(student_id=student.id, title="不放入備審的測試經歷", category="activity", status="confirmed")
+        db.session.add(record)
+        db.session.commit()
+        record_id = record.id
+    choose_target(app, client)
+    response = client.post("/student/package-exclusions", data={"kind": "portfolio", "record_id": record_id, "excluded": "1"})
+    assert response.status_code == 302
+    with app.app_context():
+        assert db.session.get(Portfolio, record_id).excluded_from_package
+    response = client.post("/student/autobiography/generate", data={"program_id": program(app), **ANSWERS})
+    assert response.status_code == 302
+    with app.app_context():
+        assert LearningProfileOutput.query.filter_by(output_type="autobiography_ai").count() == 1
+    output = client.get(f"/student/targets/{program(app)}/package.docx")
+    assert output.status_code == 200
+    document = Document(io.BytesIO(output.data))
+    text = "\n".join([p.text for p in document.paragraphs] + [cell.text for table in document.tables for row in table.rows for cell in row.cells])
+    assert "模擬資料結構" in text
+    assert "不放入備審的測試經歷" not in text
+
+
 def test_other_student_cannot_save_my_draft(app):
     client = login(app)
     choose_target(app, client)

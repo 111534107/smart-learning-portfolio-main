@@ -1101,6 +1101,16 @@ def _selected_target_or_404(user, program_id):
     return program
 
 
+def _home_major_known(user):
+    class_name = user.student_profile.class_name if user.student_profile else ""
+    return any(name in (class_name or "") for name in ("資管科", "資訊管理科"))
+
+
+def _is_home_major(program, known):
+    department = (program.department_name or "").split("（", 1)[0].split("(", 1)[0].replace(" ", "")
+    return known and department in {"資管系", "資訊管理系", "資訊管理學系"}
+
+
 @student_bp.get("/student/targets")
 @student_bp.post("/student/targets")
 @role_required("student")
@@ -1143,12 +1153,10 @@ def target_list():
     gaps = {p.id: analyze_gap(user, p, journey, evidence) for p in programs}
     # 單一排行：全部校系依準備度由高到低；本科系只加標籤，不再分組排在前面（老師看第一名要能直接對上準備度）。
     # 科別不明時不猜測本科系。
-    class_name = user.student_profile.class_name if user.student_profile else ""
-    major_known = any(name in (class_name or "") for name in ("資管科", "資訊管理科"))
+    major_known = _home_major_known(user)
 
     def is_home_major(program):
-        department = (program.department_name or "").split("（", 1)[0].split("(", 1)[0].replace(" ", "")
-        return major_known and department in {"資管系", "資訊管理系", "資訊管理學系"}
+        return _is_home_major(program, major_known)
 
     def readiness_order(program):
         return (gaps[program.id]["readiness"] is None,
@@ -1225,6 +1233,20 @@ def matching():
                     "transfer": sum(1 for r in ranked if is_transfer(r["program"]))}
     rows = [r for r in ranked if is_transfer(r["program"]) == (track == "transfer")]
     total = len(rows)
+    major_known = _home_major_known(user)
+    major_filter = request.args.get("major", "all")
+    if major_filter not in {"all", "home", "other"} or not major_known:
+        major_filter = "all"
+    if major_filter != "all":
+        rows = [r for r in rows if _is_home_major(r["program"], major_known) == (major_filter == "home")]
+    rows.sort(key=lambda r: (r["status"] == "ineligible", r["fit"] is None, -(r["fit"] or 0), r["program"].school_name, r["program"].department_name, r["program"].id))
+    for row in rows:
+        row["home_major"] = _is_home_major(row["program"], major_known)
+        row["reasons"] = [reason for reason in row["reasons"] if not (reason.startswith("暫依你的科別") and "排前面" in reason)]
+        qualification = row.get("qualification") or {}
+        unmatched = [item["reason"] for item in qualification.get("conditions", [])
+                     if item.get("required", True) and item.get("status") == "not_matched" and item.get("reason")]
+        row["ineligible_reason"] = "；".join(unmatched) if qualification.get("status") == "not_eligible" and unmatched else ("；".join(row["reasons"]) or "請查看資格說明")
     if active_filters["q"]:
         words = active_filters["q"].split()
         rows = [r for r in rows if all(word in f"{r['program'].school_name}{r['program'].department_name}" for word in words)]
@@ -1251,6 +1273,8 @@ def matching():
         filters=filters,
         active_filters={k: v for k, v in active_filters.items() if v},
         chart=chart,
+        major_known=major_known,
+        major_filter=major_filter,
     )
 
 

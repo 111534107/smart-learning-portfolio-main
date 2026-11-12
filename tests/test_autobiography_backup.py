@@ -237,7 +237,9 @@ def test_save_does_not_wait_for_backup(tmp_path, monkeypatch):
 
 def test_thread_mode_backs_up_in_background(tmp_path):
     from app.services import autobiography_backup
-    app = make_app(tmp_path, AUTOBIOGRAPHY_BACKUP_MODE="thread")
+    # 背景工作與請求使用獨立連線；記憶體 SQLite 的單一共用連線會讓兩個執行緒互相回滾。
+    app = make_app(tmp_path, AUTOBIOGRAPHY_BACKUP_MODE="thread",
+                   SQLALCHEMY_DATABASE_URI=f"sqlite:///{(tmp_path / 'background.sqlite').as_posix()}")
     client = login(app)
     output_id = generate(app, client)
     assert autobiography_backup.wait_until_idle(timeout=10)

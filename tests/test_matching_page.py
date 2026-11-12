@@ -190,7 +190,7 @@ def test_target_dropdowns_filter_major_and_specific_program(site):
 
     client = _login(site)
     all_html = client.get("/student/targets").get_data(as_text=True)
-    assert '<select name="major"' in all_html
+    assert 'name="major" value="home"' in all_html
     assert '<select name="program_id"' in all_html
     assert "全部校系" in all_html and "本科系" in all_html and "非本科系" in all_html
 
@@ -437,3 +437,69 @@ def test_target_search_filters_by_school_or_department(site):
     ranking = empty[empty.index('id="target-programs"'):]
     assert "搜尋大學" not in ranking.split("</section>")[0]
     assert 'name="q"' in empty
+
+
+
+def test_major_switches_preserve_search_and_filter_matching(site):
+    with site.app_context():
+        other = _program("900701", "測試外系", "published", [("證照證明", 100, "credential")])
+        other.department_name = "資訊工程系"
+        _program("900705", "測試本科", "published", [("證照證明", 100, "credential")])
+        db.session.commit()
+    client = _login(site)
+    for path in ("/student/targets", "/student/matching"):
+        html = client.get(path + "?q=測試&major=other").get_data(as_text=True)
+        assert 'name="major" value="home"' in html
+        assert 'name="major" value="other"' in html
+        assert 'value="測試"' in html
+        assert "測試外系" in html
+        ranking = html[html.index('id="target-programs"'):] if path.endswith("targets") else html[html.index('<ol class="match-chart'):]
+        assert "測試外系" in ranking and "測試本科" not in ranking
+        home_html = client.get(path + "?q=測試&major=home").get_data(as_text=True)
+        ranking = home_html[home_html.index('id="target-programs"'):] if path.endswith("targets") else home_html[home_html.index('<ol class="match-chart'):]
+        assert "測試本科" in ranking and "測試外系" not in ranking
+
+
+def test_matching_places_only_ineligible_last_then_sorts_readiness(site, monkeypatch):
+    with site.app_context():
+        _program("900702", "低分可報", "published", [("競賽成果", 100, "competition")])
+        _program("900703", "高分待確認", "published", [("證照證明", 100, "credential")])
+        _program("900704", "高分不可報", "published", [("證照證明", 100, "credential")])
+        db.session.commit()
+    _force_status(monkeypatch, {"低分可報": "eligible", "高分待確認": "needs_check", "高分不可報": "ineligible", "公開大學": "eligible"})
+    html = _login(site).get("/student/matching").get_data(as_text=True)
+    chart = html[html.index('<ol class="match-chart'):html.index('</ol>', html.index('<ol class="match-chart'))]
+    assert chart.index("高分待確認") < chart.index("低分可報") < chart.index("高分不可報")
+
+
+def test_matching_shows_actual_qualification_reason(site, monkeypatch):
+    from app.routes import student as student_routes
+    real = student_routes.rank_programs
+
+    def fake(*args, **kwargs):
+        rows = real(*args, **kwargs)
+        rows[0]["status"] = "ineligible"
+        rows[0]["qualification"] = {"status": "not_eligible", "conditions": [{"status": "not_matched", "reason": "不符合學籍限制"}]}
+        return rows
+
+    monkeypatch.setattr(student_routes, "rank_programs", fake)
+    html = _login(site).get("/student/matching").get_data(as_text=True)
+    chart = html[html.index('<ol class="match-chart'):html.index('</ol>', html.index('<ol class="match-chart'))]
+    assert "不符合學籍限制" in chart
+
+
+def test_matching_shows_later_failed_condition(site, monkeypatch):
+    from app.routes import student as student_routes
+    real = student_routes.rank_programs
+
+    def fake(*args, **kwargs):
+        rows = real(*args, **kwargs)
+        rows[0]["status"] = "ineligible"
+        rows[0]["qualification"] = None
+        rows[0]["reasons"] = ["符合第一條", "第二條證照期限不符"]
+        return rows
+
+    monkeypatch.setattr(student_routes, "rank_programs", fake)
+    html = _login(site).get("/student/matching").get_data(as_text=True)
+    chart = html[html.index('<ol class="match-chart'):html.index('</ol>', html.index('<ol class="match-chart'))]
+    assert "第二條證照期限不符" in chart

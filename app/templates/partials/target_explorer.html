@@ -9,12 +9,6 @@
   </div>
   <form class="target-filter" method="get" action="{{ url_for('student.target_list') }}" aria-label="校系排行篩選">
     <input type="hidden" name="track" value="{{ track }}">
-    <label>校系類別
-      <select name="major" id="target-major-filter">
-        <option value="all"{% if major_filter == 'all' %} selected{% endif %}>全部校系</option>
-        {% if major_known %}<option value="home"{% if major_filter == 'home' %} selected{% endif %}>本科系（資訊管理）</option><option value="other"{% if major_filter == 'other' %} selected{% endif %}>非本科系</option>{% endif %}
-      </select>
-    </label>
     <label>選擇校系
       <select name="program_id" id="target-program-filter">
         <option value="">全部校系</option>
@@ -24,12 +18,17 @@
     <label>搜尋學校或科系
       <input type="search" name="q" value="{{ search_query }}" maxlength="60" placeholder="例如：資訊管理、臺中、護理" data-target-search>
     </label>
-    <button class="button button--small" type="submit">顯示排行</button>
+    <button class="button button--small" type="submit" name="major" value="{{ major_filter }}">顯示排行</button>
+    <div class="record-card__actions" role="group" aria-label="校系類別">
+      {% for value, label in [('all', '全部校系'), ('home', '本科系（資訊管理）'), ('other', '非本科系')] %}
+      {% if value == 'all' or major_known %}<button class="button button--small {{ '' if major_filter == value else 'button--line' }}" type="submit" name="major" value="{{ value }}" aria-pressed="{{ 'true' if major_filter == value else 'false' }}">{{ label }}</button>{% endif %}
+      {% endfor %}
+    </div>
     {% if major_filter != 'all' or program_filter or search_query %}<a class="button button--small button--quiet" href="{{ url_for('student.target_list', track=track) }}#target-programs">清除篩選</a>{% endif %}
   </form>
 
   {% if programs %}
-  <p class="small muted mb-1">全部校系依準備度由高到低排列，標有「本科」的是資訊管理相關科系；想只看本科或非本科，用上方「校系類別」篩選。目前無法計算的校系排在最後。自傳、專題等尚無法自動核對的文件會先視為待準備。補上並確認資料後，重新開啟本頁即可看到更新的順序。</p>
+  <p class="small muted mb-1">全部校系依準備度由高到低排列，標有「本科」的是資訊管理相關科系；可用上方按鈕切換。目前無法計算的校系排在最後。自傳、專題等尚無法自動核對的文件會先視為待準備。補上並確認資料後，重新開啟本頁即可看到更新的順序。</p>
   <section class="target-ranking" id="target-programs" aria-labelledby="target-ranking-title" data-tour="展開校系列查看採計比例，再決定是否加入目標。" data-tour-order="2">
     <div class="target-ranking__head">
       <h2 id="target-ranking-title">準備度排行</h2>

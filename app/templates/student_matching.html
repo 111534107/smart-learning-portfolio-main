@@ -16,7 +16,7 @@
     <form method="post" action="{{ url_for('student.agent_advise') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small" type="submit" data-busy-text="小助手正在規劃…（約 30 秒～1 分鐘）">請小助手幫我規劃升學</button></form>
   </div>
 
-  {% set keep = dict(active_filters, track=track, chart=chart) %}
+  {% set keep = dict(active_filters, track=track, chart=chart, major=major_filter) %}
   <nav class="match-tabs mb-1" aria-label="招生管道">
     <a class="button button--small {{ '' if track == 'twotech' else 'button--line' }}" href="{{ url_for('student.matching', track='twotech', chart=chart) }}" aria-current="{{ 'page' if track == 'twotech' else 'false' }}">二技（{{ track_counts.twotech }}）</a>
     <a class="button button--small {{ '' if track == 'transfer' else 'button--line' }}" href="{{ url_for('student.matching', track='transfer', chart=chart) }}" aria-current="{{ 'page' if track == 'transfer' else 'false' }}">插大（{{ track_counts.transfer }}）</a>
@@ -37,8 +37,13 @@
     {% endfor %}
     <input type="hidden" name="track" value="{{ track }}">
     <input type="hidden" name="chart" value="{{ chart }}">
-    <button class="button button--small" type="submit">找</button>
-    {% if active_filters %}<a class="button button--small button--quiet" href="{{ url_for('student.matching', track=track, chart=chart) }}">清除</a>{% endif %}
+    <button class="button button--small" type="submit" name="major" value="{{ major_filter }}">找</button>
+    <div class="record-card__actions" role="group" aria-label="校系類別">
+      {% for value, label in [('all', '全部校系'), ('home', '本科系（資訊管理）'), ('other', '非本科系')] %}
+      {% if value == 'all' or major_known %}<button class="button button--small {{ '' if major_filter == value else 'button--line' }}" type="submit" name="major" value="{{ value }}" aria-pressed="{{ 'true' if major_filter == value else 'false' }}">{{ label }}</button>{% endif %}
+      {% endfor %}
+    </div>
+    {% if active_filters or major_filter != 'all' %}<a class="button button--small button--quiet" href="{{ url_for('student.matching', track=track, chart=chart) }}">清除</a>{% endif %}
   </form>
 
   {% if rows %}
@@ -51,14 +56,14 @@
       </div>
     </div>
     {# 排序不是只看準備度（11-04 實測：學生以為排錯），把規則寫出來 #}
-    <p class="muted small mb-1">排序方式：先排可報的，再排和你科系相關的，同一組裡才依準備度由高到低。所以準備度高的校系不一定排在最前面。</p>
+    <p class="muted small mb-1">排序方式：不可報的排在最後，其餘依準備度由高到低；需確認不代表可報，請查看資格說明。</p>
     <ol class="match-chart match-chart--{{ chart }} plain-list" data-match-chart>
       {% for row in rows %}
       <li class="match-chart__item">
         <a class="match-chart__label" href="{{ url_for('student.matching_detail', program_id=row.program.id) }}">{{ loop.index }}. {{ row.program.school_name }} {{ row.program.department_name }}</a>
         {# 同校同系可能有不同招生管道（技優甄審、日間部申請……），要標出來才分得出兩列（11-04 實測） #}
         {# 兩個標籤包成一格，圖表格線的欄數才不會跑掉 #}
-        <span class="match-chart__tags"><span class="tag">{{ row.channel_label }}</span><span class="tag {{ {'eligible': 'tag--info', 'needs_check': 'tag--warn', 'ineligible': 'tag--danger'}[row.status] }}">{{ row.status_label }}</span></span>
+        <span class="match-chart__tags"><span class="tag">{{ row.channel_label }}</span>{% if row.home_major %}<span class="tag">本科</span>{% endif %}<span class="tag {{ {'eligible': 'tag--info', 'needs_check': 'tag--warn', 'ineligible': 'tag--danger'}[row.status] }}">{{ row.status_label }}</span>{% if row.status == 'ineligible' %}<span class="small">{{ row.ineligible_reason }}</span>{% endif %}</span>
         {% if row.fit is not none %}
         <span class="match-chart__track"><span class="match-chart__fill" style="--fit: {{ row.fit }}%"></span></span>
         <span class="match-chart__value">準備度 {{ row.fit }}%</span>
@@ -115,7 +120,7 @@
     {% endfor %}
   </ol>
   </details>
-  {% elif active_filters and total %}
+  {% elif (active_filters or major_filter != 'all') and total %}
   <div class="paper-empty"><p>沒有符合的校系，請換個關鍵字或放寬篩選條件。</p></div>
   {% else %}
   <div class="paper-empty"><p>目前還沒有公開的校系資料。</p></div>

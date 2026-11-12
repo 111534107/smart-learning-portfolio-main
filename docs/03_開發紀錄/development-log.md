@@ -1,5 +1,13 @@
 # 開發日誌
 
+## 2026-11-12 GPT：校系切換、排序與展示版流程驗收
+
+- 目標：兩個校系頁提供明顯類別切換，並核對學生、科辦、導師和管理員的主要流程。
+- 修改：`app/routes/student.py`、`app/templates/partials/target_explorer.html`、`app/templates/student_matching.html`，以及 `tests/test_matching_page.py`、`tests/test_autobiography.py`、`tests/test_autobiography_backup.py`；另新增 `docs/05_交接與專案管理/校系切換與流程驗收_2026-11-12.md`。
+- 行為：保留搜尋與篩選，推薦頁將不可報排最後，其餘依準備度排列，並呈現資格理由；資料不足仍標示需確認。
+- 驗證：完整測試 1613 項通過、2 項略過（`logs/test-runs/gpt-handoff-20261112e`；Pytest 顯示 `cache_dir` 設定警告）；校系、批量獎狀、小助手、導師回饋及排除資料相關測試 75 項通過；自傳背景備份測試 15 項通過；假資料串接成績單上傳確認、選校、排除資料、自傳草稿與 Word 下載通過。四角色 18 頁以隔離測試資料檢查可開。
+- 限制與下一步：瀏覽器連線受環境限制，尚未完成畫面驗收；展示站啟動程式會重建原有資料庫，因此未直接重啟。真實 Google、OCR／AI、手機與 MySQL 遷移及學校正式資料仍待驗收。
+
 ## 2026-11-12 目標校系排行改單一排行並新增搜尋
 
 日期：2026-11-12（台灣時間）
