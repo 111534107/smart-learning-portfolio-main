@@ -15,7 +15,7 @@
 
 驗證結果：
 - 完整測試 1540 通過、2 略過（12 分 55 秒），命令：`D:\democase\ai\.venv\Scripts\python.exe -m pytest -q --basetemp=logs/test-runs/preview-merge-20261112b -p no:cacheprovider`。
-- 第一次跑出 692 個錯誤，原因是本工作資料夾沒有 `logs	est-runs` 資料夾，測試建不出暫存目錄；建好後重跑全部通過，不是程式問題。
+- 第一次跑出 692 個錯誤，原因是本工作資料夾沒有 `logs\test-runs` 資料夾，測試建不出暫存目錄；建好後重跑全部通過，不是程式問題。
 - 合併後還沒有在瀏覽器實際點過。
 
 沒有做的事：沒有推送、沒有合併進 `main` 或 `feat/google-docs-autobiography`。
@@ -23,7 +23,7 @@
 下一步：
 - `feat/staff-batch-forms`（`f4eec94`）也新增了遷移 `b20261112f01`，合進來會出現兩個最新版本，要先補一個合併遷移。
 - `feat/bio-optout-guide` 還沒提交，等它的完整測試。
-- 代辦總表：`D:\democase\ai\docs_交接與專案管理\代辦清單_2026-11-12.md`。
+- 代辦總表：`D:\democase\ai\docs\05_交接與專案管理\代辦清單_2026-11-12.md`。
 
 ## 2026-11-11 學生端 v2：畢業門檻、缺件檢查兩頁換外觀
 
