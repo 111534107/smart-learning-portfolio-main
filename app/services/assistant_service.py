@@ -7,13 +7,14 @@
 隱私：對話內容不存資料庫（瀏覽器關掉就沒了）；agent_tasks 只記「用了哪些工具」，不記問題與回答。
 """
 
+import re
 from datetime import datetime, timezone
 
 from app.extensions import db
 from app.models import AgentTask
 from app.services import gemini_client
 from app.services.assistant_tools import ToolError, tools_for
-from app.services.knowledge_service import documents
+from app.services.knowledge_service import _bigrams as knowledge_bigrams, documents, search
 
 MAX_STEPS = 5
 MAX_HISTORY = 8
@@ -71,6 +72,71 @@ def _run_tool(user, registry, name, args):
         return {"error": "工具參數不正確。"}
 
 
+OFFLINE_PASSAGES = 2
+OFFLINE_EXCERPT = 280
+
+
+REVISION_LINE = re.compile(r"^民國.{0,30}(訂定|修訂|修正)$")
+
+
+def _lines(text):
+    """段落拆行：去掉第一行的「## 小標題」、Markdown 記號與「民國…修訂」沿革；小小標題（###）留著，常常就是重點。"""
+    lines = []
+    for index, raw in enumerate(text.splitlines()):
+        line = raw.strip()
+        if not line or (index == 0 and line.startswith("## ")):
+            continue
+        line = re.sub(r"^(#+|>)\s*", "", line).replace("**", "")
+        if line and not REVISION_LINE.match(line):
+            lines.append(line)
+    return lines
+
+
+def _scored_lines(text, query, skip=()):
+    grams = knowledge_bigrams(query)
+    return [(len(grams & knowledge_bigrams(line)), index, line) for index, line in enumerate(_lines(text))
+            if line not in skip]
+
+
+def _excerpt(text, query="", skip=()):
+    """挑段落裡和問題最相關的幾行（照原本順序），太長就截斷；都不相關就取前幾行。skip：和標題重複的行不列。"""
+    scored = _scored_lines(text, query, skip)
+    if not scored:
+        return ""
+    ranked = sorted((item for item in scored if item[0] > 0), key=lambda item: (-item[0], item[1])) or scored
+    chosen, length, cut = [], 0, False
+    for score, index, line in ranked:
+        if length + len(line) > OFFLINE_EXCERPT and chosen:
+            cut = True
+            break
+        chosen.append((index, line if len(line) <= OFFLINE_EXCERPT else line[:OFFLINE_EXCERPT] + "……"))
+        length += len(line)
+    cut = cut or len(chosen) < len(scored)
+    return "\n".join(line for index, line in sorted(chosen)) + ("\n……（完整內容請看來源）" if cut else "")
+
+
+def offline_answer(message, reason):
+    """不用 AI 的備援：從科上文件找最相關的段落原文節錄。回傳 (回答文字, 來源清單)。"""
+    found = search(message, limit=OFFLINE_PASSAGES + 2)
+    skips = [{p["title"], p["heading"]} for p in found]
+    # 只有標題沒有內容的段落不列；段落裡真的有一行對到問題的排前面（標題相符但內容只有沿革的段落往後放）
+    ranked = [(max((s for s, _, _ in _scored_lines(p["text"], message, skip)), default=-1), order, p, skip)
+              for order, (p, skip) in enumerate(zip(found, skips))]
+    ranked = sorted((item for item in ranked if item[0] >= 0), key=lambda item: (-item[0], item[1]))
+    passages = [(p, skip) for _, _, p, skip in ranked[:OFFLINE_PASSAGES]]
+    if not passages:
+        return f"{reason}\n\n科上文件裡也沒有找到相關段落，可以換個關鍵字（例如「畢業門檻」「重補修」「轉科」），或詢問導師／科辦。", []
+    parts = [f"{reason.rstrip('。')}。先把科上文件裡最相關的段落找給你（原文節錄，正式規定以科辦公告為準）："]
+    sources = []
+    for passage, skip in passages:
+        heading = f"｜{passage['heading']}" if passage["heading"] and passage["heading"] != passage["title"] else ""
+        parts.append(f"**{passage['title']}{heading}**\n{_excerpt(passage['text'], message, skip)}")
+        source = {"title": passage["title"], "url": passage["url"]}
+        if source not in sources:
+            sources.append(source)
+    return "\n\n".join(parts), sources
+
+
 def ask(user, message, history=None, page="", chat=None):
     """回傳 {"answer", "steps": [工具中文名稱], "sources": [{title, url}]}。chat 可換成假的（測試用）。"""
     message = (message or "").strip()[:MAX_TEXT]
@@ -108,7 +174,14 @@ def ask(user, message, history=None, page="", chat=None):
             contents.append({"role": "user", "parts": responses})
         task.status = "succeeded" if answer else "failed"
     except gemini_client.AIUnavailable as exc:
-        answer, task.status = str(exc), "failed"
+        task.status = "failed"
+        # AI 沒開或額度用完：仍從科上文件找段落給學生看（原文節錄＋可點的來源），不只回一句「沒有開啟」
+        answer, offline_sources = offline_answer(message, str(exc))
+        if offline_sources:
+            steps = steps or ["查科上規定"]
+            for source in offline_sources:
+                if source not in sources:
+                    sources.append(source)
     task.result_json = {"steps": steps, "page": page[:100]}
     task.finished_at = datetime.now(timezone.utc)
     db.session.add(task)

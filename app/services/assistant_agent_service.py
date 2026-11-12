@@ -23,6 +23,7 @@ SAFE_PATHS = {
     "targets": "/student/targets",
     "autobiography": "/student/autobiography",
     "schedule": "/student/schedule",
+    "graduation": "/student/graduation-check",
 }
 
 CATEGORY_PATHS = {
@@ -42,6 +43,8 @@ def navigation_links(user, message):
         return []
     text = (message or "").lower()
     links = []
+    if any(word in text for word in ("畢業", "門檻", "學分")):
+        links.append(_link("查看畢業門檻提醒", "graduation"))
     if any(word in text for word in ("ocr", "辨識", "核對", "成績單", "成績", "上傳")):
         links.append(_link("前往成績單與 OCR 核對", "grades"))
     if any(word in text for word in ("證照", "證書", "檢定")):

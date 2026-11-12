@@ -75,6 +75,9 @@
   [data-ui="student-v2"] .record-cards { grid-template-columns: 1fr 1fr; gap: 12px; }
   [data-ui="student-v2"] .record-card { min-height: 120px; padding: 12px; }
   [data-ui="student-v2"] .table-wrap { overflow: visible; border: 0; }
+  /* 卡片化後長句要能換行（全站表格在窄螢幕設了 keep-all，中文長句會撐破畫面；11-12 驗收：備審資料頁寬 488px） */
+  [data-ui="student-v2"] .sv2-table tr { grid-template-columns: minmax(0, 1fr) auto; }
+  [data-ui="student-v2"] .table-wrap .sv2-table td { min-width: 0; word-break: normal; overflow-wrap: anywhere; }
 }
 
 /* ---------- 拖檔案：整頁出現「放開就上傳」 ---------- */

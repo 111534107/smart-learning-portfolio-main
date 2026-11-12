@@ -4,6 +4,7 @@
 """
 from datetime import date
 import io
+from pathlib import Path
 
 import pytest
 from docx import Document
@@ -198,6 +199,17 @@ def test_required_record_cannot_be_excluded_and_page_explains_why(app):
         assert db.session.get(LearningCourseRecord, course_id).excluded_from_package is False
     assert "簡章規定必備" in page and "測試科大A" in page
     assert "乙級軟體應用" in page and "校園黑客松" in page
+
+
+def test_exclusion_table_turns_into_cards_on_phone(app):
+    """11-12 驗收：手機寬 375px 時表格把頁面撐到 679px；改用學生端卡片表格，長句可換行。"""
+    client = login(app)
+    with app.app_context():
+        _target("A")
+    page = client.get("/student/package-exclusions").get_data(as_text=True)
+    assert 'class="data-table sv2-table" data-exclusion-table' in page
+    css = (Path(app.root_path) / "static" / "css" / "student-v2" / "ocr.css").read_text(encoding="utf-8")
+    assert ".table-wrap .sv2-table td { min-width: 0; word-break: normal; overflow-wrap: anywhere; }" in css
 
 
 def test_partly_required_record_can_be_excluded_with_a_note(app):
