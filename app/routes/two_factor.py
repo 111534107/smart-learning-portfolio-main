@@ -4,8 +4,6 @@
 → 已開啟的人到「輸入驗證碼」，還沒開啟且規定要開的人到「設定」→ 成功後才由 main._complete_login 真正登入。
 所以既有頁面的權限檢查都不用改。
 """
-import time
-
 from flask import Blueprint, abort, redirect, render_template, request, session, url_for
 
 from app.extensions import db
@@ -18,8 +16,6 @@ two_factor_bp = Blueprint("two_factor", __name__)
 PENDING = "two_factor_user"
 NEXT = "two_factor_next"
 SETUP_SECRET = "two_factor_setup_secret"
-FAILURES = "two_factor_failures"
-LOCKED_UNTIL = "two_factor_locked_until"
 ACCOUNT_SECRET = "two_factor_account_secret"
 
 
@@ -47,12 +43,11 @@ def _complete(user):
     return _complete_login(user, session.get(NEXT))
 
 
-def _locked_message():
-    until = session.get(LOCKED_UNTIL)
-    if until and until > time.time():
-        minutes = max(1, round((until - time.time()) / 60))
-        return f"驗證碼錯太多次，請 15 分鐘後再試（約還要 {minutes} 分鐘）。"
-    return None
+def _locked_message(user):
+    """錯誤次數記在資料庫（操作紀錄），清掉 Cookie 重新登入也算同一個帳號。"""
+    from app.services import login_guard
+    is_locked, minutes = login_guard.two_factor_status(user)
+    return login_guard.two_factor_locked_message(minutes) if is_locked else None
 
 
 @two_factor_bp.route("/login/two-factor", methods=["GET", "POST"])
@@ -60,20 +55,16 @@ def verify_page():
     user = _pending_user()
     if user is None or not user.two_factor_enabled:
         return redirect(url_for("main.login"))
-    locked = _locked_message()
+    locked = _locked_message(user)
     if locked:
         return render_template("two_factor_verify.html", user=user, error=locked), 429
     if request.method == "GET":
         return render_template("two_factor_verify.html", user=user)
     if two_factor.verify(user, request.form.get("code", "")) is None:
-        failures = session.get(FAILURES, 0) + 1
-        session[FAILURES] = failures
-        two_factor.record_failure(user)
-        db.session.commit()
-        if failures >= two_factor.MAX_FAILURES:
-            session[LOCKED_UNTIL] = time.time() + two_factor.LOCK_SECONDS
-            return render_template("two_factor_verify.html", user=user, error=_locked_message()), 429
-        left = two_factor.MAX_FAILURES - failures
+        from app.services import login_guard
+        left = login_guard.record_two_factor_failure(user)
+        if left <= 0:
+            return render_template("two_factor_verify.html", user=user, error=_locked_message(user)), 429
         return render_template("two_factor_verify.html", user=user,
                                error=f"驗證碼不正確，請看手機上最新的六位數再試一次（還可以試 {left} 次）。"), 400
     db.session.commit()

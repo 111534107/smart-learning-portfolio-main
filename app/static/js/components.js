@@ -1060,3 +1060,20 @@ document.querySelectorAll("[data-award-paste]").forEach((field) => {
     field.dispatchEvent(new Event("input", { bubbles: true }));
   });
 });
+
+// ---------- 登入頁：密碼旁的眼睛，按一下顯示／隱藏 ----------
+document.querySelectorAll("[data-password-toggle]").forEach((button) => {
+  const input = button.parentElement.querySelector("input");
+  if (!input) return;
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    const show = input.type === "password";
+    input.type = show ? "text" : "password";
+    button.setAttribute("aria-pressed", String(show));
+    button.setAttribute("aria-label", show ? "隱藏密碼" : "顯示密碼");
+    button.title = show ? "隱藏密碼" : "顯示密碼";
+    input.focus();
+  });
+  // 送出前一定改回隱藏，瀏覽器才不會把密碼當一般文字記下來
+  input.form?.addEventListener("submit", () => { input.type = "password"; });
+});

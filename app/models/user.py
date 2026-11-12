@@ -2,6 +2,19 @@ from datetime import datetime, timezone
 
 from werkzeug.security import check_password_hash, generate_password_hash
 
+PASSWORD_MAX_LENGTH = 256
+
+
+def password_input_ok(password):
+    """擋掉看不見的控制字元與超長字串（2026-11-12）。
+
+    密碼雜湊遇到 \x00 會把後面截掉：「pw\x00任意字」會被當成「pw」而登入成功；
+    超長字串則會讓伺服器算雜湊算很久。中文、全形、表情符號都是正常字元，照常比對。
+    """
+    if not isinstance(password, str) or len(password) > PASSWORD_MAX_LENGTH:
+        return False
+    return not any(ord(ch) < 32 or ord(ch) == 127 for ch in password)
+
 from app.extensions import db
 
 
@@ -42,9 +55,13 @@ class User(db.Model):
     source_documents = db.relationship("SourceDocument", back_populates="owner")
 
     def set_password(self, password):
+        if not password_input_ok(password):
+            raise ValueError("密碼不能含有看不見的控制字元，長度也不能超過 256 字。")
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
+        if not password_input_ok(password):
+            return False
         return check_password_hash(self.password_hash, password)
 
     @property

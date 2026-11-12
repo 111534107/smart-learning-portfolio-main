@@ -125,8 +125,9 @@ def test_admin_cannot_use_google_even_with_staff_email():
 def test_admin_password_locks_after_five_failures():
     app = make_app()
     client = app.test_client()
-    for _ in range(5):
+    for _ in range(4):
         assert post_login(client, "/admin/login", "admin", "wrong").status_code == 401
+    assert post_login(client, "/admin/login", "admin", "wrong").status_code == 429  # 第 5 次直接告知已鎖
     response = post_login(client, "/admin/login", "admin")  # 密碼對了也不行
     assert response.status_code == 429 and "15 分鐘" in response.get_data(as_text=True)
     with app.app_context():
