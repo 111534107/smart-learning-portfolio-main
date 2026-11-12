@@ -101,6 +101,7 @@ class Config:
     OCR_DML_DEVICE_ID = int(os.getenv("OCR_DML_DEVICE_ID", "0"))
     # 上傳後的辨識方式：thread＝背景執行緒排隊（預設，學生先看到「辨識中」頁）；inline＝在上傳請求裡跑完
     OCR_QUEUE_MODE = os.getenv("OCR_QUEUE_MODE", "thread")
+    AUTOBIOGRAPHY_BACKUP_MODE = os.getenv("AUTOBIOGRAPHY_BACKUP_MODE", "thread")
     CSRF_ENABLED = os.getenv("CSRF_ENABLED", "true").lower() == "true"
     ALLOWED_UPLOAD_EXTENSIONS = {
         value.strip().lower()

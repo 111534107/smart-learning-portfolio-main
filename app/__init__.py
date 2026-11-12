@@ -19,6 +19,9 @@ def create_app(config_overrides=None):
         app.config["ADMIN_TWO_FACTOR_REQUIRED"] = False
     if app.config.get("TESTING") and "OCR_QUEUE_MODE" not in (config_overrides or {}):
         app.config["OCR_QUEUE_MODE"] = "inline"
+    if app.config.get("TESTING") and "AUTOBIOGRAPHY_BACKUP_MODE" not in (config_overrides or {}):
+        app.config["AUTOBIOGRAPHY_BACKUP_MODE"] = "inline"
+        app.config.setdefault("AUTOBIOGRAPHY_BACKUP_RETRY_DELAYS", (0,))
     if app.config.get("DOCUMENT_OCR_ENGINE") == "rapidocr" and app.config.get("OCR_ENGINE") is None:
         from app.services.document_analysis_service import RapidOcrEngine
 

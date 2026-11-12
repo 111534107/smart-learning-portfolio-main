@@ -226,6 +226,30 @@ un_demo.py`，用 Playwright（本機 Chrome）登入 113534901：1280px、375px
 - 測試 `D:\democase\_worktrees\ai-wt-email-notify\tests\test_email_notify.py`（7 個）：缺口案件寄給學生與導師且不重複、沒設定 SMTP 不寄但有紀錄、個人關閉與全域關閉、寄信失敗重試且不影響、學期預警只通知一次、檢核倒數提醒、帳號與管理員開關頁面。
 
 待使用者提供：學校的 SMTP 主機、連接埠、寄件帳號與密碼（或應用程式密碼）、寄件人名稱、系統正式網址。
+## 2026-11-12 自傳 Word 備份改成背景處理、失敗自動重試、標示修改者
+
+日期：2026-11-12（台灣時間）
+
+開發者：Claude（分支 `feat/bio-backup`，工作資料夾 `D:\democase\_worktrees\ai-wt-bio-backup`）
+
+起因：自傳每次儲存都會另存一份 Word 到學校雲端，但原本是存檔時同步上傳：Drive 慢會拖慢存檔，失敗也不會補；Word 檔也看不出是學生還是導師改的。
+
+做了什麼：
+- `D:\democase\_worktrees\ai-wt-bio-backup\app\services\autobiography_backup.py`：
+  - 存檔只把該版標成 `backup_status="pending"`，commit 後交給背景佇列（做法與 `ocr_queue.py` 相同：一條 daemon 執行緒，不另裝套件，Windows 本機與正式主機都能跑）。
+  - 背景失敗自動重試，最多 3 次（間隔 2、10 秒，可用 `AUTOBIOGRAPHY_BACKUP_MAX_ATTEMPTS`、`AUTOBIOGRAPHY_BACKUP_RETRY_DELAYS` 調整）；仍失敗標成 `failed` 並記下錯誤。
+  - 「再試一次」把失敗版本重新排入；同一位學生同一校系下次存檔（生成、修改、Google 文件取回）也會一起補排之前失敗的版本。
+  - 檔名加上修改者與時間，例如 `自傳_111534100_..._第2版_導師王老師_20261112-1530.docx`；Word 內文副標寫「第 N 版｜修改者：學生本人／導師 姓名／AI 產生｜時間」。
+  - 模式 `AUTOBIOGRAPHY_BACKUP_MODE`：thread（預設）／inline（自動化測試預設）／manual。
+- `D:\democase\_worktrees\ai-wt-bio-backup\app\services\autobiography_service.py`：生成、`save_edits`、`save_imported` 改呼叫 `mark_pending`，commit 後 `schedule_after_save`。
+- `D:\democase\_worktrees\ai-wt-bio-backup\app\routes\student.py`：新增 `POST /student/autobiography/<id>/backup-retry`（只能重試自己的版本）。
+- `D:\democase\_worktrees\ai-wt-bio-backup\app\templates\student_autobiography.html`：只改狀態文字，「備份中」說明存檔已完成；「備份失敗」旁加「再試一次」按鈕（沿用既有按鈕樣式，未改版面）。
+- 版本紀錄頁原本就顯示「學生修改／導師修改」與修改者姓名，這次加測試確認導師姓名有顯示。
+- `D:\democase\_worktrees\ai-wt-bio-backup\app\config.py`、`app\__init__.py`：新設定與測試預設值。
+
+測試：`tests/test_autobiography_backup.py` 新增 7 個（存檔不等備份、背景執行緒會完成、失敗重試後成功、重試仍失敗顯示狀態與再試一次、下次存檔補備份、他人不能重試、學生／導師修改者標示）。測試用本機存放與假 Drive，沒有連 Google。
+
+沒驗證的部分：真實 Google Drive 慢或斷線時的行為要使用者親自測。單一程序限制與 OCR 佇列相同：伺服器重開時還在排隊的版本會停在「備份中」，要等同校系下次存檔才會補（目前沒有做啟動時自動補排）。導師修改頁沒有顯示備份狀態，導師端暫無「再試一次」。
 
 ## 2026-11-11 學生端設計示範 v2（只在測試資料夾，正式系統沒改）
 
