@@ -5,6 +5,13 @@
 - 改版＝新增一版，舊版保留，不能覆寫。
 """
 import hashlib
+import http.client
+import socket
+import urllib.error
+import urllib.parse
+import urllib.request
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 
 from flask import current_app
 
@@ -66,12 +73,136 @@ def add_version(item, filename, data, uploader, note=""):
     return version
 
 
+# ---------- 學校網站連結與失效檢查（2026-11-12 指導老師提出） ----------
+# - 每份表單可以另外填一個學校網站的原始連結（選填）；也可以只有連結、不上傳檔案。
+# - 只收 http、https 開頭的網址。
+# - 科辦或管理員按「檢查連結」才會連線，系統不會自己定時檢查，也不會自動上網找新版表單。
+# - 每個連結最多等 LINK_TIMEOUT_SECONDS 秒，只看網站回應的狀態碼，不下載、不保存內容。
+# - 404、410、5xx、連不上、逾時 → broken（失效）；401、403、429 → unsure（網站拒絕自動檢查，
+#   不一定壞，只提醒科辦自己點開確認，不對學生顯示警告）；其他 → ok。
+# - 改了連結就清掉上次的檢查結果。
+
+LINK_TIMEOUT_SECONDS = 5
+LINK_STATUS_LABELS = {"ok": "正常", "broken": "連結失效", "unsure": "無法確認"}
+MAX_URL_LENGTH = 500
+_USER_AGENT = "form-link-checker/1.0"
+
+
+class LinkRejected(ValueError):
+    """連結格式不合格；訊息直接顯示給科辦看。"""
+
+
+def clean_url(url):
+    """回傳整理過的網址；空白回傳 None；不是 http／https 丟 LinkRejected。"""
+    url = (url or "").strip()
+    if not url:
+        return None
+    message = "連結只能是 http:// 或 https:// 開頭的完整網址。"
+    if len(url) > MAX_URL_LENGTH or any(char.isspace() for char in url):
+        raise LinkRejected(message)
+    try:
+        parts = urllib.parse.urlsplit(url)
+    except ValueError:
+        raise LinkRejected(message) from None
+    if parts.scheme.lower() not in ("http", "https") or not parts.hostname:
+        raise LinkRejected(message)
+    return url
+
+
+class HttpOnlyRedirect(urllib.request.HTTPRedirectHandler):
+    """轉址也只跟到 http／https。"""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if urllib.parse.urlsplit(newurl).scheme.lower() not in ("http", "https"):
+            raise urllib.error.HTTPError(newurl, code, "轉址到不允許的網址", headers, fp)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def _opener():
+    return urllib.request.build_opener(HttpOnlyRedirect())
+
+
+def fetch_status(url, timeout):
+    """實際連線：回傳 HTTP 狀態碼；連不上或逾時丟例外。先用 HEAD，網站不收 HEAD 再用 GET。"""
+    opener = _opener()
+    quoted = urllib.parse.quote(url, safe=":/?#[]@!$&'()*+,;=%")  # 網址裡的中文要先編碼
+    for method in ("HEAD", "GET"):
+        request = urllib.request.Request(quoted, method=method, headers={"User-Agent": _USER_AGENT})
+        try:
+            with opener.open(request, timeout=timeout) as response:
+                return response.status
+        except urllib.error.HTTPError as error:
+            if method == "HEAD" and error.code in (400, 403, 405, 501):
+                continue
+            return error.code
+    return 0  # 走不到這裡
+
+
+def check_link(url, fetch=None):
+    """檢查一個連結，回傳 (狀態, 給科辦看的說明)。fetch(url, timeout) 測試時換成假物件。"""
+    try:
+        url = clean_url(url)
+    except LinkRejected:
+        url = None
+    if not url:
+        return "broken", "不是 http 或 https 網址"
+    try:
+        code = (fetch or fetch_status)(url, LINK_TIMEOUT_SECONDS)
+    except (socket.timeout, TimeoutError):
+        return "broken", "連線逾時"
+    except urllib.error.URLError as error:
+        if isinstance(error.reason, (socket.timeout, TimeoutError)):
+            return "broken", "連線逾時"
+        return "broken", "連不上網站"
+    except (OSError, ValueError, http.client.HTTPException):
+        return "broken", "連不上網站"
+    if code in (401, 403, 429):
+        return "unsure", f"HTTP {code}，網站拒絕自動檢查"
+    if code >= 400:
+        return "broken", f"HTTP {code}"
+    return "ok", f"HTTP {code}"
+
+
+def linked_items():
+    return (FormItem.query.filter(FormItem.source_url.isnot(None), FormItem.source_url != "")
+            .order_by(FormItem.title).all())
+
+
+def check_all_links(fetch=None):
+    """檢查所有有連結的表單並寫回狀態與時間（不 commit）。回傳各狀態的筆數。"""
+    items = linked_items()
+    summary = {"checked": len(items), "ok": 0, "broken": 0, "unsure": 0}
+    if not items:
+        return summary
+    fetch = fetch or fetch_status  # 這裡才取，測試替換 fetch_status 才會生效
+    urls = [item.source_url for item in items]
+    with ThreadPoolExecutor(max_workers=min(8, len(urls))) as pool:  # 只有連線放到執行緒，資料庫留在這裡
+        results = list(pool.map(lambda url: check_link(url, fetch=fetch), urls))
+    now = datetime.now(timezone.utc)
+    for item, (status, detail) in zip(items, results):
+        item.link_status, item.link_detail, item.link_checked_at = status, detail[:100], now
+        summary[status] += 1
+    return summary
+
+
+def set_source_url(item, url):
+    """設定或清掉連結；有變動就清掉上次的檢查結果。格式不對丟 LinkRejected。"""
+    url = clean_url(url)
+    if url != item.source_url:
+        item.source_url = url
+        item.link_status = item.link_detail = item.link_checked_at = None
+
+
+def broken_link_count():
+    return FormItem.query.filter(FormItem.source_url.isnot(None), FormItem.link_status == "broken").count()
+
+
 def can_download(user, item):
     if not user or not item:
         return False
     if user.role in STAFF_ROLES:
         return True
-    if not item.is_published or not item.category.is_active or not item.latest_version:
+    if not item.is_published or not item.category.is_active or not (item.latest_version or item.source_url):
         return False
     if user.role == "student":
         return item.open_to_students
@@ -135,6 +266,15 @@ DEMO_FORMS = [
 ]
 
 
+# 表單名稱 → (假的學校網站連結, 檢查狀態, 說明)。網址是 example 網域，僅為測試資料，不是學校真的網址；
+# 展示站不連外網，所以狀態直接寫好：一筆正常、一筆失效、一筆還沒檢查。
+DEMO_LINKS = {
+    "學生請假單": ("https://www.example.edu.tw/forms/student-leave.pdf", "ok", "HTTP 200"),
+    "公假申請單": ("https://www.example.edu.tw/forms/old/official-leave.pdf", "broken", "HTTP 404"),
+    "校外實習申請表": ("https://www.example.edu.tw/forms/internship-apply.pdf", None, None),
+}
+
+
 def seed_demo_forms(staff_user):
     """展示站用：4 個分類、9 份合成表單（含一份第 2 版、一份只開放老師、一份已下架）。不 commit。"""
     categories = {}
@@ -152,3 +292,6 @@ def seed_demo_forms(staff_user):
         for version_no in range(1, version_count + 1):
             add_version(item, f"demo-form-{number:02d}.pdf", demo_pdf(f"Form {number:02d}, version {version_no}."),
                         staff_user, note="合成示範檔" if version_no == 1 else "示範改版")
+        if title in DEMO_LINKS:
+            item.source_url, item.link_status, item.link_detail = DEMO_LINKS[title]
+            item.link_checked_at = datetime.now(timezone.utc) if item.link_status else None

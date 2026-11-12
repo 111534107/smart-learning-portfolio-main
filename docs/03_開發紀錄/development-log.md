@@ -1,5 +1,39 @@
 # 開發日誌
 
+## 2026-11-12 科辦：批量開立電子獎狀、表單連結失效檢查
+
+日期：2026-11-12（台灣時間）
+
+開發者：Claude（分支 `feat/staff-batch-forms`，工作資料夾 `D:\democase\_worktrees\ai-wt-staff-batch`，從 `preview/student-v2`（`3215032`）開出）。
+
+來源：指導老師 2026-11-12 提出（`D:\democase\ai\docs\05_交接與專案管理\代辦清單_2026-11-12.md` 第 21、23 項）。測試與示範用的學號、姓名、網址都是合成資料，僅為測試資料。
+
+做了什麼：
+- **批量開立電子獎狀**（只有科辦可用，網址 `/staff/certificates/batch`，電子獎狀清單頁多一顆「批量開立」）
+  - 規則寫在 `D:\democase\_worktrees\ai-wt-staff-batch\app\services\certificate_batch_service.py` 開頭。名單一列一位學生，四欄「學號、活動名稱、獎項或服務內容、日期」，逗號或 Tab 分隔（Excel 複製貼上即可），也可上傳 CSV（UTF-8 或 Big5）；一次最多 300 列。日期收西元與民國。
+  - 先預覽：查無學號、欄位缺漏、日期看不懂或在未來、名單內重複、以前開過同一張，都標成錯誤列。確認後只建立沒問題的列，錯誤列列在結果頁。
+  - 每一張和單張開立相同：直接核准、當天為核發日、8 碼驗證碼、學生經歷新增一筆「科辦電子獎狀」、站內通知、一筆 `certificate.issue` 操作紀錄；整批另記一筆 `certificate.batch_issue`（只記張數與略過列數）。
+  - 新增類別「活動證明」（代碼 `activity`，`kind` 欄位原本就是文字，不必遷移）。獎狀標題整批可改（預設「活動證明」）。
+  - 整批列印：`/staff/certificates/print?ids=…` 一次開多張、一張一頁；`D:\democase\_worktrees\ai-wt-staff-batch\app\templates\certificate.html` 改成可列多張，單張頁面不變。
+  - 沒做蓋章圖檔（科章能不能放還沒確認）。
+- **表單連結失效檢查**
+  - 表單下載區原本只有上傳檔案、沒有外部連結，所以先在每份表單加「學校網站連結」（選填；也可以只有連結不上傳檔案）。`form_items` 新增 `source_url`、`link_status`、`link_detail`、`link_checked_at`，遷移 `D:\democase\_worktrees\ai-wt-staff-batch\migrations\versions\b20261112f01_add_form_item_links.py`（接在 `b20261110h01` 後面，head 只有一個）。
+  - 規則寫在 `D:\democase\_worktrees\ai-wt-staff-batch\app\services\form_library_service.py`「學校網站連結與失效檢查」一段：只收 http／https（轉址也只跟 http／https）；按「檢查連結」才連線，每個連結逾時 5 秒，只看狀態碼不存內容；404、410、5xx、連不上、逾時＝失效；401、403、429＝無法確認（不對學生警告）；改連結就清掉上次結果。不會自動上網找新版表單。
+  - 科辦與管理員：`/staff/forms/links` 列出每個連結的狀態與最後檢查時間，「檢查連結」按鈕（寫 `form.check_links` 操作紀錄）；失效的標「連結失效」並提醒更新。科辦的表單下載區頁面上方也會提醒有幾個失效。
+  - 學生與老師的表單下載頁：連結正常或還沒檢查時顯示「到學校網站看這份表單」；失效時不給點，改顯示「連結可能已失效，請洽科辦」。
+  - 示範資料加三個 example 網域的假連結（一正常、一失效、一還沒檢查）。
+
+判斷與待確認（Claude 自己的判斷，請主控端或使用者確認）：
+- 批量獎狀用新類別「活動證明」而不是沿用「服務證明」，因為名單裡可能是名次也可能是服務。
+- 管理員可以開 `/staff/forms/links`，但管理員的導覽列還沒有入口（沒動 `nav.html`），目前要直接打網址。
+- 連結檢查是在按下按鈕的那次請求裡同步做完（最多 8 條連線同時跑）；連結很多又都逾時的話要等幾秒。
+- 沒有擋內部網址（例如 127.0.0.1）；只有科辦能填連結，而且只記狀態碼，暫時沒處理。
+
+驗證：
+- 新測試 `D:\democase\_worktrees\ai-wt-staff-batch\tests\test_certificate_batch.py`（14 項）、`D:\democase\_worktrees\ai-wt-staff-batch\tests\test_form_link_check.py`；連線全部用假物件，不連外網。
+- 完整 pytest（`D:\democase\ai\.venv\Scripts\python.exe -m pytest -q --basetemp=logs/test-runs/staff-batch`）：1485 通過、9 略過、0 失敗（11 分 34 秒）。
+- 沒驗證：沒有在瀏覽器實際操作（批量頁、整批列印的分頁效果、檢查連結頁、學生端警告的外觀都只用測試確認內容）；沒有對真的學校網站連線；沒有在 MySQL 上跑遷移（只跑 SQLite）。
+
 ## 2026-11-11 學生端 v2：畢業門檻、缺件檢查兩頁換外觀
 
 日期：2026-11-11（台灣時間）

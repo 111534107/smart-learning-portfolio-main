@@ -112,6 +112,64 @@ def staff_issue():
     return redirect(url_for("certificate.certificate_view", cert_id=cert.id))
 
 
+@certificate_bp.get("/staff/certificates/batch")
+@certificate_bp.post("/staff/certificates/batch")
+@role_required("staff")
+def staff_batch():
+    """科辦批量開立：貼上或上傳名單 → 預覽（含錯誤列）→ 確認後一次建立。規則見 services/certificate_batch_service.py。"""
+    from app.services import audit_service
+    from app.services import certificate_batch_service as batch
+    user = get_current_user()
+    default_title = service.KINDS[batch.KIND]
+
+    def render(status=200, **context):
+        context.setdefault("text", "")
+        context.setdefault("title", default_title)
+        return render_template("staff_certificate_batch.html", user=user, sample=batch.SAMPLE,
+                               max_rows=batch.MAX_ROWS, **context), status
+
+    if request.method == "GET":
+        return render()
+    text = request.form.get("rows", "")
+    title = request.form.get("title", "").strip()[:50] or default_title
+    uploaded = request.files.get("file")
+    try:
+        if uploaded and uploaded.filename:
+            text = batch.decode_upload(uploaded.read(1024 * 1024 + 1)[:1024 * 1024])
+        rows = batch.parse_rows(text)
+    except batch.BatchRejected as error:
+        return render(400, error=str(error), text=text, title=title)
+    good = [row for row in rows if row.ok]
+    bad = [row for row in rows if not row.ok]
+    if request.form.get("action") != "confirm":
+        return render(rows=rows, good=good, bad=bad, text=text, title=title)
+    if not good:
+        return render(400, rows=rows, good=good, bad=bad, text=text, title=title,
+                      error="名單裡沒有可以建立的列，請修正後再試。")
+    certs = batch.issue_rows(user, rows, title)
+    for cert in certs:
+        _notify_student(cert)
+        audit_service.record(user, "certificate.issue", "award_certificate", cert.id)
+    audit_service.record(user, "certificate.batch_issue", detail={"count": len(certs), "skipped": len(bad)})
+    db.session.commit()
+    return render(created=certs, bad=bad, title=title,
+                  print_ids=",".join(str(cert.id) for cert in certs))
+
+
+@certificate_bp.get("/staff/certificates/print")
+@role_required("staff")
+def staff_print():
+    """整批列印：一次開啟多張已核准的獎狀，一張一頁。"""
+    raw = request.args.get("ids", "")
+    ids = [int(part) for part in raw.split(",") if part.strip().isdigit()][:300]
+    certs = (AwardCertificate.query.filter(AwardCertificate.id.in_(ids), AwardCertificate.status == "approved")
+             .order_by(AwardCertificate.id).all()) if ids else []
+    if not certs:
+        abort(404)
+    return render_template("certificate.html", cert=certs[0], certs=certs, roc_date=service.roc_date,
+                           today=date.today(), verify_url=url_for("certificate.verify", _external=True))
+
+
 @certificate_bp.get("/staff/certificates/<int:cert_id>")
 @certificate_bp.post("/staff/certificates/<int:cert_id>")
 @role_required("staff")
@@ -190,8 +248,8 @@ def certificate_view(cert_id):
         abort(403)
     if cert.status != "approved" and user.role not in ("staff", "admin"):
         abort(404)
-    return render_template("certificate.html", cert=cert, issued=service.roc_date(cert.issued_on or date.today()),
-                           verify_url=url_for("certificate.verify", _external=True))
+    return render_template("certificate.html", cert=cert, certs=[cert], roc_date=service.roc_date,
+                           today=date.today(), verify_url=url_for("certificate.verify", _external=True))
 
 
 @certificate_bp.get("/verify")

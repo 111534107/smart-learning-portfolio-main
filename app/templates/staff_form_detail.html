@@ -68,6 +68,12 @@
         </select></label>
       <label class="field"><span class="field__label">表單名稱</span><input name="title" maxlength="100" required value="{{ item.title }}"></label>
       <label class="field"><span class="field__label">說明</span><textarea name="description" rows="2">{{ item.description or "" }}</textarea></label>
+      <label class="field"><span class="field__label">學校網站連結 <small>選填，http 或 https 開頭；改了連結會清掉上次的檢查結果</small></span>
+        <input type="url" name="source_url" maxlength="500" value="{{ item.source_url or '' }}" placeholder="https://"></label>
+      {% if item.source_url %}
+      <p class="small">連結狀態：{% if item.link_status %}<span class="tag {{ 'tag--ok' if item.link_status == 'ok' else 'tag--warn' }}">{{ link_labels[item.link_status] }}</span> {{ item.link_detail or "" }} · 最後檢查 {{ item.link_checked_at|taipei_time("%Y-%m-%d %H:%M") }}{% else %}<span class="muted">還沒檢查</span>{% endif %}
+        {% if item.link_status == "broken" %}<br><b>請更新成最新的連結</b>，學生端目前顯示「連結可能已失效，請洽科辦」。{% endif %}</p>
+      {% endif %}
       <fieldset class="field"><legend class="field__label">開放對象（至少勾一個）</legend>
         <div class="check-row">
           <label><input type="checkbox" name="open_to_students" value="1"{% if item.open_to_students %} checked{% endif %}> 學生</label>

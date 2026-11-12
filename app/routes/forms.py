@@ -68,7 +68,29 @@ def _category_from(form):
 def _render_manage(error=None, status=200, form=None):
     categories = FormCategory.query.order_by(FormCategory.sort_order, FormCategory.name).all()
     return render_template("staff_forms.html", user=get_current_user(), categories=categories,
-                           error=error, form=form or {}), status
+                           error=error, form=form or {}, broken_links=service.broken_link_count(),
+                           link_labels=service.LINK_STATUS_LABELS), status
+
+
+# ---------- 學校網站連結檢查（科辦與管理員） ----------
+
+@forms_bp.get("/staff/forms/links")
+@role_required("staff", "admin")
+def staff_links():
+    items = service.linked_items()
+    return render_template("staff_form_links.html", user=get_current_user(), items=items,
+                           link_labels=service.LINK_STATUS_LABELS, timeout=service.LINK_TIMEOUT_SECONDS,
+                           broken=[item for item in items if item.link_status == "broken"])
+
+
+@forms_bp.post("/staff/forms/links/check")
+@role_required("staff", "admin")
+def staff_links_check():
+    """按「檢查連結」才連線；每個連結有逾時，只記狀態碼。"""
+    summary = service.check_all_links()
+    audit_service.record(get_current_user(), "form.check_links", detail=summary)
+    db.session.commit()
+    return redirect(url_for("forms.staff_links"))
 
 
 @forms_bp.get("/staff/forms")
@@ -92,15 +114,21 @@ def staff_publish():
         return _render_manage("請填表單名稱。", 400, form)
     if not (students or teachers):
         return _render_manage("請至少勾選一個開放對象（學生或老師）。", 400, form)
-    if not uploaded or not uploaded.filename:
-        return _render_manage("請選擇要上架的檔案。", 400, form)
+    has_file = bool(uploaded and uploaded.filename)
+    try:
+        source_url = service.clean_url(form.get("source_url"))
+    except service.LinkRejected as error:
+        return _render_manage(str(error), 400, form)
+    if not has_file and not source_url:
+        return _render_manage("請選擇要上架的檔案，或填學校網站連結（至少要有一個）。", 400, form)
     item = FormItem(category=category, title=title, description=form.get("description", "").strip() or None,
                     open_to_students=students, open_to_teachers=teachers, is_published=True,
-                    created_by_id=user.id)
+                    created_by_id=user.id, source_url=source_url)
     db.session.add(item)
     db.session.flush()
     try:
-        service.add_version(item, uploaded.filename, uploaded.read(), user)
+        if has_file:
+            service.add_version(item, uploaded.filename, uploaded.read(), user)
     except service.UploadRejected as error:
         db.session.rollback()
         return _render_manage(str(error), 400, form)
@@ -156,7 +184,7 @@ def _int(value, default):
 def _render_detail(item, error=None, status=200):
     categories = FormCategory.query.order_by(FormCategory.sort_order, FormCategory.name).all()
     return render_template("staff_form_detail.html", user=get_current_user(), item=item,
-                           categories=categories, error=error), status
+                           categories=categories, error=error, link_labels=service.LINK_STATUS_LABELS), status
 
 
 @forms_bp.get("/staff/forms/<int:item_id>")
@@ -177,6 +205,13 @@ def staff_update(item_id):
         return _render_detail(item, "分類與名稱都要填。", 400)
     if not (students or teachers):
         return _render_detail(item, "請至少勾選一個開放對象（學生或老師）。", 400)
+    try:
+        new_url = service.clean_url(form.get("source_url"))
+    except service.LinkRejected as error:
+        return _render_detail(item, str(error), 400)
+    if not new_url and not item.latest_version:
+        return _render_detail(item, "這份表單沒有檔案，連結不能清空；要拿掉連結請先上傳檔案。", 400)
+    service.set_source_url(item, new_url)
     item.category, item.title = category, title
     item.description = form.get("description", "").strip() or None
     item.open_to_students, item.open_to_teachers = students, teachers
