@@ -18,10 +18,11 @@ from functools import lru_cache
 from pathlib import Path
 
 from app.models import CredentialRecord, LearningCourseRecord, Portfolio
+from app.services import package_exclusion
 from app.services.journey_service import CATEGORY_KEYS, CATEGORY_LABELS, EXPERIENCE_CATEGORIES, build_journey
 
 RULES_FILE = Path(__file__).resolve().parent.parent / "content" / "readiness_rules.csv"
-PROJECT_PATTERN = re.compile(r"專題|作品")
+PROJECT_PATTERN = package_exclusion.PROJECT_PATTERN
 
 DOCUMENT_LABELS = {"autobiography": "自傳與讀書計畫", "project": "專題作品"}
 ALL_LABELS = {**CATEGORY_LABELS, **DOCUMENT_LABELS}
@@ -69,6 +70,15 @@ def student_evidence(student, journey=None):
     credentials = CredentialRecord.query.filter_by(student_id=student.id, confirmation_status="confirmed").all()
     records = (Portfolio.active().filter_by(student_id=student.id)
                .filter_by(status="confirmed").all())
+    # 預設只算學生願意放進備審的資料；"full" 是全部已確認資料，給簡章規定必備的類別用。
+    kept = _summarize([c for c in courses if not c.excluded_from_package],
+                      [c for c in credentials if not c.excluded_from_package],
+                      [r for r in records if not r.excluded_from_package])
+    kept["full"] = _summarize(courses, credentials, records)
+    return kept
+
+
+def _summarize(courses, credentials, records):
     totals = {key: 0 for key in CATEGORY_KEYS}
     totals["grades"] = len(courses)
     totals["credential"] = len(credentials)
@@ -84,13 +94,19 @@ def student_evidence(student, journey=None):
     }
 
 
+def _for_key(evidence, key, required):
+    """簡章規定必備的類別用全部已確認資料，其餘只用學生願意放進備審的。"""
+    return evidence.get("full", evidence) if key in required else evidence
+
+
 def _autobiography_level(student, program):
     from app.services.autobiography_service import latest_draft, version_of  # 互相引用，放函式裡
     draft = latest_draft(student, program)
     return 0.0 if not draft else (1.0 if version_of(draft) >= 2 else 0.5)
 
 
-def _key_level(key, item_name, evidence, student, program):
+def _key_level(key, item_name, evidence, student, program, required=()):
+    evidence = _for_key(evidence, key, required)
     totals = evidence["totals"]
     if key == "grades":
         return _grade_level(evidence["scores"], evidence["course_count"])
@@ -108,14 +124,14 @@ def _key_level(key, item_name, evidence, student, program):
 
 def analyze_gap(student, program, journey=None, evidence=None):
     evidence = evidence or student_evidence(student, journey)
-    totals = evidence["totals"]
+    required = package_exclusion.required_keys(program)
     items = []
     weighted, total_weight = 0.0, 0
     for item in program.items:
         keys = item.category_keys
         record_keys = [key for key in keys if key in CATEGORY_KEYS]
         documents = [key for key in keys if key not in CATEGORY_KEYS]
-        levels = {key: _key_level(key, item.source_item_name, evidence, student, program) for key in keys}
+        levels = {key: _key_level(key, item.source_item_name, evidence, student, program, required) for key in keys}
         have = [key for key in record_keys if levels[key] > 0]
         missing = [key for key in record_keys if levels[key] == 0]
         if not keys:
@@ -143,7 +159,7 @@ def analyze_gap(student, program, journey=None, evidence=None):
             "levels": levels,
             # 這個項目最該先補的類別：完成度最低的那一個（全滿時為 None）
             "next_key": min((key for key in keys if levels[key] < 1), key=lambda key: levels[key], default=None),
-            "counts": {key: totals.get(key, 0) for key in record_keys},
+            "counts": {key: _for_key(evidence, key, required)["totals"].get(key, 0) for key in record_keys},
             "mapping_pending": item.mapping_status != "confirmed",
             "requirement": item.requirement,
         })

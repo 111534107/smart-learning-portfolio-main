@@ -32,6 +32,8 @@ class Portfolio(db.Model):
     status = db.Column(db.String(20), nullable=False, default="draft", index=True)
     source = db.Column(db.String(30), nullable=False, default="student", server_default="student")
     source_document_id = db.Column(db.Integer, db.ForeignKey("source_documents.id"), nullable=True, index=True)
+    # 學生選擇不放進備審（2026-11-12）；簡章規定必備的類別仍會放，見 services/package_exclusion.py
+    excluded_from_package = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
     submitted_at = db.Column(db.DateTime, nullable=True)
     # 學生刪除只標記時間，資料列保留（規格 M10）；讀經歷一律用 Portfolio.active() 排除
     deleted_at = db.Column(db.DateTime, nullable=True)

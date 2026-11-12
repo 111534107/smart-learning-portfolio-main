@@ -23,6 +23,8 @@ EXTRACTED = {"programs": [{"program_code": "208099", "admission_year": 116, "sch
                            "department_name": "資訊管理系", "admission_category": "管理類四",
                            "items": [{"name": "證照", "weight": 100, "categories": ["credential"]}]}]}
 ANSWERS = {"motivation": "專二做網頁時喜歡上資管。", "proud": "黑客松負責後端。", "challenge": "", "future": "想學資料分析。"}
+from tests.autobio_helpers import FOCUS_ANSWERS  # noqa: E402
+ANSWERS = {**ANSWERS, **FOCUS_ANSWERS}  # 比重高的項目也要學生自己寫（2026-11-12）
 
 
 @pytest.fixture()

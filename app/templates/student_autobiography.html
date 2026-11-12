@@ -40,16 +40,17 @@
   {% if asking %}
   {# 第一步：回答問題。有 JavaScript 時一次顯示一題 #}
   <div class="split">
-    <form class="sheet ask" method="post" action="{{ url_for('student.autobiography_generate') }}" data-steps data-tour="回答四個問題，AI 幫你排出草稿。" data-tour-order="1">
+    <form class="sheet ask" method="post" action="{{ url_for('student.autobiography_generate') }}" data-steps data-tour="先用自己的話回答問題，AI 幫你整理成草稿。" data-tour-order="1">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="program_id" value="{{ program.id }}">
       <p class="ask__progress small muted" data-step-progress></p>
       {% if error %}<p class="alert mb-1" role="alert">{{ error }}</p>{% endif %}
-      {% for key, question, hint in questions %}
+      {% if questions and questions[0].weight %}<p class="small muted mb-1">題目依{{ program.department_name }}簡章的評分比重由高到低排列。請用自己的話寫，AI 只幫你整理文字。</p>{% endif %}
+      {% for q in questions %}
       <label class="field ask__step" data-step>
-        <span class="ask__question">{{ question }}</span>
-        <small>{{ hint }}。想不到可以先跳過，AI 不會替你編。</small>
-        <textarea name="{{ key }}" rows="5" maxlength="1000">{{ answers.get(key, "") }}</textarea>
+        <span class="ask__question">{% if q.important %}<span class="tag tag--warn">{{ valued_label }}</span> {% endif %}{{ q.text }}</span>
+        <small>{{ q.hint }}。{% if q.important %}這題請一定要用自己的話寫幾句，AI 只幫你整理，不會替你寫。{% else %}想不到可以先跳過，AI 不會替你編。{% endif %}</small>
+        <textarea name="{{ q.key }}" rows="5" maxlength="1000">{{ answers.get(q.key, "") }}</textarea>
       </label>
       {% endfor %}
       {# 學生自己的金鑰：不會存檔，送出後就丟掉。欄位不會回填，避免金鑰出現在頁面上。 #}

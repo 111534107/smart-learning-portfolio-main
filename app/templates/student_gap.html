@@ -142,6 +142,7 @@
           </li>
           {% endfor %}
         </ul>
+        <p class="small mb-1">有不想放的成績、證照或經歷？<a href="{{ url_for('student.package_exclusions', program_id=program.id) }}">選擇放進備審的資料 →</a></p>
         <a class="button button--accent" href="{{ url_for('student.target_package', program_id=program.id) }}">下載 Word ↓</a>
       </section>
     </aside>

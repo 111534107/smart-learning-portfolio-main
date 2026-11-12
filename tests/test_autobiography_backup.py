@@ -15,6 +15,8 @@ from tests.test_storage_service import FakeDriveClient
 
 ANSWERS = {"motivation": "專二做網頁設計時發現自己喜歡把需求變成系統。", "proud": "黑客松時負責後端 API。",
            "challenge": "", "future": "想學資料分析。"}
+from tests.autobio_helpers import FOCUS_ANSWERS  # noqa: E402
+ANSWERS = {**ANSWERS, **FOCUS_ANSWERS}  # 比重高的項目也要學生自己寫（2026-11-12）
 
 
 def make_app(tmp_path, **config):

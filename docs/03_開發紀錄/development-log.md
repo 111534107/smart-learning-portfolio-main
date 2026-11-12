@@ -1,5 +1,43 @@
 # 開發日誌
 
+## 2026-11-12 學生可選擇不放進備審的資料、自傳依簡章比重引導
+
+日期：2026-11-12（台灣時間）
+
+開發者：Claude（分支 `feat/bio-optout-guide`，工作資料夾 `D:\democase\_worktrees\ai-wt-bio-optout`，從 `preview/student-v2`（`3215032`）開出）。
+
+目標：導師 2026-11-12 的兩項意見（代辦清單第 8、15、16、19 項）。
+
+做了什麼：
+1. **學生可選擇不放資料**
+   - 成績、證照、經歷三張表各加 `excluded_from_package` 欄位（預設都放）；資料庫遷移 `D:\democase\_worktrees\ai-wt-bio-optout\migrations\versions\b20261112x01_add_excluded_from_package.py`（接在 `b20261110h01` 後面，`flask db heads` 只有一個）。
+   - 規則集中在新檔 `D:\democase\_worktrees\ai-wt-bio-optout\app\services\package_exclusion.py`。被排除的資料不進自傳事實（`build_facts`）、資料盤點、缺件頁佐證清單（`custom_contents`）、備審 Word（`package_service`）、準備度（`gap_service`）。資料本身不刪除，可以放回。
+   - 「簡章規定必備」只看簡章資料：(1) 校系把成績列為評分項目 → 歷年成績單必備，成績不能排除；(2) 項目名稱或要求說明寫明「必繳／必備／必附」→ 該項目對應的類別不能排除。**這個判斷規則是 Claude 訂的，待導師確認。**
+   - 標記存在資料本身、不分校系；每個校系產出時再看自己的必備類別。所以同一筆成績在甲校系可以不放，在規定必備的乙校系仍然放入。
+   - 新頁面 `/student/package-exclusions`（模板 `D:\democase\_worktrees\ai-wt-bio-optout\app\templates\student_package_exclusions.html`，路由在 `app\routes\student.py`），缺件頁「產出備審資料」區塊有連結。每個目標校系都規定必備時按鈕不能按並說明原因，伺服器也會擋（回 400）；只有部分校系必備時可以標，畫面註明「仍會放進該校系的備審」。每次更改寫進操作日誌（`package_exclusion.set`）。
+2. **依簡章比重引導自傳**
+   - `autobiography_service.guided_questions(program)`：先列簡章評分項目的題目（比重高到低，同一組資料類別只出一題），再列原本四題。比重最高的項目，以及比重達 30% 的項目標示「這所校系很看重」。校系沒有比重資料時只有原本四題，不自己編比重。
+   - `own_words_problem`：「很看重」的題目每題至少 10 個字、且至少要回答一題，否則不產生草稿（回 400），已打的字保留並提示先用自己的話寫幾句。自傳頁與升學 Agent 的草稿工具都會檢查。
+   - 提示詞加一條：學生回答是主體，AI 只整理語句與順序。回答換校系時一起沿用（`carried_answers`）。
+   - 沒有接上 AI 的示範草稿：依簡章項目寫的回答原文接在原本四段後面，不重排。
+
+修改檔案（都在 `D:\democase\_worktrees\ai-wt-bio-optout\`）：
+- `app\models\learning_profile.py`、`app\models\portfolio.py`、`app\routes\student.py`
+- `app\services\package_exclusion.py`（新）、`autobiography_service.py`、`gap_service.py`、`package_service.py`、`agent_advisor.py`
+- `app\templates\student_package_exclusions.html`（新）、`student_autobiography.html`、`student_gap.html`
+- `migrations\versions\b20261112x01_add_excluded_from_package.py`（新）
+- 測試：`tests\test_package_exclusion.py`（新，10 項）、`tests\test_autobiography_guide.py`（新，10 項）、`tests\autobio_helpers.py`（新）；既有 6 個測試檔的回答常數補上示範校系 208003 三個「很看重」項目的回答（`test_agent_engine.py`、`test_assistant_confirm_versions.py`、`test_autobiography.py`、`test_autobiography_backup.py`、`test_end_to_end_mainline.py`、`test_retention_audit.py`）。測試資料皆僅為測試資料。
+
+驗證：
+- 新測試先失敗再實作。完整測試 `D:\democase\ai\.venv\Scripts\python.exe -m pytest -q --basetemp=logs/test-runs/bio-optout`：1458 通過、9 略過（11 分鐘）。
+- 沒驗證：沒有開展示站在瀏覽器實際操作，新頁面與自傳題目只由測試確認內容與狀態碼，版面、手機寬度、深色模式、一次一題的切換都沒看過。遷移只在測試的 SQLite 跑過，沒在 MySQL 執行（本機 MySQL 沒開）。
+
+下一步：
+- 請導師確認「必備」判斷規則與「很看重」門檻（最高比重或 30% 以上）；示範校系 208003 有三個 30% 項目，學生要先寫三題。
+- 管理端目前不能把個別簡章項目標成必備／非必備（`is_required` 欄位存在但沒有介面）。
+- 新頁面沿用舊樣式，還沒套學生端 v2 外觀；成績頁、經歷頁還沒有直接的「不放」按鈕，只能從缺件頁進入。
+- 導師端、送審快照沿用 `build_facts`，所以也看不到被排除的資料；是否要讓導師看到「學生選擇不放」待決定。
+
 ## 2026-11-11 學生端 v2：畢業門檻、缺件檢查兩頁換外觀
 
 日期：2026-11-11（台灣時間）
