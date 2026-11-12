@@ -122,6 +122,9 @@ def _tools(student, generate):
         answers = _latest_answers(student)
         if answers is None:
             return {"error": "你還沒回答自傳問題；自傳要用你自己的經驗，請先到自傳頁回答 4 題。", "link": link}
+        problem = autobiography_service.own_words_problem(program, answers)
+        if problem:  # 比重高的項目學生還沒自己寫：不替他產生草稿
+            return {"error": problem, "link": link}
         try:
             if generate is None and ai_ready():
                 ai_quota_service.consume(student)  # 和自傳頁一樣計次；AI 失敗時 rollback 退回

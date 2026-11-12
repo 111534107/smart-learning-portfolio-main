@@ -18,7 +18,7 @@ from docx.shared import Cm, Pt, RGBColor
 
 from app.models import (CourseRule, CredentialRecord, CurriculumCourse, CurriculumVersion, LearningCourseRecord,
                         PackageReview, Portfolio)
-from app.services import storage_service
+from app.services import package_exclusion, storage_service
 from app.services.autobiography_service import CONFIRMED_PORTFOLIO_STATUSES, latest_draft
 from app.services.file_preview import preview_kind
 from app.services.gap_service import analyze_gap, chapter_order
@@ -207,22 +207,26 @@ def _image_path(file_path, display_name):
 
 # ---------- 資料（都只取已確認的） ----------
 
-def _confirmed_courses(student):
-    return LearningCourseRecord.query.filter_by(student_id=student.id, confirmation_status="confirmed").order_by(
+def _confirmed_courses(student, required=None):
+    """required 有給（required_keys(program)）就拿掉學生選擇不放的；簡章必備的類別除外。"""
+    courses = LearningCourseRecord.query.filter_by(student_id=student.id, confirmation_status="confirmed").order_by(
         LearningCourseRecord.school_year, LearningCourseRecord.semester, LearningCourseRecord.id).all()
+    return courses if required is None else package_exclusion.keep_courses(courses, required)
 
 
-def _confirmed_credentials(student):
-    return CredentialRecord.query.filter_by(student_id=student.id, confirmation_status="confirmed").order_by(
+def _confirmed_credentials(student, required=None):
+    credentials = CredentialRecord.query.filter_by(student_id=student.id, confirmation_status="confirmed").order_by(
         CredentialRecord.issue_date, CredentialRecord.id).all()
+    return credentials if required is None else package_exclusion.keep_credentials(credentials, required)
 
 
-def _confirmed_records(student, categories=None):
+def _confirmed_records(student, categories=None, required=None):
     query = Portfolio.active().filter(Portfolio.student_id == student.id,
                                       Portfolio.status.in_(CONFIRMED_PORTFOLIO_STATUSES))
     if categories is not None:
         query = query.filter(Portfolio.category.in_(categories))
-    return query.order_by(Portfolio.school_year, Portfolio.semester, Portfolio.id).all()
+    records = query.order_by(Portfolio.school_year, Portfolio.semester, Portfolio.id).all()
+    return records if required is None else package_exclusion.keep_portfolios(records, required)
 
 
 def _unconfirmed_count(student, categories):
@@ -242,15 +246,15 @@ def _curriculum_notes(student):
             for course in CurriculumCourse.query.filter_by(version_id=version.id) if course.note}
 
 
-def course_credential_rows(student):
+def course_credential_rows(student, required=None):
     """課程與證照對照：哪些課程學到的能力，對應到哪些證照與成果。只列有對應的課程。"""
     notes = _curriculum_notes(student)
     abilities = {rule.normalized_course_name: rule.ability_domain for rule in
                  CourseRule.query.filter(CourseRule.ability_domain.isnot(None), CourseRule.is_active.is_(True))}
-    credentials = _confirmed_credentials(student)
-    records = _confirmed_records(student)
+    credentials = _confirmed_credentials(student, required)
+    records = _confirmed_records(student, required=required)
     rows = []
-    for course in _confirmed_courses(student):
+    for course in _confirmed_courses(student, required):
         key = course.normalized_course_name
         skill, keywords = next(((ability, list(words)) for word, ability, words in COURSE_SKILLS
                                 if word in course.course_name), (None, []))
@@ -279,8 +283,8 @@ def course_credential_rows(student):
 
 # ---------- 章節內容 ----------
 
-def _records_body(document, student, codes):
-    records = _confirmed_records(student, codes)
+def _records_body(document, student, codes, required=None):
+    records = _confirmed_records(student, codes, required)
     images = []
     for record in records:
         when = _semester_text(record.school_year, record.semester)
@@ -304,9 +308,9 @@ def _records_body(document, student, codes):
         _note(document, f"另有 {pending} 筆資料尚未確認，未放入本文件。")
 
 
-def _credential_body(document, student):
+def _credential_body(document, student, required=None):
     document.add_heading("課程與證照對照", level=2)
-    rows = course_credential_rows(student)
+    rows = course_credential_rows(student, required)
     if rows:
         _table(document, ["課程", "修課資訊", "學到的能力", "對應證照", "相關成果"],
                [(r["course"], r["detail"], r["skill"], r["credentials"], r["records"]) for r in rows],
@@ -314,7 +318,7 @@ def _credential_body(document, student):
     else:
         document.add_paragraph("（目前沒有能對應到證照或成果的已確認課程）")
     document.add_heading("證照清單", level=2)
-    credentials = _confirmed_credentials(student)
+    credentials = _confirmed_credentials(student, required)
     if credentials:
         _table(document, ["證照名稱", "級別", "發證單位", "取得日期"],
                [(c.credential_name, c.level or "", c.issuing_organization or "",
@@ -332,11 +336,12 @@ def _credential_body(document, student):
 
 def _chapter_body(document, student, chapter, program):
     codes = chapter["keys"]
+    required = package_exclusion.required_keys(program)  # 學生選擇不放的資料不印；簡章必備的類別除外
     if chapter["code"] == "02":
         document.add_paragraph("請附上報名資格證明（依當年度簡章規定）。")
         return
     if "grades" in codes:
-        courses = _confirmed_courses(student)
+        courses = _confirmed_courses(student, required)
         if not courses:
             document.add_paragraph("（尚未提供成績資料）")
             return
@@ -351,7 +356,7 @@ def _chapter_body(document, student, chapter, program):
         document.add_paragraph("另附學校核發之歷年成績單正本。")
         return
     if "credential" in codes:
-        _credential_body(document, student)
+        _credential_body(document, student, required)
         return
     if chapter["code"] == "04":
         # 自傳：有學生儲存過的「自傳小幫手」版本就放進來，沒有就留撰寫提示
@@ -368,10 +373,10 @@ def _chapter_body(document, student, chapter, program):
     if "autobiography" in codes:
         document.add_paragraph("請在此撰寫讀書計畫：進二技後的學習目標、想修的課程與畢業後規劃。")
         return
-    if "project" in codes and not _confirmed_records(student, codes):
+    if "project" in codes and not _confirmed_records(student, codes, required):
         document.add_paragraph("請附上專題或作品集，說明個人負責的部分與成果。")
         return
-    _records_body(document, student, codes)
+    _records_body(document, student, codes, required)
 
 
 # ---------- 封面、目錄、頁首頁尾 ----------

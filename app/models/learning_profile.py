@@ -89,6 +89,8 @@ class LearningCourseRecord(db.Model):
     score = db.Column(db.Integer, nullable=True)
     status_mark = db.Column(db.String(10), nullable=True)
     makeup_season = db.Column(db.String(10), nullable=True)
+    # 學生選擇不放進備審（2026-11-12）；簡章規定必備的類別仍會放，見 services/package_exclusion.py
+    excluded_from_package = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
     confirmation_status = db.Column(db.String(30), nullable=False, default="confirmed", index=True)
     created_at = db.Column(db.DateTime, nullable=False, default=_utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)
@@ -150,6 +152,8 @@ class CredentialRecord(db.Model):
     issuing_organization = db.Column(db.String(150), nullable=True)
     issue_date = db.Column(db.Date, nullable=True)
     category = db.Column(db.String(100), nullable=True)
+    # 學生選擇不放進備審（2026-11-12）；簡章規定必備的類別仍會放，見 services/package_exclusion.py
+    excluded_from_package = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
     confirmation_status = db.Column(db.String(30), nullable=False, default="confirmed", index=True)
     created_at = db.Column(db.DateTime, nullable=False, default=_utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)

@@ -52,7 +52,7 @@ from app.services.journey_service import CATEGORY_LABELS, EXPERIENCE_CATEGORIES,
 from app.services.package_service import build_package_docx, latest_review
 from app.services.file_preview import inline_file
 from app.services.record_status import learning_profile_state, portfolio_state
-from app.services import ai_quota_service, audit_service, autobiography_backup, autobiography_review, autobiography_service, ocr_queue, review_snapshot_service, storage_service, student_rules
+from app.services import ai_quota_service, audit_service, autobiography_backup, autobiography_review, autobiography_service, ocr_queue, package_exclusion, review_snapshot_service, storage_service, student_rules
 from app.services.gemini_client import AIUnavailable, ai_ready
 from app.services.course_review_presentation import (
     build_course_review_groups,
@@ -1414,6 +1414,78 @@ def target_package(program_id):
     )
 
 
+# ---------- 學生選擇不放進備審的資料（導師 2026-11-12） ----------
+
+EXCLUSION_KINDS = {"course": ("成績", LearningCourseRecord), "credential": ("證照", CredentialRecord),
+                   "portfolio": ("經歷", Portfolio)}
+
+
+def _exclusion_keys(kind, record):
+    return {"course": ("grades",), "credential": ("credential",)}.get(kind) or package_exclusion.portfolio_keys(record)
+
+
+def _exclusion_groups(user, targets):
+    """已確認的成績、證照、經歷，各附上能不能排除（簡章規定必備的不能）。"""
+    courses = (LearningCourseRecord.query.filter_by(student_id=user.id, confirmation_status="confirmed")
+               .order_by(LearningCourseRecord.school_year, LearningCourseRecord.id).all())
+    credentials = (CredentialRecord.query.filter_by(student_id=user.id, confirmation_status="confirmed")
+                   .order_by(CredentialRecord.id).all())
+    records = (Portfolio.active().filter_by(student_id=user.id, status="confirmed").order_by(Portfolio.id).all())
+
+    def row(kind, record, name, detail):
+        return {"id": record.id, "name": name, "detail": detail, "excluded": record.excluded_from_package,
+                "lock": package_exclusion.lock_state(targets, _exclusion_keys(kind, record))}
+
+    return [
+        {"kind": "course", "label": "成績", "rows": [
+            row("course", c, c.course_name,
+                f"{c.score} 分" if c.score is not None else (c.status_mark or "")) for c in courses]},
+        {"kind": "credential", "label": "證照", "rows": [
+            row("credential", c, autobiography_service.credential_label(c), "") for c in credentials]},
+        {"kind": "portfolio", "label": "經歷", "rows": [
+            row("portfolio", r, r.title, CATEGORY_LABELS.get(r.category, "")) for r in records]},
+    ]
+
+
+@student_bp.get("/student/package-exclusions")
+@student_bp.post("/student/package-exclusions")
+@role_required("student")
+def package_exclusions():
+    user = get_current_user()
+    targets = [t.program for t in StudentTarget.query.filter_by(student_id=user.id).order_by(StudentTarget.selected_at)]
+    program_id = request.values.get("program_id", type=int)
+    back_program = next((p for p in targets if p.id == program_id), None)
+    error = None
+    if request.method == "POST":
+        kind = request.form.get("kind", "")
+        if kind not in EXCLUSION_KINDS:
+            abort(400)
+        label, model = EXCLUSION_KINDS[kind]
+        record = db.session.get(model, request.form.get("record_id", type=int) or 0)
+        if not record or record.student_id != user.id or getattr(record, "deleted_at", None):
+            abort(404)
+        excluded = request.form.get("excluded") == "1"
+        lock = package_exclusion.lock_state(targets, _exclusion_keys(kind, record))
+        if excluded and lock["locked"]:
+            names = "、".join(f"{p.school_name} {p.department_name}" for p in lock["programs"])
+            error = f"這筆{label}不能排除：{names}{package_exclusion.REQUIRED_REASON}這類資料。"
+        else:
+            record.excluded_from_package = excluded
+            audit_service.record(user, "package_exclusion.set", model.__tablename__, record.id,
+                                 detail={"excluded": excluded}, commit=True)
+            return redirect(url_for("student.package_exclusions", saved=1,
+                                    program_id=back_program.id if back_program else None))
+    return render_template(
+        "student_package_exclusions.html",
+        user=user,
+        targets=targets,
+        back_program=back_program,
+        groups=_exclusion_groups(user, targets),
+        reason=package_exclusion.REQUIRED_REASON,
+        error=error,
+    ), (400 if error else 200)
+
+
 # ---------- AI 自傳小幫手：先回答幾題，AI 再依資料與校系加權寫草稿 ----------
 
 def _autobiography_program(user, program_id):
@@ -1446,13 +1518,14 @@ def _render_autobiography(user, program, targets, error=None, answers=None, stat
         targets=targets,
         draft=draft,
         asking=asking,
-        questions=autobiography_service.QUESTIONS,
+        questions=autobiography_service.guided_questions(program),
+        valued_label=autobiography_service.VALUED_LABEL,
         answers=answers or (draft.content_json.get("answers", {}) if draft else autobiography_service.carried_answers(user)),
         facts=autobiography_service.build_facts(user, program) if program else None,
         version=autobiography_service.version_of(draft) if draft else None,
         backup_label=autobiography_backup.status_label(draft) if draft else None,
         paragraph_reviews=paragraph_reviews,
-        strength_inventory=autobiography_service.strength_inventory(user),
+        strength_inventory=autobiography_service.strength_inventory(user, program),
         school_turns=ai_quota_service.remaining(user) if ai_ready() and not autobiography_service.ollama_ready() else None,
         ai_on=ai_ready() or autobiography_service.ollama_ready(),
         review_note=student_rules.review_open_note(user),
@@ -1479,7 +1552,12 @@ def autobiography_generate():
     reason = student_rules.autobiography_block_reason(user)
     if reason:
         return _blocked(user, reason)
-    answers = {key: request.form.get(key, "") for key, _, _ in autobiography_service.QUESTIONS}
+    answers = {question["key"]: request.form.get(question["key"], "")
+               for question in autobiography_service.guided_questions(program)}
+    # 學生要先用自己的話寫（比重高的項目一定要寫到），AI 只整理（導師 2026-11-12）
+    problem = autobiography_service.own_words_problem(program, answers)
+    if problem:
+        return _render_autobiography(user, program, targets, error=problem, answers=answers, status=400)
     # 學生自己的金鑰：只放在這個函式的變數裡用一次，不存資料庫、不放 session、不放網址
     own_key = "" if current_app.config.get("LOCAL_DEMO_MODE") else request.form.get("own_api_key", "").strip() or None
     used_own_key = bool(own_key)

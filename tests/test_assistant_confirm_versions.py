@@ -513,6 +513,8 @@ def test_review_snapshot_migration_upgrades_and_downgrades(tmp_path):
 # ---------- Task 4：自傳版本紀錄、導師直接改文字與段落意見 ----------
 
 ANSWERS = {"motivation": "想把需求變成系統。", "proud": "黑客松負責後端。", "challenge": "", "future": "想學資料分析。"}
+from tests.autobio_helpers import FOCUS_ANSWERS  # noqa: E402
+ANSWERS = {**ANSWERS, **FOCUS_ANSWERS}  # 比重高的項目也要學生自己寫（2026-11-12）
 
 
 def write_autobiography(app, client):
