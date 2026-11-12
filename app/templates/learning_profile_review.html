@@ -28,6 +28,12 @@
       <span class="small">點圖片放大</span>
     </button>
     {% elif document.preview_kind == "pdf" %}
+    {# PDF 也顯示第一頁預覽（辨識時產生的圖）；沒有預覽檔就只留開啟按鈕 #}
+    {% set preview_url = url_for('student.learning_profile_document_preview', document_id=document.id) %}
+    <button type="button" class="source-doc__image" data-lightbox="{{ preview_url }}" aria-label="放大 {{ document.display_name }} 第一頁">
+      <img src="{{ preview_url }}" alt="{{ document.display_name }} 第一頁" onerror="this.parentElement.hidden = true">
+      <span class="small">點圖片放大</span>
+    </button>
     <a class="button button--small button--line" href="{{ source_url }}" target="_blank" rel="noopener">在新分頁開啟 PDF</a>
     {% else %}
     <p class="muted small">這種檔案無法預覽，請改用 PDF、PNG 或 JPG。</p>
@@ -436,6 +442,8 @@
           <small class="note-source">{% if course.get('source_page') %}第 {{ course.source_page }} 頁{% if course.get('source_line') %}・第 {{ course.source_line }} 列{% endif %}{% if course.get('source_region') %}・區域 {{ course.source_region }}{% endif %}・{% endif %}{% if course.get('source_bbox') %}<a href="{{ url_for('student.learning_profile_course_source', document_id=document.id, course_index=index, revision=result.get('draft_revision')) }}" target="_blank" rel="noopener">查看原圖區域</a>{% else %}無定位資訊，請下載原始檔核對。{% endif %}</small>
           </div>
         </td>
+        {# 學生端 v2（11-11）：原圖這一列直接放在卡片最上面，一眼對照 OCR 讀到的字；放最後一格，CSS 用 order 排到最上面，不影響原本以 td:first-child 為科目的樣式與腳本 #}
+        {% if course.get('source_bbox') %}<td class="sv2-crop" aria-hidden="true"><img src="{{ url_for('student.learning_profile_course_source', document_id=document.id, course_index=index, revision=result.get('draft_revision')) }}" alt="" loading="lazy" decoding="async"></td>{% endif %}
       </tr>
       {% endfor %}
       </tbody>
@@ -549,6 +557,7 @@
   <div class="review-savebar">
     <button class="button" type="submit" formnovalidate>確認並儲存</button>
     {% if document.document_type == 'transcript' %}<span id="review-changed-count" class="review-savebar__count" aria-live="polite">還沒有修改</span>{% endif %}
+    {% if document.document_type == 'transcript' %}<button class="button button--line sv2-next" type="button" data-sv2-next hidden title="跳到下一筆要核對的課程">下一筆要核對 <b data-sv2-next-count></b></button>{% endif %}
   </div>
 </form>
   </div>
@@ -556,6 +565,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='js/student-v2-review.js') }}" defer></script>
 <script>
   // 手機寬度：原圖預設收合，避免佔掉整個畫面
   (() => {
