@@ -1,5 +1,30 @@
 # 開發日誌
 
+## 2026-11-12 預覽分支合併六個已完成分支
+
+日期：2026-11-12（台灣時間）
+
+開發者：Claude（分支 `preview/student-v2`，工作資料夾 `D:\democase\_worktreesi-wt-v2-preview`）
+
+目標：把已完成但還沒合進預覽的分支合起來，讓預覽站看得到全部功能。
+
+做了什麼：
+- 依序合併 `feat/student-v2-shell`、`feat/login-lockout`、`feat/email-notify`、`feat/bio-backup`、`feat/package-word`、`feat/release-docs`。
+- 每次合併只有本檔（開發日誌）衝突，兩邊內容都保留；沒有程式衝突。
+- 資料庫遷移合併後只有一個最新版本：`b20261112m01`。
+
+驗證結果：
+- 完整測試 1540 通過、2 略過（12 分 55 秒），命令：`D:\democasei\.venv\Scripts\python.exe -m pytest -q --basetemp=logs/test-runs/preview-merge-20261112b -p no:cacheprovider`。
+- 第一次跑出 692 個錯誤，原因是本工作資料夾沒有 `logs	est-runs` 資料夾，測試建不出暫存目錄；建好後重跑全部通過，不是程式問題。
+- 合併後還沒有在瀏覽器實際點過。
+
+沒有做的事：沒有推送、沒有合併進 `main` 或 `feat/google-docs-autobiography`。
+
+下一步：
+- `feat/staff-batch-forms`（`f4eec94`）也新增了遷移 `b20261112f01`，合進來會出現兩個最新版本，要先補一個合併遷移。
+- `feat/bio-optout-guide` 還沒提交，等它的完整測試。
+- 代辦總表：`D:\democasei\docs_交接與專案管理\代辦清單_2026-11-12.md`。
+
 ## 2026-11-11 學生端 v2：畢業門檻、缺件檢查兩頁換外觀
 
 日期：2026-11-11（台灣時間）
