@@ -21,12 +21,15 @@
         {% for option in program_options %}<option value="{{ option.id }}"{% if program_filter == option.id|string %} selected{% endif %}>{{ option.school_name }} {{ option.department_name }}（{{ channels[option.id] }}{% if option.admission_category and option.admission_category != channels[option.id] %} · {{ option.admission_category }}{% endif %}{% if entry_grades[option.id] %} · {{ entry_grades[option.id] }}{% endif %}）</option>{% endfor %}
       </select>
     </label>
+    <label>搜尋學校或科系
+      <input type="search" name="q" value="{{ search_query }}" maxlength="60" placeholder="例如：資訊管理、臺中、護理" data-target-search>
+    </label>
     <button class="button button--small" type="submit">顯示排行</button>
-    {% if major_filter != 'all' or program_filter %}<a class="button button--small button--quiet" href="{{ url_for('student.target_list', track=track) }}#target-programs">清除篩選</a>{% endif %}
+    {% if major_filter != 'all' or program_filter or search_query %}<a class="button button--small button--quiet" href="{{ url_for('student.target_list', track=track) }}#target-programs">清除篩選</a>{% endif %}
   </form>
 
   {% if programs %}
-  <p class="small muted mb-1">本科系與非本科系分開排列，各組依準備度由高到低排序；目前無法計算的校系列在各組最後。自傳、專題等尚無法自動核對的文件會先視為待準備。補上並確認資料後，重新開啟本頁即可看到更新的順序。</p>
+  <p class="small muted mb-1">全部校系依準備度由高到低排列，標有「本科」的是資訊管理相關科系；想只看本科或非本科，用上方「校系類別」篩選。目前無法計算的校系排在最後。自傳、專題等尚無法自動核對的文件會先視為待準備。補上並確認資料後，重新開啟本頁即可看到更新的順序。</p>
   <section class="target-ranking" id="target-programs" aria-labelledby="target-ranking-title" data-tour="展開校系列查看採計比例，再決定是否加入目標。" data-tour-order="2">
     <div class="target-ranking__head">
       <h2 id="target-ranking-title">準備度排行</h2>
@@ -42,7 +45,7 @@
       <li>
         <details class="target-program" id="target-program-{{ program.id }}"{% if program_filter == program.id|string %} open{% endif %}>
           <summary class="target-ranking__row target-program__summary">
-            <span class="target-ranking__name"><span class="target-ranking__number">{{ loop.index }}.</span> {{ program.school_name }} {{ program.department_name }} <span class="target-ranking__channel">{{ channels[program.id] }}{% if program.admission_category and program.admission_category != channels[program.id] %} · {{ program.admission_category }}{% endif %}{% if entry_grades[program.id] %} · {{ entry_grades[program.id] }}{% endif %}</span>{% if chosen %} <span class="tag tag--info">已選</span>{% endif %}</span>
+            <span class="target-ranking__name"><span class="target-ranking__number">{{ loop.index }}.</span> {{ program.school_name }} {{ program.department_name }} <span class="target-ranking__channel">{{ channels[program.id] }}{% if program.admission_category and program.admission_category != channels[program.id] %} · {{ program.admission_category }}{% endif %}{% if entry_grades[program.id] %} · {{ entry_grades[program.id] }}{% endif %}</span>{% if program.id in home_program_ids %} <span class="tag">本科</span>{% endif %}{% if chosen %} <span class="tag tag--info">已選</span>{% endif %}</span>
             <strong class="target-ranking__value">{{ gap.readiness ~ '%' if gap.readiness is not none else '無法計算' }}</strong>
             <span class="target-ranking__bar" role="img" aria-label="{{ program.school_name }} {{ program.department_name }} {{ channels[program.id] }}準備度 {{ gap.readiness ~ '%' if gap.readiness is not none else '無法計算' }}"><span style="width: {{ gap.readiness or 0 }}%"></span></span>
             <span class="target-program__hint">查看採計與操作 ↓</span>

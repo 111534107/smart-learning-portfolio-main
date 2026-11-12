@@ -1141,7 +1141,8 @@ def target_list():
         for p in programs
     }
     gaps = {p.id: analyze_gap(user, p, journey, evidence) for p in programs}
-    # 資管科學生先看本科系；兩組各依準備度排序。科別不明時不猜測本科系。
+    # 單一排行：全部校系依準備度由高到低；本科系只加標籤，不再分組排在前面（老師看第一名要能直接對上準備度）。
+    # 科別不明時不猜測本科系。
     class_name = user.student_profile.class_name if user.student_profile else ""
     major_known = any(name in (class_name or "") for name in ("資管科", "資訊管理科"))
 
@@ -1150,8 +1151,7 @@ def target_list():
         return major_known and department in {"資管系", "資訊管理系", "資訊管理學系"}
 
     def readiness_order(program):
-        return (not is_home_major(program) if major_known else False,
-                gaps[program.id]["readiness"] is None,
+        return (gaps[program.id]["readiness"] is None,
                 -(gaps[program.id]["readiness"] or 0),
                 program.school_name, program.department_name, program.id)
 
@@ -1168,16 +1168,15 @@ def target_list():
         programs = [p for p in programs if not is_home_major(p)]
     if program_filter:
         programs = [p for p in programs if str(p.id) == program_filter]
+    search_query = request.args.get("q", "").strip()[:60]
+    if search_query:
+        needle = "".join(search_query.split()).lower()
+        programs = [p for p in programs
+                    if needle in "".join(f"{p.school_name}{p.department_name}{channels[p.id]}{p.admission_category or ''}".split()).lower()]
 
     programs.sort(key=readiness_order)
-    if major_known:
-        program_groups = []
-        if major_filter in ("all", "home"):
-            program_groups.append({"label": "本科系（資訊管理）", "programs": [p for p in programs if is_home_major(p)]})
-        if major_filter in ("all", "other"):
-            program_groups.append({"label": "非本科系", "programs": [p for p in programs if not is_home_major(p)]})
-    else:
-        program_groups = [{"label": "全部校系（本科科別待確認）", "programs": programs}]
+    home_program_ids = {p.id for p in programs if is_home_major(p)}
+    program_groups = [{"label": "全部校系（依準備度由高到低）", "programs": programs}]
     school_links = load_school_links()
     return render_template(
         "student_targets.html",
@@ -1193,6 +1192,8 @@ def target_list():
         major_known=major_known,
         major_filter=major_filter,
         program_filter=program_filter,
+        search_query=search_query,
+        home_program_ids=home_program_ids,
         program_groups=program_groups,
         selected=selected,
         selected_programs=selected_programs,

@@ -109,7 +109,7 @@ def test_target_cards_sort_by_readiness_even_when_lower_one_is_selected(site):
 
     html = _login(site).get("/student/targets").get_data(as_text=True)
 
-    assert "各組依準備度由高到低排序" in html
+    assert "全部校系依準備度由高到低排列" in html
     chart = html[html.index('<section class="target-ranking"'):html.index("</section>", html.index('<section class="target-ranking"'))]
     assert chart.index("高準備大學") < chart.index("公開大學") < chart.index("低準備大學") < chart.index("文件大學")
     assert 'aria-label="高準備大學 資管系 二技技優甄審準備度 ' in chart
@@ -117,7 +117,7 @@ def test_target_cards_sort_by_readiness_even_when_lower_one_is_selected(site):
 
 
 
-def test_target_ranking_groups_home_major_before_other_major(site):
+def test_target_ranking_is_one_list_by_readiness_with_home_tag(site):
     with site.app_context():
         other = _program("900006", "外系高分大學", "published", [("證照證明", 100, "credential")])
         home = _program("900007", "本科低分大學", "published", [("競賽成果", 100, "competition")])
@@ -129,9 +129,11 @@ def test_target_ranking_groups_home_major_before_other_major(site):
     html = _login(site).get("/student/targets").get_data(as_text=True)
     chart = html[html.index('<section class="target-ranking"'):html.index("</section>", html.index('<section class="target-ranking"'))]
 
-    assert chart.index("本科系") < chart.index("本科低分大學") < chart.index("非本科系") < chart.index("外系高分大學")
-    assert html.index(f'id="target-program-{home_id}"') < html.index(f'id="target-program-{other_id}"')
+    # 不再分組：準備度高的外系排第一，本科系只加「本科」標籤
+    assert chart.index("外系高分大學") < chart.index("本科低分大學")
+    assert html.index(f'id="target-program-{other_id}"') < html.index(f'id="target-program-{home_id}"')
     assert 'aria-label="外系高分大學 資訊工程系' in chart
+    assert "本科</span>" in chart
 
 
 
@@ -416,3 +418,22 @@ def test_targets_separate_two_year_and_transfer_tracks(site):
     assert 'name="track" value="transfer"' in transfer_html
     filtered = client.get("/student/targets?track=transfer&major=home").get_data(as_text=True)
     assert "僅為測試插大" in filtered
+
+
+
+def test_target_search_filters_by_school_or_department(site):
+    with site.app_context():
+        other = _program("900010", "搜尋大學", "published", [("證照證明", 100, "credential")])
+        other.department_name = "護理系"
+        db.session.commit()
+
+    client = _login(site)
+    html = client.get("/student/targets?q=護理").get_data(as_text=True)
+    assert "搜尋大學 護理系" in html
+    assert "公開大學" not in html[html.index('id="target-programs"'):].split("</section>")[0]
+    assert 'value="護理"' in html
+
+    empty = client.get("/student/targets?q=不存在的科系").get_data(as_text=True)
+    ranking = empty[empty.index('id="target-programs"'):]
+    assert "搜尋大學" not in ranking.split("</section>")[0]
+    assert 'name="q"' in empty
