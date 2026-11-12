@@ -1,5 +1,26 @@
 # 開發日誌
 
+## 2026-11-12 預覽分支再合併自傳「不放資料」與科辦批量獎狀
+
+日期：2026-11-12（台灣時間）
+
+開發者：Claude（分支 `preview/student-v2`，工作資料夾 `D:\democase\_worktrees\ai-wt-v2-preview`）
+
+目標：把今天新做的兩個分支合進預覽，讓公開展示站看得到。
+
+做了什麼：
+- 合併 `feat/staff-batch-forms`（`f4eec94`）：只有本檔衝突，兩邊保留。
+- 合併 `feat/bio-optout-guide`（`1e71bea`）：本檔之外，`app/services/package_service.py` 也衝突（備審 Word 新版面和「不放進備審」改到同一段）。保留新版面，`_confirmed_courses`、`_confirmed_credentials`、`_confirmed_records` 多一個 `required` 參數，有給就用 `package_exclusion` 拿掉學生選擇不放的資料；`_chapter_body`、`_records_body`、`_credential_body`、`course_credential_rows` 都把它傳下去。
+- 新增合併遷移 `migrations/versions/b20261112z01_merge_preview_heads.py`：把 `b20261112m01`、`b20261112f01`、`b20261112x01` 三條線接成一條，不改資料表。
+
+驗證結果：
+- 完整測試 1607 通過、2 略過（12 分 24 秒），命令：`D:\democase\ai\.venv\Scripts\python.exe -m pytest -q --basetemp=logs/test-runs/preview-merge-20261112c -p no:cacheprovider`。
+- 遷移最新版本只有一個：`b20261112z01`。合併遷移沒有在 MySQL 實際跑過。
+
+沒有做的事：沒有推送、沒有合併進 `main` 或 `feat/google-docs-autobiography`。
+
+下一步：公開展示站重開後在瀏覽器檢查新頁面；「必備」與「很看重」的判斷規則待導師確認。
+
 ## 2026-11-12 預覽分支合併六個已完成分支
 
 日期：2026-11-12（台灣時間）
