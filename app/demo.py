@@ -149,7 +149,7 @@ def create_local_demo_app():
         ))
         portfolios = _seed_journey_board(users["student"].id, admission_year)
         _seed_staff_queue(users["student"], portfolios)
-        form_library_service.seed_demo_forms(users["staff"])  # 表單下載區：合成表單（非學校正式檔）
+        # 2026-11-13 不放合成表單：表單由科辦按「從學校網站更新表單」抓真的，沒有的請學生到科辦拿紙本
         db.session.add(ClassAdvisor(
             teacher_id=users["teacher"].id,
             class_name="資管科測試班",

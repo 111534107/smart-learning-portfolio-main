@@ -135,7 +135,7 @@ def seed():
     program = AdmissionProgram.query.filter_by(program_code="208003").one()
     db.session.add(StudentTarget(student_id=classmate.id, rule_version_id=program.id))
     _seed_senior(teacher, program)  # 專五學生：示範產生自傳與修改草稿頁的拖放（2026-11-13，B10）
-    form_library_service.seed_demo_forms(staff)  # 表單下載區：合成表單（非學校正式檔）
+    # 2026-11-13 不放合成表單：表單由科辦按「從學校網站更新表單」抓真的，沒有的請學生到科辦拿紙本
     db.session.flush()
     # 示範學生用假學號（113 學年入學＝專三），不綁學校信箱：真的學生用學校 Google 登入時會建立自己的帳號
     db.session.commit()

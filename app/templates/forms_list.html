@@ -57,8 +57,10 @@
   {% elif q %}
     <p class="notice notice--warn">找不到符合「{{ q }}」的表單，換個關鍵字試試。</p>
   {% else %}
-    <p class="notice notice--warn">目前沒有開放給你的表單。需要的表單找不到時，請洽科辦。</p>
+    <p class="notice notice--warn">目前沒有開放給你的表單。</p>
   {% endif %}
+  {# 2026-11-13 使用者決定：表單由系統從學校網站抓；學校網站上沒有的，請學生到科辦拿紙本 #}
+  <p class="notice mt-1" data-paper-forms>這裡的表單都是從學校與資管科網站整理來的。<b>找不到要用的表單，請到科辦拿紙本填寫。</b></p>
 </div>
 {% endblock %}
 

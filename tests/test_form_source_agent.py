@@ -189,3 +189,9 @@ def test_paragraph_rows_and_download_script_links():
     rules = agent.discover(agent.Source("im-rules", "資管科", "相關法規",
                                         "https://im.ukn.edu.tw/p/412-1028-1209.php?Lang=zh-tw", "items"), fetch)
     assert rules[0].best_file == ("pdf", "https://im.ukn.edu.tw/app/index.php?Action=downloadfile&file=abc&cg=1209")
+
+
+def test_student_forms_page_says_get_paper_copy_at_office(app):
+    """2026-11-13：學校網站沒有的表單，請學生到科辦拿紙本（展示資料不再放合成表單）。"""
+    page = login(app, "stu").get("/forms").get_data(as_text=True)
+    assert "請到科辦拿紙本填寫" in page

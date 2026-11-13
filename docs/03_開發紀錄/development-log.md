@@ -1,5 +1,15 @@
 # 開發日誌
 
+## 2026-11-13 拿掉合成表單、學生頁提示到科辦拿紙本；報告用 AI 站
+
+開發者：Claude（分支 `preview/student-v2`）
+
+使用者決定：示範資料不放假表單，學校網站上沒有的表單請學生到科辦拿紙本；報告時 AI 用 API 金鑰、不傳圖片；獎狀先不放科章；推到小組 repo。
+
+修改：`scripts/run_demo.py`、`app/demo.py` 不再建立合成表單（表單由科辦按「從學校網站更新表單」抓）；`forms_list.html` 加「找不到要用的表單，請到科辦拿紙本填寫」；`tests/test_form_source_agent.py` 新增 1 項。另在 `D:democase.claudeaunch.json` 新增 `report-ai-5094`：本機報告站，載入 `.env` 的 AI 金鑰，不經公開通道；成績單、證照圖片仍在本機 OCR，不送外部 AI。
+
+驗證結果：表單相關測試通過；固定驗收腳本 84 項全部通過；報告站問小助手「畢業門檻要幾張證照？」3 秒內由 AI 依科上規定回答。
+
 ## 2026-11-13 CSS、JS 網址加版本號
 
 開發者：Claude（分支 `preview/student-v2`）
