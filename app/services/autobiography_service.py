@@ -333,6 +333,8 @@ def generate_draft(student, program, answers, generate=None, api_key=None):
     content = {
         "program_id": program.id,
         "answers": answers,
+        # 重新產生草稿時，上一版學生（或導師）自己改過的段落不能被 AI 蓋掉不見：留在這裡，頁面上可拖回去用
+        "kept_paragraphs": _kept_paragraphs(previous),
         "paragraphs": paragraphs,
         "facts": facts["items"],
         "provider": provider,
@@ -355,6 +357,35 @@ def generate_draft(student, program, answers, generate=None, api_key=None):
     db.session.commit()
     autobiography_backup.schedule_after_save(current_app._get_current_object(), output)
     return output
+
+
+def _kept_paragraphs(previous):
+    """上一版若是人改過的，把有內容的段落留下（AI 重寫後學生自己打的字還在）；上一版是 AI 原稿就沿用它留下的。"""
+    if not previous:
+        return []
+    content = previous.content_json
+    if not content.get("edited"):
+        return content.get("kept_paragraphs", [])
+    return [{"title": p.get("title", ""), "text": p["text"]} for p in content.get("paragraphs", [])
+            if p.get("text", "").strip() and not p["text"].startswith("（請補上")]
+
+
+def own_words(content, questions):
+    """自傳頁「你自己寫的文字」：學生的回答原文＋上一版自己改過的段落。回傳 [{label, text}]，AI 不會動這些字。"""
+    answers = content.get("answers", {})
+    items = [{"label": q["text"], "text": answers[q["key"]]} for q in questions if answers.get(q["key"], "").strip()]
+    items += [{"label": f"上一版你改過的：{p['title']}", "text": p["text"]} for p in content.get("kept_paragraphs", [])]
+    return items
+
+
+def bio_pieces(student, program, draft=None):
+    """自傳頁可拖放的素材（B1）。facts：已確認資料，插入「內容（F 編號）」讓依據檢查對得到；own：學生自己寫的原文。
+    有草稿時用草稿存的資料（和段落引用的編號一致），沒有就用目前已確認的資料。"""
+    items = draft.content_json.get("facts", []) if draft else build_facts(student, program)["items"]
+    facts = [{"tag": f["id"], "text": f["text"], "insert": f"{f['text'].split('：', 1)[-1]}（{f['id']}）"} for f in items]
+    own = ([{"tag": "", "text": f"{w['label']}：{w['text']}", "insert": w["text"]}
+            for w in own_words(draft.content_json, guided_questions(program))] if draft else [])
+    return {"facts": facts, "own": own}
 
 
 def ollama_ready():

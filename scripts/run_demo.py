@@ -7,6 +7,7 @@
 展示帳號（皆為假資料）：
     學生  113534901 / demo1234（王小明，還沒選目標校系）
     學生  113534902 / demo1234（林小美，已送導師確認）
+    學生  113534903 / demo1234（張小華，專五，可以產生自傳）
     導師  teacher01 / demo1234（負責資管科三甲）
     科辦  staff01   / demo1234（林科助，核准電子獎狀）
     管理者 admin     / demo1234
@@ -49,6 +50,8 @@ DEMO_ACCOUNTS = [
      "name": "王小明", "note": "還沒選目標校系"},
     {"role": "student", "label": "學生", "username": "113534902", "password": DEMO_PASSWORD,
      "name": "林小美", "note": "已送導師確認"},
+    {"role": "student", "label": "學生", "username": "113534903", "password": DEMO_PASSWORD,
+     "name": "張小華", "note": "專五，可以產生自傳"},
     {"role": "teacher", "label": "導師", "username": "teacher01", "password": DEMO_PASSWORD,
      "name": "陳導師", "note": "負責資管科三甲"},
     {"role": "staff", "label": "科辦", "username": "staff01", "password": DEMO_PASSWORD,
@@ -127,11 +130,45 @@ def seed():
                                     body=certificate_service.default_body(service_record)))
     program = AdmissionProgram.query.filter_by(program_code="208003").one()
     db.session.add(StudentTarget(student_id=classmate.id, rule_version_id=program.id))
+    _seed_senior(teacher, program)  # 專五學生：示範產生自傳與修改草稿頁的拖放（2026-11-13，B10）
     form_library_service.seed_demo_forms(staff)  # 表單下載區：合成表單（非學校正式檔）
     db.session.flush()
     # 示範學生用假學號（113 學年入學＝專三），不綁學校信箱：真的學生用學校 Google 登入時會建立自己的帳號
     db.session.commit()
     review_snapshot_service.request_review(classmate, program)  # 送審時存快照
+
+
+def _seed_senior(teacher, program):
+    """專五學生（111 學年入學）：五年資料齊全、已選目標校系、還沒寫自傳。僅為測試資料。"""
+    senior = User(username="113534903", display_name="張小華", role="student")
+    senior.set_password(DEMO_PASSWORD)
+    db.session.add(senior)
+    db.session.flush()
+    db.session.add(StudentProfile(user_id=senior.id, student_no="113534903", class_name="資管科五甲", admission_year=111))
+    db.session.add(ClassAdvisor(teacher_id=teacher.id, class_name="資管科五甲", school_year=115))
+    courses = [
+        (1, "上", "計算機概論", 92), (1, "下", "程式設計", 90), (2, "上", "網頁設計", 88), (2, "下", "管理資訊系統", 85),
+        (3, "上", "資料庫管理實務(SQL)", 91), (3, "下", "系統分析與設計", 87), (4, "上", "資料結構", 84), (4, "下", "專題製作", 95),
+    ]
+    for year, semester, name, score in courses:
+        db.session.add(LearningCourseRecord(student_id=senior.id, school_year=year, semester=semester, course_name=name,
+                                            normalized_course_name="".join(name.split()), credits=3, score=score,
+                                            confirmation_status="confirmed"))
+    for name, level, day in (("電腦軟體應用丙級", "丙級", date(2023, 5, 20)), ("網頁設計乙級", "乙級", date(2024, 11, 2)),
+                             ("資料庫應用乙級", "乙級", date(2025, 6, 15))):
+        db.session.add(CredentialRecord(student_id=senior.id, credential_name=name, level=level, issuing_organization="勞動部",
+                                        issue_date=day, confirmation_status="confirmed"))
+    records = [
+        ("competition", 3, 2, "全國技藝競賽 網頁設計職類 第三名", "獨立完成購物網站前後端。"),
+        ("competition", 4, 1, "校園黑客松 最佳技術獎", "三人一組，負責後端 API 與資料庫設計。"),
+        ("activity", 2, 1, "資管科資訊週", "擔任工作人員，協助程式體驗攤位。"),
+        ("leadership", 3, 1, "資管科學會 活動長", "規劃迎新與資訊週活動。"),
+        ("service", 4, 2, "社區長者手機教學志工", "教長者使用通訊軟體與防詐騙。"),
+    ]
+    for category, year, semester, title, description in records:
+        db.session.add(Portfolio(student_id=senior.id, category=category, school_year=year, semester=semester,
+                                 title=title, description=description, status="confirmed"))
+    db.session.add(StudentTarget(student_id=senior.id, rule_version_id=program.id))
 
 
 def main():
@@ -159,7 +196,7 @@ def main():
         db.create_all()
         seed()
     print(f"展示網站：http://127.0.0.1:{port}")
-    print(f"帳號（密碼都是 {DEMO_PASSWORD}）：學生 113534901、113534902｜導師 teacher01｜科辦 staff01｜管理者 admin")
+    print(f"帳號（密碼都是 {DEMO_PASSWORD}）：學生 113534901、113534902、113534903｜導師 teacher01｜科辦 staff01｜管理者 admin")
     app.run(port=port, debug=False)
 
 

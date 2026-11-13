@@ -164,6 +164,8 @@ if pid:
     rr = s.get(BASE + f"/student/autobiography?program_id={pid}")
     t = text_of(rr.text)
     rec("自傳頁有引導（選了目標）", rr.ok and "先選一個目標校系" not in t, title(rr.text))
+    rec("自傳頁資料可拖進文字框（B1）", "data-bio-pieces" in rr.text and 'draggable="true"' in rr.text
+        and "js/bio-pieces.js" in rr.text, f"{rr.text.count('data-bio-piece=')} 個片段")
     print("  自傳頁摘要：", t[:600])
 
     gap = s.get(BASE + f"/student/targets/{pid}")

@@ -1550,6 +1550,7 @@ def _render_autobiography(user, program, targets, error=None, answers=None, stat
         version=autobiography_service.version_of(draft) if draft else None,
         backup_label=autobiography_backup.status_label(draft) if draft else None,
         paragraph_reviews=paragraph_reviews,
+        pieces=autobiography_service.bio_pieces(user, program, draft) if program else {"facts": [], "own": []},
         strength_inventory=autobiography_service.strength_inventory(user, program),
         school_turns=ai_quota_service.remaining(user) if ai_ready() and not autobiography_service.ollama_ready() else None,
         ai_on=ai_ready() or autobiography_service.ollama_ready(),

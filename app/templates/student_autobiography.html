@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% from "partials/nav.html" import masthead, footer, page_band with context %}
 {% set page_name = "student-autobiography" %}
+{% from "partials/bio_pieces.html" import bio_pieces %}
 
 {% block title %}小助手寫自傳｜資管科智慧學習歷程系統{% endblock %}
 
@@ -74,17 +75,17 @@
       </div>
     </form>
 
+    <div class="facts-column">
     <aside class="sheet facts">
       <h2 class="h3">AI 只會用這些資料</h2>
       <p class="small muted mb-1">{{ program.department_name }}看重的項目（加權高的會寫得比較多）：</p>
       <ul class="facts__weights mb-1">
         {% for w in facts.weights %}<li><b>{{ w.weight }}%</b> {{ w.name }}</li>{% endfor %}
       </ul>
-      <p class="small muted">你已確認的資料（{{ facts["items"]|length }} 筆）：</p>
-      <ul class="facts__list">
-        {% for fact in facts["items"] %}<li><span class="mono">{{ fact.id }}</span>{{ fact.text }}{% if fact.evidence_id %}<small class="muted">（證據 {{ fact.evidence_id }}）</small>{% endif %}</li>{% else %}<li class="muted">還沒有資料，建議先到「成績與證照」「活動與經歷」補上。</li>{% endfor %}
-      </ul>
+      {% if not facts["items"] %}<p class="muted">還沒有已確認的資料，建議先到「成績與證照」「活動與經歷」補上。</p>{% endif %}
     </aside>
+    {% if facts["items"] %}{{ bio_pieces([("你已確認的資料（" ~ facts["items"]|length ~ " 筆）", "", pieces.facts)]) }}{% endif %}
+    </div>
   </div>
 
   {% else %}
@@ -136,6 +137,7 @@
     </div>
   </section>
 
+  <div class="draft-layout">
   <form method="post" action="{{ url_for('student.autobiography_save', output_id=draft.id) }}" class="draft">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="list-head">
@@ -182,9 +184,16 @@
     {% endfor %}
     <div><button class="button" type="submit">儲存</button></div>
   </form>
+  {{ bio_pieces([
+       ("你自己寫的文字", "AI 不會改這些字。覺得草稿寫得不像你，就把原文放回去。", pieces.own),
+       ("已確認的資料", "", pieces.facts),
+     ], title="素材：拖進段落裡") }}
+  </div>
   {% endif %}
   {% endif %}
 </div>
 {% endblock %}
 
 {% block footer %}{{ footer() }}{% endblock %}
+
+{% block scripts %}{% if program %}<script src="{{ url_for('static', filename='js/bio-pieces.js') }}" defer></script>{% endif %}{% endblock %}

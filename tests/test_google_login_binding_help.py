@@ -37,6 +37,6 @@ def test_demo_site_students_use_fake_numbers_without_school_email(tmp_path):
         db.create_all()
         run_demo.seed()
         students = User.query.filter_by(role="student").all()
-        assert {s.username for s in students} == {"113534901", "113534902"}
+        assert {s.username for s in students} == {"113534901", "113534902", "113534903"}
         assert all(s.email is None for s in students)  # 真的學生用 Google 登入會建自己的帳號
-        assert {a["username"] for a in run_demo.DEMO_ACCOUNTS if a["role"] == "student"} == {"113534901", "113534902"}
+        assert {a["username"] for a in run_demo.DEMO_ACCOUNTS if a["role"] == "student"} == {"113534901", "113534902", "113534903"}

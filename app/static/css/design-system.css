@@ -1784,3 +1784,28 @@ body[data-page="student-welcome"] .assistant { display: none; }
 }
 .password-field__toggle:hover, .password-field__toggle:focus-visible { color: var(--ink); outline: 2px solid currentColor; outline-offset: 1px; }
 .password-field__toggle[aria-pressed="true"] .password-field__slash { display: none; }
+
+/* 自傳素材拖放（2026-11-13，B1／B2）：片段可拖進文字框，來源不會消失 */
+[data-page="student-autobiography"] .facts-column { display: grid; gap: 1rem; align-content: start; min-width: 0; }
+[data-page="student-autobiography"] .draft-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem); gap: 1rem; align-items: start; }
+[data-page="student-autobiography"] .draft-layout .bio-pieces { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; }
+[data-page="student-autobiography"] .bio-pieces__heading { margin: 1rem 0 .3rem; font-size: var(--fs-sm); letter-spacing: .06em; }
+[data-page="student-autobiography"] .bio-pieces__list { list-style: none; margin: 0; padding: 0; display: grid; gap: .45rem; }
+[data-page="student-autobiography"] .bio-piece { display: flex; gap: .5rem; align-items: flex-start; padding: .55rem .65rem; border: 1px solid var(--line); border-left: 4px solid #3b6e8f; background: color-mix(in srgb, currentColor 5%, transparent); color: inherit; cursor: grab; font-size: var(--fs-sm); line-height: 1.45; transition: transform .15s ease, box-shadow .15s ease; }
+[data-page="student-autobiography"] .bio-piece:hover { transform: translateX(-3px); box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+[data-page="student-autobiography"] .bio-piece:active { cursor: grabbing; }
+[data-page="student-autobiography"] .bio-piece__text { flex: 1; min-width: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+[data-page="student-autobiography"] .bio-piece__tag { margin-right: .25rem; color: inherit; opacity: .75; }
+[data-page="student-autobiography"] .bio-piece__put { flex: none; padding: .2rem .55rem; font-size: var(--fs-sm); }
+[data-page="student-autobiography"] .bio-pieces__status:empty { display: none; }
+[data-page="student-autobiography"] .bio-pieces__status { color: inherit; font-weight: 700; }
+.bio-dragging [data-page="student-autobiography"] form textarea,
+.bio-dragging body[data-page="student-autobiography"] form textarea { outline: 2px dashed #3b6e8f; outline-offset: 2px; }
+[data-page="student-autobiography"] textarea.bio-target--over { outline: 3px solid #3b6e8f; background: color-mix(in srgb, #3b6e8f 12%, transparent); }
+[data-page="student-autobiography"] textarea.bio-target--flash { animation: bio-flash .7s ease; }
+@keyframes bio-flash { from { box-shadow: 0 0 0 4px #4f9a5d; } to { box-shadow: 0 0 0 0 transparent; } }
+@media (prefers-reduced-motion: reduce) { [data-page="student-autobiography"] textarea.bio-target--flash { animation: none; } [data-page="student-autobiography"] .bio-piece { transition: none; } }
+@media (max-width: 900px) {
+  [data-page="student-autobiography"] .draft-layout { grid-template-columns: minmax(0, 1fr); }
+  [data-page="student-autobiography"] .draft-layout .bio-pieces { position: static; max-height: none; order: -1; }
+}

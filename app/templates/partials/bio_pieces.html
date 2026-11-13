@@ -1,0 +1,22 @@
+{# 自傳素材：可以拖進自傳的資料片段（B1）。拖過去是「複製」，這裡的片段不會消失，可以重複用。
+   沒有滑鼠（手機、鍵盤）時按「放進去」，會插在最後點過的那個輸入框的游標位置。
+   groups：[(標題, 說明, [{"tag", "text", "insert"}])] #}
+{% macro bio_pieces(groups, title="可以拖進自傳的資料") %}
+<aside class="sheet bio-pieces" data-bio-pieces aria-labelledby="bio-pieces-title">
+  <h2 class="h3" id="bio-pieces-title">{{ title }}</h2>
+  <p class="small muted mb-1">按住拖到左邊的文字框，或先點文字框再按「放進去」。拖過去只是複製，這裡的資料不會消失，可以重複用。</p>
+  <p class="small bio-pieces__status" role="status" data-bio-status></p>
+  {% for heading, note, items in groups %}{% if items %}
+  <h3 class="bio-pieces__heading">{{ heading }}</h3>
+  {% if note %}<p class="small muted">{{ note }}</p>{% endif %}
+  <ul class="bio-pieces__list">
+    {% for item in items %}
+    <li class="bio-piece" draggable="true" data-bio-piece="{{ item.insert }}">
+      <span class="bio-piece__text">{% if item.tag %}<b class="bio-piece__tag">{{ item.tag }}</b> {% endif %}{{ item.text }}</span>
+      <button class="button button--line bio-piece__put" type="button" data-bio-put>放進去</button>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}{% endfor %}
+</aside>
+{% endmacro %}

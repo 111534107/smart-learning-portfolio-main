@@ -523,3 +523,52 @@ def test_contents_evidence_is_nested_under_its_chapter(app):
     tree = Outline(); tree.feed(page)
     assert tree.chapters == 10
     assert tree.evidence_nested
+
+
+# ---------- B1／B2（2026-11-13）：素材拖放、保留學生自己打的字 ----------
+
+def _rewrite(prompt, schema):
+    return {"paragraphs": [{"title": "動機", "text": "AI 重寫的新版本。", "sources": []}]}
+
+
+def test_regenerating_keeps_paragraphs_the_student_edited(app):
+    from app.services.autobiography_service import own_words, guided_questions, save_edits
+
+    with app.app_context():
+        student = User.query.filter_by(username="stu").one()
+        prog = AdmissionProgram.query.filter_by(program_code="208003").one()
+        first = generate_draft(student, prog, ANSWERS, generate=_rewrite)
+        save_edits(first, ["這是我自己改的一句話。"], student)
+        second = generate_draft(student, prog, ANSWERS, generate=_rewrite)
+
+        assert second.content_json["paragraphs"][0]["text"] == "AI 重寫的新版本。"
+        assert second.content_json["kept_paragraphs"] == [{"title": "動機", "text": "這是我自己改的一句話。"}]
+        # 再重寫一次（上一版沒人改）也不會弄丟
+        third = generate_draft(student, prog, ANSWERS, generate=_rewrite)
+        assert third.content_json["kept_paragraphs"] == second.content_json["kept_paragraphs"]
+        texts = [item["text"] for item in own_words(third.content_json, guided_questions(prog))]
+        assert "這是我自己改的一句話。" in texts
+        assert ANSWERS["motivation"] in texts
+
+
+def test_draft_page_offers_own_words_and_facts_as_draggable_pieces(app):
+    client = login(app)
+    choose_target(app, client)
+    client.post("/student/autobiography/generate", data={"program_id": program(app), **ANSWERS})
+
+    html = client.get(f"/student/autobiography?program_id={program(app)}").get_data(as_text=True)
+
+    assert "data-bio-pieces" in html and "js/bio-pieces.js" in html
+    assert "你自己寫的文字" in html
+    assert f'data-bio-piece="{ANSWERS["motivation"]}"' in html
+    assert 'draggable="true"' in html and "（F1）" in html
+
+
+def test_question_page_offers_facts_as_draggable_pieces(app):
+    client = login(app)
+    choose_target(app, client)
+
+    html = client.get("/student/autobiography").get_data(as_text=True)
+
+    assert "data-bio-pieces" in html
+    assert "校園黑客松" in html and "（F" in html
