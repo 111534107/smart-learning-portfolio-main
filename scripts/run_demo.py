@@ -107,6 +107,8 @@ def seed():
     import_seed_programs(PROJECT_ROOT / "app" / "content" / "admission_demo_dayapply_115.csv")
     # 插大（轉學考）：北中南資訊相關科系的示範資料（官方簡章，見 CSV 的出處欄）
     import_transfer_programs()
+    from app.services import school_directory
+    school_directory.import_defaults()  # 學校名錄：地區、座標、官網、招生網站（目標校系的地圖用）
     db.session.add(ClassAdvisor(teacher_id=teacher.id, class_name="資管科三甲", school_year=115))
     classmate = User(username="113534902", display_name="林小美", role="student")
     classmate.set_password(DEMO_PASSWORD)

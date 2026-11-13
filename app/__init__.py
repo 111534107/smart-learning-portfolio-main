@@ -76,6 +76,8 @@ def create_app(config_overrides=None):
     app.register_blueprint(agent_plan_bp)
     app.register_blueprint(graduation_bp)
     app.register_blueprint(forms_bp)
+    from app.routes.admin_schools import admin_schools_bp
+    app.register_blueprint(admin_schools_bp)
     from app.routes.two_factor import two_factor_bp
     app.register_blueprint(two_factor_bp)
     from app.routes.account_password import account_password_bp

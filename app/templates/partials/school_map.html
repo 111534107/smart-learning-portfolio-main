@@ -1,0 +1,87 @@
+{# 依地區找學校（2026-11-13 導師：選校系要分北中南）：左邊台灣地圖、右邊地區按鈕與學校選單；選了學校出現學校卡片。
+   全部用一般連結做，不靠 JavaScript；地圖資料 g0v/twgeojson（CC0），學校位置來自管理員維護的學校名錄。 #}
+{% if map_points %}
+{% set base_args = {"track": track, "major": major_filter} %}
+<section class="school-map" aria-labelledby="school-map-title">
+  <div class="school-map__figure">
+    <svg class="school-map__svg" viewBox="0 0 {{ map_size[0] }} {{ map_size[1] }}" role="img" aria-labelledby="school-map-svg-title">
+      <title id="school-map-svg-title">台灣地圖：點地區看那一區的學校，點圓點看學校資料</title>
+      <g class="school-map__counties{% if region_filter %} has-filter{% endif %}" data-active-region="{{ region_filter }}">
+        {% include "partials/taiwan_map_paths.html" %}
+      </g>
+      {% for point in map_points %}
+      <a href="{{ url_for('student.target_list', school=point.school.name, region=point.region, **base_args) }}#school-card"
+         class="school-map__pin{% if point.school.name == school_filter %} is-on{% endif %}{% if region_filter and point.region != region_filter %} is-dim{% endif %}"
+         aria-label="{{ point.school.name }}（{{ point.region }}，{{ point.programs|length }} 個校系）">
+        <circle class="school-map__pulse" cx="{{ point.x }}" cy="{{ point.y }}" r="9"></circle>
+        <circle class="school-map__dot" cx="{{ point.x }}" cy="{{ point.y }}" r="6"></circle>
+        <title>{{ point.school.name }}：{{ point.programs|length }} 個校系</title>
+      </a>
+      {% endfor %}
+    </svg>
+    <p class="small muted">地圖標示學校本部，實際上課校區以簡章為準；金門、連江目前沒有收錄校系，地圖上不畫。</p>
+  </div>
+
+  <div class="school-map__side">
+    <h2 id="school-map-title">依地區找學校</h2>
+    <p class="small muted">點地圖上的圓點，或用下面的按鈕選地區、選學校。</p>
+    <div class="school-map__regions" role="group" aria-label="地區">
+      <a class="button button--small {{ 'button--line' if region_filter else '' }}" href="{{ url_for('student.target_list', **base_args) }}#target-explorer-title" aria-pressed="{{ 'false' if region_filter else 'true' }}">全部地區</a>
+      {% for region in regions %}
+      <a class="button button--small {{ '' if region_filter == region else 'button--line' }}" data-region-button="{{ region }}"
+         href="{{ url_for('student.target_list', region=region, **base_args) }}#target-explorer-title" aria-pressed="{{ 'true' if region_filter == region else 'false' }}">{{ region }}（{{ region_counts[region] }} 所）</a>
+      {% endfor %}
+    </div>
+    <form method="get" action="{{ url_for('student.target_list') }}" class="school-map__pick">
+      <input type="hidden" name="track" value="{{ track }}"><input type="hidden" name="major" value="{{ major_filter }}">
+      {% if region_filter %}<input type="hidden" name="region" value="{{ region_filter }}">{% endif %}
+      <label>學校
+        <select name="school">
+          <option value="">{{ region_filter or "全部地區" }}的所有學校</option>
+          {% for point in map_points if not region_filter or point.region == region_filter %}
+          <option value="{{ point.school.name }}"{% if point.school.name == school_filter %} selected{% endif %}>{{ point.school.name }}（{{ point.school.city }}，{{ point.programs|length }} 個校系）</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button class="button button--small" type="submit">看這所學校</button>
+    </form>
+
+    {% if school_card %}
+    {% set school = school_card.school %}
+    <article class="school-card" id="school-card" aria-labelledby="school-card-title">
+      <h3 id="school-card-title">{% if school.website_url %}<a href="{{ school.website_url }}" target="_blank" rel="noopener">{{ school.name }}</a>{% else %}{{ school.name }}{% endif %}</h3>
+      <p class="small muted">{{ school.region }} · {{ school.city }}{% if school.checked_on %} · 資料確認於 {{ school.checked_on }}{% endif %}</p>
+      <ul class="school-card__links">
+        {% if school.website_url %}<li><a href="{{ school.website_url }}" target="_blank" rel="noopener">學校官網 ↗</a></li>{% endif %}
+        {% if school.admission_url %}<li><a href="{{ school.admission_url }}" target="_blank" rel="noopener">招生網站 ↗</a></li>{% endif %}
+        <li><a href="{{ url_for('student.schedule') }}">招生時程 →</a></li>
+        <li><a href="{{ school_card.maps_url }}" target="_blank" rel="noopener">在 Google 地圖開啟 ↗</a></li>
+      </ul>
+      <h4>這所學校的校系（{{ school_card.programs|length }}）</h4>
+      <ul class="school-card__programs">
+        {% for program in school_card.programs %}
+        <li>
+          {% set dept = school_links[program.id]|selectattr("label", "equalto", "科系介紹")|list %}
+          {% if dept %}<a href="{{ dept[0].url }}" target="_blank" rel="noopener">{{ program.department_name }} ↗</a>{% else %}{{ program.department_name }}{% endif %}
+          <span class="muted small">{{ channels[program.id] }}</span>
+          <a class="small" href="{{ url_for('student.target_list', program_id=program.id, track=track) }}#target-program-{{ program.id }}">看準備度</a>
+        </li>
+        {% endfor %}
+      </ul>
+      <p class="small muted">科系名稱有 ↗ 的可以直接開科系網站；沒有的請從學校官網找科系。</p>
+    </article>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+{% if map_points %}
+<script>
+/* 點地圖上的縣市＝按那一區的地區按鈕（沒有 JavaScript 時用右邊按鈕一樣能選） */
+document.querySelectorAll(".school-map .tw-county").forEach(function (county) {
+  county.addEventListener("click", function () {
+    var button = document.querySelector('[data-region-button="' + county.getAttribute("data-region") + '"]');
+    if (button) { window.location.href = button.href; }
+  });
+});
+</script>
+{% endif %}

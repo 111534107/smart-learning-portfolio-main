@@ -110,6 +110,12 @@ for major in ("all", "home", "other"):
     rec(f"目標校系切換 major={major}", rr.ok and "Traceback" not in rr.text, f"{rr.status_code}")
 tabs = re.findall(r'href="[^"]*major=(all|home|other)[^"]*"', r.text)
 rec("目標校系頁有三段切換連結", {"all", "home", "other"} <= set(tabs) or 'name="major"' in r.text, f"found={sorted(set(tabs))}")
+# 依地區找學校（B13–B16）：地圖、地區按鈕、學校卡片至少三個網站
+rr = s.get(BASE + "/student/targets?region=中部")
+rec("目標校系有台灣地圖與地區按鈕", rr.ok and rr.text.count('class="tw-county"') >= 19 and "中部（" in rr.text)
+rr = s.get(BASE + "/student/targets?school=國立臺中科技大學&region=中部")
+rec("學校卡片有官網、招生網站、科系介紹與 Google 地圖",
+    all(x in rr.text for x in ("https://www.nutc.edu.tw/", "https://admission.nutc.edu.tw/", "https://im.nutc.edu.tw/", "在 Google 地圖開啟")))
 rr = s.get(BASE + "/student/targets?q=資訊管理&major=home")
 rec("搜尋＋切換同時使用", rr.ok and "資訊管理" in text_of(rr.text), str(rr.status_code))
 
@@ -327,7 +333,7 @@ for sid in students[:3]:
 # ---------- 管理員 ----------
 ad, r = login("/admin/login", "admin")
 rec("管理員登入（不需雙重驗證）", "/admin/dashboard" in r.url, r.url)
-for p in ["/admin/dashboard", "/admin/accounts", "/admin/programs", "/admin/ocr", "/admin/ai", "/admin/audit-logs", "/admin/classes",
+for p in ["/admin/schools", "/admin/dashboard", "/admin/accounts", "/admin/programs", "/admin/ocr", "/admin/ai", "/admin/audit-logs", "/admin/classes",
           "/admin/curriculum", "/admin/course-rules", "/admin/match-filters", "/admin/project-types", "/admin/google-workspace",
           "/admin/storage", "/admin/agent"]:
     rr = ad.get(BASE + p)

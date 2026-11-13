@@ -161,6 +161,8 @@ def create_local_demo_app():
         import_seed_programs(content / "admission_demo_national_116.csv")
         import_seed_programs(content / "admission_demo_dayapply_115.csv")
         import_transfer_programs()
+        from app.services import school_directory
+        school_directory.import_defaults()  # 學校名錄：地區、座標、官網、招生網站
         db.session.flush()
         # 自傳要針對目標校系寫：示範學生先選一個資管相關校系，展示時才能直接生成自傳
         programs = published_programs()

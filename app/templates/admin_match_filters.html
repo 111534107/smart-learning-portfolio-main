@@ -23,7 +23,7 @@
     </form>
     <p class="muted small">「是否可報」的值只能填：{% for code, name in eligible_values.items() %}<span class="mono">{{ code }}</span>（{{ name }}）{{ "、" if not loop.last }}{% endfor %}。</p>
     <p class="muted small">「學制」的值要與簡章的招生類別完全相同，目前校系有：{% if level_values %}{% for v in level_values %}<span class="mono">{{ v }}</span>{{ "、" if not loop.last }}{% endfor %}{% else %}（尚無）{% endif %}。</p>
-    <p class="muted small">「地區」學生端尚未提供篩選，新增後暫時不會顯示。</p>
+    <p class="muted small">學校的地區（北中南東）改在「學校資料」頁維護，學生端目標校系的地圖與地區按鈕會用到。</p>
   </section>
   <section class="work-panel">
     <div class="table-wrap">

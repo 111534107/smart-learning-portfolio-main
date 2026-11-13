@@ -269,3 +269,43 @@
   [data-ui="student-v2"] *::before,
   [data-ui="student-v2"] *::after { animation: none !important; transition: none !important; }
 }
+
+/* 依地區找學校：台灣地圖＋地區按鈕＋學校卡片（2026-11-13）。動畫只在使用者沒有要求減少動態時播放。 */
+.school-map { display: grid; grid-template-columns: minmax(220px, 340px) minmax(0, 1fr); gap: 1.25rem; align-items: start; margin: 0 0 1.25rem; padding: 1rem; border: 1px solid var(--line); border-radius: 24px; background: var(--card); }
+.school-map__svg { display: block; width: 100%; height: auto; max-height: 520px; }
+.school-map .tw-county { fill: var(--stripe); stroke: var(--card); stroke-width: 1.2; cursor: pointer; transition: fill .25s ease, opacity .25s ease; }
+.school-map .tw-county[data-region="北部"] { fill: color-mix(in srgb, var(--accent) 22%, var(--stripe)); }
+.school-map .tw-county[data-region="中部"] { fill: color-mix(in srgb, var(--accent) 34%, var(--stripe)); }
+.school-map .tw-county[data-region="南部"] { fill: color-mix(in srgb, var(--accent) 16%, var(--stripe)); }
+.school-map .tw-county[data-region="東部"] { fill: color-mix(in srgb, var(--accent) 8%, var(--stripe)); }
+.school-map .tw-county:hover { fill: color-mix(in srgb, var(--accent) 55%, var(--stripe)); }
+.school-map__counties.has-filter .tw-county { opacity: .35; }
+.school-map__counties[data-active-region="北部"] .tw-county[data-region="北部"],
+.school-map__counties[data-active-region="中部"] .tw-county[data-region="中部"],
+.school-map__counties[data-active-region="南部"] .tw-county[data-region="南部"],
+.school-map__counties[data-active-region="東部"] .tw-county[data-region="東部"] { opacity: 1; fill: color-mix(in srgb, var(--accent) 45%, var(--stripe)); }
+.school-map__dot { fill: var(--warn); stroke: var(--card); stroke-width: 2; transition: r .2s ease; }
+.school-map__pulse { fill: var(--warn); opacity: 0; }
+.school-map__pin:hover .school-map__dot, .school-map__pin:focus .school-map__dot, .school-map__pin.is-on .school-map__dot { r: 8; fill: var(--accent); }
+.school-map__pin.is-dim { opacity: .3; }
+.school-map__pin:focus { outline: none; }
+.school-map__pin:focus-visible .school-map__dot { stroke: var(--ink); stroke-width: 3; }
+@media (prefers-reduced-motion: no-preference) {
+  .school-map__pin.is-on .school-map__pulse { animation: school-pulse 1.6s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+  .school-map__svg .tw-county { animation: school-fade .5s ease both; }
+}
+@keyframes school-pulse { from { opacity: .45; transform: scale(.6); } to { opacity: 0; transform: scale(2.2); } }
+@keyframes school-fade { from { opacity: 0; } }
+.school-map__side h2 { margin: 0 0 .25rem; }
+.school-map__regions { display: flex; flex-wrap: wrap; gap: .4rem; margin: .75rem 0; }
+.school-map__pick { display: flex; flex-wrap: wrap; gap: .5rem; align-items: end; }
+.school-map__pick label { display: grid; gap: .25rem; flex: 1 1 14rem; }
+.school-card { margin-top: 1rem; padding: 1rem; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
+.school-card h3 { margin: 0; font-size: 1.15rem; }
+.school-card__links { display: flex; flex-wrap: wrap; gap: .5rem 1rem; margin: .75rem 0; padding: 0; list-style: none; font-weight: 700; }
+.school-card__programs { display: grid; gap: .35rem; margin: .5rem 0; padding-left: 1.1rem; }
+.school-card__programs li { display: flex; flex-wrap: wrap; gap: .25rem .6rem; align-items: baseline; }
+@media (max-width: 720px) {
+  .school-map { grid-template-columns: 1fr; padding: .75rem; }
+  .school-map__svg { max-height: 360px; }
+}

@@ -42,6 +42,7 @@ from app.services.activity_fit import build_activity_fit
 from app.services.admission_service import published_programs
 from app.services.gap_service import ALL_LABELS, analyze_gap, chapter_order, student_evidence
 from app.services.admission_links import admission_links, load_school_links
+from app.services import school_directory
 from app.services.admission_schedule import CHECKED_ON, channel_label, latest_timeline, timeline
 from app.services.matching_service import rank_programs
 from app.services.transfer_exam import is_transfer
@@ -1176,6 +1177,20 @@ def target_list():
         programs = [p for p in programs if not is_home_major(p)]
     if program_filter:
         programs = [p for p in programs if str(p.id) == program_filter]
+    # 依地區、學校找（2026-11-13 導師：選校系要分北中南）：地圖與區域按鈕用篩選前的校系，才看得到全部學校
+    schools = school_directory.by_name()
+    map_points = school_directory.map_points(programs, schools)
+    region_filter = request.args.get("region", "")
+    region_filter = region_filter if region_filter in school_directory.REGIONS else ""
+    school_filter = request.args.get("school", "").strip()
+    school_filter = school_filter if school_filter in schools else ""
+    region_counts = {region: sum(1 for point in map_points if point["region"] == region)
+                     for region in school_directory.REGIONS}
+    if region_filter:
+        programs = [p for p in programs if schools.get(p.school_name) and schools[p.school_name].region == region_filter]
+    if school_filter:
+        programs = [p for p in programs if p.school_name == school_filter]
+    school_card = next((point for point in map_points if point["school"].name == school_filter), None)
     search_query = request.args.get("q", "").strip()[:60]
     if search_query:
         needle = "".join(search_query.split()).lower()
@@ -1210,6 +1225,14 @@ def target_list():
                             if is_transfer(p) == (track == "transfer")],
         gaps=gaps,
         links={p.id: admission_links(p, school_links) for p in program_options},
+        school_links={p.id: school_directory.school_links(p, schools) for p in program_options},
+        map_points=map_points,
+        region_filter=region_filter,
+        school_filter=school_filter,
+        region_counts=region_counts,
+        regions=[r for r in school_directory.REGIONS if region_counts[r]],
+        school_card=school_card,
+        map_size=(school_directory.MAP_WIDTH, school_directory.MAP_HEIGHT),
         focus=focus_view(user, journey, targets=track_targets),
         error=error,
     ), (400 if error else 200)

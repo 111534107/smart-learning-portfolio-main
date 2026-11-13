@@ -7,7 +7,10 @@
     </div>
     <a class="button button--small button--quiet" href="{{ url_for('student.matching', track=track) }}">查看推薦依據 →</a>
   </div>
+  {% include "partials/school_map.html" %}
   <form class="target-filter" method="get" action="{{ url_for('student.target_list') }}" aria-label="校系排行篩選">
+    {% if region_filter %}<input type="hidden" name="region" value="{{ region_filter }}">{% endif %}
+    {% if school_filter %}<input type="hidden" name="school" value="{{ school_filter }}">{% endif %}
     <input type="hidden" name="track" value="{{ track }}">
     <label>選擇校系
       <select name="program_id" id="target-program-filter">
@@ -24,7 +27,7 @@
       {% if value == 'all' or major_known %}<button class="button button--small {{ '' if major_filter == value else 'button--line' }}" type="submit" name="major" value="{{ value }}" aria-pressed="{{ 'true' if major_filter == value else 'false' }}">{{ label }}</button>{% endif %}
       {% endfor %}
     </div>
-    {% if major_filter != 'all' or program_filter or search_query %}<a class="button button--small button--quiet" href="{{ url_for('student.target_list', track=track) }}#target-programs">清除篩選</a>{% endif %}
+    {% if major_filter != 'all' or program_filter or search_query or region_filter or school_filter %}<a class="button button--small button--quiet" href="{{ url_for('student.target_list', track=track) }}#target-programs">清除篩選</a>{% endif %}
   </form>
 
   {% if programs %}

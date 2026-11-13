@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "admin-schools" %}
+
+{% block title %}學校資料｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "學校資料") }}{% endblock %}
+
+{% block content %}
+<section class="work-shell work-shell--wide" data-work-role="admin">
+  <header class="work-heading">
+    <div><h1>學校資料</h1><p>學生端「目標校系」的台灣地圖、北中南東地區按鈕與學校卡片都讀這裡。學校名稱要和簡章上的校名一樣，科系名稱也要和簡章一樣，才對得上。</p></div>
+  </header>
+  {% if error %}<p class="alert mb-1" role="alert">{{ error }}</p>{% endif %}
+
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>怎麼維護</h2>
+      <p>少量修改直接在下面改；要大量改，先「匯出」用 Excel 改好再「匯入」（同名學校會更新，不會刪除沒列到的學校）。每學期按一次「檢查連結」，失效的網址會列出來。</p></div></div>
+    <div class="check-row">
+      <a class="button button--line" href="{{ url_for('admin_schools.export', kind='schools') }}">匯出學校（CSV）</a>
+      <a class="button button--line" href="{{ url_for('admin_schools.export', kind='departments') }}">匯出科系網址（CSV）</a>
+      <form method="post" action="{{ url_for('admin_schools.check_links') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit" data-busy-text="正在檢查所有網址…">檢查連結</button></form>
+      <form method="post" action="{{ url_for('admin_schools.load_defaults') }}" onsubmit="return confirm('載入預設資料會用專案附的資料更新同名學校，你改過的欄位會被覆蓋。確定嗎？')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--quiet" type="submit">載入預設資料</button></form>
+    </div>
+    <form class="admin-inline-form mt-1" method="post" action="{{ url_for('admin_schools.import_csv') }}" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>匯入種類<select name="kind"><option value="schools">學校</option><option value="departments">科系網址</option></select></label>
+      <label>CSV 檔<input type="file" name="file" accept=".csv" required></label>
+      <button class="button" type="submit">匯入</button>
+    </form>
+    <p class="small muted">學校 CSV 欄位：學校、地區（北部／中部／南部／東部／離島）、縣市、緯度、經度、官網、招生網站、確認日期。科系 CSV 欄位：學校、科系、網址（網址留空會移除）。座標可以在 Google 地圖對學校按右鍵複製。</p>
+  </section>
+
+  {% if checked is not none %}
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>連結檢查結果</h2><p>檢查了 {{ checked }} 個網址，{{ "全部正常。" if not problems else problems|length ~ " 個要處理：" }}</p></div></div>
+    {% if problems %}<div class="table-wrap"><table class="data-table"><thead><tr><th>哪一個</th><th>網址</th><th>結果</th></tr></thead><tbody>
+      {% for name, url, status, detail in problems %}<tr><td>{{ name }}</td><td class="small"><a href="{{ url }}" target="_blank" rel="noopener">{{ url }}</a></td><td><span class="tag tag--warn">{{ "失效" if status == "broken" else "無法確認" }}</span> {{ detail }}</td></tr>{% endfor %}
+    </tbody></table></div>{% endif %}
+  </section>
+  {% endif %}
+
+  {% if missing_schools or missing_departments %}
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>還沒補齊的資料</h2><p>簡章裡有、這裡還沒有的學校不會出現在地圖上；科系沒有網址時，學生會看到「請從官網找科系」。</p></div></div>
+    {% if missing_schools %}<p><b>缺學校（{{ missing_schools|length }}）：</b>{{ missing_schools|join("、") }}</p>{% endif %}
+    {% if missing_departments %}<details><summary>缺科系網址（{{ missing_departments|length }}）</summary>
+      <p class="small">{% for school, department in missing_departments %}{{ school }}{{ department }}{{ "、" if not loop.last }}{% endfor %}</p></details>{% endif %}
+  </section>
+  {% endif %}
+
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>學校（{{ schools|length }}）</h2></div></div>
+    {% for school in schools %}
+    <details class="mb-1" id="school-{{ school.id }}"{% if loop.length <= 3 %} open{% endif %}>
+      <summary><b>{{ school.name }}</b> <span class="muted small">{{ school.region }} · {{ school.city }}{% if school.checked_on %} · 確認於 {{ school.checked_on }}{% endif %}{% if school.link_problems %} · <span class="tag tag--warn">{{ school.link_problems }} 個連結有問題</span>{% endif %}</span></summary>
+      <form class="admin-inline-form mt-1" method="post" action="{{ url_for('admin_schools.school_update', school_id=school.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label>地區<select name="region">{% for region in regions %}<option{% if region == school.region %} selected{% endif %}>{{ region }}</option>{% endfor %}</select></label>
+        <label>縣市<input name="city" value="{{ school.city or '' }}" maxlength="20"></label>
+        <label>緯度<input name="latitude" value="{{ school.latitude }}" inputmode="decimal" required></label>
+        <label>經度<input name="longitude" value="{{ school.longitude }}" inputmode="decimal" required></label>
+        <label>官網<input type="url" name="website_url" value="{{ school.website_url or '' }}"></label>
+        <label>招生網站<input type="url" name="admission_url" value="{{ school.admission_url or '' }}"></label>
+        <label>確認日期<input type="date" name="checked_on" value="{{ school.checked_on or '' }}"></label>
+        <button class="button" type="submit">儲存</button>
+      </form>
+      <h3 class="h3 mt-1">科系網址</h3>
+      <ul class="plain-list">
+        {% for link in school.department_links %}<li>{{ link.department_name }}：<a href="{{ link.url }}" target="_blank" rel="noopener">{{ link.url }}</a></li>{% else %}<li class="muted">還沒有科系網址。</li>{% endfor %}
+      </ul>
+      <form class="admin-inline-form" method="post" action="{{ url_for('admin_schools.department_save', school_id=school.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label>科系（和簡章寫法一樣）<input name="department_name" maxlength="100" required></label>
+        <label>網址（留空＝移除）<input type="url" name="url"></label>
+        <button class="button button--line" type="submit">新增或修改科系網址</button>
+      </form>
+    </details>
+    {% else %}
+    <p class="muted">還沒有學校資料。按上面的「載入預設資料」，或匯入學校 CSV。</p>
+    {% endfor %}
+  </section>
+
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>新增學校</h2></div></div>
+    <form class="admin-inline-form" method="post" action="{{ url_for('admin_schools.school_create') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>學校（和簡章校名一樣）<input name="name" maxlength="100" required></label>
+      <label>地區<select name="region">{% for region in regions %}<option>{{ region }}</option>{% endfor %}</select></label>
+      <label>縣市<input name="city" maxlength="20"></label>
+      <label>緯度<input name="latitude" inputmode="decimal" required placeholder="例如 24.149"></label>
+      <label>經度<input name="longitude" inputmode="decimal" required placeholder="例如 120.684"></label>
+      <label>官網<input type="url" name="website_url"></label>
+      <label>招生網站<input type="url" name="admission_url"></label>
+      <button class="button" type="submit">新增學校</button>
+    </form>
+  </section>
+</section>
+{% endblock %}
