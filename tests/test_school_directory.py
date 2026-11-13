@@ -41,8 +41,11 @@ def login(app, username):
 def test_default_data_has_regions_coordinates_and_three_links(app):
     with app.app_context():
         schools = School.query.all()
-        assert len(schools) == 10 and {s.region for s in schools} == {"北部", "中部", "南部"}
-        assert all(s.website_url and s.admission_url and s.latitude for s in schools)
+        # 2026-11-13 起含私立科大（招策會「全國技專校院」＋慈濟大學），不再只有 10 所國立
+        assert len(schools) >= 60 and {s.region for s in schools} == {"北部", "中部", "南部", "東部"}
+        assert any(not s.name.startswith("國立") for s in schools)
+        assert all(s.website_url and s.latitude and s.city for s in schools)
+        assert sum(1 for s in schools if s.admission_url) >= len(schools) - 15  # 官網找不到招生頁的留空，不自己猜
         x, y = directory.project(121.53846, 25.01682)  # 臺大在台北：地圖右上方
         assert 0 < x < directory.MAP_WIDTH and 0 < y < directory.MAP_HEIGHT * 0.15
 

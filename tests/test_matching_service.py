@@ -370,13 +370,18 @@ def test_every_school_in_seed_data_has_an_official_link():
     from pathlib import Path
     content = Path(__file__).resolve().parents[1] / "app" / "content"
     schools = set()
-    for name in ("admission_seed_115.csv", "admission_demo_national_116.csv", "admission_demo_dayapply_115.csv"):
+    for name in ("admission_seed_115.csv", "admission_demo_national_116.csv", "admission_demo_dayapply_115.csv",
+                 "admission_demo_private_116.csv"):
         with open(content / name, encoding="utf-8-sig") as handle:
             schools |= {row["學校"] for row in csv.DictReader(handle)}
 
     links = load_school_links()
 
-    assert schools <= set(links)
+    # 2026-11-13：學校官網首頁找不到招生頁的（例如台北海洋科大的選單是程式載入），至少要在學校名錄有官網
+    with open(content / "schools.csv", encoding="utf-8-sig") as handle:
+        websites = {row["學校"]: row["官網"] for row in csv.DictReader(handle)}
+    assert all(school in links or websites.get(school, "").startswith("https://") for school in schools)
+    assert len(schools - set(links)) <= 2
     assert all(url.startswith("https://") and ".edu.tw" in url for url in links.values())
 
 
