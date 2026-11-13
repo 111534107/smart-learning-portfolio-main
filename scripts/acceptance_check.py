@@ -53,11 +53,14 @@ server = None
 if "--running" not in sys.argv:
     (ROOT / "logs").mkdir(exist_ok=True)
     server = start_server()
+    # 腳本中途出錯也要把驗收站關掉，不然 5099 埠會被占住
+    import atexit
+    atexit.register(server.terminate)
 
 
 def rec(name, ok, detail=""):
     results.append((name, ok, detail))
-    print(("通過 " if ok else "失敗 ") + name + (" | " + detail if detail else ""), flush=True)
+    print(("通過 " if ok else "失敗 ") + name + (" | " + str(detail) if detail else ""), flush=True)
 
 
 def csrf(text):
@@ -166,7 +169,6 @@ if pid:
     rec("自傳頁有引導（選了目標）", rr.ok and "先選一個目標校系" not in t, title(rr.text))
     rec("自傳頁資料可拖進文字框（B1）", "data-bio-pieces" in rr.text and 'draggable="true"' in rr.text
         and "js/bio-pieces.js" in rr.text, f"{rr.text.count('data-bio-piece=')} 個片段")
-    print("  自傳頁摘要：", t[:600])
 
     gap = s.get(BASE + f"/student/targets/{pid}")
     rec("看還缺什麼頁", gap.ok and "Traceback" not in gap.text, title(gap.text))
@@ -178,6 +180,26 @@ for p in ["/student/dashboard", "/student/learning-profile", "/student/learning-
     rr = s.get(BASE + p)
     rec(f"學生頁 {p}", rr.status_code == 200 and "Traceback" not in rr.text, title(rr.text))
 
+# 小助手待辦（B6）：規劃 → 同意 → 待辦頁；再規劃一次不會變兩份
+def plan_and_approve(session):
+    page = session.get(BASE + "/student/agent/issues").text
+    r = session.post(BASE + "/student/agent/plan", data={"csrf_token": csrf(page)})
+    plan = re.search(r"/student/agent/proposals/(\d+)", r.url)
+    if not plan:
+        return None
+    return session.post(BASE + f"/student/agent/proposals/{plan.group(1)}/approve", data={"csrf_token": csrf(r.text)})
+
+
+def todo_titles(page):
+    return re.findall(r'aria-label="(?:標記完成|重新開啟)：([^"]+)"', page)
+
+
+first = plan_and_approve(s)
+rec("小助手規劃並同意後產生待辦", first is not None and bool(todo_titles(first.text)), todo_titles(first.text) if first else "")
+second = plan_and_approve(s)
+again = todo_titles(second.text) if second else []
+rec("再規劃一次待辦不重複", bool(again) and len(again) == len(set(again)), again)
+
 # ---------- 學生 113534901：加入目標 ----------
 s1, r = login("/login", "113534901")
 page = s1.get(BASE + "/student/targets")
@@ -188,6 +210,61 @@ if pids:
     rec("加入目標後導到缺什麼頁", rr.ok and f"/student/targets/{pids[0]}" in rr.url, rr.url)
     rr = s1.get(BASE + f"/student/autobiography?program_id={pids[0]}")
     rec("新目標的自傳頁可開", rr.ok and "先選一個目標校系" not in text_of(rr.text), title(rr.text))
+
+# ---------- 成績單上傳辨識（B7）：假成績單 → OCR → 比對正確答案 → 學生確認 → 寫入成績 ----------
+def ocr_upload_check():
+    import json
+    import tempfile
+
+    tmp = Path(tempfile.mkdtemp())
+    image = tmp / "fake_transcript.png"
+    subprocess.run([sys.executable, "-I", str(ROOT / "scripts" / "make_fake_transcript.py"), str(image)], check=True)
+    expected = json.loads(Path(str(image) + ".json").read_text(encoding="utf-8"))
+    s3, _ = login("/login", "113534903")
+    page = s3.get(BASE + "/student/learning-profile/upload").text
+    r = s3.post(BASE + "/student/learning-profile/documents", data={"csrf_token": csrf(page), "document_type": "transcript"},
+                files={"file": ("fake_transcript.png", image.read_bytes(), "image/png")}, allow_redirects=False)
+    found = re.search(r"/documents/(\d+)/processing", r.headers.get("Location", ""))
+    rec("成績單上傳後進入辨識中", found is not None, r.status_code)
+    if not found:
+        return
+    doc = found.group(1)
+    state = {}
+    for _ in range(90):
+        state = s3.get(BASE + f"/student/learning-profile/documents/{doc}/status").json()
+        if state["state"] in ("done", "failed"):
+            break
+        time.sleep(2)
+    rec("成績單辨識完成", state.get("state") == "done", state)
+    review = s3.get(BASE + f"/student/learning-profile/documents/{doc}/review").text
+    body = re.search(r'<form[^>]*action="[^"]*review/confirm[^"]*"[^>]*>(.*?)</form>', review, re.S)
+    if not body:
+        rec("確認頁有表單", False)
+        return
+    data = {}
+    for tag in re.findall(r"<input[^>]*>", body.group(1)):
+        name, value = re.search(r'name="([^"]+)"', tag), re.search(r'value="([^"]*)"', tag)
+        if name and 'type="checkbox"' not in tag:
+            data[name.group(1)] = html.unescape(value.group(1)) if value else ""
+    for name, value in re.findall(r'<textarea[^>]*name="([^"]+)"[^>]*>(.*?)</textarea>', body.group(1), re.S):
+        data[name] = html.unescape(value)
+    # 確認頁上的欄位就是辨識結果：逐筆比對課名、年級、學期、學分、成績
+    rows = {}
+    for key in data:
+        match = re.match(r"course_(\d+)_course_name$", key)
+        if match:
+            i = match.group(1)
+            rows[(data[key], data.get(f"course_{i}_grade_level"), data.get(f"course_{i}_semester"))] = (
+                data.get(f"course_{i}_credits"), data.get(f"course_{i}_score"))
+    semester = {"上": "第一學期", "下": "第二學期"}
+    right = sum(1 for e in expected
+                if rows.get((e["name"], f"{e['grade']}年級", semester[e["semester"]])) == (str(e["credits"]), str(e["score"])))
+    rec("OCR 課名、年級、學期、學分、成績全對", right == len(expected), f"{right}/{len(expected)}")
+    r = s3.post(BASE + f"/student/learning-profile/documents/{doc}/review/confirm", data=data)
+    rec("學生確認後成績出現在我的資料", r.ok and "物件導向程式設計" in s3.get(BASE + "/student/learning-profile").text, r.url)
+
+
+ocr_upload_check()
 
 # ---------- 科辦 ----------
 st, r = login("/staff/login", "staff01")
@@ -205,10 +282,9 @@ if ids_print:
     pr = st.get(BASE + "/staff/certificates/print?ids=" + ids_print.group(1))
     pt = text_of(pr.text)
     rec("批量獎狀列印頁", pr.ok and "資管科資訊週程式競賽" in pt, f"{pr.status_code}")
-    print("  獎狀內文摘要：", pt[:500])
 # 學生看到自己的獎狀
 rr = s1.get(BASE + "/notifications")
-rec("學生收到獎狀通知", "獎狀" in text_of(rr.text), text_of(rr.text)[:200])
+rec("學生收到獎狀通知", "獎狀" in text_of(rr.text))
 
 for p in ["/staff/dashboard", "/staff/certificates", "/staff/certificates/new", "/staff/forms", "/staff/forms/links"]:
     rr = st.get(BASE + p)

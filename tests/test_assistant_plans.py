@@ -277,3 +277,18 @@ def test_student_main_nav_shows_my_todos_with_count(app):
 
     html = client.get("/student/portfolio").get_data(as_text=True)
     assert "mainnav__count" in html and "有規劃提案等你同意" not in html
+
+
+def test_planning_twice_does_not_duplicate_todos(app):
+    """B6（2026-11-13）：重複請小助手規劃並同意，同一個待辦只列最新那份，選單數字也不會變兩倍。"""
+    client = login(app, "stu")
+    first = client.post(f"/assistant/plans/{new_plan(app)['id']}/approve").get_json()
+    second = client.post(f"/assistant/plans/{new_plan(app)['id']}/approve").get_json()
+    assert [t["key"] for t in first["todos"]] == [t["key"] for t in second["todos"]]
+
+    page = client.get("/student/agent/issues").get_data(as_text=True)
+    for todo in second["todos"]:
+        assert page.count(f"標記完成：{todo['title']}") == 1
+    assert f"/student/agent/issues/{second['plan_id']}/0/close" in page  # 列的是最新那份
+    with app.app_context():
+        assert assistant_agent_service.open_todo_count(user(app, "stu"))["open"] == len(second["todos"])

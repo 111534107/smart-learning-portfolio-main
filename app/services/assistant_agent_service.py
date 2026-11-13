@@ -310,10 +310,18 @@ def set_todo_status(user, plan_id, todo_index, status):
 
 def open_todo_count(user):
     """選單上的數字：還沒完成的待辦幾項、有沒有等你同意的計畫。整理資料只做一次，避免每頁都變慢。"""
-    rows = AgentTask.query.filter(AgentTask.task_type == "assistant_plan", AgentTask.requester_id == user.id,
-                                  AgentTask.status.in_(("pending", "succeeded"))).all()
+    rows = (AgentTask.query.filter(AgentTask.task_type == "assistant_plan", AgentTask.requester_id == user.id,
+                                   AgentTask.status.in_(("pending", "succeeded")))
+            .order_by(AgentTask.created_at.desc(), AgentTask.id.desc()).all())
     pending = any(task.status == "pending" for task in rows)
-    todos = [todo for task in rows if task.status == "succeeded" for todo in (task.result_json or {}).get("todos", [])]
+    # 和待辦頁一致：同一個待辦在好幾份計畫都出現時只算最新那份
+    todos, seen = [], set()
+    for task in rows:
+        for todo in (task.result_json or {}).get("todos", []) if task.status == "succeeded" else []:
+            if todo.get("key") in seen:
+                continue
+            seen.add(todo.get("key"))
+            todos.append(todo)
     if not todos:
         return {"open": 0, "pending_plan": pending}
     journey = build_journey(user)

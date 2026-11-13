@@ -41,9 +41,14 @@ def _plans():
 
 
 def _issues(plans):
-    rows = []
+    """plans 由新到舊；同一個待辦（key 相同）在好幾份計畫都出現時只列最新那份，避免重複規劃後待辦變兩份。"""
+    rows, seen = [], set()
     for plan in plans:
         for index, todo in enumerate(plan["todos"]):
+            key = todo.get("key")
+            if key and key in seen:
+                continue
+            seen.add(key)
             rows.append({"plan": plan, "index": index, "todo": todo,
                          "label": KIND_LABEL.get(todo.get("kind"), "data"),
                          "closed": todo.get("status") == "completed",
