@@ -24,7 +24,7 @@ DEMO_PASSWORD = "demo2026"
 DEMO_ACCOUNTS = [
     {"role": "student", "label": "學生", "username": "student_demo", "password": DEMO_PASSWORD, "name": "合成學生"},
     {"role": "teacher", "label": "導師", "username": "teacher_demo", "password": DEMO_PASSWORD, "name": "合成導師"},
-    {"role": "staff", "label": "科辦", "username": "staff_demo", "password": DEMO_PASSWORD, "name": "合成科助"},
+    {"role": "staff", "label": "科辦", "username": "staff_demo", "password": DEMO_PASSWORD, "name": "合成主任"},
     {"role": "admin", "label": "管理者", "username": "admin_demo", "password": DEMO_PASSWORD, "name": "合成管理者"},
 ]
 
@@ -132,7 +132,9 @@ def create_local_demo_app():
         db.create_all()
         users = {}
         for role in ("student", "teacher", "staff", "admin"):
-            user = User(username=f"{role}_demo", display_name=f"合成{role}帳號", role=role)
+            # 本機展示只有一個科辦帳號，設成主任才能示範核准電子獎狀（2026-11-13 核准限主任、副主任）
+            user = User(username=f"{role}_demo", display_name=f"合成{role}帳號", role=role,
+                        job_title="主任" if role == "staff" else None)
             user.set_password(DEMO_PASSWORD)
             db.session.add(user)
             users[role] = user

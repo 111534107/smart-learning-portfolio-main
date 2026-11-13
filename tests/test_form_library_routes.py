@@ -15,7 +15,8 @@ def forms_app(tmp_path):
     with app.app_context():
         db.create_all()
         for username, role in [("stu", "student"), ("tea", "teacher"), ("staff", "staff")]:
-            user = User(username=username, display_name=f"合成{username}", role=role)
+            user = User(username=username, display_name=f"合成{username}", role=role,
+                        job_title="主任" if role == "staff" else None)
             user.set_password("pw")
             db.session.add(user)
         db.session.flush()

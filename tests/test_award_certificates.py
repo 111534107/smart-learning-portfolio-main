@@ -1,7 +1,7 @@
 """科辦電子獎狀：學生從獎懲記錄匯入的服務申請 → 科辦編輯內文後核准或退回 → 產出含驗證碼的獎狀。"""
 from app import create_app
 from app.extensions import db
-from app.models import AwardCertificate, ClassAdvisor, Portfolio, StudentProfile, User
+from app.models import AwardCertificate, ClassAdvisor, Notification, Portfolio, StudentProfile, User
 
 
 def cert_app(tmp_path):
@@ -10,8 +10,11 @@ def cert_app(tmp_path):
         db.create_all()
         users = {}
         for username, name, role in [("stu", "王小明", "student"), ("other", "林小美", "student"),
-                                     ("staff", "林科助", "staff"), ("t1", "陳導師", "teacher"), ("t2", "別班導師", "teacher")]:
-            user = User(username=username, display_name=name, role=role)
+                                     ("staff", "林主任", "staff"), ("assistant", "王科助", "staff"),
+                                     ("t1", "陳導師", "teacher"), ("t2", "別班導師", "teacher")]:
+            # 獎狀核准限主任、副主任（2026-11-13）：staff 是主任，assistant 是科助
+            title = {"staff": "主任", "assistant": "科助"}.get(username)
+            user = User(username=username, display_name=name, role=role, job_title=title)
             user.set_password("pw")
             db.session.add(user)
             users[username] = user
@@ -239,3 +242,69 @@ def test_approved_certificate_cannot_be_returned_or_reapproved(tmp_path):
     assert '查無' not in staff.get('/verify', query_string={'code': code}).get_data(as_text=True)
     page = staff.get(url).get_data(as_text=True)
     assert '已處理' in page and 'value="return"' not in page
+
+
+# ---------- 核准限主任、副主任（2026-11-13） ----------
+
+def _pending_cert_id(app):
+    with app.app_context():
+        record = Portfolio.query.filter(Portfolio.title.like("%麗山%")).first()
+        cert = AwardCertificate(portfolio=record, title="服務證明", body="內文", issuer="資管科", status="pending")
+        db.session.add(cert)
+        db.session.commit()
+        return cert.id
+
+
+def test_assistant_cannot_approve_but_can_save_edits(tmp_path):
+    from app.services.certificate_service import can_approve
+
+    app = cert_app(tmp_path)
+    cert_id = _pending_cert_id(app)
+    assistant = client_for(app, "assistant")
+    page = assistant.get(f"/staff/certificates/{cert_id}").get_data(as_text=True)
+    assert "儲存修改，請主任核准" in page and 'value="approve"' not in page
+
+    denied = assistant.post(f"/staff/certificates/{cert_id}", data={"action": "approve", "body": "改過的內文"})
+    assert denied.status_code == 403
+    saved = assistant.post(f"/staff/certificates/{cert_id}", data={"action": "save", "body": "科助改過的內文"})
+    assert saved.status_code == 302
+    with app.app_context():
+        cert = db.session.get(AwardCertificate, cert_id)
+        assert cert.status == "pending" and cert.body == "科助改過的內文" and not cert.verify_code
+        assert can_approve(User.query.filter_by(username="staff").one())
+        assert not can_approve(User.query.filter_by(username="assistant").one())
+
+
+def test_assistant_issue_waits_for_director_who_approves_selected(tmp_path):
+    app = cert_app(tmp_path)
+    response = client_for(app, "assistant").post("/staff/certificates/new", data={
+        "student_no": "111534105", "kind": "service", "event": "協助資管科資訊週", "school_year": "114", "semester": "1"})
+    assert response.status_code == 302 and response.headers["Location"].endswith("/staff/certificates")
+    with app.app_context():
+        cert = AwardCertificate.query.filter_by(status="pending").one()
+        assert not cert.verify_code
+        cert_id = cert.id
+        assert Notification.query.filter(Notification.message.like("%電子獎狀%")).count() == 0  # 還沒核准不通知
+
+    director = client_for(app, "staff")
+    assert "核准勾選的獎狀" in director.get("/staff/certificates").get_data(as_text=True)
+    assert client_for(app, "assistant").post("/staff/certificates/approve", data={"ids": [str(cert_id)]}).status_code == 403
+    director.post("/staff/certificates/approve", data={"ids": [str(cert_id)]})
+    with app.app_context():
+        cert = db.session.get(AwardCertificate, cert_id)
+        assert cert.status == "approved" and cert.verify_code and cert.reviewed_by.username == "staff"
+        assert Notification.query.filter(Notification.message.like("%電子獎狀%")).count() == 1
+
+
+def test_staff_activity_director_sees_everyone_assistant_sees_own(tmp_path):
+    app = cert_app(tmp_path)
+    client_for(app, "assistant").post("/staff/certificates/new", data={
+        "student_no": "111534105", "kind": "service", "event": "科助建立的", "school_year": "114", "semester": "1"})
+    client_for(app, "staff").post("/staff/certificates/new", data={
+        "student_no": "111534105", "kind": "service", "event": "主任開立的", "school_year": "114", "semester": "1"})
+
+    director = client_for(app, "staff").get("/staff/activity").get_data(as_text=True)
+    assistant = client_for(app, "assistant").get("/staff/activity").get_data(as_text=True)
+    assert "科辦操作紀錄" in director and "王科助" in director and "林主任" in director
+    assert "我的操作紀錄" in assistant and assistant.count("科辦開立電子獎狀") == 1 and "林主任" not in assistant
+    assert client_for(app, "t1").get("/staff/activity").status_code in (401, 403)

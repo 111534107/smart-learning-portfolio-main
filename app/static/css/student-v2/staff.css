@@ -1,0 +1,64 @@
+/* 老師、科辦、管理員的新版外觀補充（2026-11-13）
+   - 這些頁和學生頁共用 css/student-v2/ 的配色、頂端列與元件；本檔只放教職員頁需要的差異。
+   - 只有教職員頁會載入（base.html 的 staff_v2），<html> 上有 data-staff-ui="teacher|staff|admin"。
+   - 原則：後台以效率為優先，表格維持表格（不像學生頁在手機上改成卡片），太寬就在表格框內左右捲。 */
+
+/* 表格：手機上在框內左右捲，不撐寬整頁（學生頁的 ocr.css 把 .table-wrap 設成 overflow: visible 給卡片用） */
+html[data-staff-ui] .table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+@media (max-width: 720px) {
+  html[data-staff-ui][data-ui="student-v2"] .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+  }
+  /* 表格內容不要被學生頁的卡片規則拆開 */
+  html[data-staff-ui] .table-wrap .data-table { min-width: 36rem; }
+  html[data-staff-ui] .table-wrap .data-table td,
+  html[data-staff-ui] .table-wrap .data-table th { white-space: nowrap; }
+  html[data-staff-ui] .table-wrap .data-table td:nth-child(n+2) { white-space: normal; min-width: 6rem; }
+  /* 工作區標題列：按鈕換到下一行，不擠出畫面 */
+  html[data-staff-ui] .work-panel__head { flex-wrap: wrap; }
+  html[data-staff-ui] .work-panel__head > * { min-width: 0; }
+  html[data-staff-ui] .admin-inline-form { flex-wrap: wrap; }
+}
+
+/* 後台密度：表格列距比學生頁緊一點 */
+html[data-staff-ui] .data-table td,
+html[data-staff-ui] .data-table th { padding-block: .55rem; }
+
+/* 單一勾選框和文字放同一行（v2 的輸入框規則會把它當一般欄位撐開） */
+html[data-staff-ui] label > input[type="checkbox"],
+html[data-staff-ui] .check-row input[type="checkbox"] {
+  width: auto;
+  height: auto;
+  margin-inline-end: .4rem;
+  vertical-align: middle;
+}
+
+/* 手機頂端列：學生用底部分頁列，教職員保留「選單」按鈕。展開的選單換到頂端列下一行、整排寬，
+   不要擠在圓角膠囊裡（新版外殼預設不換行） */
+@media (max-width: 720px) {
+  html[data-staff-ui][data-ui="student-v2"] .masthead--app .masthead__inner {
+    flex-wrap: wrap;
+    border-radius: 24px;
+    row-gap: 4px;
+  }
+  html[data-staff-ui] .masthead--app .brand { order: 1; }
+  html[data-staff-ui] .masthead--app .masthead__tools { order: 2; margin-left: auto; }
+  html[data-staff-ui] .masthead--app .snav-toggle { order: 3; white-space: nowrap; margin-left: 4px; }
+  html[data-staff-ui][data-ui="student-v2"] .masthead--app .mainnav {
+    order: 4;
+    flex-basis: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    padding: 6px 2px 4px;
+    border-top: 1px solid var(--line);
+  }
+  html[data-staff-ui][data-ui="student-v2"] .masthead--app .mainnav a,
+  html[data-staff-ui] .masthead--app .admin-nav-group summary { justify-content: flex-start; border-radius: 14px; }
+}

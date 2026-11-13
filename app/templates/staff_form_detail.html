@@ -13,15 +13,18 @@
 
   <section class="sheet mb-1">
     <h1 class="h2">{{ item.title }}
-      {% if item.is_published %}<span class="tag tag--ok">上架中</span>{% else %}<span class="tag tag--warn">已下架</span>{% endif %}
+      {% if item.review_state == "published" %}<span class="tag tag--ok">上架中</span>{% elif item.review_state == "pending" %}<span class="tag tag--warn">待核准上架</span>{% else %}<span class="tag tag--warn">已下架</span>{% endif %}
+      {% if item.origin == "agent" %}<span class="tag">學校網站自動抓取</span>{% endif %}
       {% if not item.category.is_active %}<span class="tag tag--warn">分類已停用</span>{% endif %}</h1>
-    <p class="muted small">{% if item.is_published %}學生與老師可以在「表單下載」看到並下載最新版（依開放對象）。{% else %}已下架：學生與老師看不到，也不能用網址下載；檔案仍保留。{% endif %}</p>
+    <p class="muted small">{% if item.review_state == "published" %}學生與老師可以在「表單下載」看到並下載最新版（依開放對象）。{% if item.approved_by %}由{{ item.approved_by.display_name }}核准。{% endif %}{% elif item.review_state == "pending" %}還沒上架：主任或副主任核准後，學生與老師才看得到。{% else %}已下架：學生與老師看不到，也不能用網址下載；檔案仍保留。{% endif %}</p>
     <form method="post" action="{{ url_for('forms.staff_toggle_publish', item_id=item.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       {% if item.is_published %}
       <button class="button button--line" type="submit" name="action" value="unpublish">下架</button>
+      {% elif can_approve %}
+      <button class="button" type="submit" name="action" value="republish">{{ "核准上架" if item.review_state == "pending" else "重新上架" }}</button>
       {% else %}
-      <button class="button" type="submit" name="action" value="republish">重新上架</button>
+      <p class="small muted">上架要由主任或副主任按。</p>
       {% endif %}
     </form>
   </section>

@@ -2,13 +2,17 @@
 
 規則都在 services/form_library_service.py；收件功能 2026-10-09 暫停，這裡沒有。
 """
-from flask import Blueprint, abort, redirect, render_template, request, send_file, url_for
+from datetime import datetime, timezone
+
+from flask import Blueprint, abort, flash, redirect, render_template, request, send_file, url_for
 
 from app.extensions import db
 from app.models import FormCategory, FormItem, FormItemVersion
 from app.routes.main import get_current_user, role_required
 from app.services import audit_service, storage_service
 from app.services import form_library_service as service
+from app.services import form_source_agent as agent
+from app.services.certificate_service import can_approve
 
 forms_bp = Blueprint("forms", __name__)
 
@@ -65,11 +69,13 @@ def _category_from(form):
     return category
 
 
-def _render_manage(error=None, status=200, form=None):
+def _render_manage(error=None, status=200, form=None, sync_result=None):
     categories = FormCategory.query.order_by(FormCategory.sort_order, FormCategory.name).all()
-    return render_template("staff_forms.html", user=get_current_user(), categories=categories,
+    user = get_current_user()
+    return render_template("staff_forms.html", user=user, categories=categories,
                            error=error, form=form or {}, broken_links=service.broken_link_count(),
-                           link_labels=service.LINK_STATUS_LABELS), status
+                           link_labels=service.LINK_STATUS_LABELS, can_approve=can_approve(user),
+                           pending=agent.pending_items(), sources=agent.SOURCES, sync_result=sync_result), status
 
 
 # ---------- 學校網站連結檢查（科辦與管理員） ----------
@@ -99,6 +105,49 @@ def staff_forms():
     return _render_manage()
 
 
+@forms_bp.post("/staff/forms/sync")
+@role_required("staff")
+def staff_sync():
+    """代理到學校官網、資管科官網抓表單（2026-11-13）：新表單待核准，已核准的有新檔就加一版。"""
+    user = get_current_user()
+    result = agent.sync(user)
+    audit_service.record(user, "form.agent_sync", detail={"new": len(result["new"]), "updated": len(result["updated"]),
+                                                           "errors": len(result["errors"])})
+    db.session.commit()
+    return _render_manage(sync_result=result)
+
+
+def _approve_or_403(item):
+    user = get_current_user()
+    if not can_approve(user):
+        abort(403)
+    agent.approve(item, user)
+    audit_service.record(user, "form.approve", "form_item", item.id)
+
+
+@forms_bp.post("/staff/forms/<int:item_id>/approve")
+@role_required("staff")
+def staff_approve(item_id):
+    item = _item_or_404(item_id)
+    _approve_or_403(item)
+    db.session.commit()
+    flash(f"「{item.title}」已核准上架。")
+    return redirect(url_for("forms.staff_forms") + "#pending")
+
+
+@forms_bp.post("/staff/forms/approve-all")
+@role_required("staff")
+def staff_approve_all():
+    if not can_approve(get_current_user()):
+        abort(403)
+    items = agent.pending_items()
+    for item in items:
+        _approve_or_403(item)
+    db.session.commit()
+    flash(f"已核准上架 {len(items)} 份表單。")
+    return redirect(url_for("forms.staff_forms") + "#pending")
+
+
 @forms_bp.post("/staff/forms")
 @role_required("staff")
 def staff_publish():
@@ -121,9 +170,12 @@ def staff_publish():
         return _render_manage(str(error), 400, form)
     if not has_file and not source_url:
         return _render_manage("請選擇要上架的檔案，或填學校網站連結（至少要有一個）。", 400, form)
+    approver = can_approve(user)  # 科助手動上架的也要等主任、副主任核准
     item = FormItem(category=category, title=title, description=form.get("description", "").strip() or None,
-                    open_to_students=students, open_to_teachers=teachers, is_published=True,
-                    created_by_id=user.id, source_url=source_url)
+                    open_to_students=students, open_to_teachers=teachers, is_published=approver,
+                    created_by_id=user.id, source_url=source_url, origin="manual",
+                    approved_by_id=user.id if approver else None,
+                    approved_at=datetime.now(timezone.utc) if approver else None)
     db.session.add(item)
     db.session.flush()
     try:
@@ -184,7 +236,8 @@ def _int(value, default):
 def _render_detail(item, error=None, status=200):
     categories = FormCategory.query.order_by(FormCategory.sort_order, FormCategory.name).all()
     return render_template("staff_form_detail.html", user=get_current_user(), item=item,
-                           categories=categories, error=error, link_labels=service.LINK_STATUS_LABELS), status
+                           categories=categories, error=error, link_labels=service.LINK_STATUS_LABELS,
+                           can_approve=can_approve(get_current_user())), status
 
 
 @forms_bp.get("/staff/forms/<int:item_id>")
@@ -245,6 +298,10 @@ def staff_toggle_publish(item_id):
     action = request.form.get("action")
     if action not in ("unpublish", "republish"):
         abort(400)
+    if action == "republish" and not can_approve(get_current_user()):
+        abort(403)  # 重新上架也是上架，要主任或副主任
+    if action == "republish" and not item.approved_at:
+        agent.approve(item, get_current_user())
     item.is_published = action == "republish"
     audit_service.record(get_current_user(), f"form.{action}", "form_item", item.id)
     db.session.commit()

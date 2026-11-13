@@ -26,7 +26,7 @@
 
 /* ---------- 液態玻璃 ---------- */
 [data-ui="student-v2"] .sv2-glass,
-[data-ui="student-v2"] .masthead--student .masthead__inner {
+[data-ui="student-v2"] :is(.masthead--student, .masthead--app) .masthead__inner {
   background: color-mix(in srgb, var(--card) calc(var(--galpha) * 100%), transparent);
   -webkit-backdrop-filter: blur(var(--gblur)) saturate(var(--gsat));
   backdrop-filter: blur(var(--gblur)) saturate(var(--gsat));
@@ -35,55 +35,55 @@
 }
 @supports not (backdrop-filter: blur(1px)) {
   [data-ui="student-v2"] .sv2-glass,
-  [data-ui="student-v2"] .masthead--student .masthead__inner { background: var(--card); }
+  [data-ui="student-v2"] :is(.masthead--student, .masthead--app) .masthead__inner { background: var(--card); }
 }
 @media (prefers-reduced-transparency: reduce) {
   [data-ui="student-v2"] .sv2-glass,
-  [data-ui="student-v2"] .masthead--student .masthead__inner { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--card); }
+  [data-ui="student-v2"] :is(.masthead--student, .masthead--app) .masthead__inner { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--card); }
 }
 /* 折射：只有 Chromium 支援 SVG 濾鏡當 backdrop-filter；student-v2.js 判斷後才在 <html> 加 lens */
-[data-ui="student-v2"].lens:not([data-glass="solid"]) :is(.sv2-glass, .masthead--student .masthead__inner) {
+[data-ui="student-v2"].lens:not([data-glass="solid"]) :is(.sv2-glass, :is(.masthead--student, .masthead--app) .masthead__inner) {
   -webkit-backdrop-filter: url(#sv2-lens) blur(var(--gblur)) saturate(var(--gsat));
   backdrop-filter: url(#sv2-lens) blur(var(--gblur)) saturate(var(--gsat));
 }
 
 /* ---------- 頂端列：浮在上方的玻璃膠囊 ---------- */
-[data-ui="student-v2"] .masthead--student {
+[data-ui="student-v2"] :is(.masthead--student, .masthead--app) {
   position: sticky; top: 0; z-index: 30;
   padding: 12px 16px 0;
   background: transparent; border: 0;
 }
-[data-ui="student-v2"] .masthead--student .masthead__inner {
+[data-ui="student-v2"] :is(.masthead--student, .masthead--app) .masthead__inner {
   width: min(1100px, 100%);
   min-height: 0;
   padding: 6px;
   gap: 8px;
   border-radius: 999px;
 }
-[data-ui="student-v2"] .masthead--student .brand { padding: 0 10px 0 4px; gap: 8px; color: var(--ink); font-weight: 700; }
-[data-ui="student-v2"] .masthead--student .brand__mark {
+[data-ui="student-v2"] :is(.masthead--student, .masthead--app) .brand { padding: 0 10px 0 4px; gap: 8px; color: var(--ink); font-weight: 700; }
+[data-ui="student-v2"] :is(.masthead--student, .masthead--app) .brand__mark {
   display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%;
   background: var(--accent); color: var(--on); border: 0; font-size: var(--fs-xs); padding: 0;
 }
-[data-ui="student-v2"] .masthead--student .brand__mark::before { display: none; }
-[data-ui="student-v2"] .masthead--student .mainnav { align-self: center; gap: 2px; margin-left: 0; }
-[data-ui="student-v2"] .masthead--student .mainnav a,
-[data-ui="student-v2"] .masthead--student .snav-bell {
+[data-ui="student-v2"] :is(.masthead--student, .masthead--app) .brand__mark::before { display: none; }
+[data-ui="student-v2"] :is(.masthead--student, .masthead--app) .mainnav { align-self: center; gap: 2px; margin-left: 0; }
+[data-ui="student-v2"] :is(.masthead--student, .masthead--app) .mainnav a,
+[data-ui="student-v2"] :is(.masthead--student, .masthead--app) .snav-bell {
   min-height: var(--ctl-h); padding: 0 .9rem; border: 0; border-radius: 999px;
   color: var(--ink); font-weight: 700; font-size: var(--ctl-fs);
 }
-[data-ui="student-v2"] .masthead--student .mainnav a:hover,
-[data-ui="student-v2"] .masthead--student .snav-bell:hover { background: var(--accent-soft); color: var(--ink); }
-[data-ui="student-v2"] .masthead--student .mainnav a[aria-current],
-[data-ui="student-v2"] .masthead--student .snav-bell[aria-current] { background: var(--ink); color: var(--on); border: 0; }
-[data-ui="student-v2"] .masthead--student .mainnav__count {
+[data-ui="student-v2"] :is(.masthead--student, .masthead--app) .mainnav a:hover,
+[data-ui="student-v2"] :is(.masthead--student, .masthead--app) .snav-bell:hover { background: var(--accent-soft); color: var(--ink); }
+[data-ui="student-v2"] :is(.masthead--student, .masthead--app) .mainnav a[aria-current],
+[data-ui="student-v2"] :is(.masthead--student, .masthead--app) .snav-bell[aria-current] { background: var(--ink); color: var(--on); border: 0; }
+[data-ui="student-v2"] :is(.masthead--student, .masthead--app) .mainnav__count {
   display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-left: 4px; padding: 0 5px;
   border-radius: 99px; background: var(--accent); color: var(--on); font-size: var(--fs-xs);
 }
-[data-ui="student-v2"] .masthead--student .account-menu__button {
+[data-ui="student-v2"] :is(.masthead--student, .masthead--app) .account-menu__button {
   min-height: var(--ctl-h); border-color: var(--line); background: var(--card); color: var(--ink);
 }
-[data-ui="student-v2"] .masthead--student .account-menu__avatar { background: var(--accent); color: var(--on); }
+[data-ui="student-v2"] :is(.masthead--student, .masthead--app) .account-menu__avatar { background: var(--accent); color: var(--on); }
 
 /* 按下去像水滴放大再彈回 */
 [data-ui="student-v2"] :is(.mainnav a, .snav-bell, .account-menu__button, .sv2-tab, .button, .subnav a) {
@@ -227,12 +227,12 @@
 /* ---------- 手機：底部浮動玻璃分頁列 ---------- */
 [data-ui="student-v2"] .sv2-tabbar { display: none; }
 @media (max-width: 720px) {
-  [data-ui="student-v2"] .masthead--student { padding: 10px 12px 0; }
-  [data-ui="student-v2"] .masthead--student .masthead__inner { padding: 4px; flex-wrap: nowrap; }
+  [data-ui="student-v2"] :is(.masthead--student, .masthead--app) { padding: 10px 12px 0; }
+  [data-ui="student-v2"] :is(.masthead--student, .masthead--app) .masthead__inner { padding: 4px; flex-wrap: nowrap; }
   [data-ui="student-v2"].sv2-js .masthead--student .mainnav,
-  [data-ui="student-v2"].sv2-js .masthead--student .snav-toggle { display: none !important; }
-  [data-ui="student-v2"] .masthead--student .brand { padding-left: 2px; }
-  [data-ui="student-v2"] .masthead--student .snav-bell { padding: 0 .7rem; }
+  [data-ui="student-v2"].sv2-js .masthead--student .snav-toggle { display: none !important; }  /* 學生用底部分頁列；教職員保留「選單」按鈕 */
+  [data-ui="student-v2"] :is(.masthead--student, .masthead--app) .brand { padding-left: 2px; }
+  [data-ui="student-v2"] :is(.masthead--student, .masthead--app) .snav-bell { padding: 0 .7rem; }
   [data-ui="student-v2"] .account-menu__panel { position: fixed; left: 12px; right: 12px; top: 72px; width: auto; max-height: calc(100dvh - 170px); overflow: auto; }
   [data-ui="student-v2"] .band { margin-top: 12px; }
   [data-ui="student-v2"] .band__title { font-size: var(--fs-xl); }

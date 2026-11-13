@@ -1,7 +1,10 @@
 <!doctype html>
-{# 學生端 v2 外觀（2026-11-11）：只有學生頁在 <html> 加 data-ui="student-v2" 並載入 css/student-v2/；老師、科辦、管理員頁不受影響 #}
-{% set student_v2 = user is defined and user and user.role == "student" %}
-<html lang="zh-Hant" class="no-js"{% if student_v2 %} data-ui="student-v2"{% endif %}>
+{# 新版外觀：2026-11-11 先做學生端；2026-11-13 使用者要求老師、科辦、管理員也改新版。
+   所有登入後的頁面都在 <html> 加 data-ui="student-v2"（名稱沿用，不再只限學生）並載入 css/student-v2/；
+   教職員頁另外載入 staff-v2.css，表格與清單維持精簡、以效率為優先。 #}
+{% set student_v2 = user is defined and user and user.role in ("student", "teacher", "staff", "admin") %}
+{% set staff_v2 = student_v2 and user.role != "student" %}
+<html lang="zh-Hant" class="no-js"{% if student_v2 %} data-ui="student-v2"{% endif %}{% if staff_v2 %} data-staff-ui="{{ user.role }}"{% endif %}>
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -24,6 +27,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/student-v2/tokens.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/student-v2/shell.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/student-v2/ocr.css') }}">
+    {% if staff_v2 %}<link rel="stylesheet" href="{{ url_for('static', filename='css/student-v2/staff.css') }}">{% endif %}
     {% endif %}
   </head>
   <body data-page="{{ page_name|default('workspace') }}"{% if page_name|default('workspace') not in ('student-dashboard', 'public-home') %} data-theme="campus"{% endif %}>

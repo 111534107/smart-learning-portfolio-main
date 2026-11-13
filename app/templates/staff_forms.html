@@ -19,7 +19,44 @@
   {% if error %}<p class="alert mb-1" role="alert">{{ error }}</p>{% endif %}
 
   <section class="work-panel">
-    <div class="work-panel__head"><div><h2>上架新表單</h2><p>學生與老師只看得到開放給自己、而且上架中的表單。之後要改內容請到表單頁「上傳新版本」，舊版會保留。</p></div></div>
+    <div class="work-panel__head"><div><h2>從學校網站抓表單</h2>
+      <p>系統會到下面這些學校網站的表單頁，把表單檔案抓回來。新表單要{{ "你" if can_approve else "主任或副主任" }}核准才會上架；已上架的表單，學校網站換了新檔案時會自動新增一版。</p></div>
+      <form method="post" action="{{ url_for('forms.staff_sync') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="button" type="submit" data-busy-text="正在讀學校網站，約需 30 秒…">從學校網站更新表單</button>
+      </form></div>
+    <ul class="small">{% for source in sources %}<li>{{ source.office }}「{{ source.category }}」：<a href="{{ source.url }}" target="_blank" rel="noopener">{{ source.url }}</a></li>{% endfor %}</ul>
+    {% if sync_result %}
+    <div class="notice mt-1" role="status">
+      <p><b>剛才的結果：</b>新抓到 {{ sync_result.new|length }} 份、更新 {{ sync_result.updated|length }} 份、沒變 {{ sync_result.unchanged }} 份{% if sync_result.errors %}、有 {{ sync_result.errors|length }} 個問題{% endif %}。</p>
+      {% if sync_result.new %}<p class="small">新抓到：{{ sync_result.new|join("、") }}</p>{% endif %}
+      {% if sync_result.updated %}<p class="small">更新：{{ sync_result.updated|join("、") }}</p>{% endif %}
+      {% if sync_result.errors %}<ul class="small">{% for problem in sync_result.errors %}<li>{{ problem }}</li>{% endfor %}</ul>{% endif %}
+    </div>
+    {% endif %}
+  </section>
+
+  <section class="work-panel mt-1" id="pending">
+    <div class="work-panel__head"><div><h2>待核准上架（{{ pending|length }}）</h2>
+      <p>{% if can_approve %}你是{{ user.job_title }}，核對內容後按「核准上架」，學生與老師才看得到。{% else %}上架要由主任或副主任核准；你可以先點「管理」核對名稱、分類與開放對象。{% endif %}</p></div>
+      {% if can_approve and pending %}<form method="post" action="{{ url_for('forms.staff_approve_all') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit">全部核准上架</button></form>{% endif %}</div>
+    {% if pending %}
+    <div class="table-wrap"><table class="data-table">
+      <thead><tr><th>表單</th><th>分類</th><th>來源</th><th>開放對象</th><th><span class="visually-hidden">操作</span></th></tr></thead>
+      <tbody>{% for item in pending %}<tr>
+        <td>{{ item.title }}</td><td>{{ item.category.name }}</td>
+        <td class="small">{{ "學校網站" if item.origin == "agent" else "科辦上傳" }}{% if item.source_url %} · <a href="{{ item.source_url }}" target="_blank" rel="noopener">原始檔</a>{% endif %}</td>
+        <td class="small">{{ audience(item) }}</td>
+        <td class="check-row"><a class="button button--small button--line" href="{{ url_for('forms.staff_detail', item_id=item.id) }}">管理</a>
+          {% if can_approve %}<form method="post" action="{{ url_for('forms.staff_approve', item_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small" type="submit">核准上架</button></form>{% endif %}</td>
+      </tr>{% endfor %}</tbody>
+    </table></div>
+    {% else %}<p class="muted">沒有等待核准的表單。</p>{% endif %}
+  </section>
+
+  <details class="work-panel mt-1">
+    <summary><b>學校網站沒有的表單，才手動上架</b></summary>
+    <p class="small muted">學生與老師只看得到開放給自己、而且上架中的表單。{{ "" if can_approve else "手動上架的表單也要主任或副主任核准。" }}之後要改內容請到表單頁「上傳新版本」，舊版會保留。</p>
     {% set active_categories = categories|selectattr("is_active")|list %}
     {% if active_categories %}
     <form method="post" action="{{ url_for('forms.staff_publish') }}" enctype="multipart/form-data" class="form-stack">
@@ -44,7 +81,7 @@
     {% else %}
     <p class="muted">還沒有啟用中的分類，請先在下方新增分類。</p>
     {% endif %}
-  </section>
+  </details>
 
   <section class="work-panel mt-1">
     <div class="work-panel__head"><div><h2>已上架的表單</h2><p>點「管理」可以修改資料、上傳新版本、下架或重新上架。</p></div><a class="button button--line" href="{{ url_for('forms.staff_links') }}">檢查連結</a></div>

@@ -107,12 +107,29 @@ def default_body(record, kind="service"):
 ISSUE_KINDS = ("service", "ta")  # 科辦直接開立只開這兩種；科學會證明由學務處辦
 
 
-def staff_issue(staff, student, kind, event, school_year, semester, course=None, body=None):
-    """科辦直接開立（2026-11-09 使用者決定）：不等學生申請，直接核准、給驗證碼。
-    同時在學生的經歷新增一筆來源「科辦電子獎狀」的紀錄，證明有地方掛、學生的五年裡也看得到。
-    school_year 是民國學年度；經歷裡和匯入的資料一樣換成年級。輸入錯誤丟 ValueError（訊息給科辦看）。"""
+# 電子獎狀核准、開立只限主任、副主任（2026-11-13 使用者決定）；科助與其他行政人員可以審內容、建立，
+# 建立的獎狀先是「待核准」，等主任或副主任按核准才有驗證碼、通知學生
+APPROVER_TITLES = ("主任", "副主任")
+
+
+def can_approve(user):
+    return bool(user) and user.role == "staff" and (user.job_title or "") in APPROVER_TITLES
+
+
+def approval_fields(staff):
+    """建立獎狀時的狀態欄位：主任、副主任直接核准；其他人建立成待核准。"""
     from datetime import date, datetime, timezone
 
+    if can_approve(staff):
+        return {"status": "approved", "issued_on": date.today(), "verify_code": new_verify_code(),
+                "reviewed_by_id": staff.id, "reviewed_at": datetime.now(timezone.utc)}
+    return {"status": "pending"}
+
+
+def staff_issue(staff, student, kind, event, school_year, semester, course=None, body=None):
+    """科辦直接開立（2026-11-09 使用者決定）：不等學生申請。主任、副主任開的直接核准、給驗證碼；科助開的先待核准。
+    同時在學生的經歷新增一筆來源「科辦電子獎狀」的紀錄，證明有地方掛、學生的五年裡也看得到。
+    school_year 是民國學年度；經歷裡和匯入的資料一樣換成年級。輸入錯誤丟 ValueError（訊息給科辦看）。"""
     from app.extensions import db
     from app.models import Portfolio
     from app.services.journey_service import grade_for
@@ -136,9 +153,7 @@ def staff_issue(staff, student, kind, event, school_year, semester, course=None,
     db.session.flush()
     cert = AwardCertificate(
         portfolio=record, kind=kind, title=KINDS[kind], issuer=DEFAULT_ISSUER,
-        body=(body or "").strip() or default_body(record, kind), status="approved",
-        issued_on=date.today(), verify_code=new_verify_code(),
-        reviewed_by_id=staff.id, reviewed_at=datetime.now(timezone.utc),
+        body=(body or "").strip() or default_body(record, kind), **approval_fields(staff),
     )
     db.session.add(cert)
     db.session.flush()

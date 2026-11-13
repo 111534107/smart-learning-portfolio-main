@@ -270,6 +270,8 @@ def test_demo_forms_have_synthetic_links_with_one_broken(tmp_path):
         forms.seed_demo_forms(User.query.filter_by(username="staff").one())
         db.session.commit()
         linked = FormItem.query.filter(FormItem.source_url.isnot(None)).all()
-        assert linked and all(".example." in item.source_url for item in linked)  # 假網址，不是學校真的網址
+        # 假網址用 example 網域；只有公假申請單是 2026-11-13 查到的學務處正式檔
+        assert linked and all(".example." in item.source_url or item.source_url.startswith("https://ukn05.ukn.edu.tw/")
+                              for item in linked)
         assert any(item.link_status == "broken" for item in linked)
         assert FormCategory.query.count() == 4

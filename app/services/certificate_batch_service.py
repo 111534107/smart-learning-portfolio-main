@@ -128,13 +128,13 @@ def parse_rows(text, today=None):
             continue
         seen[key] = row.line_no
         if _already_issued(user, row.record_title):
-            row.error = "已經開過同一張（同一位學生、同一個活動與內容）"
+            row.error = "已經開過同一張，或已建立正在等核准（同一位學生、同一個活動與內容）"
     return rows
 
 
 def _already_issued(student, title):
     return db.session.query(AwardCertificate.id).join(Portfolio, AwardCertificate.portfolio_id == Portfolio.id).filter(
-        Portfolio.student_id == student.id, AwardCertificate.status == "approved",
+        Portfolio.student_id == student.id, AwardCertificate.status.in_(("approved", "pending")),
         Portfolio.source == "department_certificate", Portfolio.title == title).first() is not None
 
 
@@ -150,7 +150,6 @@ def body_for(row):
 def issue_rows(staff, rows, title=None):
     """把沒有問題的列各開一張（不 commit、不寄通知、不寫操作紀錄，由路由處理）。回傳建立的獎狀清單。"""
     title = (title or "").strip()[:50] or certificate_service.KINDS[KIND]
-    now = datetime.now(timezone.utc)
     certs = []
     for row in rows:
         if not row.ok:
@@ -167,9 +166,8 @@ def issue_rows(staff, rows, title=None):
         db.session.flush()
         cert = AwardCertificate(
             portfolio=record, kind=KIND, title=title,
-            issuer=certificate_service.DEFAULT_ISSUER, body=body_for(row), status="approved",
-            issued_on=date.today(), verify_code=certificate_service.new_verify_code(),
-            reviewed_by_id=staff.id, reviewed_at=now,
+            issuer=certificate_service.DEFAULT_ISSUER, body=body_for(row),
+            **certificate_service.approval_fields(staff),  # 科助建立的先待核准
         )
         db.session.add(cert)
         db.session.flush()

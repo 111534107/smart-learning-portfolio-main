@@ -2,7 +2,7 @@
 
 from datetime import date, datetime, timezone
 
-from flask import Blueprint, abort, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 
 from app.extensions import db
 from app.models import AwardCertificate, Notification, Portfolio
@@ -68,7 +68,8 @@ def staff_list():
     pending = AwardCertificate.query.filter_by(status="pending").order_by(AwardCertificate.created_at).all()
     done = (AwardCertificate.query.filter(AwardCertificate.status != "pending")
             .order_by(AwardCertificate.reviewed_at.desc()).limit(20).all())
-    return render_template("staff_certificates.html", user=get_current_user(), pending=pending, done=done)
+    return render_template("staff_certificates.html", user=get_current_user(), pending=pending, done=done,
+                           can_approve=service.can_approve(get_current_user()))
 
 
 @certificate_bp.get("/staff/certificates/new")
@@ -105,10 +106,14 @@ def staff_issue():
     except ValueError as error:
         db.session.rollback()
         return render(str(error), 400)
-    _notify_student(cert)
+    if cert.status == "approved":
+        _notify_student(cert)
     audit_service.record(user, "certificate.issue", "award_certificate", cert.id,
                          f"{profile.student_no} {cert.title}")
     db.session.commit()
+    if cert.status != "approved":
+        flash(f"已建立「{cert.title}」，等主任或副主任核准後才會給學生。")
+        return redirect(url_for("certificate.staff_list"))
     return redirect(url_for("certificate.certificate_view", cert_id=cert.id))
 
 
@@ -148,12 +153,36 @@ def staff_batch():
                       error="名單裡沒有可以建立的列，請修正後再試。")
     certs = batch.issue_rows(user, rows, title)
     for cert in certs:
-        _notify_student(cert)
+        if cert.status == "approved":
+            _notify_student(cert)
         audit_service.record(user, "certificate.issue", "award_certificate", cert.id)
     audit_service.record(user, "certificate.batch_issue", detail={"count": len(certs), "skipped": len(bad)})
     db.session.commit()
-    return render(created=certs, bad=bad, title=title,
-                  print_ids=",".join(str(cert.id) for cert in certs))
+    return render(created=certs, bad=bad, title=title, approved=service.can_approve(user),
+                  print_ids=",".join(str(cert.id) for cert in certs if cert.status == "approved"))
+
+
+@certificate_bp.post("/staff/certificates/approve")
+@role_required("staff")
+def staff_approve_selected():
+    """主任、副主任一次核准勾選的待核准獎狀（科助批量建立後常常一次幾十張）。"""
+    from app.services import audit_service
+    user = get_current_user()
+    if not service.can_approve(user):
+        abort(403)
+    ids = [int(value) for value in request.form.getlist("ids") if value.isdigit()][:300]
+    certs = (AwardCertificate.query.filter(AwardCertificate.id.in_(ids), AwardCertificate.status == "pending").all()
+             if ids else [])
+    now = datetime.now(timezone.utc)
+    for cert in certs:
+        cert.status, cert.return_reason, cert.issued_on = "approved", None, date.today()
+        cert.verify_code = cert.verify_code or service.new_verify_code()
+        cert.reviewed_by_id, cert.reviewed_at = user.id, now
+        _notify_student(cert)
+        audit_service.record(user, "certificate.approve", "award_certificate", cert.id)
+    db.session.commit()
+    flash(f"已核准 {len(certs)} 張電子獎狀，學生已收到通知。" if certs else "沒有勾選待核准的獎狀。")
+    return redirect(url_for("certificate.staff_list"))
 
 
 @certificate_bp.get("/staff/certificates/print")
@@ -186,12 +215,21 @@ def staff_review(cert_id):
     cert.title = request.form.get("title", cert.title).strip()[:50] or cert.title
     cert.issuer = request.form.get("issuer", cert.issuer).strip()[:100] or cert.issuer
     cert.body = request.form.get("body", cert.body).strip() or cert.body
+    if action == "save":
+        # 科助核對、修改完內文先存起來，留給主任或副主任核准（不改狀態、不通知學生）
+        from app.services import audit_service
+        audit_service.record(user, "certificate.edit", "award_certificate", cert.id)
+        db.session.commit()
+        flash(f"已儲存「{cert.title}」的修改，等主任或副主任核准。")
+        return redirect(url_for("certificate.staff_list"))
     if action == "return":
         reason = request.form.get("return_reason", "").strip()
         if not reason:
             return _render_review(user, cert, error="退回時請寫原因，學生才知道要補什麼。"), 400
         cert.status, cert.return_reason = "returned", reason[:500]
     elif action == "approve":
+        if not service.can_approve(user):
+            return _render_review(user, cert, error="核准電子獎狀要由主任或副主任按；你可以先修改內文，請主任或副主任核准。"), 403
         cert.status, cert.return_reason = "approved", None
         cert.issued_on = date.today()
         cert.verify_code = cert.verify_code or service.new_verify_code()
@@ -199,6 +237,9 @@ def staff_review(cert_id):
         abort(400)
     cert.reviewed_by_id, cert.reviewed_at = user.id, datetime.now(timezone.utc)
     _notify_student(cert)
+    from app.services import audit_service
+    audit_service.record(user, "certificate.approve" if action == "approve" else "certificate.return",
+                         "award_certificate", cert.id)
     db.session.commit()
     return redirect(url_for("certificate.staff_list"))
 
@@ -207,7 +248,7 @@ def _render_review(user, cert, error=None):
     """審核頁：直接附上獎懲記錄原文與學生上傳的原始檔，科助不必離開頁面就能對照。"""
     document = cert.portfolio.source_document
     return render_template(
-        "staff_certificate_review.html", user=user, cert=cert, error=error,
+        "staff_certificate_review.html", user=user, cert=cert, error=error, can_approve=service.can_approve(user),
         award_row=service.award_row(cert.portfolio), kind_label=service.KINDS.get(cert.kind, cert.kind),
         source_kind=preview_kind(document.display_name) if document else None,
     )

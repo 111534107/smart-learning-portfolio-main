@@ -9,7 +9,8 @@
     學生  113534902 / demo1234（林小美，已送導師確認）
     學生  113534903 / demo1234（張小華，專五，可以產生自傳）
     導師  teacher01 / demo1234（負責資管科三甲）
-    科辦  staff01   / demo1234（林科助，核准電子獎狀）
+    科辦  staff01   / demo1234（林科助，職稱科助：可審核、建立電子獎狀，要等主任核准）
+    科辦  chief01   / demo1234（陳主任，職稱主任：核准電子獎狀、看科辦全部操作紀錄、核准表單上架）
     管理者 admin     / demo1234
 每次啟動都會重建 instance/demo.db。
 """
@@ -54,8 +55,10 @@ DEMO_ACCOUNTS = [
      "name": "張小華", "note": "專五，可以產生自傳"},
     {"role": "teacher", "label": "導師", "username": "teacher01", "password": DEMO_PASSWORD,
      "name": "陳導師", "note": "負責資管科三甲"},
+    {"role": "staff", "label": "科辦主任", "username": "chief01", "password": DEMO_PASSWORD,
+     "name": "陳主任", "note": "核准電子獎狀、核准表單上架"},
     {"role": "staff", "label": "科辦", "username": "staff01", "password": DEMO_PASSWORD,
-     "name": "林科助", "note": "核准電子獎狀"},
+     "name": "林科助", "note": "科助：審核、建立電子獎狀"},
     {"role": "admin", "label": "管理者", "username": "admin", "password": DEMO_PASSWORD, "name": "系統管理者"},
 ]
 
@@ -64,8 +67,9 @@ def seed():
     student = User(username="113534901", display_name="王小明", role="student")
     teacher = User(username="teacher01", display_name="陳導師", role="teacher")
     admin = User(username="admin", display_name="系統管理者", role="admin")
-    staff = User(username="staff01", display_name="林科助", role="staff")
-    for user in (student, teacher, admin, staff):
+    staff = User(username="staff01", display_name="林科助", role="staff", job_title="科助")
+    chief = User(username="chief01", display_name="陳主任", role="staff", job_title="主任")  # 僅為測試資料
+    for user in (student, teacher, admin, staff, chief):
         user.set_password(DEMO_PASSWORD)
         db.session.add(user)
     db.session.flush()
@@ -196,7 +200,7 @@ def main():
         db.create_all()
         seed()
     print(f"展示網站：http://127.0.0.1:{port}")
-    print(f"帳號（密碼都是 {DEMO_PASSWORD}）：學生 113534901、113534902、113534903｜導師 teacher01｜科辦 staff01｜管理者 admin")
+    print(f"帳號（密碼都是 {DEMO_PASSWORD}）：學生 113534901、113534902、113534903｜導師 teacher01｜科辦 staff01（科助）、chief01（主任）｜管理者 admin")
     app.run(port=port, debug=False)
 
 

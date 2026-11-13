@@ -487,6 +487,25 @@ def grade_overview():
     return render_template("grade_overview.html", user=get_current_user(), overview=overview_service.build())
 
 
+@main_bp.get("/staff/activity")
+@role_required("staff")
+def staff_activity():
+    """科辦操作紀錄（2026-11-13）：主任、副主任看科辦全部人的動作；科助與其他行政人員只看自己的。
+    只列動作與對象，不列內容；最近 200 筆，可依人篩選。"""
+    from app.services import audit_service
+    from app.services.certificate_service import can_approve
+
+    user = get_current_user()
+    see_all = can_approve(user)
+    staff = User.query.filter_by(role="staff").order_by(User.display_name).all() if see_all else [user]
+    person = request.args.get("person", type=int)
+    ids = [member.id for member in staff if not person or member.id == person]
+    logs = (AuditLog.query.filter(AuditLog.user_id.in_(ids))
+            .order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).limit(200).all()) if ids else []
+    return render_template("staff_activity.html", user=user, logs=logs, staff=staff, person=person,
+                           see_all=see_all, label=audit_service.label)
+
+
 @main_bp.get("/staff/dashboard")
 @role_required("staff")
 def staff_dashboard():

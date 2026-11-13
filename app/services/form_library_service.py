@@ -266,12 +266,13 @@ DEMO_FORMS = [
 ]
 
 
-# 表單名稱 → (假的學校網站連結, 檢查狀態, 說明)。網址是 example 網域，僅為測試資料，不是學校真的網址；
-# 展示站不連外網，所以狀態直接寫好：一筆正常、一筆失效、一筆還沒檢查。
+# 表單名稱 → (學校網站連結, 檢查狀態, 說明)。example 網域是假的（僅為測試資料）；
+# 公假申請單是 2026-11-13 在學務處生輔組表單頁查到的正式網址（公開檔案）。狀態直接寫好或留空等科辦檢查。
 DEMO_LINKS = {
     "學生請假單": ("https://www.example.edu.tw/forms/student-leave.pdf", "ok", "HTTP 200"),
-    "公假申請單": ("https://www.example.edu.tw/forms/old/official-leave.pdf", "broken", "HTTP 404"),
+    "公假申請單": ("https://ukn05.ukn.edu.tw/var/file/3/1003/img/659882068.pdf", None, None),  # 學務處生輔組正式檔
     "校外實習申請表": ("https://www.example.edu.tw/forms/internship-apply.pdf", None, None),
+    "實習週誌": ("https://www.example.edu.tw/forms/old/internship-weekly.pdf", "broken", "HTTP 404"),  # 示範失效連結
 }
 
 
@@ -286,7 +287,7 @@ def seed_demo_forms(staff_user):
             DEMO_FORMS, start=1):
         item = FormItem(category=categories[category], title=title, description=description,
                         open_to_students=students, open_to_teachers=teachers, is_published=published,
-                        created_by_id=staff_user.id)
+                        created_by_id=staff_user.id, approved_at=datetime.now(timezone.utc))  # 示範資料都算已審過
         db.session.add(item)
         db.session.flush()
         for version_no in range(1, version_count + 1):

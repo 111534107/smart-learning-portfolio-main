@@ -86,7 +86,7 @@
   }
 
   var panel = document.getElementById("account-menu-panel");
-  if (panel && document.querySelector(".masthead--student")) {
+  if (panel && document.querySelector(".masthead--student, .masthead--app")) {
     var prefs = document.createElement("div");
     prefs.className = "sv2-prefs";
     prefs.innerHTML =

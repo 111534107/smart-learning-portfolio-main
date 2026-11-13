@@ -65,8 +65,10 @@
       <label class="field"><span class="field__label">內文</span><textarea name="body" rows="6" required>{{ cert.body }}</textarea></label>
       <label class="field"><span class="field__label">發證單位</span><input name="issuer" value="{{ cert.issuer }}" maxlength="100" required></label>
       <label class="field"><span class="field__label">退回原因 <small>只有退回時要填</small></span><input name="return_reason" maxlength="500" value="{{ cert.return_reason or '' }}"></label>
+      {% if not can_approve %}<p class="notice notice--warn">核准要由主任或副主任按。你可以先核對、修改內文後按「儲存修改」，或資料有問題時退回給學生。</p>{% endif %}
       <div class="record-card__actions">
-        <button class="button" type="submit" name="action" value="approve">核准並產出獎狀</button>
+        {% if can_approve %}<button class="button" type="submit" name="action" value="approve">核准並產出獎狀</button>
+        {% else %}<button class="button" type="submit" name="action" value="save">儲存修改，請主任核准</button>{% endif %}
         <button class="button button--line" type="submit" name="action" value="return" formnovalidate>退回</button>
         <a class="button button--line" href="{{ url_for('certificate.certificate_view', cert_id=cert.id) }}" target="_blank" rel="noopener">預覽獎狀</a>
       </div>

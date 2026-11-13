@@ -276,17 +276,38 @@ t = text_of(rr.text)
 rec("批量獎狀預覽", rr.ok and "確認建立 2 張" in t, re.search(r"確認建立[^）]*）?", t).group(0) if "確認建立" in t else t[:200])
 rr2 = st.post(BASE + "/staff/certificates/batch", data={"csrf_token": csrf(rr.text), "rows": rows_text, "title": "活動證明", "action": "confirm"})
 t2 = text_of(rr2.text)
-ids_print = re.search(r"ids=([\d,]+)", rr2.text)
-rec("批量獎狀建立", rr2.ok and ids_print is not None, (ids_print.group(1) if ids_print else t2[:300]))
-if ids_print:
-    pr = st.get(BASE + "/staff/certificates/print?ids=" + ids_print.group(1))
-    pt = text_of(pr.text)
-    rec("批量獎狀列印頁", pr.ok and "資管科資訊週程式競賽" in pt, f"{pr.status_code}")
+# 2026-11-13：核准限主任、副主任。staff01 是科助，建立後是「待核准」；chief01（主任）勾選後一次核准
+rec("科助批量建立後等主任核准", rr2.ok and "等主任或副主任核准" in t2, t2[:120])
+chief, r = login("/staff/login", "chief01")
+cert_page = chief.get(BASE + "/staff/certificates").text
+pending_ids = re.findall(r'name="ids" value="(\d+)"[^>]*checked', cert_page)
+rr3 = chief.post(BASE + "/staff/certificates/approve", data={"csrf_token": csrf(cert_page), "ids": pending_ids})
+rec("主任一次核准科辦建立的獎狀", rr3.ok and f"已核准 {len(pending_ids)} 張" in text_of(rr3.text) and len(pending_ids) >= 2,
+    f"{len(pending_ids)} 張")
+rec("科助不能核准", st.post(BASE + "/staff/certificates/approve", data={"csrf_token": csrf(st.get(BASE + "/staff/certificates").text), "ids": pending_ids}).status_code == 403)
+pr = st.get(BASE + "/staff/certificates/print?ids=" + ",".join(pending_ids))
+rec("批量獎狀列印頁", pr.ok and "資管科資訊週程式競賽" in text_of(pr.text), f"{pr.status_code}")
+act_chief = text_of(chief.get(BASE + "/staff/activity").text)
+act_assistant = text_of(st.get(BASE + "/staff/activity").text)
+rec("主任看得到科辦全部操作紀錄、科助只看自己的",
+    "科辦操作紀錄" in act_chief and "林科助" in act_chief and "我的操作紀錄" in act_assistant and "陳主任" not in act_assistant)
+
+# 表單代理：科助從學校網站抓 → 主任核准 → 學生看得到公假申請書（需要網路）
+forms_page = st.get(BASE + "/staff/forms").text
+sync = st.post(BASE + "/staff/forms/sync", data={"csrf_token": csrf(forms_page)}, timeout=300)
+sync_text = text_of(sync.text)
+found = re.search(r"新抓到 (\d+) 份", sync_text)
+rec("表單代理從學校網站抓到表單", bool(found) and int(found.group(1)) >= 20, found.group(0) if found else sync_text[:120])
+chief_forms = chief.get(BASE + "/staff/forms").text
+approved = chief.post(BASE + "/staff/forms/approve-all", data={"csrf_token": csrf(chief_forms)})
+rec("主任核准表單上架", "已核准上架" in text_of(approved.text))
+rec("學生看得到學務處的公假申請書", "學生公假申請書" in s1.get(BASE + "/forms").text)
 # 學生看到自己的獎狀
 rr = s1.get(BASE + "/notifications")
 rec("學生收到獎狀通知", "獎狀" in text_of(rr.text))
 
-for p in ["/staff/dashboard", "/staff/certificates", "/staff/certificates/new", "/staff/forms", "/staff/forms/links"]:
+for p in ["/staff/dashboard", "/staff/certificates", "/staff/certificates/new", "/staff/forms", "/staff/forms/links",
+          "/staff/activity"]:
     rr = st.get(BASE + p)
     rec(f"科辦頁 {p}", rr.status_code == 200 and "Traceback" not in rr.text, title(rr.text))
 

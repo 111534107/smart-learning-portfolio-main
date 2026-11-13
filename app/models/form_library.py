@@ -42,11 +42,23 @@ class FormItem(db.Model):
     link_detail = db.Column(db.String(100), nullable=True)  # 給科辦看的原因，例如「HTTP 404」「連線逾時」
     link_checked_at = db.Column(db.DateTime, nullable=True)
     created_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    # 2026-11-13：表單由代理從學校網站抓（agent）或科辦手動上架（manual）；上架要主任或副主任核准
+    origin = db.Column(db.String(20), nullable=False, default="manual", server_default="manual")
+    approved_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    approved_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=_utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)
 
     category = db.relationship("FormCategory", back_populates="items")
-    created_by = db.relationship("User")
+    created_by = db.relationship("User", foreign_keys=[created_by_id])
+    approved_by = db.relationship("User", foreign_keys=[approved_by_id])
+
+    @property
+    def review_state(self):
+        """上架中／待核准上架／已下架。"""
+        if self.is_published:
+            return "published"
+        return "unpublished" if self.approved_at else "pending"
     versions = db.relationship("FormItemVersion", back_populates="item", order_by="FormItemVersion.version_no")
 
     @property

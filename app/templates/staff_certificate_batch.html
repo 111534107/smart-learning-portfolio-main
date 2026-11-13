@@ -19,8 +19,13 @@
 
   {% if created is defined %}
   <section class="work-panel mb-1">
+    {% if approved %}
     <div class="work-panel__head"><div><h2>已建立 {{ created|length }} 張</h2><p>每一張都已核准、有驗證碼，學生已收到通知，經歷裡也多了一筆「科辦電子獎狀」。</p></div>
       <a class="button" href="{{ url_for('certificate.staff_print') }}?ids={{ print_ids }}" target="_blank" rel="noopener">整批列印（{{ created|length }} 張）</a></div>
+    {% else %}
+    <div class="work-panel__head"><div><h2>已建立 {{ created|length }} 張，等主任或副主任核准</h2><p>核准後才會有驗證碼、通知學生，也才能列印。主任、副主任到「電子獎狀」的待核准清單就看得到。</p></div>
+      <a class="button button--line" href="{{ url_for('certificate.staff_list') }}">看待核准清單</a></div>
+    {% endif %}
     <div class="table-wrap">
       <table class="data-table">
         <thead><tr><th>學生</th><th>內容</th><th>驗證碼</th><th><span class="visually-hidden">操作</span></th></tr></thead>
@@ -29,7 +34,7 @@
           <tr>
             <td>{{ cert.student.display_name }} <span class="muted small mono">{{ cert.student.student_profile.student_no }}</span></td>
             <td>{{ cert.portfolio.title }}</td>
-            <td class="mono">{{ cert.verify_code }}</td>
+            <td class="mono">{{ cert.verify_code or "待核准" }}</td>
             <td><a class="button button--small button--line" href="{{ url_for('certificate.certificate_view', cert_id=cert.id) }}">查看</a></td>
           </tr>
           {% endfor %}
