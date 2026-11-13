@@ -157,4 +157,15 @@ def create_app(config_overrides=None):
         back = request.referrer if request.referrer and request.referrer.startswith(request.host_url) else None
         return render_template("upload_too_large.html", user=get_current_user(), limit_mb=limit_mb, back=back), 413
 
+    @app.url_defaults
+    def static_version(endpoint, values):
+        """CSS、JS 網址自動加 ?v=檔案修改時間（2026-11-13）：改了樣式，手機瀏覽器不會還用舊的快取。"""
+        if endpoint != "static" or "v" in values or not str(values.get("filename", "")).endswith((".css", ".js")):
+            return
+        import os
+        try:
+            values["v"] = int(os.path.getmtime(os.path.join(app.static_folder, values["filename"])))
+        except OSError:
+            pass
+
     return app

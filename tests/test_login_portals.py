@@ -192,3 +192,14 @@ def test_logout_returns_each_role_to_its_own_page():
         client = app.test_client()
         post_login(client, path, username)
         assert client.post("/logout").location.endswith(path)
+
+
+def test_static_urls_carry_version_so_browsers_refresh_css(tmp_path):
+    """2026-11-13：手機看到舊的選單樣式（瀏覽器快取）；靜態檔網址帶檔案修改時間當版本號。"""
+    from app import create_app
+    app = create_app({"SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:", "TESTING": True})
+    with app.test_request_context():
+        from flask import url_for
+        url = url_for("static", filename="css/student-v2/staff.css")
+    assert "?v=" in url
+    assert app.test_client().get(url).status_code == 200
