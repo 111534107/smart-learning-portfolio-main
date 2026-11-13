@@ -106,6 +106,7 @@ def seed():
     import_seed_programs(PROJECT_ROOT / "app" / "content" / "admission_demo_national_116.csv")
     # 2026-11-13：同一份 PDF 附錄裡的私立校系（目標校系地圖才會有私立學校）
     import_seed_programs(PROJECT_ROOT / "app" / "content" / "admission_demo_private_116.csv")
+    import_seed_programs(PROJECT_ROOT / "app" / "content" / "admission_demo_night_private_115.csv")  # 2026-11-13 私立二技進修部
     import_seed_programs(PROJECT_ROOT / "app" / "content" / "admission_demo_dayapply_115.csv")
     # 插大（轉學考）：北中南資訊相關科系的示範資料（官方簡章，見 CSV 的出處欄）
     import_transfer_programs()

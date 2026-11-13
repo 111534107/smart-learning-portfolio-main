@@ -76,3 +76,24 @@ def test_private_seed_from_same_pdf_sums_to_100_and_imports():
         assert import_seed_programs(PRIVATE) == len(totals)
         names = {p.school_name for p in AdmissionProgram.query.all()}
         assert {"致理科技大學", "長庚科技大學", "輔英科技大學"} <= names
+
+
+NIGHT_PRIVATE = Path(__file__).resolve().parents[1] / "app" / "content" / "admission_demo_night_private_115.csv"
+
+
+def test_night_private_seed_sums_to_100_and_imports():
+    """2026-11-13：私立學校二技「進修部」單獨招生（各校 115 簡章）。志願代碼用 NIGHT- 前綴，不跟日間部撞號。"""
+    totals = defaultdict(int)
+    for row in csv.DictReader(open(NIGHT_PRIVATE, encoding="utf-8-sig")):
+        assert row["志願代碼"].startswith("NIGHT-") and row["招生類別"] == "進修部單獨招生", row
+        assert not row["學校"].startswith("國立"), row
+        assert row["對應狀態"] in ("確定", "待確認"), row
+        totals[row["志願代碼"]] += int(row["加權百分比"])
+    assert set(totals.values()) == {100} and len(totals) == 8
+
+    app = create_app({"SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:", "TESTING": True})
+    with app.app_context():
+        db.create_all()
+        assert import_seed_programs(NIGHT_PRIVATE) == len(totals)
+        names = {p.school_name for p in AdmissionProgram.query.all()}
+        assert {"正修科技大學", "崑山科技大學", "明新科技大學", "中國科技大學", "景文科技大學"} <= names

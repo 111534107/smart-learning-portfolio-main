@@ -160,6 +160,7 @@ def create_local_demo_app():
         content = Path(__file__).resolve().parent / "content"
         import_seed_programs(content / "admission_demo_national_116.csv")
         import_seed_programs(content / "admission_demo_private_116.csv")  # 2026-11-13 私立學校（同一份 PDF 附錄）
+        import_seed_programs(content / "admission_demo_night_private_115.csv")  # 2026-11-13 私立學校二技進修部（各校 115 簡章）
         import_seed_programs(content / "admission_demo_dayapply_115.csv")
         import_transfer_programs()
         from app.services import school_directory
