@@ -1809,3 +1809,56 @@ body[data-page="student-welcome"] .assistant { display: none; }
   [data-page="student-autobiography"] .draft-layout { grid-template-columns: minmax(0, 1fr); }
   [data-page="student-autobiography"] .draft-layout .bio-pieces { position: static; max-height: none; order: -1; }
 }
+
+/* ---------- 升學路線比較（B19、B20）與插大準備（B18），2026-11-13 ---------- */
+.pathways__status { display: flex; flex-wrap: wrap; gap: .4rem; border: 1px solid var(--line); border-radius: var(--radius); padding: .6rem .8rem; margin: 0 0 1rem; }
+.pathways__status legend { font-weight: 700; padding: 0 .3rem; }
+.pathways__chip { display: inline-flex; align-items: center; gap: .3rem; border: 1px solid var(--line); border-radius: var(--radius); padding: .3rem .6rem; background: var(--sheet); cursor: pointer; }
+.pathways__chip:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.pathways__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: 1rem; }
+.pathway-card { background: var(--sheet); border: 1px solid var(--line); border-top: 4px solid var(--line); border-radius: var(--radius); padding: 1rem; min-width: 0; transition: border-color .25s, opacity .25s, transform .25s; }
+.pathway-card.is-open { border-top-color: var(--ok); transform: translateY(-3px); }
+.pathway-card.is-soon { border-top-color: var(--warn); }
+.pathway-card.is-closed { opacity: .72; }
+.pathway-card__head h2 { margin: 0; }
+.pathway-card__verdict { margin: .2rem 0 .6rem; font-weight: 700; min-height: 1.4em; }
+.pathway-card.is-open .pathway-card__verdict { color: var(--ok); }
+.pathway-card.is-soon .pathway-card__verdict { color: var(--warn); }
+.pathway-card.is-closed .pathway-card__verdict { color: var(--muted); }
+.pathway-card__facts { margin: 0 0 .6rem; }
+.pathway-card__facts div { display: grid; grid-template-columns: 4.5rem 1fr; gap: .4rem; padding: .35rem 0; border-bottom: 1px dashed var(--line); }
+.pathway-card__facts dt { color: var(--muted); }
+.pathway-card__facts dd { margin: 0; overflow-wrap: anywhere; }
+.pathway-card__dates { padding-left: 1.1rem; }
+.pathway-card a { overflow-wrap: anywhere; }
+
+.transfer-plan { background: var(--sheet); border: 1px solid var(--line); border-left: 5px solid var(--ok); border-radius: var(--radius); padding: 1rem; margin: 0 0 1rem; min-width: 0; }
+.transfer-plan--warn, .transfer-plan--nodate { border-left-color: var(--warn); }
+.transfer-plan--urgent { border-left-color: var(--danger); }
+.transfer-plan--past { border-left-color: var(--muted); }
+.transfer-plan__head { display: flex; gap: 1rem; align-items: center; }
+.transfer-plan__head h2 { margin: 0; font-size: var(--fs-md); }
+.transfer-plan__ring { --ring: 0; flex: 0 0 4.6rem; width: 4.6rem; height: 4.6rem; border-radius: 50%; display: grid; place-content: center; grid-auto-flow: column; align-items: baseline; font-weight: 700; font-size: var(--fs-lg);
+  background: radial-gradient(closest-side, var(--sheet) 76%, transparent 77%), conic-gradient(var(--ok) calc(var(--ring) * 1%), var(--paper-deep) 0); transition: transform .2s; }
+.transfer-plan__ring small { font-size: var(--fs-xs); }
+.transfer-plan__ring.is-full { animation: ring-pop .5s ease; }
+@keyframes ring-pop { 50% { transform: scale(1.12); } }
+.transfer-plan__message { margin: .3rem 0 0; }
+.transfer-plan__teacher { background: var(--accent-soft); border-radius: var(--radius); padding: .5rem .7rem; }
+.transfer-plan__dates { padding-left: 1.1rem; }
+.transfer-plan__subjects { display: grid; gap: .5rem; margin: .6rem 0; }
+.transfer-plan__subjects > button { justify-self: start; }
+.subject-bar { display: grid; grid-template-columns: minmax(5rem, 9rem) 1fr 3.2rem; gap: .6rem; align-items: center; }
+.subject-bar input[type="range"] { width: 100%; accent-color: var(--ok); }
+.subject-bar__value { text-align: right; font-variant-numeric: tabular-nums; }
+.transfer-plan-form__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: .6rem; margin: .6rem 0; }
+.transfer-plan-form__grid label { display: grid; gap: .2rem; min-width: 0; }
+.transfer-plan-form__grid input, .transfer-plan-form__grid select, .transfer-plan-form__grid textarea { width: 100%; min-width: 0; }
+.transfer-plan-form__wide { grid-column: 1 / -1; }
+.transfer-plans__new { border-top: 1px solid var(--line); padding-top: 1rem; }
+@media (max-width: 480px) {
+  .transfer-plan__head { align-items: flex-start; }
+  .subject-bar { grid-template-columns: 1fr 3rem; }
+  .subject-bar__name { grid-column: 1 / -1; }
+}
+@media (prefers-reduced-motion: reduce) { .pathway-card, .transfer-plan__ring { transition: none; animation: none; } }

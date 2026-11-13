@@ -44,6 +44,7 @@
   {% set notice = review_notices.get(request.args.get("notice")) %}
   {% if notice %}<p class="alert mb-1" role="alert">{{ notice }}</p>{% endif %}
   {% if request.args.get("saved") %}<p class="notice mb-1" role="status">自傳已存成新的一版，學生看得到你改了哪裡。</p>{% endif %}
+  {% include "partials/teacher_transfer_plans.html" %}
   {% if transfer_credit %}
   <section class="work-panel">
     <div class="work-panel__head"><div><h2>轉學生抵免進度</h2><p>這是學生自行記錄的辦理狀態，不代表校方審核結果。</p></div></div>

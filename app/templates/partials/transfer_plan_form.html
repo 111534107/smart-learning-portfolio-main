@@ -1,0 +1,27 @@
+{# 插大目標表單。需要 action、values（TransferPlan 或 None）、subjects_text、submit_label。 #}
+<form method="post" action="{{ action }}" class="transfer-plan-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="transfer-plan-form__grid">
+    <label>學校 <input name="school_name" required maxlength="100" value="{{ values.school_name if values else '' }}"></label>
+    <label>科系 <input name="department_name" required maxlength="100" value="{{ values.department_name if values else '' }}"></label>
+    <label>插入年級
+      <select name="entry_grade">
+        <option value="">未定</option>
+        <option value="2"{% if values and values.entry_grade == 2 %} selected{% endif %}>二年級</option>
+        <option value="3"{% if values and values.entry_grade == 3 %} selected{% endif %}>三年級</option>
+      </select>
+    </label>
+    <label>簡章學年度 <input name="admission_year" type="number" min="100" max="200" required value="{{ values.admission_year if values else default_year }}"></label>
+    <label class="transfer-plan-form__wide">簡章網址 <input name="brochure_url" type="url" maxlength="500" value="{{ (values.brochure_url or '') if values else '' }}" placeholder="https://"></label>
+    <label>報名開始 <input name="apply_start" type="date" value="{{ values.apply_start or '' if values else '' }}"></label>
+    <label>報名截止 <input name="apply_end" type="date" value="{{ values.apply_end or '' if values else '' }}"></label>
+    <label>考試日期 <input name="exam_date" type="date" value="{{ values.exam_date or '' if values else '' }}"></label>
+    <label class="transfer-plan-form__wide">考科（用頓號分開，最多 8 科）<input name="subjects" maxlength="300" value="{{ subjects_text }}" placeholder="計算機概論、英文、微積分"></label>
+    {% if show_teacher_note %}
+    <label class="transfer-plan-form__wide">導師留言 <textarea name="teacher_note" rows="2" maxlength="2000">{{ (values.teacher_note or '') if values else '' }}</textarea></label>
+    {% else %}
+    <label class="transfer-plan-form__wide">備註 <textarea name="note" rows="2" maxlength="2000">{{ (values.note or '') if values else '' }}</textarea></label>
+    {% endif %}
+  </div>
+  <button class="button button--small" type="submit">{{ submit_label }}</button>
+</form>

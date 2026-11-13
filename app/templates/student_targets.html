@@ -17,7 +17,7 @@
   </nav>
   <p class="mb-1"><span class="tag tag--info">{{ '插大' if track == 'transfer' else '二技' }}已選 {{ selected_programs|length }} 所</span></p>
   {% if focus %}{% include "partials/focus.html" %}{% endif %}
-  <div class="record-card__actions mb-1"><a class="button button--small button--quiet" href="{{ url_for('student.schedule') }}">招生時程</a></div>
+  <div class="record-card__actions mb-1"><a class="button button--small button--quiet" href="{{ url_for('student.schedule') }}">招生時程</a><a class="button button--small button--quiet" href="{{ url_for('student.pathways') }}">二技、插大、四技差在哪</a>{% if track == 'transfer' %}<a class="button button--small" href="{{ url_for('student.transfer_plans') }}">我的插大準備（自填簡章與考科）</a>{% endif %}</div>
   {% if error %}
   <div class="mb-1">
     <p class="alert" role="alert">{{ error }}</p>

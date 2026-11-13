@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 from uuid import uuid4
 from urllib.parse import urlparse
 
-from flask import Blueprint, abort, current_app, jsonify, redirect, render_template, request, send_file, url_for
+from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, send_file, url_for
 
 from app.extensions import db
 from app.models import (
@@ -1241,6 +1241,117 @@ def target_list():
         focus=focus_view(user, journey, targets=track_targets),
         error=error,
     ), (400 if error else 200)
+
+
+@student_bp.get("/student/pathways")
+@role_required("student")
+def pathways():
+    """B19、B20：二技、插大、統測進四技三條路並排比較，附法條與官方出處。"""
+    from app.services import pathways as pathway_content
+
+    user = get_current_user()
+    return render_template(
+        "student_pathways.html",
+        user=user,
+        pathways=pathway_content.build_pathways(url_for("student.target_list", track="twotech"),
+                                                url_for("student.transfer_plans")),
+        default_status=pathway_content.default_status(student_rules.grade_of(user)),
+        checked_on=pathway_content.CHECKED_ON,
+        today=date.today(),
+    )
+
+
+def _own_transfer_plan(user, plan_id):
+    from app.models import TransferPlan
+
+    plan = db.session.get(TransferPlan, plan_id)
+    if not plan or plan.student_id != user.id:
+        abort(404)
+    return plan
+
+
+@student_bp.get("/student/transfer-plans")
+@student_bp.post("/student/transfer-plans")
+@role_required("student")
+def transfer_plans():
+    """B18 插大準備：學生自填目標校系、簡章、考科與日期，依考期倒數與考科進度算準備度。"""
+    from app.models import TransferPlan
+    from app.services import transfer_plan as tp
+
+    user = get_current_user()
+    error = None
+    if request.method == "POST":
+        try:
+            fields, names = tp.parse_plan_form(request.form)
+        except tp.PlanFormError as exc:
+            error = str(exc)
+        else:
+            plan = TransferPlan(student_id=user.id, updated_by_id=user.id, **fields)
+            tp.apply_subjects(plan, names)
+            db.session.add(plan)
+            db.session.flush()
+            audit_service.record(user, "transfer_plan.add", "transfer_plan", plan.id)
+            db.session.commit()
+            return redirect(url_for("student.transfer_plans", _anchor=f"plan-{plan.id}"))
+    rows = TransferPlan.query.filter_by(student_id=user.id).order_by(TransferPlan.exam_date.is_(None),
+                                                                      TransferPlan.exam_date, TransferPlan.id).all()
+    return render_template(
+        "student_transfer_plans.html",
+        user=user,
+        plans=[{"plan": plan, "ready": tp.readiness(plan)} for plan in rows if not plan.archived],
+        archived=[plan for plan in rows if plan.archived],
+        examples=tp.example_schools(),
+        default_year=tp.target_year(),
+        error=error,
+    )
+
+
+@student_bp.post("/student/transfer-plans/<int:plan_id>")
+@role_required("student")
+def transfer_plan_update(plan_id):
+    from app.services import transfer_plan as tp
+
+    user = get_current_user()
+    plan = _own_transfer_plan(user, plan_id)
+    try:
+        fields, names = tp.parse_plan_form(request.form)
+    except tp.PlanFormError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("student.transfer_plans", _anchor=f"plan-{plan.id}"))
+    for key, value in fields.items():
+        setattr(plan, key, value)
+    tp.apply_subjects(plan, names)
+    plan.updated_by_id = user.id
+    audit_service.record(user, "transfer_plan.update", "transfer_plan", plan.id)
+    db.session.commit()
+    return redirect(url_for("student.transfer_plans", _anchor=f"plan-{plan.id}"))
+
+
+@student_bp.post("/student/transfer-plans/<int:plan_id>/progress")
+@role_required("student")
+def transfer_plan_progress(plan_id):
+    from app.services.transfer_plan import clamp_progress
+
+    user = get_current_user()
+    plan = _own_transfer_plan(user, plan_id)
+    for subject in plan.subjects:
+        key = f"progress_{subject.id}"
+        if key in request.form:
+            subject.progress = clamp_progress(request.form[key])
+    plan.updated_by_id = user.id
+    db.session.commit()
+    return redirect(url_for("student.transfer_plans", _anchor=f"plan-{plan.id}"))
+
+
+@student_bp.post("/student/transfer-plans/<int:plan_id>/archive")
+@role_required("student")
+def transfer_plan_archive(plan_id):
+    user = get_current_user()
+    plan = _own_transfer_plan(user, plan_id)
+    plan.archived = True
+    audit_service.record(user, "transfer_plan.archive", "transfer_plan", plan.id)
+    db.session.commit()
+    return redirect(url_for("student.transfer_plans"))
 
 
 @student_bp.get("/student/matching")

@@ -1,5 +1,35 @@
 # 開發日誌
 
+## 2026-11-13 B18 插大準備（學生自填）、B19／B20 升學路線比較頁
+
+開發者：Claude（分支 `preview/student-v2`）
+
+使用者 2026-11-13 決定：B19、B20 合成一頁「升學路線比較」；B18 新增資料表、準備度用「考科進度＋考期倒數」、導師可看並可修正與留言。
+
+做了什麼：
+- 升學路線比較 `/student/pathways`：二技、插大、統測進四技三張卡片並排。學生選「我現在是」（依年級預設），卡片標出「現在就能準備」「快了」「目前還不符合」。統測卡寫明「要先休學或退學滿一年」並附法條；列 116 統測報名 115-12-09～21、考試 116-04-24～25 與倒數天數；商管群考科與 116 自主選考規定。每張卡片附出處與查詢日期。
+- 插大準備 `/student/transfer-plans`：學生自填學校、科系、插入年級、簡章學年度、簡章網址、報名與考試日期、考科（頓號分開，最多 8 科）。可從 115 學年度範例校帶入（只當格式參考）。每科有進度條，拖曳時準備度圓環即時更新，到 100% 有回饋動畫。
+- 準備度＝各科自評平均；30 天內且低於 70% 標紅，90 天內且低於 50% 標黃，並點出最該補的科目。簡章學年度不是明年入學那一屆就提醒「這是已考完的簡章」。不提供刪除，改成封存。
+- 導師學生頁加「插大準備」區塊：看準備度與各科進度，可修正日期、考科並留言；不會蓋掉學生備註，同名考科保留學生進度，修改寫進操作紀錄。
+- 目標校系頁加「二技、插大、四技差在哪」；插大分頁加「我的插大準備」入口。
+
+修改檔案：
+- 新增 `app/models/transfer_plan.py`、`migrations/versions/b20261113t01_transfer_plans.py`（新增 `transfer_plans`、`transfer_plan_subjects` 兩張表；**正式 MySQL 要跑資料庫遷移**，併入 A10）
+- 新增 `app/services/transfer_plan.py`、`app/services/pathways.py`
+- 新增 `app/templates/student_pathways.html`、`student_transfer_plans.html`、`partials/transfer_plan_form.html`、`partials/teacher_transfer_plans.html`
+- 修改 `app/models/__init__.py`、`app/routes/student.py`、`app/routes/teacher.py`、`app/services/audit_service.py`、`app/templates/teacher_student.html`、`app/templates/student_targets.html`、`app/static/css/design-system.css`
+- 新增測試 `tests/test_transfer_plans.py`（10 項）
+
+驗證：
+- 新測試 10 項，加上 CSS、插大示範資料、導師頁相關測試，共 30 項通過。
+- 固定驗收腳本 87 項全部通過。
+- 無頭瀏覽器 1280px 與 375px：升學路線比較、插大準備頁都不會左右滑；帶入範例校、拉進度條 30／70／50 後準備度顯示 50%；導師頁看得到插大準備區塊。
+- 完整測試：1652 通過、2 略過、1 失敗（16 分 18 秒）。失敗的是統一字級檢查：新樣式寫了 1.15rem、1.3rem、.75rem，改成 `--fs-md`、`--fs-lg`、`--fs-xs` 後，字級、CSS、插大相關測試 16 項重跑全部通過（只改樣式檔，沒有再跑一次完整測試）。
+
+查證限制：116 統測考期來自學校轉貼的官方重要日程表，商管群專業科目名稱來自考試大綱搜尋摘要（本機沒有 PDF 文字擷取工具）；簡章正式下載後要再核對一次。查證紀錄在 `D:\democase\ai\docs\05_交接與專案管理\B17-B20_插大與統測四技_官方資料查證_2026-11-13.md`。
+
+下一步：B17 逐校讀簡章抄考科（可交 Gemini）；正式 MySQL 跑資料庫遷移（A10）。
+
 ## 2026-11-13 依地區找學校：地圖東邊被裁、點地區放大、回到全台灣、右邊學校清單
 
 開發者：Claude（分支 `preview/student-v2`）

@@ -11,6 +11,10 @@ from app.models import AuditLog
 
 # 管理者「操作紀錄」頁顯示的中文名稱；新動作記得補一筆
 ACTION_LABELS = {
+    "transfer_plan.add": "新增插大目標",
+    "transfer_plan.update": "修改插大目標",
+    "transfer_plan.archive": "封存插大目標",
+    "transfer_plan.teacher_update": "導師修正插大目標",
     "student.login": "學生登入",
     "user.login": "教職員登入",
     "admin.login_failed": "管理員登入密碼錯誤",

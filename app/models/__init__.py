@@ -24,6 +24,7 @@ from app.models.learning_profile import (
     SourceDocument,
 )
 from app.models.user import StudentProfile, User, UserBackupCode
+from app.models.transfer_plan import TransferPlan, TransferPlanSubject
 from app.models.admission import (
     AdmissionEligibilityRule,
     AdmissionProgram,
@@ -116,4 +117,6 @@ __all__ = [
     "CurriculumVersion",
     "CurriculumCourse",
     "UserBackupCode",
+    "TransferPlan",
+    "TransferPlanSubject",
 ]
