@@ -4,8 +4,13 @@
 {% set base_args = {"track": track, "major": major_filter} %}
 <section class="school-map" aria-labelledby="school-map-title">
   <div class="school-map__figure">
-    <svg class="school-map__svg" viewBox="0 0 {{ map_size[0] }} {{ map_size[1] }}" role="img" aria-labelledby="school-map-svg-title">
-      <title id="school-map-svg-title">台灣地圖：點地區看那一區的學校，點圓點看學校資料</title>
+    {% if region_filter %}
+    {# 放大後回到全台灣（2026-11-13 使用者要求）：保留已選的分頁與科系類別，只拿掉地區與學校 #}
+    <a class="button button--small school-map__reset" href="{{ url_for('student.target_list', **base_args) }}#target-explorer-title">↺ 回到全台灣</a>
+    {% endif %}
+    <svg class="school-map__svg" viewBox="{{ map_view_box }}" data-full-view="0 0 {{ map_size[0] }} {{ map_size[1] }}"
+         role="img" aria-labelledby="school-map-svg-title">
+      <title id="school-map-svg-title">台灣地圖{% if region_filter %}（已放大到{{ region_filter }}）{% endif %}：點地區看那一區的學校，點圓點看學校資料</title>
       <g class="school-map__counties{% if region_filter %} has-filter{% endif %}" data-active-region="{{ region_filter }}">
         {% include "partials/taiwan_map_paths.html" %}
       </g>
@@ -13,8 +18,8 @@
       <a href="{{ url_for('student.target_list', school=point.school.name, region=point.region, **base_args) }}#school-card"
          class="school-map__pin{% if point.school.name == school_filter %} is-on{% endif %}{% if region_filter and point.region != region_filter %} is-dim{% endif %}"
          aria-label="{{ point.school.name }}（{{ point.region }}，{{ point.programs|length }} 個校系）">
-        <circle class="school-map__pulse" cx="{{ point.x }}" cy="{{ point.y }}" r="9"></circle>
-        <circle class="school-map__dot" cx="{{ point.x }}" cy="{{ point.y }}" r="6"></circle>
+        <circle class="school-map__pulse" cx="{{ point.x }}" cy="{{ point.y }}" r="{{ (9 / map_zoom)|round(2) }}"></circle>
+        <circle class="school-map__dot" cx="{{ point.x }}" cy="{{ point.y }}" r="{{ (6 / map_zoom)|round(2) }}"></circle>
         <title>{{ point.school.name }}：{{ point.programs|length }} 個校系</title>
       </a>
       {% endfor %}
@@ -70,6 +75,28 @@
       </ul>
       <p class="small muted">科系名稱有 ↗ 的可以直接開科系網站；沒有的請從學校官網找科系。</p>
     </article>
+    {% else %}
+    {# 還沒選學校：列出這一區（或全部）的學校清單，右邊不留白（2026-11-13 使用者要求） #}
+    {% set listed = map_points|selectattr("region", "equalto", region_filter)|list if region_filter else map_points %}
+    <section class="school-list" aria-labelledby="school-list-title">
+      <h3 id="school-list-title">{{ region_filter or "全部地區" }}的{{ "插大" if track == "transfer" else "二技" }}學校（{{ listed|length }} 所）</h3>
+      <ul class="school-list__items">
+        {% for point in listed %}
+        <li class="school-list__item">
+          <div class="school-list__head">
+            <a class="school-list__name" href="{{ url_for('student.target_list', school=point.school.name, region=point.region, **base_args) }}#school-card">{{ point.school.name }}</a>
+            <span class="muted small">{{ point.region }} · {{ point.school.city }} · {{ point.programs|length }} 個校系</span>
+          </div>
+          <p class="small school-list__departments">{{ point.programs|map(attribute="department_name")|unique|join("、") }}</p>
+          <p class="small school-list__links">
+            {% if point.school.website_url %}<a href="{{ point.school.website_url }}" target="_blank" rel="noopener">官網 ↗</a>{% endif %}
+            {% if point.school.admission_url %}<a href="{{ point.school.admission_url }}" target="_blank" rel="noopener">招生網站 ↗</a>{% endif %}
+            <a href="{{ url_for('student.target_list', school=point.school.name, region=point.region, **base_args) }}#school-card">看校系與準備度 →</a>
+          </p>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
     {% endif %}
   </div>
 </section>
@@ -83,5 +110,21 @@ document.querySelectorAll(".school-map .tw-county").forEach(function (county) {
     if (button) { window.location.href = button.href; }
   });
 });
+/* 放大動畫：選了地區時，地圖從全台灣平滑放大到那一區（使用者要求減少動態時直接顯示結果） */
+(function () {
+  var svg = document.querySelector(".school-map__svg");
+  if (!svg) { return; }
+  var target = svg.getAttribute("viewBox"), full = svg.getAttribute("data-full-view");
+  if (target === full || matchMedia("(prefers-reduced-motion: reduce)").matches) { return; }
+  var from = full.split(" ").map(Number), to = target.split(" ").map(Number), start = null;
+  svg.setAttribute("viewBox", full);
+  function step(now) {
+    start = start || now;
+    var t = Math.min(1, (now - start) / 650), ease = 1 - Math.pow(1 - t, 3);
+    svg.setAttribute("viewBox", from.map(function (v, i) { return (v + (to[i] - v) * ease).toFixed(1); }).join(" "));
+    if (t < 1) { requestAnimationFrame(step); }
+  }
+  requestAnimationFrame(step);
+})();
 </script>
 {% endif %}

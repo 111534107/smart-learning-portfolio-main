@@ -124,3 +124,22 @@ def test_school_map_columns_can_shrink_so_nothing_is_cut_off():
     assert "grid-template-columns: minmax(0, 340px) minmax(0, 1fr)" in css
     assert ".school-map__pick select { width: 100%; min-width: 0; max-width: 100%;" in css
     assert ".target-filter :is(select, input) { min-width: 0; max-width: 100%;" in css
+
+
+def test_map_fits_canvas_and_region_zoom_has_reset_and_school_list(app):
+    """2026-11-13：東海岸被裁（畫布太窄）；點地區要放大、有「回到全台灣」，沒選學校時右邊列學校清單。"""
+    import re
+    from pathlib import Path
+    paths = (Path(__file__).resolve().parents[1] / "app/templates/partials/taiwan_map_paths.html").read_text(encoding="utf-8")
+    xs = [float(x) for x in re.findall(r"[ML]([\d.]+),", paths)]
+    assert 0 <= min(xs) and max(xs) <= directory.MAP_WIDTH  # 三貂角也在畫布內
+
+    client = login(app, "stu")
+    whole = client.get("/student/targets").get_data(as_text=True)
+    assert f'viewBox="0 0 {directory.MAP_WIDTH} {directory.MAP_HEIGHT}"' in whole
+    assert "school-map__reset" not in whole and 'class="school-list__item"' in whole
+
+    north = client.get("/student/targets?region=北部").get_data(as_text=True)
+    assert f'viewBox="{directory.region_view_box("北部")}"' in north and "回到全台灣" in north
+    listed = re.findall(r'<span class="muted small">(\S+) · ', north.split('class="school-list"', 1)[1])
+    assert listed and set(listed) == {"北部"} and "北部的二技學校" in north  # 只列北部的學校

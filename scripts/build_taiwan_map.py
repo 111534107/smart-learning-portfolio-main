@@ -16,7 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from app.services.school_directory import REGION_OF_COUNTY, normalize_county, project  # noqa: E402
+from app.services.school_directory import MAP_HEIGHT, MAP_WIDTH, REGION_OF_COUNTY, normalize_county, project  # noqa: E402
 
 TOLERANCE = 0.006  # 度；約 600 公尺，地圖寬 360 像素時看不出差別
 MIN_RING_POINTS = 4
@@ -54,6 +54,7 @@ def ring_path(ring):
 def main(source):
     data = json.loads(Path(source).read_text(encoding="utf-8"))
     lines = ["{# 自動產生：scripts/build_taiwan_map.py；資料 g0v/twgeojson（CC0）。不要手改。 #}"]
+    bounds = {}  # 各區的外框（地圖座標），點選地區時放大用
     for feature in data["features"]:
         county = normalize_county(feature["properties"]["COUNTYNAME"])
         if county in SKIP:
@@ -61,12 +62,28 @@ def main(source):
         geometry = feature["geometry"]
         polygons = geometry["coordinates"] if geometry["type"] == "MultiPolygon" else [geometry["coordinates"]]
         d = "".join(ring_path(polygon[0]) for polygon in polygons)
+        region = REGION_OF_COUNTY[county]
+        for polygon in polygons:
+            for lon, lat in polygon[0]:
+                x, y = project(lon, lat)
+                box = bounds.setdefault(region, [x, y, x, y])
+                box[:] = [min(box[0], x), min(box[1], y), max(box[2], x), max(box[3], y)]
         if d:
-            region = REGION_OF_COUNTY[county]
             lines.append(f'<path class="tw-county" data-region="{region}" data-county="{county}" d="{d}"><title>{county}（{region}）</title></path>')
     out = ROOT / "app" / "templates" / "partials" / "taiwan_map_paths.html"
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"寫出 {out}（{out.stat().st_size // 1024} KB，{len(lines) - 1} 個縣市）")
+    # 放大框：四周留 8% 邊，再補成和整張地圖一樣的長寬比，放大後不會變形或被裁
+    ratio = MAP_WIDTH / MAP_HEIGHT
+    boxes = {}
+    for region, (x0, y0, x1, y1) in bounds.items():
+        w, h = (x1 - x0) * 1.16, (y1 - y0) * 1.16
+        w, h = max(w, h * ratio), max(h, w / ratio)
+        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+        boxes[region] = [round(cx - w / 2, 1), round(cy - h / 2, 1), round(w, 1), round(h, 1)]
+    regions_file = ROOT / "app" / "content" / "taiwan_map_regions.json"
+    regions_file.write_text(json.dumps(boxes, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(f"寫出 {regions_file}（{len(boxes)} 區的放大範圍）")
 
 
 if __name__ == "__main__":

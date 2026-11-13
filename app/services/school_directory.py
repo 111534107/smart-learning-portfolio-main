@@ -28,15 +28,31 @@ REGION_OF_COUNTY = {
 }
 CSV_COLUMNS = ("學校", "地區", "縣市", "緯度", "經度", "官網", "招生網站", "確認日期")
 
-# 地圖投影：經緯度 → SVG 座標（viewBox 0 0 360 560）。經度依台灣緯度縮放，形狀不會變寬。
-MAP_WIDTH, MAP_HEIGHT = 360, 560
-_LON0, _LAT1, _LAT0 = 119.3, 25.35, 21.85
+# 地圖投影：經緯度 → SVG 座標（viewBox 0 0 410 560）。經度依台灣緯度縮放，形狀不會變寬。
+# 2026-11-13：原本寬 360，三貂角換算約 396，東海岸被裁掉；改成澎湖西緣到三貂角都在畫布內、兩邊各留一點邊。
+MAP_WIDTH, MAP_HEIGHT = 410, 560
+_LON0, _LAT1, _LAT0 = 119.25, 25.35, 21.85
 _SCALE = MAP_HEIGHT / (_LAT1 - _LAT0)
 _LON_FACTOR = math.cos(math.radians(23.7))
 
 
 def project(lon, lat):
     return (lon - _LON0) * _LON_FACTOR * _SCALE, (_LAT1 - lat) * _SCALE
+
+
+REGION_BOXES_FILE = CONTENT / "taiwan_map_regions.json"  # scripts/build_taiwan_map.py 產生：各區在地圖上的範圍
+
+
+def region_view_box(region):
+    """點選地區時地圖放大到那一區：回傳 "x y 寬 高"；沒有資料時回傳整張地圖。"""
+    import json
+    full = f"0 0 {MAP_WIDTH} {MAP_HEIGHT}"
+    try:
+        boxes = json.loads(REGION_BOXES_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return full
+    box = boxes.get(region)
+    return " ".join(str(v) for v in box) if box else full
 
 
 def normalize_county(name):

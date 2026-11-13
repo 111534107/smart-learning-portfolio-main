@@ -1233,6 +1233,11 @@ def target_list():
         regions=[r for r in school_directory.REGIONS if region_counts[r]],
         school_card=school_card,
         map_size=(school_directory.MAP_WIDTH, school_directory.MAP_HEIGHT),
+        # 點選地區時放大到那一區（2026-11-13 使用者要求）；圓點跟著縮小，放大後不會變得很大
+        map_view_box=school_directory.region_view_box(region_filter) if region_filter else
+        f"0 0 {school_directory.MAP_WIDTH} {school_directory.MAP_HEIGHT}",
+        map_zoom=(school_directory.MAP_HEIGHT / float(school_directory.region_view_box(region_filter).split()[3]))
+        if region_filter else 1,
         focus=focus_view(user, journey, targets=track_targets),
         error=error,
     ), (400 if error else 200)
