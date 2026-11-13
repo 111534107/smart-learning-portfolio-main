@@ -34,6 +34,8 @@
     root.style.setProperty("--galpha", (0.2 + 0.8 * v / 100).toFixed(2));
     root.style.setProperty("--gblur", (v >= 100 ? 0 : 8 + v * 0.36).toFixed(0) + "px");
     root.setAttribute("data-glass", v >= 100 ? "solid" : v <= 15 ? "clear" : "std");
+    // 使用者自己調過「玻璃效果」就照他選的；沒調過才跟 Windows「透明效果」設定（2026-11-13）
+    root.toggleAttribute("data-glass-chosen", g !== null);
     root.classList.toggle("lens", isChromium && get("ui-lens") !== "off");
   }
   applyTheme(); applySize(); applyGlass();

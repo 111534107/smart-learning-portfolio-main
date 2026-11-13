@@ -37,9 +37,11 @@
   [data-ui="student-v2"] .sv2-glass,
   [data-ui="student-v2"] :is(.masthead--student, .masthead--app) .masthead__inner { background: var(--card); }
 }
+/* 系統（例如 Windows 關掉「透明效果」）要求減少透明時改成不透明；
+   但使用者在帳號選單自己調過「玻璃效果」（data-glass-chosen）就照他的選擇 */
 @media (prefers-reduced-transparency: reduce) {
-  [data-ui="student-v2"] .sv2-glass,
-  [data-ui="student-v2"] :is(.masthead--student, .masthead--app) .masthead__inner { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--card); }
+  [data-ui="student-v2"]:not([data-glass-chosen]) .sv2-glass,
+  [data-ui="student-v2"]:not([data-glass-chosen]) :is(.masthead--student, .masthead--app) .masthead__inner { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--card); }
 }
 /* 折射：只有 Chromium 支援 SVG 濾鏡當 backdrop-filter；student-v2.js 判斷後才在 <html> 加 lens */
 [data-ui="student-v2"].lens:not([data-glass="solid"]) :is(.sv2-glass, :is(.masthead--student, .masthead--app) .masthead__inner) {
@@ -99,6 +101,10 @@
   box-shadow: 0 30px 60px -24px rgb(40 30 20 / .45), 0 0 0 1px rgb(43 38 34 / .07);
   transform-origin: calc(100% - 20px) -10px;
   animation: sv2-grow .5s cubic-bezier(.25, 1.4, .35, 1);
+  /* 2026-11-13：視窗矮時選單超出畫面又不能捲；限制高度，超出的在選單裡捲（手機版在下方 720px 規則另外設） */
+  max-height: calc(100dvh - 96px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 [data-ui="student-v2"] .account-menu__panel[hidden] { display: none; }
 @keyframes sv2-grow { from { opacity: 0; transform: scale(.15); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
