@@ -115,3 +115,12 @@ def test_admin_edits_exports_imports_and_checks_links(app, monkeypatch):
 def test_only_admin_can_maintain(app):
     assert login(app, "staff").get("/admin/schools").status_code in (401, 403)
     assert login(app, "stu").post("/admin/schools/defaults").status_code in (401, 403)
+
+
+def test_school_map_columns_can_shrink_so_nothing_is_cut_off():
+    """2026-11-13 使用者回報手機與電腦版右邊被裁：欄位要用 minmax(0, …)、下拉選單寬度 100% 且可縮。"""
+    from pathlib import Path
+    css = (Path(__file__).resolve().parents[1] / "app/static/css/student-v2/shell.css").read_text(encoding="utf-8")
+    assert "grid-template-columns: minmax(0, 340px) minmax(0, 1fr)" in css
+    assert ".school-map__pick select { width: 100%; min-width: 0; max-width: 100%;" in css
+    assert ".target-filter :is(select, input) { min-width: 0; max-width: 100%;" in css
