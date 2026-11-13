@@ -1,7 +1,7 @@
 from app.models.agent_task import AgentTask
 from app.models.ai_usage import AiDailyUsage
 from app.models.audit_log import AuditLog
-from app.models.portfolio import Portfolio, PortfolioEvidence
+from app.models.portfolio import Portfolio, PortfolioDomainTag, PortfolioEvidence
 from app.models.award_record import SchoolAwardRecord
 from app.models.certificate import AwardCertificate
 from app.models.project import (
@@ -27,6 +27,7 @@ from app.models.admission import (
     AdmissionEligibilityRule,
     AdmissionProgram,
     AdmissionRequirementItem,
+    AdmissionRuleItemCategory,
     AdmissionScheduleEvent,
     ClassAdvisor,
     PackageReview,
@@ -92,6 +93,8 @@ __all__ = [
     "AdmissionProgram",
     "AdmissionEligibilityRule",
     "AdmissionRequirementItem",
+    "AdmissionRuleItemCategory",
+    "PortfolioDomainTag",
     "AdmissionScheduleEvent",
     "StudentTarget",
     "ClassAdvisor",

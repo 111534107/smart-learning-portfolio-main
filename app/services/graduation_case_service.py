@@ -68,7 +68,7 @@ def record_event(case, event_type, actor=None, *, to_status=None, amount_after=N
         if user.id in seen:
             continue
         seen.add(user.id)
-        db.session.add(Notification(recipient_id=user.id, case_id=case.id, event_id=event.id,
+        db.session.add(Notification(recipient_id=user.id, event_id=event.id,
                                     message=(message or f"案件 {case.number} 有更新")[:255]))
         email_notify.notify(user, "graduation_case")  # 電子郵件跟站內通知同時；失敗只記錄
     db.session.flush()

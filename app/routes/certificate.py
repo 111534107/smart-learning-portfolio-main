@@ -43,7 +43,7 @@ def certificate_apply(portfolio_id):
         return redirect(url_for("student.portfolio_edit", portfolio_id=record.id))
     body = service.default_body(record, kind)  # 先算好內文，再加進 session，避免查詢時先存進一筆空白的
     if not cert:
-        cert = AwardCertificate(student_id=user.id, portfolio=record)
+        cert = AwardCertificate(portfolio=record)
     cert.status = "pending"
     cert.kind = kind
     cert.title = service.KINDS[kind]

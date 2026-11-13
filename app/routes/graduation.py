@@ -69,7 +69,9 @@ def case_detail(case_id):
     user = get_current_user()
     if not actions.can_view(case, user):
         abort(403)
-    unread = Notification.query.filter_by(recipient_id=user.id, case_id=case.id, read_at=None).all()
+    unread = (Notification.query.join(GraduationCaseEvent, Notification.event_id == GraduationCaseEvent.id)
+              .filter(Notification.recipient_id == user.id, GraduationCaseEvent.case_id == case.id,
+                      Notification.read_at.is_(None)).all())
     if unread:
         now = datetime.now(timezone.utc)
         for note in unread:

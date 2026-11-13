@@ -112,4 +112,7 @@ def test_migration_adds_story_columns(tmp_path):
     assert runner.invoke(args=["db", "upgrade"]).exit_code == 0
     with app.app_context():
         columns = {c["name"] for c in inspect(db.engine).get_columns("portfolios")}
-    assert {"role", "achievement", "learned", "domain_tags"} <= columns
+        tables = set(inspect(db.engine).get_table_names())
+    assert {"role", "achievement", "learned"} <= columns
+    # 相關領域 2026-11-13 正規化後改存獨立資料表（一個領域一列）
+    assert "domain_tags" not in columns and "portfolio_domain_tags" in tables

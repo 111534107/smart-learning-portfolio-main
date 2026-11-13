@@ -134,7 +134,7 @@ def parse_rows(text, today=None):
 
 def _already_issued(student, title):
     return db.session.query(AwardCertificate.id).join(Portfolio, AwardCertificate.portfolio_id == Portfolio.id).filter(
-        AwardCertificate.student_id == student.id, AwardCertificate.status == "approved",
+        Portfolio.student_id == student.id, AwardCertificate.status == "approved",
         Portfolio.source == "department_certificate", Portfolio.title == title).first() is not None
 
 
@@ -166,7 +166,7 @@ def issue_rows(staff, rows, title=None):
         db.session.add(record)
         db.session.flush()
         cert = AwardCertificate(
-            student_id=row.student.id, portfolio=record, kind=KIND, title=title,
+            portfolio=record, kind=KIND, title=title,
             issuer=certificate_service.DEFAULT_ISSUER, body=body_for(row), status="approved",
             issued_on=date.today(), verify_code=certificate_service.new_verify_code(),
             reviewed_by_id=staff.id, reviewed_at=now,

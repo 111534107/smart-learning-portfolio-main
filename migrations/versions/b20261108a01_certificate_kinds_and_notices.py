@@ -36,7 +36,8 @@ def upgrade():
         with op.batch_alter_table("notifications", reflect_kwargs=REFLECT) as batch:
             if "link" not in columns:
                 batch.add_column(sa.Column("link", sa.String(length=255), nullable=True))
-            if not columns["case_id"]["nullable"]:
+            # case_id 在 2026-11-13 正規化後移除；用新模型建的資料庫沒有這欄就跳過
+            if "case_id" in columns and not columns["case_id"]["nullable"]:
                 batch.alter_column("case_id", existing_type=sa.Integer(), nullable=True)
             if not columns["event_id"]["nullable"]:
                 batch.alter_column("event_id", existing_type=sa.Integer(), nullable=True)
@@ -47,11 +48,12 @@ def downgrade():
     if inspector.has_table("notifications"):
         columns = _columns(inspector, "notifications")
         # 非案件的通知回不到舊表結構（舊版 case_id、event_id 不可空），先刪掉
-        op.execute("DELETE FROM notifications WHERE case_id IS NULL OR event_id IS NULL")
+        op.execute("DELETE FROM notifications WHERE event_id IS NULL" + (" OR case_id IS NULL" if "case_id" in columns else ""))
         with op.batch_alter_table("notifications", reflect_kwargs=REFLECT) as batch:
             if "link" in columns:
                 batch.drop_column("link")
-            batch.alter_column("case_id", existing_type=sa.Integer(), nullable=False)
+            if "case_id" in columns:
+                batch.alter_column("case_id", existing_type=sa.Integer(), nullable=False)
             batch.alter_column("event_id", existing_type=sa.Integer(), nullable=False)
 
     if inspector.has_table("award_certificates") and "kind" in _columns(inspector, "award_certificates"):

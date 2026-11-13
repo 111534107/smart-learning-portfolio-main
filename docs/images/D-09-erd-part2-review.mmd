@@ -1,6 +1,7 @@
 %%{init: {'theme':'base','themeVariables': {'fontFamily':'Arial, Microsoft JhengHei, sans-serif','fontSize':'14px','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280'},'er':{'minEntityWidth':160,'entityPadding':20}}}%%
 erDiagram
     ADMISSION_RULE_VERSIONS ||--o{ ADMISSION_RULE_ITEMS : "備審要求"
+    ADMISSION_RULE_ITEMS ||--o{ ADMISSION_RULE_ITEM_CATEGORIES : "對應類別"
     USERS ||--o{ STUDENT_TARGETS : "選擇校系"
     ADMISSION_RULE_VERSIONS ||--o{ STUDENT_TARGETS : "被選擇"
     USERS ||--o{ LEARNING_PROFILE_OUTPUTS : "自傳與備審"
@@ -33,9 +34,13 @@ erDiagram
         int rule_version_id FK
         string source_item_name "簡章原始項目名稱"
         int weight_percent "加權百分比"
-        string mapped_categories "對應資料類別"
         string mapping_status "確定 待確認"
         bool is_required
+    }
+    ADMISSION_RULE_ITEM_CATEGORIES["ADMISSION_RULE_ITEM_CATEGORIES 備審項目對應類別　　　"] {
+        int item_id PK "也是 FK"
+        string category_key PK "一個類別一列"
+        int sort_order
     }
     STUDENT_TARGETS["STUDENT_TARGETS 學生目標校系　　　"] {
         int id PK

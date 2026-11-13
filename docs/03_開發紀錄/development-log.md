@@ -1,5 +1,43 @@
 # 開發日誌
 
+## 2026-11-13 資料庫正規化（B11）
+
+日期：2026-11-13
+
+開發者：Claude（分支 `preview/student-v2`）
+
+目標：規格書要求至少第三正規化，原本沒有逐表檢查文件。
+
+做了什麼：
+- 由程式匯出全部 58 張資料表的欄位、主鍵、外來鍵與唯一限制，逐表檢查第一到第三正規化。
+- 修正 5 處：
+  - 第一正規化：`admission_rule_items.mapped_categories`、`portfolios.domain_tags` 原本一格存多個值，拆成新表 `admission_rule_item_categories`、`portfolio_domain_tags`。
+  - 第三正規化：拿掉 `award_certificates.student_id`（由紀錄推得）、`notifications.case_id`（由事件推得）。
+  - 完整性：`student_profiles.user_id` 加唯一限制。
+- 原欄位名稱保留為屬性，讀寫方式不變，其他程式只需改建立獎狀、通知時傳的參數和兩個查詢。
+- 刻意保留的設計（快照、版本、稽核紀錄、衍生欄位等）都寫明理由。
+- 發現既有問題：舊的遷移鏈在全新資料庫上不會建 `users`、`portfolios`（由 `init_db` 建）。所以新遷移每一步都先確認表和欄位存在，測試也以此模擬已上線的資料庫。
+
+修改檔案：
+- 新增遷移 `migrations/versions/b20261113n01_normalize_to_3nf.py`；
+- `app/models/admission.py`、`portfolio.py`、`certificate.py`、`graduation_case.py`、`user.py`、`__init__.py`；
+- `app/routes/graduation.py`、`app/routes/certificate.py`；
+- `app/services/certificate_service.py`、`certificate_batch_service.py`、`graduation_case_service.py`；
+- `app/demo.py`、`scripts/run_demo.py`；
+- 新增測試 `tests/test_normalization.py`，並調整 3 個既有測試；
+- 新增 `docs/02_需求與設計/03_審查與檢查/資料庫正規化檢查_2026-11-13.md`。
+
+- ERD 跟著更新：改 `docs/images/D-09-erd-build.py`，重新產生 `D-09-erd-v2`、`part1`、`part2` 的 `.mmd`、`.svg`、`.png`（31 張表）。
+- 第一次完整測試有 23 項失敗，修正後才提交：
+  - `Notification.case_id` 改成 `hybrid_property`，查詢 `filter_by(case_id=…)` 會轉成子查詢；
+  - 遷移在沒有 `users` 表時跳過要重建的表，已有的表與唯一限制也跳過；
+  - 舊遷移 `b20261108a01` 加上「`case_id` 欄位存在才處理」；
+  - 兩個遷移測試改成符合正規化後的結構。
+
+驗證結果：完整測試 1623 通過、2 略過；固定驗收腳本 71 項全部通過。（最後一輪另修：`AwardCertificate.student_id` 也改 `hybrid_property`，補查詢測試。）
+
+下一步：正式 MySQL 執行遷移（現況一頁 A10）；`D:\democase\ai\docs\images` 主專案那份 ERD 要等其他代理的未提交修改處理後再同步。
+
 ## 2026-11-13 自傳：資料拖進自傳（B1）、保留學生自己打的字（B2）
 
 日期：2026-11-13

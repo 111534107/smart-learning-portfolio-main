@@ -51,7 +51,8 @@ def make_case(student, status="pending", item="certificates"):
 
 
 def notified(user, case):
-    return Notification.query.filter_by(recipient_id=user.id, case_id=case.id).count()
+    return (Notification.query.join(GraduationCaseEvent, Notification.event_id == GraduationCaseEvent.id)
+            .filter(Notification.recipient_id == user.id, GraduationCaseEvent.case_id == case.id).count())
 
 
 def test_student_note_moves_pending_to_in_progress_and_notifies_teacher(app):

@@ -1,6 +1,6 @@
 """產生 ERD 的 Mermaid 原始碼：一張全部資料表的總覽，加上依功能拆開的三張分圖。
 
-資料表太多（29 張）時一張圖會太寬，規格書改用三張分圖（圖 18-1～18-3）；
+資料表太多（31 張；2026-11-13 正規化新增兩張）時一張圖會太寬，規格書改用三張分圖（圖 18-1～18-3）；
 總覽 D-09-erd-v2.mmd 留在 diagrams.md 當參考。
 
 修改方式：改下面 ENTITIES（欄位）或 RELATIONS（關係），再到 docs/images 執行
@@ -22,7 +22,7 @@ ENTITIES = {
     "USERS": ("使用者", [
         'int id PK', 'string username "學號或帳號"', 'string role "student teacher staff admin"', 'bool is_active']),
     "STUDENT_PROFILES": ("學生資料", [
-        'int id PK', 'int user_id FK', 'string student_no', 'string class_name "班級"',
+        'int id PK', 'int user_id FK "唯一：一位使用者一筆"', 'string student_no', 'string class_name "班級"',
         'int admission_year "入學學年度（管理者匯入）"']),
     "CLASS_ADVISORS": ("導師班級", [
         'int id PK', 'int teacher_id FK', 'string class_name', 'int school_year']),
@@ -40,6 +40,8 @@ ENTITIES = {
     "PORTFOLIOS": ("活動競賽服務幹部", [
         'int id PK', 'int student_id FK', 'string category "活動 競賽 服務學習 幹部經歷"', 'string title',
         'string evidence_source "證明來源"', 'string status']),
+    "PORTFOLIO_DOMAIN_TAGS": ("經歷相關領域", [
+        'int portfolio_id PK "也是 FK"', 'string tag PK "一個領域一列"', 'int sort_order']),
     "PORTFOLIO_EVIDENCE": ("佐證檔案", [
         'int id PK', 'int portfolio_id FK', 'string file_path', 'string external_url']),
     "ATTENDANCE_SUMMARIES": ("缺曠合計（待新增）", [
@@ -51,7 +53,7 @@ ENTITIES = {
         'int id PK', 'int school_year "入學年度"', 'string course_name', 'string category "必修 選修等"',
         'string requirement_type', 'int credits']),
     "AWARD_CERTIFICATES": ("電子獎狀", [
-        'int id PK', 'int student_id FK', 'int portfolio_id FK', 'string title "證明類別：科上派的服務 TA 社團"',
+        'int id PK', 'int portfolio_id FK "學生由這筆紀錄決定"', 'string title "證明類別：科上派的服務 TA 社團"',
         'string status "pending approved returned"', 'string verify_code "驗證碼"', 'int reviewed_by_id FK "核准的科辦"']),
     "ADMISSION_RULE_VERSIONS": ("校系與年度", [
         'int id PK', 'string program_code "志願代碼"', 'string school_name "學校"', 'string department_name "科系"',
@@ -60,7 +62,9 @@ ENTITIES = {
         'json details_json "資格 文件 時程 連結 特色（待新增）"', 'date checked_at "最後確認日期"']),
     "ADMISSION_RULE_ITEMS": ("校系備審要求", [
         'int id PK', 'int rule_version_id FK', 'string source_item_name "簡章原始項目名稱"', 'int weight_percent "加權百分比"',
-        'string mapped_categories "對應資料類別"', 'string mapping_status "確定 待確認"', 'bool is_required']),
+        'string mapping_status "確定 待確認"', 'bool is_required']),
+    "ADMISSION_RULE_ITEM_CATEGORIES": ("備審項目對應類別", [
+        'int item_id PK "也是 FK"', 'string category_key PK "一個類別一列"', 'int sort_order']),
     "STUDENT_TARGETS": ("學生目標校系", [
         'int id PK', 'int student_id FK', 'int rule_version_id FK', 'datetime selected_at']),
     "LEARNING_PROFILE_OUTPUTS": ("自傳版本與備審產出", [
@@ -125,9 +129,10 @@ RELATIONS = [
     ("USERS", "||--o{", "PORTFOLIOS", "活動競賽服務幹部", {1}),
     ("PORTFOLIOS", "||--o{", "PORTFOLIO_EVIDENCE", "佐證", {1}),
     ("USERS", "||--o{", "ATTENDANCE_SUMMARIES", "缺曠合計", {1}),
-    ("USERS", "||--o{", "AWARD_CERTIFICATES", "申請電子獎狀", {1}),
-    ("PORTFOLIOS", "|o--o|", "AWARD_CERTIFICATES", "列入學習資料", {1}),
+    ("PORTFOLIOS", "||--o|", "AWARD_CERTIFICATES", "申請電子獎狀", {1}),
+    ("PORTFOLIOS", "||--o{", "PORTFOLIO_DOMAIN_TAGS", "相關領域", {1}),
     ("ADMISSION_RULE_VERSIONS", "||--o{", "ADMISSION_RULE_ITEMS", "備審要求", {2}),
+    ("ADMISSION_RULE_ITEMS", "||--o{", "ADMISSION_RULE_ITEM_CATEGORIES", "對應類別", {2}),
     ("USERS", "||--o{", "STUDENT_TARGETS", "選擇校系", {2}),
     ("ADMISSION_RULE_VERSIONS", "||--o{", "STUDENT_TARGETS", "被選擇", {2}),
     ("USERS", "||--o{", "LEARNING_PROFILE_OUTPUTS", "自傳與備審", {2}),
@@ -154,9 +159,9 @@ PARTS = {
     1: ("D-09-erd-part1-learning.mmd", [
         "USERS", "STUDENT_PROFILES", "CLASS_ADVISORS", "SOURCE_DOCUMENTS", "DOCUMENT_EXTRACTIONS",
         "LEARNING_COURSE_RECORDS", "COURSE_RULES", "CREDENTIAL_RECORDS", "PORTFOLIOS", "PORTFOLIO_EVIDENCE",
-        "ATTENDANCE_SUMMARIES", "AWARD_CERTIFICATES"]),
+        "PORTFOLIO_DOMAIN_TAGS", "ATTENDANCE_SUMMARIES", "AWARD_CERTIFICATES"]),
     2: ("D-09-erd-part2-review.mmd", [
-        "USERS", "ADMISSION_RULE_VERSIONS", "ADMISSION_RULE_ITEMS", "STUDENT_TARGETS",
+        "USERS", "ADMISSION_RULE_VERSIONS", "ADMISSION_RULE_ITEMS", "ADMISSION_RULE_ITEM_CATEGORIES", "STUDENT_TARGETS",
         "LEARNING_PROFILE_OUTPUTS", "PACKAGE_REVIEWS", "AUTOBIOGRAPHY_COMMENTS", "AI_DAILY_USAGE"]),
     3: ("D-09-erd-part3-sources.mmd", [
         "USERS", "PUBLIC_SOURCES", "PUBLIC_SOURCE_SNAPSHOTS", "ADMISSION_RULE_VERSIONS", "AGENT_TASKS",

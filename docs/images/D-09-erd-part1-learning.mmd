@@ -12,8 +12,8 @@ erDiagram
     USERS ||--o{ PORTFOLIOS : "活動競賽服務幹部"
     PORTFOLIOS ||--o{ PORTFOLIO_EVIDENCE : "佐證"
     USERS ||--o{ ATTENDANCE_SUMMARIES : "缺曠合計"
-    USERS ||--o{ AWARD_CERTIFICATES : "申請電子獎狀"
-    PORTFOLIOS |o--o| AWARD_CERTIFICATES : "列入學習資料"
+    PORTFOLIOS ||--o| AWARD_CERTIFICATES : "申請電子獎狀"
+    PORTFOLIOS ||--o{ PORTFOLIO_DOMAIN_TAGS : "相關領域"
 
     USERS["USERS 使用者　　　"] {
         int id PK
@@ -23,7 +23,7 @@ erDiagram
     }
     STUDENT_PROFILES["STUDENT_PROFILES 學生資料　　　"] {
         int id PK
-        int user_id FK
+        int user_id FK "唯一：一位使用者一筆"
         string student_no
         string class_name "班級"
         int admission_year "入學學年度（管理者匯入）"
@@ -89,6 +89,11 @@ erDiagram
         string file_path
         string external_url
     }
+    PORTFOLIO_DOMAIN_TAGS["PORTFOLIO_DOMAIN_TAGS 經歷相關領域　　　"] {
+        int portfolio_id PK "也是 FK"
+        string tag PK "一個領域一列"
+        int sort_order
+    }
     ATTENDANCE_SUMMARIES["ATTENDANCE_SUMMARIES 缺曠合計（待新增）　　　"] {
         int id PK
         int student_id FK
@@ -102,8 +107,7 @@ erDiagram
     }
     AWARD_CERTIFICATES["AWARD_CERTIFICATES 電子獎狀　　　"] {
         int id PK
-        int student_id FK
-        int portfolio_id FK
+        int portfolio_id FK "學生由這筆紀錄決定"
         string title "證明類別：科上派的服務 TA 社團"
         string status "pending approved returned"
         string verify_code "驗證碼"

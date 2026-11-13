@@ -12,9 +12,10 @@ erDiagram
     USERS ||--o{ PORTFOLIOS : "活動競賽服務幹部"
     PORTFOLIOS ||--o{ PORTFOLIO_EVIDENCE : "佐證"
     USERS ||--o{ ATTENDANCE_SUMMARIES : "缺曠合計"
-    USERS ||--o{ AWARD_CERTIFICATES : "申請電子獎狀"
-    PORTFOLIOS |o--o| AWARD_CERTIFICATES : "列入學習資料"
+    PORTFOLIOS ||--o| AWARD_CERTIFICATES : "申請電子獎狀"
+    PORTFOLIOS ||--o{ PORTFOLIO_DOMAIN_TAGS : "相關領域"
     ADMISSION_RULE_VERSIONS ||--o{ ADMISSION_RULE_ITEMS : "備審要求"
+    ADMISSION_RULE_ITEMS ||--o{ ADMISSION_RULE_ITEM_CATEGORIES : "對應類別"
     USERS ||--o{ STUDENT_TARGETS : "選擇校系"
     ADMISSION_RULE_VERSIONS ||--o{ STUDENT_TARGETS : "被選擇"
     USERS ||--o{ LEARNING_PROFILE_OUTPUTS : "自傳與備審"
@@ -44,7 +45,7 @@ erDiagram
     }
     STUDENT_PROFILES["STUDENT_PROFILES 學生資料　　　"] {
         int id PK
-        int user_id FK
+        int user_id FK "唯一：一位使用者一筆"
         string student_no
         string class_name "班級"
         int admission_year "入學學年度（管理者匯入）"
@@ -96,6 +97,11 @@ erDiagram
         string evidence_source "證明來源"
         string status
     }
+    PORTFOLIO_DOMAIN_TAGS["PORTFOLIO_DOMAIN_TAGS 經歷相關領域　　　"] {
+        int portfolio_id PK "也是 FK"
+        string tag PK "一個領域一列"
+        int sort_order
+    }
     PORTFOLIO_EVIDENCE["PORTFOLIO_EVIDENCE 佐證檔案　　　"] {
         int id PK
         int portfolio_id FK
@@ -123,8 +129,7 @@ erDiagram
     }
     AWARD_CERTIFICATES["AWARD_CERTIFICATES 電子獎狀　　　"] {
         int id PK
-        int student_id FK
-        int portfolio_id FK
+        int portfolio_id FK "學生由這筆紀錄決定"
         string title "證明類別：科上派的服務 TA 社團"
         string status "pending approved returned"
         string verify_code "驗證碼"
@@ -148,9 +153,13 @@ erDiagram
         int rule_version_id FK
         string source_item_name "簡章原始項目名稱"
         int weight_percent "加權百分比"
-        string mapped_categories "對應資料類別"
         string mapping_status "確定 待確認"
         bool is_required
+    }
+    ADMISSION_RULE_ITEM_CATEGORIES["ADMISSION_RULE_ITEM_CATEGORIES 備審項目對應類別　　　"] {
+        int item_id PK "也是 FK"
+        string category_key PK "一個類別一列"
+        int sort_order
     }
     STUDENT_TARGETS["STUDENT_TARGETS 學生目標校系　　　"] {
         int id PK

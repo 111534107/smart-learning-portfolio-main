@@ -104,7 +104,7 @@ def _seed_staff_queue(student, portfolios):
         service.source, service.semester = "award_record", 1
         db.session.flush()
         db.session.add(AwardCertificate(
-            student_id=student.id, portfolio=service, status="pending", title=certificate_service.KINDS["service"],
+            portfolio=service, status="pending", title=certificate_service.KINDS["service"],
             issuer=certificate_service.DEFAULT_ISSUER, body=certificate_service.default_body(service),
         ))
 

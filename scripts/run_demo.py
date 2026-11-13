@@ -125,7 +125,7 @@ def seed():
                                source="award_record", status="confirmed")
     db.session.add(service_record)
     db.session.flush()
-    db.session.add(AwardCertificate(student_id=classmate.id, portfolio=service_record, status="pending",
+    db.session.add(AwardCertificate(portfolio=service_record, status="pending",
                                     title=certificate_service.KINDS["service"], issuer=certificate_service.DEFAULT_ISSUER,
                                     body=certificate_service.default_body(service_record)))
     program = AdmissionProgram.query.filter_by(program_code="208003").one()

@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+from sqlalchemy.ext.hybrid import hybrid_property
+
 from app.extensions import db
 
 
@@ -97,7 +99,6 @@ class Notification(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     recipient_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
-    case_id = db.Column(db.Integer, db.ForeignKey("graduation_cases.id"), nullable=True, index=True)
     event_id = db.Column(db.Integer, db.ForeignKey("graduation_case_events.id"), nullable=True)
     message = db.Column(db.String(255), nullable=False, default="")
     # 各學期預警、檢核日期倒數這類沒有案件事件的提醒，用這個鍵去重（同一人同一鍵只通知一次）
@@ -107,5 +108,19 @@ class Notification(db.Model):
     read_at = db.Column(db.DateTime, nullable=True)
 
     recipient = db.relationship("User", foreign_keys=[recipient_id])
-    case = db.relationship("GraduationCase")
     event = db.relationship("GraduationCaseEvent")
+
+    # 第三正規化（2026-11-13）：案件由事件決定（通知 → 事件 → 案件），不另存 case_id。
+    # 用 hybrid_property：物件上讀得到，查詢時 filter_by(case_id=…) 也會轉成子查詢
+    @hybrid_property
+    def case_id(self):
+        return self.event.case_id if self.event else None
+
+    @case_id.expression
+    def case_id(cls):
+        return (db.select(GraduationCaseEvent.case_id).where(GraduationCaseEvent.id == cls.event_id)
+                .scalar_subquery())
+
+    @property
+    def case(self):
+        return self.event.case if self.event else None

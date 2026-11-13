@@ -58,8 +58,8 @@ def test_notification_unique_per_recipient_event(app):
     event = GraduationCaseEvent(case_id=case.id, event_type="created")
     db.session.add(event)
     db.session.flush()
-    db.session.add(Notification(recipient_id=student.id, case_id=case.id, event_id=event.id, message="a"))
+    db.session.add(Notification(recipient_id=student.id, event_id=event.id, message="a"))
     db.session.flush()
     with pytest.raises(IntegrityError):
-        db.session.add(Notification(recipient_id=student.id, case_id=case.id, event_id=event.id, message="b"))
+        db.session.add(Notification(recipient_id=student.id, event_id=event.id, message="b"))
         db.session.flush()

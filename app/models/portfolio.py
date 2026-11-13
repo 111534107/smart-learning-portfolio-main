@@ -25,7 +25,9 @@ class Portfolio(db.Model):
     role = db.Column(db.Text, nullable=True)  # 我負責的部分
     achievement = db.Column(db.String(300), nullable=True)  # 數字成果（人數、名次、件數、時間）
     learned = db.Column(db.Text, nullable=True)  # 學到什麼
-    domain_tags = db.Column(db.String(200), nullable=True)  # 相關領域，用「、」分隔（例如系統開發、醫療資訊）
+    # 相關領域存在 portfolio_domain_tags（一個領域一列，第一正規化，2026-11-13）；domain_tags 屬性讀寫「、」分隔字串
+    domain_tag_rows = db.relationship("PortfolioDomainTag", cascade="all, delete-orphan",
+                                      order_by="PortfolioDomainTag.sort_order")
     course_name = db.Column(db.String(100), nullable=True)
     school_year = db.Column(db.Integer, nullable=True)
     semester = db.Column(db.Integer, nullable=True)
@@ -46,6 +48,17 @@ class Portfolio(db.Model):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
+
+    @property
+    def domain_tags(self):
+        return "、".join(row.tag for row in self.domain_tag_rows) or None
+
+    @domain_tags.setter
+    def domain_tags(self, value):
+        import re
+        tags = re.split(r"[、,，;；/\s]+", value) if isinstance(value, str) else list(value or [])
+        tags = list(dict.fromkeys(tag.strip()[:50] for tag in tags if tag and tag.strip()))
+        self.domain_tag_rows = [PortfolioDomainTag(tag=tag, sort_order=order) for order, tag in enumerate(tags)]
 
     student = db.relationship("User", back_populates="portfolios")
     source_document = db.relationship("SourceDocument")
@@ -99,3 +112,13 @@ class PortfolioEvidence(db.Model):
     def preview_kind(self):
         """"image"、"pdf" 或 None（不能預覽，只能下載）。"""
         return file_preview.preview_kind(self.display_name)
+
+
+class PortfolioDomainTag(db.Model):
+    """經歷的一個相關領域（例如「系統開發」）。一筆經歷可以有多個領域，一個領域一列（第一正規化，2026-11-13）。"""
+
+    __tablename__ = "portfolio_domain_tags"
+
+    portfolio_id = db.Column(db.Integer, db.ForeignKey("portfolios.id", ondelete="CASCADE"), primary_key=True)
+    tag = db.Column(db.String(50), primary_key=True)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)

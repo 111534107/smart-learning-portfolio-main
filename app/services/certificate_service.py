@@ -135,7 +135,7 @@ def staff_issue(staff, student, kind, event, school_year, semester, course=None,
     db.session.add(record)
     db.session.flush()
     cert = AwardCertificate(
-        student_id=student.id, portfolio=record, kind=kind, title=KINDS[kind], issuer=DEFAULT_ISSUER,
+        portfolio=record, kind=kind, title=KINDS[kind], issuer=DEFAULT_ISSUER,
         body=(body or "").strip() or default_body(record, kind), status="approved",
         issued_on=date.today(), verify_code=new_verify_code(),
         reviewed_by_id=staff.id, reviewed_at=datetime.now(timezone.utc),

@@ -188,7 +188,7 @@ def test_staff_list_still_shows_old_club_certificates(tmp_path):
     club_id = _add_award_record(app, "1141學期擔任資訊研習社社長熱心社務", "leadership")
     with app.app_context():
         record = db.session.get(Portfolio, club_id)
-        db.session.add(AwardCertificate(student_id=record.student_id, portfolio=record, status="pending", kind="club",
+        db.session.add(AwardCertificate(portfolio=record, status="pending", kind="club",
                                         title="科學會證明", issuer="資訊管理科", body="（舊申請）"))
         db.session.commit()
 
@@ -308,7 +308,8 @@ def test_migration_adds_kind_and_relaxes_notification_case(tmp_path):
     app = create_app({"SQLALCHEMY_DATABASE_URI": f"sqlite:///{tmp_path / 'cert.db'}", "TESTING": True})
     runner = app.test_cli_runner()
 
-    result = runner.invoke(args=["db", "upgrade"])
+    # 只升到這一版檢查；之後的正規化遷移（b20261113n01）會把 case_id 整欄移除
+    result = runner.invoke(args=["db", "upgrade", "b20261108a01"])
     assert result.exit_code == 0, result.output
     with app.app_context():
         inspector = inspect(db.engine)

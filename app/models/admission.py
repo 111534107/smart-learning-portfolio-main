@@ -52,7 +52,8 @@ class AdmissionProgram(db.Model):
 class AdmissionRequirementItem(db.Model):
     """簡章上的一個評分項目，以及它對應到本系統的哪些資料類別。
 
-    mapped_categories：以逗號分隔的類別代碼，例如 "credential,competition,autobiography"
+    對應的類別存在 admission_rule_item_categories（一個類別一列，第一正規化，2026-11-13）。
+    mapped_categories 保留為讀寫方便的屬性：讀出「credential,competition」這樣的字串，寫入時拆成多列。
     mapping_status：confirmed（確定）／pending（待確認）
     """
 
@@ -62,7 +63,8 @@ class AdmissionRequirementItem(db.Model):
     rule_version_id = db.Column(db.Integer, db.ForeignKey("admission_rule_versions.id"), nullable=False, index=True)
     source_item_name = db.Column(db.String(100), nullable=False)
     weight_percent = db.Column(db.Integer, nullable=False)
-    mapped_categories = db.Column(db.String(200), nullable=False, default="")
+    category_rows = db.relationship("AdmissionRuleItemCategory", cascade="all, delete-orphan",
+                                    order_by="AdmissionRuleItemCategory.sort_order")
     mapping_status = db.Column(db.String(20), nullable=False, default="pending")
     requirement = db.Column(db.Text, nullable=True)
     is_required = db.Column(db.Boolean, nullable=False, default=True)
@@ -72,7 +74,28 @@ class AdmissionRequirementItem(db.Model):
 
     @property
     def category_keys(self):
-        return [key for key in (self.mapped_categories or "").split(",") if key]
+        return [row.category_key for row in self.category_rows]
+
+    @property
+    def mapped_categories(self):
+        return ",".join(self.category_keys)
+
+    @mapped_categories.setter
+    def mapped_categories(self, value):
+        keys = value.split(",") if isinstance(value, str) else list(value or [])
+        keys = list(dict.fromkeys(key.strip() for key in keys if key and key.strip()))
+        self.category_rows = [AdmissionRuleItemCategory(category_key=key, sort_order=order)
+                              for order, key in enumerate(keys)]
+
+
+class AdmissionRuleItemCategory(db.Model):
+    """評分項目對應的一個資料類別（例如 credential）。一個項目可以對應多個類別，一個類別一列。"""
+
+    __tablename__ = "admission_rule_item_categories"
+
+    item_id = db.Column(db.Integer, db.ForeignKey("admission_rule_items.id", ondelete="CASCADE"), primary_key=True)
+    category_key = db.Column(db.String(30), primary_key=True)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
 
 
 class AdmissionScheduleEvent(db.Model):
