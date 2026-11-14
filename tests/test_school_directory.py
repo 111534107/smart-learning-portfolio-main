@@ -57,8 +57,10 @@ def test_student_filters_by_region_and_sees_school_card(app):
 
     import re
     central = client.get("/student/targets?region=中部").get_data(as_text=True)
-    ranked = re.findall(r'<span class="target-ranking__name"><span class="target-ranking__number">\d+\.</span> (\S+)', central)
-    assert ranked and all(name in ("國立臺中科技大學", "國立中興大學", "國立雲林科技大學", "國立虎尾科技大學") for name in ranked)
+    # 2026-11-13 起排行全部送到瀏覽器、不在本區的加 hidden（地圖不換頁切換用）：只看沒隱藏的列
+    shown = re.findall(r'<li data-region="([^"]*)" data-school="([^"]+)">', central)
+    hidden = re.findall(r'<li data-region="([^"]*)" data-school="[^"]+" hidden>', central)
+    assert shown and {region for region, _ in shown} == {"中部"} and hidden and "中部" not in set(hidden)
 
     card = client.get("/student/targets?school=國立臺中科技大學&region=中部").get_data(as_text=True)
     assert 'id="school-card"' in card
@@ -140,9 +142,22 @@ def test_map_fits_canvas_and_region_zoom_has_reset_and_school_list(app):
     client = login(app, "stu")
     whole = client.get("/student/targets").get_data(as_text=True)
     assert f'viewBox="0 0 {directory.MAP_WIDTH} {directory.MAP_HEIGHT}"' in whole
-    assert "school-map__reset" not in whole and 'class="school-list__item"' in whole
+    assert 'data-map-reset href="/student/targets?track=twotech&amp;major=all#target-explorer-title" hidden>' in whole
+    assert 'class="school-list__item"' in whole and 'id="school-map-data"' in whole  # 腳本用的學校資料
 
     north = client.get("/student/targets?region=北部").get_data(as_text=True)
     assert f'viewBox="{directory.region_view_box("北部")}"' in north and "回到全台灣" in north
-    listed = re.findall(r'<span class="muted small">(\S+) · ', north.split('class="school-list"', 1)[1])
-    assert listed and set(listed) == {"北部"} and "北部的二技學校" in north  # 只列北部的學校
+    assert 'data-map-reset href="/student/targets?track=twotech&amp;major=all#target-explorer-title">' in north  # 放大後顯示
+    shown = re.findall(r'<li class="school-list__item" data-region="([^"]+)">', north)
+    assert shown and set(shown) == {"北部"} and "<span data-list-region>北部</span>的二技學校" in north  # 只顯示北部的學校
+
+
+def test_map_data_for_script_is_safe_json(app):
+    """地圖腳本的資料放在 <script> 裡：要能解回 JSON，且不能出現 </ 提早結束標籤。"""
+    import json
+    import re
+    page = login(app, "stu").get("/student/targets").get_data(as_text=True)
+    raw = re.search(r'<script type="application/json" id="school-map-data">(.*?)</script>', page, re.S).group(1)
+    assert "</" not in raw
+    data = json.loads(raw)
+    assert data["boxes"]["北部"] == directory.region_view_box("北部") and data["schools"][0]["programs"]

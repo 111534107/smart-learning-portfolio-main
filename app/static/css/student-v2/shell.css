@@ -337,3 +337,10 @@
 .school-list__name { font-weight: 700; font-size: 1.02rem; }
 .school-list__departments { margin: .35rem 0; color: var(--soft); }
 .school-list__links { display: flex; flex-wrap: wrap; gap: .25rem 1rem; margin: 0; font-weight: 700; }
+
+/* 地圖不換頁切換時，學校卡片淡入（減少動態時不播） */
+@media (prefers-reduced-motion: no-preference) {
+  .school-card.is-entering { animation: school-card-in .28s ease-out both; }
+}
+@keyframes school-card-in { from { opacity: 0; transform: translateY(6px); } }
+.school-map .tw-county, .school-map__pin { -webkit-tap-highlight-color: transparent; }
