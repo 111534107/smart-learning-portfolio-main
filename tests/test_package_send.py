@@ -345,3 +345,30 @@ def test_gap_page_has_zip_and_mail_controls(app):
     assert f"/student/targets/{_pid(app)}/package.zip" in page
     assert f"/student/targets/{_pid(app)}/package/send" in page
     assert "學校信箱" in page and "/account/password#backup-email" in page
+
+
+def test_demo_site_without_smtp_shows_confirm_link_on_the_page(tmp_path):
+    """展示站（有 Demo 快速登入）沒有寄信帳號：頁面直接給確認連結，流程才走得完（2026-11-15 瀏覽器驗收發現）。"""
+    app = create_app({"SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:", "TESTING": True,
+                      "UPLOAD_FOLDER": str(tmp_path / "uploads"),
+                      "DEMO_ACCOUNTS": [{"role": "student", "username": "stu", "password": "x", "label": "學生"}]})
+    _seed(app)
+    client = login(app)
+
+    response = client.post("/account/backup-email", data={"backup_email": "me@personal.example.test"})
+    page = client.get(response.headers["Location"]).get_data(as_text=True)
+
+    assert "/account/backup-email/verify/" in page and "請通知管理員" not in page
+    link = page.split('href="/account/backup-email/verify/')[1].split('"')[0]
+    assert client.get(f"/account/backup-email/verify/{link}").status_code == 302
+    with app.app_context():
+        assert _stu().backup_email_verified_at is not None
+
+
+def test_real_site_without_smtp_does_not_show_confirm_link(app):
+    client = login(app)
+
+    response = client.post("/account/backup-email", data={"backup_email": "me@personal.example.test"})
+    page = client.get(response.headers["Location"]).get_data(as_text=True)
+
+    assert "/account/backup-email/verify/" not in page and "請通知管理員" in page

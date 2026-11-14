@@ -148,10 +148,10 @@
           <p class="small mb-1">要連同自傳、已確認的成績單證照原始檔和佐證一起帶走：</p>
           <a class="button button--line" href="{{ url_for('student.target_package_zip', program_id=program.id) }}">一鍵打包下載（ZIP）↓</a>
           {% set mailed = request.args.get("mailed") %}
-          {% if mailed == "sent" %}<p class="notice mt-1" role="status">已寄出，壓縮檔在信件附件。</p>
-          {% elif mailed == "link" %}<p class="notice mt-1" role="status">檔案太大放不進信裡，已改寄下載連結（要登入才能下載）。</p>
-          {% elif mailed == "logged" %}<p class="notice notice--warn mt-1" role="status">系統目前沒有設定寄信，這次沒有寄出。請先用「一鍵打包下載」。</p>
-          {% elif mailed == "failed" %}<p class="notice notice--warn mt-1" role="status">信寄不出去，請稍後再試，或先用「一鍵打包下載」。</p>{% endif %}
+          {% if mailed == "sent" %}<p class="small mt-1" role="status"><b>✓ 已寄出</b>，壓縮檔在信件附件。</p>
+          {% elif mailed == "link" %}<p class="small mt-1" role="status"><b>✓ 已寄出下載連結</b>：檔案太大放不進信裡，要登入才能下載。</p>
+          {% elif mailed == "logged" %}<p class="small mt-1" role="status"><b>! 這次沒有寄出</b>：系統目前沒有設定寄信，請先用「一鍵打包下載」。</p>
+          {% elif mailed == "failed" %}<p class="small mt-1" role="status"><b>! 信寄不出去</b>，請稍後再試，或先用「一鍵打包下載」。</p>{% endif %}
           <form class="mt-1" method="post" action="{{ url_for('student.target_package_send', program_id=program.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             {% if mail_recipients %}

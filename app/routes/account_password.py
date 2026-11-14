@@ -26,8 +26,11 @@ def _render(user, status=200, **context):
                            google_only=bool(user.google_sub), email_saved=request.args.get("email_saved"),
                            email_global=email_notify.globally_enabled(),
                            backup_status=request.args.get("backup"),
+                           # 展示站（有 Demo 快速登入的假資料站）沒有寄信帳號時，頁面直接給確認連結，不然流程走不完
                            demo_verify_path=(backup_email.verify_path(user)
-                                             if current_app.config.get("LOCAL_DEMO_MODE") and user.backup_email
+                                             if (current_app.config.get("LOCAL_DEMO_MODE")
+                                                 or current_app.config.get("DEMO_ACCOUNTS"))
+                                             and not email_notify.smtp_ready() and user.backup_email
                                              and not user.backup_email_verified_at else None),
                            **context), status
 
