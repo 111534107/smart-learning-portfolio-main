@@ -79,7 +79,9 @@ def school_info(sid):
             "source": f"{BASE}schools_detail.php?psrid={sid}"}, depts
 
 
-def two_tech_programs(sid, seq):
+def two_tech_programs(sid, seq, want="2"):
+    """want='2' 取二技（type=2）；want='1' 取四技（type=1）。四技的管道代碼尚未查證，
+    所以四技不用 CHANNELS 對照，管道名稱一律取頁面上的文字（待用真實頁面確認）。"""
     url = f"{BASE}schools_detail_search.php?psrid={sid}&seq={seq}"
     lines = lines_of(get(url))
     start = next((i for i, l in enumerate(lines) if l == "[[schools_detail.php?psrid=%s]]" % sid), 0)
@@ -93,9 +95,10 @@ def two_tech_programs(sid, seq):
         if m and i + 1 < len(lines) and not lines[i + 1].startswith("[["):
             label = lines[i + 1]
             quota = re.match(r"^(\d+)名$", lines[i + 3]) if i + 3 < len(lines) else None
-            if m.group(2) == "2" and quota:
+            if m.group(2) == want and quota:
                 dept, _, category = label.partition("/")
-                rows.append([dept, CHANNELS.get(m.group(3), channel), category, int(quota.group(1)), BASE + l[2:-2]])
+                name = CHANNELS.get(m.group(3), channel) if want == "2" else channel
+                rows.append([dept, name, category, int(quota.group(1)), BASE + l[2:-2]])
             i += 4 if quota else 2
             continue
         if l == "[[#]]":  # 「招生類別」標籤（例如 08管理類(四)），不是管道名稱
@@ -111,19 +114,21 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", default="logs/techadmi")
     parser.add_argument("--ids", default="", help="只抓這些招策會學校編號（逗號分開），例如重抓有二技的學校")
+    parser.add_argument("--type", default="2", choices=["1", "2"], help="1=四技（輸出 programs_4tech.csv），2=二技（預設）")
     args = parser.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
+    level = "4tech" if args.type == "1" else "2tech"
     schools, programs = [], []
     def one_school(sid):
         info, depts = school_info(sid)
         found = []
         for seq, _dept in depts:
-            for dept, channel, category, quota, url in two_tech_programs(sid, seq):
+            for dept, channel, category, quota, url in two_tech_programs(sid, seq, args.type):
                 found.append([info["name"], dept, channel, category, quota, url])
         info["departments"] = [name for _seq, name in depts]
-        info["two_tech_programs"] = len(found)
-        print(info["name"], len(depts), "系，二技", len(found), "筆", file=sys.stderr, flush=True)
+        info["two_tech_programs" if args.type == "2" else "four_tech_programs"] = len(found)
+        print(info["name"], len(depts), "系，" + level, len(found), "筆", file=sys.stderr, flush=True)
         return info, found
 
     # 2 條連線同時抓（3 條時第二次重抓被網站限制）（每條每個請求後停 0.5 秒），學校順序照招策會名單
@@ -132,12 +137,13 @@ def main():
         for info, found in pool.map(one_school, ids):
             schools.append(info)
             programs.extend(found)
-    (out / "schools.json").write_text(json.dumps(schools, ensure_ascii=False, indent=1), encoding="utf-8")
-    with open(out / "programs_2tech.csv", "w", encoding="utf-8-sig", newline="") as handle:
+    schools_name = "schools.json" if args.type == "2" else "schools_4tech.json"
+    (out / schools_name).write_text(json.dumps(schools, ensure_ascii=False, indent=1), encoding="utf-8")
+    with open(out / f"programs_{level}.csv", "w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.writer(handle)
         writer.writerow(["學校", "科系", "管道", "招生類別", "名額", "來源網址"])
         writer.writerows(programs)
-    print(f"{len(schools)} 校、二技 {len(programs)} 筆 → {out}", file=sys.stderr)
+    print(f"{len(schools)} 校、{level} {len(programs)} 筆 → {out}", file=sys.stderr)
 
 
 if __name__ == "__main__":
