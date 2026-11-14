@@ -1,5 +1,39 @@
 # 開發日誌
 
+## 2026-11-14 備審一鍵打包、綁定備用信箱寄給自己、雲端每位學生一個資料夾
+
+日期：2026-11-14（台灣時間）
+
+開發者：Claude（分支 `feat/package-send`，工作資料夾 `D:\democase\_worktrees\ai-wt-package-send`，從 `preview/student-v2`（`4c12ea6`）開出）。
+
+目標：使用者 2026-11-13 要求——自傳產生後自動放到雲端；學生上傳的東西同步到雲端並集中在一個資料夾，方便從 Google 雲端硬碟整包下載；學生可以綁定自己的信箱，把備審資料一鍵壓縮打包寄過去。
+
+做了什麼：
+1. **雲端每位學生一個資料夾**（`app\services\storage_service.py`）：學校雲端硬碟「智慧學習歷程系統上傳檔」底下改成「<學號>_<姓名>／成績單與證照、經歷佐證、自傳」。在 Google 雲端硬碟對學生資料夾按「下載」就是一個壓縮檔。資料夾用 `appProperties` 認，不靠名稱；編號記在伺服器記憶體，不重複問 Google。**之前已經上傳的檔案仍在最上層，沒有搬。**
+2. **一鍵打包**（新檔 `app\services\package_zip.py`，路由 `/student/targets/<id>/package.zip`）：壓縮檔內有備審 Word、最新版自傳 Word、已確認的成績單證照原始檔、已確認經歷的佐證、`清單.txt`。學生選擇不放的資料不放；原始成績單裡只要有一門課被選擇不放（且成績不是必備），整份不放並在清單註明。檔案暫時拿不到只在清單註明，不讓打包失敗。
+3. **備用信箱**（新檔 `app\services\backup_email.py`，帳號設定頁新增一區）：學生填信箱 → 系統寄確認信 → 登入後點連結才算綁定。連結用 `SECRET_KEY` 簽章、24 小時有效、換信箱後舊連結失效、別的帳號不能用。`users` 加 `backup_email`、`backup_email_verified_at`，資料庫遷移 `migrations\versions\b20261114p01_add_backup_email.py`（`flask db heads` 只有一個）。展示站（`LOCAL_DEMO_MODE`）不寄信，頁面直接給確認連結。
+4. **打包寄到信箱**（路由 `/student/targets/<id>/package/send`）：只能寄到學生自己的學校信箱或已確認的備用信箱；附件超過 `MAIL_MAX_ATTACHMENT_MB`（預設 15）改寄要登入才能下載的連結；每人每天 5 次；信件內文不寫成績；操作紀錄 `package.mail` 只記寄到哪一種信箱與結果，不記信箱。寄信沿用 `email_notify`，新增 `deliver`（可帶附件）；沒設定 SMTP 時不寄，畫面會說「這次沒有寄出」。
+5. **自傳產生後自動放到學生的 Google 雲端硬碟**（`app\routes\google_docs.py` 的 `auto_create_after_generate`）：學校有設定 Google、學生這次登入已連過 Google、這個校系還沒有 Google 文件，三個條件都成立才自動建立。已經有文件就不動（學生可能正在 Google 上改）。失敗不影響草稿。學校端的 Word 備份原本就會自動做。
+
+修改檔案（都在 `D:\democase\_worktrees\ai-wt-package-send\`）：
+- 新增：`app\services\package_zip.py`、`app\services\backup_email.py`、`migrations\versions\b20261114p01_add_backup_email.py`、`tests\test_package_send.py`（18 項）、`tests\test_autobiography_google_auto.py`（4 項）
+- 修改：`app\models\user.py`、`app\config.py`、`app\routes\student.py`、`app\routes\account_password.py`、`app\routes\google_docs.py`、`app\services\storage_service.py`、`app\services\email_notify.py`、`app\templates\student_gap.html`、`app\templates\account_password.html`
+- 測試資料皆僅為測試資料；Google 與 SMTP 都用假物件，沒有連線。
+
+驗證：
+- 完整測試 `D:\democase\ai\.venv\Scripts\python.exe -m pytest -q --basetemp=logs/test-runs/package-send`：1670 通過、9 略過（17 分鐘）。之後只在 `app\config.py` 加一個設定預設值，重跑 `tests\test_package_send.py` 通過。
+- 沒驗證：
+  - 沒有在瀏覽器實際操作，版面、手機寬度、深色模式都沒看。
+  - 沒有真的寄過信（沒有 SMTP 帳號），附件能不能被學校或 Gmail 信箱收下沒測。
+  - 沒有連真的 Google 雲端硬碟，`ensure_child_folder` 的查詢語法只依 Drive v3 文件寫成，沒實測。
+  - 資料庫遷移只在測試的 SQLite 跑過，沒在 MySQL 執行。
+
+下一步：
+- 要有寄信帳號（SMTP）才會真的寄出；拿到後實寄一次並確認附件大小上限。
+- 連上真的 Google 雲端硬碟實測學生資料夾；決定要不要把舊檔搬進學生資料夾。
+- 打包沒有另存到雲端（避免重複佔空間）；導師、科辦端還不能替學生打包。
+- 兩個新區塊沿用現有樣式，還沒做學生端 v2 的互動設計。
+
 ## 2026-11-13 私立二技「進修部」單獨招生加權（8 個資訊相關志願）
 
 開發者：Claude（分支 `preview/student-v2`）

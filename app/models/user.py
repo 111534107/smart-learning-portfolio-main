@@ -27,6 +27,9 @@ class User(db.Model):
     display_name = db.Column(db.String(100), nullable=False)
     role = db.Column(db.String(30), nullable=False, default="student", index=True)
     email = db.Column(db.String(120), nullable=True)
+    # 學生自己綁定的備用信箱（11-13）：驗證過才可以收備審打包（app/services/backup_email.py）
+    backup_email = db.Column(db.String(255), nullable=True)
+    backup_email_verified_at = db.Column(db.DateTime, nullable=True)
     # 電子郵件通知開關（帳號設定可關）；管理員另有全域開關（system_settings.email_notify_enabled）
     # 備審時間線行事曆訂閱的私密網址代碼（app/services/calendar_feed.py）；重設後舊網址失效
     calendar_token = db.Column(db.String(64), unique=True, nullable=True)

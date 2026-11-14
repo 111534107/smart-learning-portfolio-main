@@ -34,6 +34,9 @@ LOCAL_PREFIX = "local:"
 CACHE_FOLDER = "drive-cache"
 FOLDER_NAME = "智慧學習歷程系統上傳檔"
 FOLDER_MIME = "application/vnd.google-apps.folder"
+# 每位學生在學校雲端有自己的資料夾（11-13）：「<學號>_<姓名>」，底下依種類再分，
+# 要整包拿走時在 Google 雲端硬碟對學生資料夾按「下載」就會壓縮成一個檔。
+SUBFOLDER_LABELS = {"learning-profile": "成績單與證照", "": "經歷佐證", "autobiography": "自傳"}
 DELETED_SUFFIX = ".deleted.json"
 
 _FILE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
@@ -78,9 +81,11 @@ class TokenHolder:
         self._expires_at = self._clock() + max(60, int(token.get("expires_in") or 3600)) - 30
         self._refresh = token.get("refresh_token") or self._refresh
         self.folder_id = None
+        self.child_folders = {}
 
     def clear(self):
         self._access = self._refresh = self.folder_id = None
+        self.child_folders = {}  # (上層資料夾, 用途) → 資料夾編號；換帳號或重新連線就清掉
         self._expires_at = 0
 
     @property
@@ -93,9 +98,9 @@ class TokenHolder:
         if not self._refresh:
             self._access = None
             return None
-        folder_id = self.folder_id
+        folder_id, child_folders = self.folder_id, self.child_folders
         self.set(client.refresh(self._refresh))
-        self.folder_id = folder_id
+        self.folder_id, self.child_folders = folder_id, child_folders
         return self._access
 
 
@@ -153,6 +158,24 @@ class HttpDriveClient:
             return self._file_id(files[0].get("id"))
         body = json.dumps({"name": name, "mimeType": FOLDER_MIME, "appProperties": {"slp_role": "upload_root"}},
                           ensure_ascii=False).encode()
+        created = self._json(Request(f"{self.API}?fields=id", data=body, method="POST",
+                                     headers=self._auth(access_token, "application/json; charset=UTF-8")))
+        return self._file_id(created.get("id"))
+
+    def ensure_child_folder(self, access_token, parent_id, name, app_properties):
+        """在 parent_id 底下找系統之前建的子資料夾（用 appProperties 認，不靠名稱），沒有就建一個。"""
+        conditions = [f"mimeType='{FOLDER_MIME}'", f"'{self._file_id(parent_id)}' in parents", "trashed=false"]
+        for key, value in sorted(app_properties.items()):
+            if not re.fullmatch(r"[A-Za-z0-9_-]{0,64}", str(value)) or not re.fullmatch(r"[a-z_]{1,32}", key):
+                raise DriveError("資料夾屬性格式不對")
+            conditions.append(f"appProperties has {{ key='{key}' and value='{value}' }}")
+        found = self._json(Request(f"{self.API}?" + urlencode({"q": " and ".join(conditions), "fields": "files(id)",
+                                                               "pageSize": 1}), headers=self._auth(access_token)))
+        files = found.get("files") or []
+        if files:
+            return self._file_id(files[0].get("id"))
+        body = json.dumps({"name": name, "mimeType": FOLDER_MIME, "parents": [parent_id],
+                           "appProperties": app_properties}, ensure_ascii=False).encode()
         created = self._json(Request(f"{self.API}?fields=id", data=body, method="POST",
                                      headers=self._auth(access_token, "application/json; charset=UTF-8")))
         return self._file_id(created.get("id"))
@@ -236,6 +259,19 @@ def _stored_name(filename):
     return f"{uuid.uuid4().hex}_{filename}"
 
 
+def _owner_folder_name(owner_id):
+    """學生資料夾名稱：「<學號或帳號>_<姓名>」；找不到使用者時用編號。"""
+    from app.extensions import db
+    from app.models import User
+
+    user = db.session.get(User, owner_id) if isinstance(owner_id, int) else None
+    if user is None:
+        return f"使用者{owner_id}"
+    profile = getattr(user, "student_profile", None)
+    account = (profile.student_no if profile and profile.student_no else None) or user.username
+    return re.sub(r"[/\\:*?\"<>|\s]+", "", f"{account}_{user.display_name}") or f"使用者{owner_id}"
+
+
 def _mark(reason):
     return {"deleted_at": datetime.now(timezone.utc).isoformat(), "reason": reason or "deleted"}
 
@@ -302,13 +338,29 @@ class GoogleDriveStorage:
             self.holder.folder_id = self.client.ensure_folder(token, FOLDER_NAME)
         stored_name = _stored_name(filename)
         mime_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
-        file_id = self.client.upload(token, self.holder.folder_id, stored_name, data, mime_type,
-                                     {"slp_owner": str(owner_id), "slp_folder": folder or ""})
+        file_id = self.client.upload(token, self._target_folder(token, owner_id, folder or ""), stored_name, data,
+                                     mime_type, {"slp_owner": str(owner_id), "slp_folder": folder or ""})
         location = f"{DRIVE_PREFIX}{file_id}/{stored_name}"
         cache = self.cache_path(location)
         cache.parent.mkdir(parents=True, exist_ok=True)
         cache.write_bytes(data)
         return location
+
+    def _child(self, token, parent_id, purpose, name, app_properties):
+        key = (parent_id, purpose)
+        if key not in self.holder.child_folders:
+            self.holder.child_folders[key] = self.client.ensure_child_folder(token, parent_id, name, app_properties)
+        return self.holder.child_folders[key]
+
+    def _target_folder(self, token, owner_id, folder):
+        """這個檔案要放的資料夾：上傳檔／<學號>_<姓名>／<種類>。資料夾編號記在記憶體，不重複問 Google。"""
+        if not hasattr(self.client, "ensure_child_folder"):
+            return self.holder.folder_id  # 舊的用戶端替身沒有子資料夾功能：照舊放在最上層
+        student_folder = self._child(token, self.holder.folder_id, f"student:{owner_id}", _owner_folder_name(owner_id),
+                                     {"slp_role": "student_folder", "slp_owner": str(owner_id)})
+        kind = re.sub(r"[^A-Za-z0-9_-]", "_", folder)[:64]
+        return self._child(token, student_folder, f"kind:{kind}", SUBFOLDER_LABELS.get(folder, folder or "其他"),
+                           {"slp_role": "kind_folder", "slp_owner": str(owner_id), "slp_folder": kind})
 
     @staticmethod
     def parse(location):

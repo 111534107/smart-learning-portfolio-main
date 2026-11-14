@@ -51,6 +51,8 @@ class Config:
     MAIL_SITE_URL = os.getenv("MAIL_SITE_URL", "")
     MAIL_RETRIES = int(os.getenv("MAIL_RETRIES", "2"))
     MAIL_TIMEOUT = int(os.getenv("MAIL_TIMEOUT", "10"))
+    # 備審打包寄到信箱時，附件超過這個大小（MB）就只寄下載連結（要登入才能下載）
+    MAIL_MAX_ATTACHMENT_MB = float(os.getenv("MAIL_MAX_ATTACHMENT_MB", "15"))
     UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "instance/uploads")
     
     max_mb = int(os.getenv("MAX_CONTENT_LENGTH_MB", "10"))

@@ -1549,6 +1549,7 @@ def target_gap(program_id):
         review_timeline=review_timeline(user, program),
         autobiography=autobiography,
         download_checklist=download_checklist(user, program, gap, review, autobiography),
+        mail_recipients=_package_recipients(user),
         labels=ALL_LABELS,
     )
 
@@ -1576,6 +1577,67 @@ def target_package(program_id):
         download_name=f"備審資料-{program.school_name}-{program.department_name}.docx",
         mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     )
+
+
+def _package_recipients(user):
+    from app.services import backup_email
+    return backup_email.recipients(user)
+
+
+PACKAGE_MAIL_DAILY_LIMIT = 5  # 每位學生每天最多寄幾次備審打包
+PACKAGE_MAIL_SUBJECT = "【資管科學習歷程】你的備審資料打包"
+
+
+@student_bp.get("/student/targets/<int:program_id>/package.zip")
+@role_required("student")
+def target_package_zip(program_id):
+    """一鍵打包：備審 Word、自傳、已確認的原始檔與佐證，壓縮成一個檔下載。"""
+    from app.services import package_zip
+    user = get_current_user()
+    program = _selected_target_or_404(user, program_id)
+    data, manifest = package_zip.build_zip(user, program)
+    audit_service.record(user, "package.zip_download", "admission_program", program.id,
+                         detail={"files": len(manifest["included"]), "skipped": len(manifest["skipped"])}, commit=True)
+    return send_file(data, as_attachment=True, download_name=package_zip.download_name(program),
+                     mimetype="application/zip")
+
+
+@student_bp.post("/student/targets/<int:program_id>/package/send")
+@role_required("student")
+def target_package_send(program_id):
+    """把打包寄到學生自己的學校信箱或已確認的備用信箱。太大就只寄下載連結（要登入才能下載）。"""
+    from app.services import backup_email, email_notify, package_zip
+    user = get_current_user()
+    program = _selected_target_or_404(user, program_id)
+    recipient = next((r for r in backup_email.recipients(user) if r["key"] == request.form.get("to")), None)
+    if recipient is None:
+        return _blocked(user, "這個信箱還不能收備審資料：備用信箱要先到「帳號設定」綁定並點確認信的連結。")[0], 400
+    day_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    sent_today = AuditLog.query.filter(AuditLog.user_id == user.id, AuditLog.action == "package.mail",
+                                       AuditLog.created_at >= day_start).count()
+    if sent_today >= PACKAGE_MAIL_DAILY_LIMIT:
+        return _blocked(user, f"今天已經寄了 {PACKAGE_MAIL_DAILY_LIMIT} 次備審打包，請明天再寄，或直接用「打包下載」。")[0], 429
+    data, manifest = package_zip.build_zip(user, program)
+    payload = data.getvalue()
+    label = f"{program.school_name} {program.department_name}"
+    limit = float(current_app.config.get("MAIL_MAX_ATTACHMENT_MB", 15)) * 1024 * 1024
+    intro = f"{user.display_name} 您好：\n\n這是你在資管科智慧學習歷程系統要求寄出的備審資料打包（{label}）。\n"
+    outro = "\n如果不是你本人要求的，請登入系統修改密碼並通知導師。這封信由系統自動寄出，請勿直接回覆。\n"
+    if len(payload) <= limit:
+        body = intro + "壓縮檔在附件，裡面的「清單.txt」列出放了哪些檔案。\n" + outro
+        attachments = [(package_zip.download_name(program), payload, "application/zip")]
+    else:
+        base = (current_app.config.get("MAIL_SITE_URL") or "").rstrip("/")
+        link = f"{base}{url_for('student.target_package_zip', program_id=program.id)}"
+        body = intro + f"檔案太大，沒辦法放在信裡。請登入系統後用這個連結下載：\n{link}\n" + outro
+        attachments = []
+    status = email_notify.deliver(recipient["address"], PACKAGE_MAIL_SUBJECT, body, attachments, user_id=user.id)
+    result = "link" if status == "sent" and not attachments else status
+    # 操作紀錄只記寄到哪一種信箱與結果，不記信箱與內容
+    audit_service.record(user, "package.mail", "admission_program", program.id,
+                         detail={"to": recipient["key"], "status": result, "bytes": len(payload),
+                                 "files": len(manifest["included"])}, commit=True)
+    return redirect(url_for("student.target_gap", program_id=program.id, mailed=result) + "#package-title")
 
 
 # ---------- 學生選擇不放進備審的資料（導師 2026-11-12） ----------
@@ -1741,8 +1803,11 @@ def autobiography_generate():
         return _render_autobiography(user, program, targets, error=str(exc), answers=answers)
     finally:
         own_key = None
+    from app.routes.google_docs import auto_create_after_generate
+    auto_created = auto_create_after_generate(user, output)  # 學生已連過 Google 就自動放一份到他的雲端硬碟
     return redirect(url_for("student.autobiography", program_id=program.id,
-                            used_own_key=1 if used_own_key else None))
+                            used_own_key=1 if used_own_key else None,
+                            google="auto_created" if auto_created else None))
 
 
 @student_bp.post("/student/autobiography/<int:output_id>/save")

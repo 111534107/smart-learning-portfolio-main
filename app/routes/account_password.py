@@ -6,12 +6,12 @@
 """
 import time
 
-from flask import Blueprint, redirect, render_template, request, session, url_for
+from flask import Blueprint, current_app, redirect, render_template, request, session, url_for
 
 from app.extensions import db
 from app.models import AuditLog
 from app.routes.main import get_current_user, role_required
-from app.services import password_policy
+from app.services import backup_email, password_policy
 
 account_password_bp = Blueprint("account_password", __name__)
 
@@ -24,7 +24,12 @@ def _render(user, status=200, **context):
     from app.services import email_notify
     return render_template("account_password.html", user=user, rules=password_policy.rules_text(),
                            google_only=bool(user.google_sub), email_saved=request.args.get("email_saved"),
-                           email_global=email_notify.globally_enabled(), **context), status
+                           email_global=email_notify.globally_enabled(),
+                           backup_status=request.args.get("backup"),
+                           demo_verify_path=(backup_email.verify_path(user)
+                                             if current_app.config.get("LOCAL_DEMO_MODE") and user.backup_email
+                                             and not user.backup_email_verified_at else None),
+                           **context), status
 
 
 @account_password_bp.get("/account/password")
@@ -73,3 +78,38 @@ def email_notify_toggle():
     audit_service.record(user, "user.email_notify", "user", user.id, {"enabled": user.email_notify})
     db.session.commit()
     return redirect(url_for("account_password.password_page", email_saved=1) + "#email-notify")
+
+
+# ---------- 備用信箱（11-13）：學生綁定自己的另一個信箱，用來收備審打包 ----------
+
+@account_password_bp.post("/account/backup-email")
+@role_required("student")
+def backup_email_request():
+    user = get_current_user()
+    try:
+        status = backup_email.request_binding(user, request.form.get("backup_email"))
+    except backup_email.InvalidAddress as exc:
+        db.session.rollback()
+        return _render(user, 400, backup_error=str(exc))
+    db.session.commit()
+    return redirect(url_for("account_password.password_page", backup=status) + "#backup-email")
+
+
+@account_password_bp.get("/account/backup-email/verify/<token>")
+@role_required("student")
+def backup_email_verify(token):
+    user = get_current_user()
+    if not backup_email.verify(user, token):
+        return _render(user, 400, backup_error="這個確認連結不能用：可能已經過期、信箱已經換過，或不是用填信箱的那個帳號登入。"
+                                               "請重新填一次備用信箱。")
+    db.session.commit()
+    return redirect(url_for("account_password.password_page", backup="verified") + "#backup-email")
+
+
+@account_password_bp.post("/account/backup-email/remove")
+@role_required("student")
+def backup_email_remove():
+    user = get_current_user()
+    backup_email.remove(user)
+    db.session.commit()
+    return redirect(url_for("account_password.password_page", backup="removed") + "#backup-email")
