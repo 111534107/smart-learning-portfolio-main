@@ -24,6 +24,7 @@ MESSAGES = {
     "no_doc": ("warn", "還沒有建立 Google 文件，請先按「在 Google 文件中編輯」。"),
     "no_titles": ("warn", "取回失敗：Google 文件裡找不到「## 標題」開頭的段落，請保留每段的標題行再取回。系統內的版本沒有變。"),
     "pulled": ("ok", "已從 Google 文件取回，存成新的一版（舊版不動）。請檢查下面每段的來源提示。"),
+    "auto_created": ("ok", "草稿已自動放到你的 Google 雲端硬碟（備審資料／校名_科系），可以按「在 Google 文件中編輯」打開。"),
 }
 
 TOKEN_REF = "google_docs_token_ref"
@@ -175,6 +176,32 @@ def _school_folder_id(user, program, token):
 
 def _create_document(user, output, program_id, token, existing=None):
     """把最新草稿建立成學生自己的 Google 文件（放進「備審資料／校名_科系」），記下連結後轉過去。"""
+    result = _store_document(user, output, program_id, token, existing)
+    return redirect(result) if result.startswith("http") else _back(program_id, result)
+
+
+def auto_create_after_generate(user, output):
+    """產生草稿後自動放到學生的雲端硬碟（11-13）。回傳有沒有建立。
+
+    只在三個條件都成立時做：學校設定了 Google、學生這次登入已經連過 Google（權杖只在伺服器記憶體）、
+    這個校系還沒有 Google 文件。已經有文件就不動，學生可能正在 Google 上改。任何失敗都不影響草稿。
+    """
+    try:
+        if not gdocs.configured(current_app.config):
+            return False
+        token = _token(user)
+        program_id = output.content_json["program_id"]
+        if not token or AutobiographyGoogleDoc.query.filter_by(student_id=user.id, program_id=program_id).first():
+            return False
+        return _store_document(user, output, program_id, token).startswith("http")
+    except Exception:  # 自動同步是附帶動作，不能讓產生草稿失敗
+        current_app.logger.exception("自傳自動建立 Google 文件失敗（學生 %s）", user.id)
+        db.session.rollback()
+        return False
+
+
+def _store_document(user, output, program_id, token, existing=None):
+    """建立 Google 文件並記下連結。成功回傳文件網址；失敗回傳提示代碼（expired／unavailable）。"""
     draft = autobiography_service.latest_draft(user, db.session.get(AdmissionProgram, program_id)) or output
     program = db.session.get(AdmissionProgram, program_id)
     label = f"{program.school_name} {program.department_name}"
@@ -185,9 +212,9 @@ def _create_document(user, output, program_id, token, existing=None):
         web_view_link = gdocs.doc_link(file_id)
     except gdocs.GoogleDocsAuthExpired:
         _forget_token()
-        return _back(program_id, "expired")
+        return "expired"
     except gdocs.GoogleDocsError:
-        return _back(program_id, "unavailable")
+        return "unavailable"
     if existing:
         existing.google_file_id = file_id
         existing.web_view_link = web_view_link
@@ -199,7 +226,7 @@ def _create_document(user, output, program_id, token, existing=None):
         db.session.add(AutobiographyGoogleDoc(student_id=user.id, program_id=program_id, google_file_id=file_id,
                                               web_view_link=web_view_link, based_on_output_id=draft.id))
     db.session.commit()
-    return redirect(web_view_link)
+    return web_view_link
 
 
 @google_docs_bp.post("/student/autobiography/<int:output_id>/google/pull")

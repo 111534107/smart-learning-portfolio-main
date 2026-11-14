@@ -65,13 +65,17 @@ def build_body(user, kind):
             "這封信由系統自動寄出，請勿直接回覆。不想收到可在系統的「帳號設定」關閉電子郵件通知。\n")
 
 
-def _send(to_address, subject, body):
+def _send(to_address, subject, body, attachments=()):
+    """attachments：[(檔名, bytes, MIME 類型)]。"""
     cfg = current_app.config
     msg = EmailMessage()
     msg["Subject"] = subject
     msg["From"] = cfg["MAIL_SENDER"]
     msg["To"] = to_address
     msg.set_content(body)
+    for filename, data, mime_type in attachments:
+        maintype, _, subtype = (mime_type or "application/octet-stream").partition("/")
+        msg.add_attachment(data, maintype=maintype, subtype=subtype or "octet-stream", filename=filename)
     port = int(cfg.get("MAIL_SMTP_PORT") or 587)
     timeout = int(cfg.get("MAIL_TIMEOUT") or 10)
     if cfg.get("MAIL_USE_SSL"):
@@ -84,6 +88,30 @@ def _send(to_address, subject, body):
         if cfg.get("MAIL_SMTP_USER"):
             server.login(cfg["MAIL_SMTP_USER"], cfg.get("MAIL_SMTP_PASSWORD") or "")
         server.send_message(msg)
+
+
+def deliver(to_address, subject, body, attachments=(), user_id=None):
+    """學生自己要求寄的信（驗證備用信箱、備審打包）：寄到指定信箱，可帶附件。
+
+    回傳 sent／logged（沒有設定 SMTP，只記錄不寄）／failed。不看通知開關（那是給自動提醒用的），
+    也不寫操作紀錄：由呼叫的功能自己記，而且不記信箱與內容。任何錯誤都不往外丟。
+    """
+    if not smtp_ready():
+        logger.info("[電子郵件未寄出：沒有設定 SMTP] 使用者 %s，主旨：%s，附件 %s 個", user_id, subject, len(attachments))
+        return "logged"
+    retries = max(0, int(current_app.config.get("MAIL_RETRIES", 2)))
+    for attempt in range(retries + 1):
+        try:
+            if attachments:
+                _send(to_address, subject, body, attachments)
+            else:
+                _send(to_address, subject, body)
+            return "sent"
+        except Exception as exc:  # SMTP 連不上、帳密錯、逾時、附件被拒
+            logger.warning("寄信失敗（使用者 %s，第 %s 次）：%s", user_id, attempt + 1, type(exc).__name__)
+            if attempt < retries:
+                time.sleep(float(current_app.config.get("MAIL_RETRY_DELAY", 1)))
+    return "failed"
 
 
 def notify(user, kind):
