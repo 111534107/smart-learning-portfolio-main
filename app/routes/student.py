@@ -1186,10 +1186,12 @@ def target_list():
     school_filter = school_filter if school_filter in schools else ""
     region_counts = {region: sum(1 for point in map_points if point["region"] == region)
                      for region in school_directory.REGIONS}
-    if region_filter:
-        programs = [p for p in programs if schools.get(p.school_name) and schools[p.school_name].region == region_filter]
-    if school_filter:
-        programs = [p for p in programs if p.school_name == school_filter]
+    # 2026-11-13 使用者：地圖每點一次就卡一下（整頁重載）。排行改成全部送到瀏覽器、依地區／學校先隱藏，
+    # 點地圖時由 school_map.html 的腳本直接切換，不再換頁；沒有 JavaScript 時 hidden 屬性一樣篩得對。
+    program_region = {p.id: schools[p.school_name].region if p.school_name in schools else "" for p in programs}
+    hidden_program_ids = {p.id for p in programs
+                          if (region_filter and program_region[p.id] != region_filter)
+                          or (school_filter and p.school_name != school_filter)}
     school_card = next((point for point in map_points if point["school"].name == school_filter), None)
     search_query = request.args.get("q", "").strip()[:60]
     if search_query:
@@ -1227,6 +1229,9 @@ def target_list():
         links={p.id: admission_links(p, school_links) for p in program_options},
         school_links={p.id: school_directory.school_links(p, schools) for p in program_options},
         map_points=map_points,
+        program_region=program_region,
+        hidden_program_ids=hidden_program_ids,
+        map_data=school_directory.map_client_data(map_points, channels, track),
         region_filter=region_filter,
         school_filter=school_filter,
         region_counts=region_counts,

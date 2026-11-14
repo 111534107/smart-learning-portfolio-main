@@ -209,6 +209,29 @@ def map_points(programs, schools=None):
     return sorted(points, key=lambda p: (REGIONS.index(p["region"]) if p["region"] in REGIONS else 9, p["school"].name))
 
 
+def map_client_data(points, channels, track):
+    """給地圖腳本的資料（2026-11-13 不換頁切換）：各區放大範圍與每所學校卡片要顯示的內容。
+    只有公開的學校資訊與校系名稱，沒有學生個人資料。"""
+    import json
+    boxes = {"": f"0 0 {MAP_WIDTH} {MAP_HEIGHT}"}
+    for region in REGIONS:
+        boxes[region] = region_view_box(region)
+    schools = []
+    for point in points:
+        school = point["school"]
+        departments = {link.department_name: link.url for link in school.department_links}
+        schools.append({
+            "name": school.name, "region": point["region"], "city": school.city or "",
+            "website": school.website_url or "", "admission": school.admission_url or "",
+            "maps": point["maps_url"], "checked": school.checked_on.isoformat() if school.checked_on else "",
+            "programs": [{"id": p.id, "dept": p.department_name, "channel": channels.get(p.id, ""),
+                          "url": departments.get(p.department_name, "")} for p in point["programs"]],
+        })
+    text = json.dumps({"boxes": boxes, "full": boxes[""], "height": MAP_HEIGHT, "schools": schools,
+                       "track": track}, ensure_ascii=False)
+    return text.replace("</", "<\\/")  # 放在 <script> 裡，不能讓資料提早結束標籤（JSON 的 \/ 就是 /）
+
+
 def check_links():
     """檢查所有學校與科系網址（不 commit）。回傳 [(名稱, 網址, 狀態, 說明)]，只列不正常的。"""
     from concurrent.futures import ThreadPoolExecutor

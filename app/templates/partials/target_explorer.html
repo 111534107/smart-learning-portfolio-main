@@ -39,15 +39,19 @@
     </div>
     {% for group in program_groups %}
     <div class="target-ranking__group">
-      <h3>{{ group.label }} <span class="muted small">{{ group.programs|length }} 個校系</span></h3>
-      {% if group.programs %}<ol class="target-ranking__list">
+      {% set shown = namespace(n=0) %}
+      <h3>{{ group.label }} <span class="muted small"><span data-ranking-count>{{ group.programs|rejectattr("id", "in", hidden_program_ids)|list|length }}</span> 個校系</span></h3>
+      {% if group.programs %}<ol class="target-ranking__list" data-ranking-list>
       {% for program in group.programs %}
       {% set gap = gaps[program.id] %}
       {% set chosen = program.id in selected %}
-      <li>
+      {% set is_hidden = program.id in hidden_program_ids %}
+      {% if not is_hidden %}{% set shown.n = shown.n + 1 %}{% endif %}
+      {# data-region、data-school：地圖不換頁切換時用來篩選（2026-11-13）；hidden 讓沒有 JavaScript 時也篩得對 #}
+      <li data-region="{{ program_region.get(program.id, '') }}" data-school="{{ program.school_name }}"{% if is_hidden %} hidden{% endif %}>
         <details class="target-program" id="target-program-{{ program.id }}"{% if program_filter == program.id|string %} open{% endif %}>
           <summary class="target-ranking__row target-program__summary">
-            <span class="target-ranking__name"><span class="target-ranking__number">{{ loop.index }}.</span> {{ program.school_name }} {{ program.department_name }} <span class="target-ranking__channel">{{ channels[program.id] }}{% if program.admission_category and program.admission_category != channels[program.id] %} · {{ program.admission_category }}{% endif %}{% if entry_grades[program.id] %} · {{ entry_grades[program.id] }}{% endif %}</span>{% if program.id in home_program_ids %} <span class="tag">本科</span>{% endif %}{% if chosen %} <span class="tag tag--info">已選</span>{% endif %}</span>
+            <span class="target-ranking__name"><span class="target-ranking__number">{{ shown.n if not is_hidden else loop.index }}.</span> {{ program.school_name }} {{ program.department_name }} <span class="target-ranking__channel">{{ channels[program.id] }}{% if program.admission_category and program.admission_category != channels[program.id] %} · {{ program.admission_category }}{% endif %}{% if entry_grades[program.id] %} · {{ entry_grades[program.id] }}{% endif %}</span>{% if program.id in home_program_ids %} <span class="tag">本科</span>{% endif %}{% if chosen %} <span class="tag tag--info">已選</span>{% endif %}</span>
             <strong class="target-ranking__value">{{ gap.readiness ~ '%' if gap.readiness is not none else '無法計算' }}</strong>
             <span class="target-ranking__bar" role="img" aria-label="{{ program.school_name }} {{ program.department_name }} {{ channels[program.id] }}準備度 {{ gap.readiness ~ '%' if gap.readiness is not none else '無法計算' }}"><span style="width: {{ gap.readiness or 0 }}%"></span></span>
             <span class="target-program__hint">查看採計與操作 ↓</span>
