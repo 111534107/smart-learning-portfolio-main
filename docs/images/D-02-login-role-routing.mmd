@@ -1,0 +1,27 @@
+%%{init: {'theme':'base','themeVariables': {'fontSize':'18px','fontFamily':'DFKai-SB, BiauKai, serif','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280','edgeLabelBackground':'#FFFFFF'},'flowchart':{'wrappingWidth':400}}}%%
+flowchart TD
+    classDef system fill:#E0F2FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef student fill:#DBEAFE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef teacher fill:#DCFCE7,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef admin fill:#EDE9FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef staff fill:#EDE9FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef alert fill:#FEE2E2,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef pending fill:#FFFFFF,stroke:#9CA3AF,color:#6B7280,stroke-width:1px,stroke-dasharray:5 3;
+
+    Start([開啟共用登入頁]) --> Input[輸入帳號與密碼]
+    Input --> Auth{帳號存在、已啟用<br/>且密碼正確？}
+    Auth -- 否 --> Err[顯示「帳號或密碼錯誤」]:::alert
+    Err --> Input
+    Auth -- 是 --> Session[清除舊登入狀態<br/>記錄目前使用者]:::system
+    Session --> Role{依帳號角色導頁}
+    Role -- student --> S[學生首頁<br/>選校系、上傳資料、查看缺件]:::student
+    Role -- teacher --> T[導師工作台<br/>本班學生資料與確認]:::teacher
+    Role -- admin --> A[管理工作區<br/>帳號、權限與校系備審要求]:::admin
+    Role -- staff --> F[科辦工作區<br/>核准電子獎狀]:::staff
+    Role -- 未設定角色 --> NoRole[顯示「此帳號尚未設定可用角色」<br/>並清除登入狀態]:::alert
+    S --> Guard{每次開啟頁面或操作時<br/>再次檢查角色權限}
+    T --> Guard
+    A --> Guard
+    F --> Guard
+    Guard -- 符合 --> Allow[執行操作]:::system
+    Guard -- 不符合 --> Deny[顯示沒有使用權限]:::alert

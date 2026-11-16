@@ -1,0 +1,70 @@
+/* 怎麼操作（/help）學生端 v2 外觀（2026-11-11，照設計示範 _design-demo/student-v2/help.html）
+   全角色共用這一頁：老師、科辦、管理員頁沒有 tokens.css，所以變數都寫預設值。 */
+
+.help-v2 { max-width: 52rem; display: grid; gap: 18px; }
+.help-v2 .help__lead { margin: 0; color: var(--soft, var(--ink-soft, #574e45)); }
+.help-v2 [hidden] { display: none !important; }
+
+.help-v2__tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.help-v2__search {
+  flex: 1; min-width: 220px; display: flex; align-items: center; gap: 8px; padding: 0 14px;
+  min-height: var(--ctl-h, 2.75rem); border: 1px solid var(--line, #d6ccbe); border-radius: 999px;
+  background: var(--card, #fff); color: var(--ink, #2b2622);
+}
+.help-v2__search svg { flex: 0 0 18px; width: 18px; height: 18px; fill: none; stroke: var(--soft, #574e45); stroke-width: 2; }
+.help-v2 .help-v2__search input {
+  flex: 1; min-width: 0; min-height: 0; margin: 0; padding: 8px 0; border: 0; border-radius: 0;
+  background: none; box-shadow: none; color: inherit; font: inherit; font-size: max(16px, 1rem); outline: none;
+}
+.help-v2__search:focus-within { border-color: var(--accent, #2f6672); box-shadow: 0 0 0 3px var(--accent-soft, rgb(47 102 114 / .15)); }
+
+/* 快速上手三步 */
+.help-v2__steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 0; padding: 0; list-style: none; counter-reset: step; }
+.help-v2__steps li { counter-increment: step; display: flex; }
+.help-v2__step {
+  flex: 1; display: grid; align-content: start; gap: 6px; padding: 18px; border: 1px solid var(--line, #d6ccbe); border-radius: 20px;
+  background: var(--card, #fff); color: var(--ink, #2b2622); text-decoration: none;
+  transition: border-color .2s, transform .25s cubic-bezier(.2, 1.2, .3, 1);
+}
+.help-v2__step::before {
+  content: counter(step); display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%;
+  background: var(--accent, #2f6672); color: var(--on, #fff); font-weight: 900;
+}
+.help-v2__step b { font-size: 1.0625rem; }
+.help-v2__step span { color: var(--soft, #574e45); font-size: .9375rem; line-height: 1.6; }
+.help-v2__step:hover, .help-v2__step:focus-visible { border-color: var(--accent, #2f6672); transform: translateY(-3px); }
+
+/* 卡片式區塊 */
+.help-v2 .help__section {
+  margin: 0; padding: 6px 20px 8px; border: 1px solid var(--line, #d6ccbe); border-radius: 22px; background: var(--card, #fff);
+}
+.help-v2 .help__section h2 { margin: 14px 0 4px; font-family: inherit; font-size: 1.0625rem; color: var(--accent, #2f6672); }
+.help-v2__faq { display: grid; gap: 18px; }
+.help-v2__gest { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin: 8px 0 14px; }
+.help-v2__gest div { padding: 12px 14px; border-radius: 14px; background: var(--surface, rgb(0 0 0 / .04)); }
+.help-v2__gest b { display: block; margin-bottom: 2px; color: var(--ink, #2b2622); }
+.help-v2__gest span { color: var(--soft, #574e45); font-size: .9375rem; line-height: 1.6; }
+
+/* 常見問題：＋ 轉成 × */
+.help-v2 .help__item { border: 0; border-top: 1px solid var(--line, #d6ccbe); background: none; padding: 0; margin: 0; }
+.help-v2 .help__section h2 + .help__item { border-top: 0; }
+.help-v2 .help__item summary {
+  list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  padding: 14px 0; color: var(--ink, #2b2622); font-weight: 700; cursor: pointer;
+}
+.help-v2 .help__item summary::-webkit-details-marker { display: none; }
+.help-v2 .help__item summary::after { content: "＋"; flex: 0 0 auto; color: var(--soft, #574e45); transition: transform .3s; }
+.help-v2 .help__item[open] summary::after { transform: rotate(45deg); }
+.help-v2 .help__answer { margin: 0 0 10px; color: var(--soft, #574e45); line-height: 1.8; }
+.help-v2 .help__item .button { margin-bottom: 14px; }
+.help-v2 mark { border-radius: 4px; background: var(--accent-soft, rgb(47 102 114 / .15)); color: inherit; }
+.help-v2__none { margin: 0; padding: 20px; color: var(--soft, #574e45); text-align: center; }
+
+@media (max-width: 720px) {
+  .help-v2__steps { grid-template-columns: 1fr; }
+  .help-v2__tools .button { width: 100%; justify-content: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .help-v2__step, .help-v2 .help__item summary::after { transition: none; }
+  .help-v2__step:hover { transform: none; }
+}

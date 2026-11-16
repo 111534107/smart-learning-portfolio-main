@@ -30,5 +30,19 @@
     </select>
   </label>
 </div>
-<label class="field">說明 <small>做了什麼、學到什麼，之後寫自傳會用到</small><textarea name="description">{{ (v.description if v.description is defined else v.get('description', '')) or '' }}</textarea></label>
+<label class="field">說明 <small>做了什麼，之後寫自傳會用到</small><textarea name="description">{{ (v.description if v.description is defined else v.get('description', '')) or '' }}</textarea></label>
+{# 寫自傳用的四個細節（設計書 D-1）：各校備審指引都要求團體作品寫個人貢獻、成果與反思。都可以先留空。 #}
+<fieldset class="field story-fields">
+  <legend>寫自傳用的細節 <small>都可以先留空，之後再補</small></legend>
+  {% for key, label, hint, rows in [
+    ("role", "我負責的部分", "團體活動或專題裡，哪些是你自己做的？例如：負責後端 API 與資料庫設計", 3),
+    ("achievement", "數字成果", "人數、名次、件數、花了多久。例如：兩週完成、報名 120 人、全國優勝", 0),
+    ("learned", "學到什麼", "原本不會什麼、過程遇到什麼困難、後來怎麼解決", 3),
+    ("domain_tags", "相關領域", "用頓號分開，例如：系統開發、醫療資訊、數位學習", 0)] %}
+  {% set current = (v[key] if v[key] is defined else v.get(key, '')) or '' %}
+  <label class="field">{{ label }} <small>{{ hint }}</small>
+    {% if rows %}<textarea name="{{ key }}" rows="{{ rows }}">{{ current }}</textarea>{% else %}<input name="{{ key }}" value="{{ current }}">{% endif %}
+  </label>
+  {% endfor %}
+</fieldset>
 {% endmacro %}

@@ -1,0 +1,22 @@
+{# 導師學生頁：插大準備（B18）。需要 transfer_plans、student。 #}
+{% if transfer_plans %}
+<section class="work-panel" aria-labelledby="teacher-transfer-title">
+  <div class="work-panel__head"><div><h2 id="teacher-transfer-title">插大準備</h2><p>學生自填 {{ transfer_plans|length }} 個轉學考目標；準備度是學生自評，不代表錄取機率。</p></div></div>
+  {% for item in transfer_plans %}
+  {% set plan, ready = item.plan, item.ready %}
+  <article class="transfer-plan transfer-plan--{{ ready.level }}" id="transfer-plan-{{ plan.id }}">
+    <h3>{{ plan.school_name }} {{ plan.department_name }}{% if plan.entry_grade %} <span class="muted small">插{{ "二" if plan.entry_grade == 2 else "三" }}年級</span>{% endif %}</h3>
+    <p class="small muted">{{ plan.admission_year }} 學年度簡章{% if plan.brochure_url %} · <a href="{{ plan.brochure_url }}" target="_blank" rel="noopener">開簡章</a>{% endif %} · 準備度 {{ ready.score }}%（學生自評）</p>
+    <p role="status">{{ ready.message }}</p>
+    {% if ready.stale %}<p class="alert" role="note">{{ ready.stale_message }}</p>{% endif %}
+    {% if plan.subjects %}<ul class="small">{% for s in plan.subjects %}<li>{{ s.name }}：{{ s.progress }}%</li>{% endfor %}</ul>{% endif %}
+    {% if plan.note %}<p class="small"><strong>學生備註：</strong>{{ plan.note }}</p>{% endif %}
+    <details>
+      <summary>修正日期、考科或留言</summary>
+      <p class="small muted">修改會記在操作紀錄，學生的備註不會被蓋掉；同名考科保留學生的進度。</p>
+      {% with action=url_for('teacher.transfer_plan_update', student_id=student.id, plan_id=plan.id), values=plan, subjects_text=plan.subjects|map(attribute='name')|join('、'), submit_label="儲存修正", show_teacher_note=True %}{% include "partials/transfer_plan_form.html" %}{% endwith %}
+    </details>
+  </article>
+  {% endfor %}
+</section>
+{% endif %}

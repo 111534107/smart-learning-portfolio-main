@@ -1,0 +1,36 @@
+%%{init: {'theme':'base','themeVariables': {'fontSize':'18px','fontFamily':'DFKai-SB, BiauKai, serif','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280','edgeLabelBackground':'#FFFFFF'},'flowchart':{'wrappingWidth':400}}}%%
+flowchart LR
+    classDef student fill:#DBEAFE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef teacher fill:#DCFCE7,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef admin fill:#EDE9FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef backend fill:#E0F2FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef db fill:#F3F4F6,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef ai fill:#FFEDD5,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef external fill:#FFFFFF,stroke:#9CA3AF,color:#6B7280,stroke-width:1px,stroke-dasharray:5 3;
+    classDef pending fill:#FFFFFF,stroke:#9CA3AF,color:#6B7280,stroke-width:1px,stroke-dasharray:5 3;
+
+    School[學校的學生資訊系統<br/>成績、獎懲、缺曠（本系統不連線）]:::external
+    Official[二技招生官方網站與簡章<br/>（只抓管理員登記的來源）]:::external
+    Student[學生]:::student
+    Teacher[班導師]:::teacher
+    Staff[科辦／科助]:::admin
+    Admin[系統管理者（開發者）]:::admin
+
+    School -. 學生自己複製貼上或下載 .-> Student
+    Student --> UI
+    Teacher --> UI
+    Staff --> UI
+    Admin --> UI
+
+    UI[瀏覽器前端<br/>HTML／CSS／少量原生 JavaScript]:::backend
+    UI --> App[Flask 後端（總指揮）<br/>登入與權限、業務規則、服務調度、<br/>Evidence 組裝、送審快照、稽核]:::backend
+    App --> DB[(MySQL 8.0 業務資料主來源<br/>帳號、學習資料、證據、自傳、送審快照、<br/>檔案索引與狀態、公告、資料來源、操作紀錄)]:::db
+    App --> OCR[本機 OCR<br/>圖片 → 候選文字與欄位（規則整理）<br/>學生在核對頁確認前不送 AI]:::backend
+    OCR -. 學生確認後 .-> Dewash[去識別化<br/>移除身分證字號、學號、姓名、證號等]:::backend
+    Dewash -. 只傳送必要欄位 .-> Gemini[Google Gemini API（選用）<br/>升學 Agent、自傳建議<br/>只收學生確認過、去識別化的資料<br/>不讀取雲端檔案、不做資格判定]:::ai
+    App -. 招生簡章擷取與分類（管理員登記來源） .-> Official
+
+    App -. 原始附件（先用個人雲端硬碟測試，尚未實機驗收）.-> Drive[(Google Drive<br/>原始附件倉庫<br/>檔案 ID 與權限由後端控管)]:::pending
+    App -. 登入（已決議採用，尚未實機驗收）.-> GLogin[Google 登入]:::pending
+    App -. Docs、Calendar、Gmail（V2 候選，未採用）.-> Svc[成熟服務候選<br/>不因列在架構圖即視為已整合]:::pending
+    App --> Doc[Word 備審資料<br/>（只收已確認資料與送審版本）]:::backend

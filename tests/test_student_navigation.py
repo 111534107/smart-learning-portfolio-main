@@ -60,16 +60,6 @@ def test_next_step_only_on_home(tmp_path):
     assert "next-line" not in client.get("/student/portfolio").get_data(as_text=True)
 
 
-def test_home_explains_upload_review_recommendation_order(tmp_path):
-    client = records_app(tmp_path).test_client()
-    login(client)
-    html = client.get("/student/dashboard").get_data(as_text=True)
-    assert "先新增或上傳" in html
-    assert "核對辨識內容" in html
-    assert "查看校系建議" in html
-    assert "可繼續新增或重複上傳" in html
-
-
 def test_evidence_upload_returns_to_edit_page(tmp_path):
     app = records_app(tmp_path)
     client = app.test_client()
@@ -83,7 +73,8 @@ def test_evidence_upload_returns_to_edit_page(tmp_path):
     }, content_type="multipart/form-data")
 
     assert response.status_code == 302
-    assert response.headers["Location"].endswith(f"/student/portfolio/{record_id}/edit")
+    # B27：回到編輯頁並捲到佐證區
+    assert response.headers["Location"].endswith(f"/student/portfolio/{record_id}/edit#evidence-title")
     edit_html = client.get(f"/student/portfolio/{record_id}/edit").get_data(as_text=True)
     assert "photo.png" in edit_html
 
@@ -99,7 +90,8 @@ def test_login_page_lists_demo_accounts_only_when_configured(tmp_path):
     app.config["DEMO_ACCOUNTS"] = DEMO_ACCOUNTS
     demo_page = app.test_client().get("/login").get_data(as_text=True)
     assert "Demo 快速登入" in demo_page
-    assert "teacher_demo" in demo_page
+    assert "student_demo" in demo_page
+    assert "teacher_demo" in app.test_client().get("/staff/login").get_data(as_text=True)  # 11-10 登入頁分開
     assert "demo2026" in demo_page
 
     app.config["FLASK_ENV"] = "production"

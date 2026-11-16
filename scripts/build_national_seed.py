@@ -13,8 +13,6 @@ import re
 import sys
 from pathlib import Path
 
-import pypdf
-
 ROOT = Path(__file__).resolve().parents[1]
 PDF = ROOT / "school" / "Documents" / "116二技技優甄審_時程與備審加權_修訂版.pdf"
 SEED = ROOT / "app" / "content" / "admission_seed_115.csv"
@@ -43,6 +41,8 @@ def categories(name):
 
 
 def main():
+    import pypdf  # 只有重新整理時才需要；build_private_seed.py 只借用規則
+
     text = "\n".join((page.extract_text() or "") for page in pypdf.PdfReader(PDF).pages)
     seeded = {row["志願代碼"] for row in csv.DictReader(open(SEED, encoding="utf-8-sig"))}
     rows, problems = [], []

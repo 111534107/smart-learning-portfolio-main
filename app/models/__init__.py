@@ -1,7 +1,9 @@
 from app.models.agent_task import AgentTask
 from app.models.ai_usage import AiDailyUsage
 from app.models.audit_log import AuditLog
-from app.models.portfolio import Portfolio, PortfolioEvidence
+from app.models.portfolio import Portfolio, PortfolioDomainTag, PortfolioEvidence
+from app.models.school import School, SchoolDepartmentLink
+from app.models.award_record import SchoolAwardRecord
 from app.models.certificate import AwardCertificate
 from app.models.project import (
     ProjectGroup,
@@ -21,10 +23,13 @@ from app.models.learning_profile import (
     LearningProfileOutput,
     SourceDocument,
 )
-from app.models.user import StudentProfile, User
+from app.models.user import StudentProfile, User, UserBackupCode
+from app.models.transfer_plan import TransferPlan, TransferPlanSubject
 from app.models.admission import (
+    AdmissionEligibilityRule,
     AdmissionProgram,
     AdmissionRequirementItem,
+    AdmissionRuleItemCategory,
     AdmissionScheduleEvent,
     ClassAdvisor,
     PackageReview,
@@ -43,12 +48,17 @@ from app.models.p0_workbench import (
 )
 from app.models.transfer_credit import TransferCreditRecord
 from app.models.system_setting import SystemSetting
-from app.models.google_doc import AutobiographyGoogleDoc
+from app.models.google_doc import AutobiographyGoogleDoc, StudentDriveFolder
 from app.models.match_filter import MatchFilterOption
+from app.models.graduation_case import GraduationCase, GraduationCaseEvent, Notification
+from app.models.form_library import FormCategory, FormItem, FormItemVersion
+from app.models.curriculum import CurriculumCourse, CurriculumVersion
+from app.models.announcement import Announcement, AnnouncementRead
 
 __all__ = [
     "AiDailyUsage",
     "AwardCertificate",
+    "SchoolAwardRecord",
     "AgentTask",
     "AuditLog",
     "Portfolio",
@@ -84,7 +94,12 @@ __all__ = [
     "PublicSourceChange",
     "PublicSourcePublication",
     "AdmissionProgram",
+    "AdmissionEligibilityRule",
     "AdmissionRequirementItem",
+    "AdmissionRuleItemCategory",
+    "PortfolioDomainTag",
+    "School",
+    "SchoolDepartmentLink",
     "AdmissionScheduleEvent",
     "StudentTarget",
     "ClassAdvisor",
@@ -92,5 +107,19 @@ __all__ = [
     "TransferCreditRecord",
     "SystemSetting",
     "AutobiographyGoogleDoc",
+    "StudentDriveFolder",
     "MatchFilterOption",
+    "GraduationCase",
+    "GraduationCaseEvent",
+    "Notification",
+    "FormCategory",
+    "FormItem",
+    "FormItemVersion",
+    "CurriculumVersion",
+    "CurriculumCourse",
+    "UserBackupCode",
+    "TransferPlan",
+    "TransferPlanSubject",
+    "Announcement",
+    "AnnouncementRead",
 ]

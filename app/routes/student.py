@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 from uuid import uuid4
 from urllib.parse import urlparse
 
-from flask import Blueprint, abort, current_app, jsonify, redirect, render_template, request, send_file, url_for
+from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, send_file, url_for
 
 from app.extensions import db
 from app.models import (
@@ -17,6 +17,7 @@ from app.models import (
     AuditLog,
     CredentialRecord,
     DocumentExtraction,
+    GraduationCase,
     LearningCourseRecord,
     LearningProfileOutput,
     MatchFilterOption,
@@ -28,6 +29,7 @@ from app.models import (
     User,
 )
 from app.routes.main import get_current_user, role_required
+from app.routes.graduation import sync_after_commit
 from app.services.focus_service import focus_view
 from app.services.portfolio_service import owned_portfolio, create_submission_snapshot
 from app.security import validate_upload_filename
@@ -38,16 +40,20 @@ from app.services.learning_profile_docx_service import output_to_docx_bytes
 from app.services.learning_profile_service import generate_learning_profile_outputs
 from app.services.activity_fit import build_activity_fit
 from app.services.admission_service import published_programs
-from app.services.gap_service import ALL_LABELS, analyze_gap, chapter_order
+from app.services.gap_service import ALL_LABELS, analyze_gap, chapter_order, student_evidence
 from app.services.admission_links import admission_links, load_school_links
+from app.services import school_directory
 from app.services.admission_schedule import CHECKED_ON, channel_label, latest_timeline, timeline
 from app.services.matching_service import rank_programs
+from app.services.transfer_exam import is_transfer
+from app.services import graduation_check_service
+
 from app.services.gap_checklist import download_checklist, review_timeline
 from app.services.journey_service import CATEGORY_LABELS, EXPERIENCE_CATEGORIES, build_journey
 from app.services.package_service import build_package_docx, latest_review
 from app.services.file_preview import inline_file
 from app.services.record_status import learning_profile_state, portfolio_state
-from app.services import ai_quota_service, audit_service, autobiography_backup, autobiography_review, autobiography_service, ocr_queue, review_snapshot_service, storage_service, student_rules
+from app.services import ai_quota_service, audit_service, autobiography_backup, autobiography_review, autobiography_service, ocr_queue, package_exclusion, review_snapshot_service, storage_service, student_rules
 from app.services.gemini_client import AIUnavailable, ai_ready
 from app.services.course_review_presentation import (
     build_course_review_groups,
@@ -55,6 +61,8 @@ from app.services.course_review_presentation import (
     traditionalize_course_name,
 )
 
+
+MATCHING_PAGE_SIZE = 20  # 推薦排序一次先列幾間，按「看更多」再多這麼多間
 
 student_bp = Blueprint("student", __name__)
 
@@ -199,6 +207,12 @@ def _profile_page_url(document_type):
     return url_for(PROFILE_PAGES.get(document_type, "student.learning_profile"))
 
 
+def _blank_score(course):
+    """OCR 沒讀到成績（空白或標「待確認」）：鎖定成績時仍允許學生補上。"""
+    value = course.get("score") if isinstance(course, dict) else None
+    return value is None or str(value).strip() == "" or "待確認" in str(value)
+
+
 def _learning_profile_page(kind):
     user = get_current_user()
     documents = SourceDocument.query.filter_by(owner_id=user.id, document_type=kind).order_by(
@@ -232,6 +246,31 @@ def learning_profile_credentials():
     return _learning_profile_page("credential")
 
 
+@student_bp.get("/student/graduation-check")
+@role_required("student")
+def graduation_check():
+    user = get_current_user()
+    cases = (GraduationCase.query.filter_by(student_id=user.id)
+             .order_by(GraduationCase.id.desc()).all())
+    item_cases = {}
+    for case in cases:  # 每個檢核項目只掛最新的缺口案件
+        if case.case_type == "gap":
+            item_cases.setdefault(case.item, case)
+    curriculum = graduation_check_service.load_curriculum()
+    assessment = graduation_check_service.assess(user, curriculum=curriculum)
+    from app.services import check_dates, semester_warning
+    return render_template("student_graduation_check.html", user=user,
+                           warnings=semester_warning.build(user, curriculum=curriculum),
+                           warning_labels=semester_warning.LEVEL_LABELS, warning_note=semester_warning.NOTE,
+                           countdown=check_dates.countdown(assessment["stage"]),
+                           result=graduation_check_service.evaluate(user, curriculum=curriculum),
+                           assessment=assessment,
+                           overall=graduation_check_service.overall_result(assessment),
+                           item_cases=item_cases,
+                           other_cases=[c for c in cases if c.case_type != "gap"],
+                           check=graduation_check_service)
+
+
 @student_bp.get("/student/learning-profile/upload")
 @role_required("student")
 def learning_profile_upload_page():
@@ -252,6 +291,19 @@ def learning_profile_generate():
         return "school_year is required", 400
     generate_learning_profile_outputs(get_current_user(), school_year)
     return redirect(url_for("student.learning_profile"))
+
+
+@student_bp.get("/student/journey.docx")
+@role_required("student")
+def journey_docx():
+    """評審意見 7：把五年資料匯出成可以修改的 Word。"""
+    from app.services import journey_docx as exporter
+    user = get_current_user()
+    audit_service.record(user, "student.journey_docx", "user", user.id, commit=True)
+    return send_file(
+        exporter.build(user), as_attachment=True, download_name=f"我的五年學習歷程-{user.display_name}.docx",
+        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
 
 
 @student_bp.get("/student/learning-profile/outputs/<int:output_id>/docx")
@@ -297,11 +349,23 @@ def learning_profile_document_review(document_id):
     review_courses = prepare_course_review_rows(result.get("courses") or [])
     return render_template(
         "learning_profile_review.html", user=user, document=document,
+        photo_check=_photo_check(document),
         next_path=safe_next(request.args.get("next")),
         review_result=review_result,
         review_courses=review_courses,
         review_groups=build_course_review_groups(review_courses),
     )
+
+
+def _photo_check(document):
+    """證照、成績單照片模糊或歪斜時提醒重拍（評審意見 3）；只提醒不擋。讀不到檔案就不提醒。"""
+    from app.services import photo_quality
+    try:
+        file_bytes = storage_service.read_bytes(document.file_path)
+    except Exception:
+        return None
+    result = photo_quality.check(file_bytes, document.display_name)
+    return result if result and result["message"] else None
 
 
 @student_bp.get("/student/learning-profile/documents/<int:document_id>/view")
@@ -538,13 +602,9 @@ def _course_integer(value, label, upper=None):
 
 
 
-SEMESTER_WORDS = {"一": "上", "1": "上", "上": "上", "二": "下", "2": "下", "下": "下"}
-
-
 def _course_semester(value):
-    """成績單印「一」「二」或 1、2，系統統一存「上」「下」（10-27 實測問題 3）。"""
-    text = str(value or "").strip()
-    return SEMESTER_WORDS.get(text, text or None)
+    """成績單印「一」「二」、辨識送來「第一學期」，系統統一存「上」「下」（10-27 實測問題 3、11-14 B25）。"""
+    return graduation_check_service.normalize_semester(value)
 
 
 def _course_grade(user, school_year, grade_level):
@@ -563,6 +623,24 @@ def _course_grade(user, school_year, grade_level):
     if profile and profile.admission_year and 1 <= year - profile.admission_year + 1 <= 5:
         return year - profile.admission_year + 1
     return None
+
+def _same_term_course(user, fields):
+    """已確認的成績中，同一年級、同一學期、同一門課的那一筆；沒有年級或學期時不比對，回傳 None。"""
+    probe = LearningCourseRecord(school_year=fields["school_year"], semester=fields["semester"],
+                                 grade_level=fields["grade_level"], course_name=fields["course_name"])
+    profile = user.student_profile
+    admission_year = profile.admission_year if profile else None
+    key = graduation_check_service.course_term_key(probe, admission_year)
+    if key is None:
+        return None
+    # 不用學期字串直接篩：遷移前的舊資料可能還是「第一學期」，交給 course_term_key 統一比對
+    candidates = LearningCourseRecord.query.filter_by(
+        student_id=user.id, confirmation_status="confirmed").all()
+    for course in candidates:
+        if graduation_check_service.course_term_key(course, admission_year) == key:
+            return course
+    return None
+
 
 @student_bp.post("/student/learning-profile/documents/<int:document_id>/review/confirm")
 @role_required("student")
@@ -595,8 +673,8 @@ def learning_profile_document_confirm(document_id):
                     key = f"course_{index}_{field}"
                     if key not in request.form:
                         raise ValueError("課程欄位不完整，請重新開啟確認頁面")
-                    if all_fields_locked or (field == "score" and not scores_unlocked):
-                        item[field] = original.get("score")
+                    if all_fields_locked or (field == "score" and not scores_unlocked and not _blank_score(original)):
+                        item[field] = original.get(field)
                     else:
                         item[field] = request.form[key].strip()
                 courses.append(item)
@@ -607,7 +685,8 @@ def learning_profile_document_confirm(document_id):
         if not scores_unlocked:
             original_courses = result.get("courses", [])
             for index, item in enumerate(courses):
-                if isinstance(item, dict):
+                # 空白成績（原本就沒讀到）可以直接補，不必先解鎖（11-04 實測）
+                if isinstance(item, dict) and not (index < len(original_courses) and _blank_score(original_courses[index])):
                     item["score"] = (
                         original_courses[index].get("score")
                         if index < len(original_courses) else None
@@ -681,8 +760,7 @@ def learning_profile_document_confirm(document_id):
                 # 組員確認頁只填年級（grade_level）時，也要檢查不能填比現在高的年級
                 student_rules.check_record_year(
                     user, course_year if course_year is not None else grade_number(grade_level))
-            db.session.add(LearningCourseRecord(
-                student_id=user.id,
+            fields = dict(
                 source_document_id=document.id,
                 school_year=course_year,
                 semester=_course_semester(item.get("semester")),
@@ -694,7 +772,14 @@ def learning_profile_document_confirm(document_id):
                 status_mark=status_mark,
                 makeup_season=makeup_season,
                 confirmation_status="confirmed",
-            ))
+            )
+            existing = _same_term_course(user, fields)
+            if existing is not None:
+                # 重複上傳成績單（例如專四的歷年成績單又列出專三的課）：更新原本那一筆，不再新增
+                for key, value in fields.items():
+                    setattr(existing, key, value)
+            else:
+                db.session.add(LearningCourseRecord(student_id=user.id, **fields))
         for item in credentials:
             if not isinstance(item, dict):
                 raise ValueError("證照資料格式錯誤")
@@ -730,7 +815,9 @@ def learning_profile_document_confirm(document_id):
         db.session.commit()
     except (TypeError, ValueError) as exc:
         db.session.rollback()
-        return str(exc), 400
+        return render_template("student_input_error.html", message=str(exc), back_url=url_for("student.learning_profile_document_review", document_id=document.id)), 400
+    # 確認已提交；同步失敗只回復同步本身，不影響確認結果
+    sync_after_commit(user)
     saved = [f"{len(courses)} 門課程" if courses else "", f"{len(credentials)} 張證照" if credentials else ""]
     flash_done("已儲存 " + ("、".join(part for part in saved if part) or "確認結果") + "。", user, program, before)
     return redirect(next_path or _profile_page_url(document.document_type))
@@ -756,13 +843,28 @@ def _record_form_values(user):
     if semester not in (None, 1, 2):
         raise ValueError("學期只能是上學期或下學期")
     student_rules.check_record_year(user, school_year)
+    story = {}
+    for key, label, limit in STORY_FIELDS:
+        value = request.form.get(key, "").strip()
+        if len(value) > limit:
+            raise ValueError(f"{label}最多 {limit} 字")
+        story[key] = value or None
+    if story["domain_tags"]:
+        tags = [tag for tag in re.split(r"[、,，;；/\s]+", story["domain_tags"]) if tag]
+        story["domain_tags"] = "、".join(dict.fromkeys(tags))[:200] or None
     return {
         "title": title,
         "category": category,
         "school_year": school_year,
         "semester": semester,
         "description": request.form.get("description", "").strip(),
+        **story,
     }
+
+
+# 經歷的四個細節欄位（key, 名稱, 字數上限），表單與錯誤訊息共用
+STORY_FIELDS = (("role", "我負責的部分", 1000), ("achievement", "數字成果", 300),
+                 ("learned", "學到什麼", 1000), ("domain_tags", "相關領域", 200))
 
 
 def _record_status():
@@ -808,7 +910,7 @@ def portfolio_list():
         user=user,
         grouped={key: [r for r in records if r.category == key] for key in EXPERIENCE_CATEGORIES},
         legacy=[r for r in records if r.category not in EXPERIENCE_CATEGORIES],
-        unconfirmed_count=sum(1 for r in records if r.status == "draft"),
+        unconfirmed_count=sum(1 for r in records if r.status != "confirmed"),
         categories=EXPERIENCE_CATEGORIES,
         category_labels=CATEGORY_LABELS,
         record_state=portfolio_state,
@@ -849,7 +951,7 @@ def portfolio_confirm(portfolio_id):
     """學生確認這筆經歷內容正確；確認過的經歷才會被 AI 寫進自傳。"""
     user = get_current_user()
     portfolio = owned_portfolio(portfolio_id, user)
-    if portfolio.status == "draft":
+    if portfolio.status != "confirmed":
         portfolio.status = "confirmed"
         audit_service.record(user, "portfolio.confirm", "portfolio", portfolio.id)
         db.session.commit()
@@ -883,7 +985,7 @@ def portfolio_delete(portfolio_id):
 def portfolio_submit(portfolio_id):
     portfolio = owned_portfolio(portfolio_id, get_current_user())
     submission = create_submission_snapshot(portfolio, get_current_user())
-    portfolio.status = "submitted"
+    # 送件狀態記在 submission；不能把草稿送出誤視為學生已確認。
     db.session.add(submission)
     db.session.commit()
     return redirect(url_for("student.portfolio_list"))
@@ -909,21 +1011,51 @@ def evidence_upload(portfolio_id):
         db.session.flush()
         audit_service.record(get_current_user(), "evidence.upload", "portfolio_evidence", link.id)
         db.session.commit()
-        return redirect(url_for("student.portfolio_edit", portfolio_id=portfolio.id))
+        return _after_evidence_upload(portfolio, link_name)
     uploaded = request.files.get("file")
     if not uploaded or not uploaded.filename:
         return "file is required", 400
     try:
         safe_name = validate_upload_filename(uploaded.filename, current_app.config["ALLOWED_UPLOAD_EXTENSIONS"])
     except ValueError as exc:
-        return str(exc), 400
+        return render_template("student_input_error.html", message="檔案格式不支援，請選擇允許的格式後重試。", back_url=url_for("student.portfolio_edit", portfolio_id=portfolio.id)), 400
     location = storage_service.save(uploaded.read(), owner_id=get_current_user().id, folder="", filename=safe_name)
     evidence = PortfolioEvidence(portfolio_id=portfolio.id, evidence_type="file", display_name=safe_name, file_path=location)
     db.session.add(evidence)
     db.session.flush()
     audit_service.record(get_current_user(), "evidence.upload", "portfolio_evidence", evidence.id)
     db.session.commit()
-    return redirect(url_for("student.portfolio_edit", portfolio_id=portfolio.id))
+    return _after_evidence_upload(portfolio, safe_name)
+
+
+@student_bp.get("/student/files")
+@role_required("student")
+def my_files():
+    """我的檔案（B27）：一頁列出自己上傳過的所有原檔——成績單、證照、經歷佐證，寫清楚存在哪、會不會放進備審。"""
+    user = get_current_user()
+    documents = (SourceDocument.query.filter_by(owner_id=user.id)
+                 .order_by(SourceDocument.created_at.desc()).all())
+    portfolios = Portfolio.query.filter_by(student_id=user.id).all()
+    evidence = sorted((item for p in portfolios for item in p.evidence_items),
+                      key=lambda item: item.created_at or datetime.min, reverse=True)
+    return render_template(
+        "student_files.html",
+        user=user,
+        documents=documents,
+        evidence=evidence,
+        record_state=learning_profile_state,
+        where=lambda path: ("學校的 Google 雲端硬碟（你的學生資料夾）" if path and path.startswith(storage_service.DRIVE_PREFIX)
+                            else "本系統的伺服器" if path else "外部連結"),
+    )
+
+
+def _after_evidence_upload(portfolio, name):
+    """上傳佐證後說清楚放到哪裡（B27，2026-11-14 假學生實測：拖完跳到編輯頁沒有提示，以為沒傳成功）。
+    從活動頁卡片拖曳上傳的留在活動頁，捲到那張卡片並閃一下；在編輯頁上傳的捲到佐證區。"""
+    flash(f"已把「{name}」加到「{portfolio.title}」的佐證。所有上傳過的檔案都在「我的資料 → 我的檔案」。")
+    if request.form.get("return_to") == "list":
+        return redirect(url_for("student.portfolio_list", added=portfolio.id, _anchor=f"record-{portfolio.id}"))
+    return redirect(url_for("student.portfolio_edit", portfolio_id=portfolio.id, _anchor="evidence-title"))
 
 
 def _owned_evidence_or_404(evidence_id):
@@ -997,6 +1129,16 @@ def _selected_target_or_404(user, program_id):
     return program
 
 
+def _home_major_known(user):
+    class_name = user.student_profile.class_name if user.student_profile else ""
+    return any(name in (class_name or "") for name in ("資管科", "資訊管理科"))
+
+
+def _is_home_major(program, known):
+    department = (program.department_name or "").split("（", 1)[0].split("(", 1)[0].replace(" ", "")
+    return known and department in {"資管系", "資訊管理系", "資訊管理學系"}
+
+
 @student_bp.get("/student/targets")
 @student_bp.post("/student/targets")
 @role_required("student")
@@ -1012,18 +1154,22 @@ def target_list():
         if reason:
             return _blocked(user, reason)
         if not StudentTarget.query.filter_by(student_id=user.id, rule_version_id=program.id).first():
-            slots = student_rules.target_slots(user)
-            if slots["limit"] is not None and slots["used"] >= slots["limit"]:
-                error = f"目標校系同時最多 {slots['limit']} 所，請先取消一所再加入新的。"
-            else:
-                db.session.add(StudentTarget(student_id=user.id, rule_version_id=program.id))
-                audit_service.record(user, "student_target.add", "admission_program", program.id)
-                db.session.commit()
+            db.session.add(StudentTarget(student_id=user.id, rule_version_id=program.id))
+            audit_service.record(user, "student_target.add", "admission_program", program.id)
+            db.session.commit()
         if not error:
             return redirect(url_for("student.target_gap", program_id=program.id))
     journey = build_journey(user)
+    evidence = student_evidence(user, journey)
     selected = {t.rule_version_id for t in StudentTarget.query.filter_by(student_id=user.id).all()}
-    programs = published_programs()
+    all_programs = published_programs()
+    track = "transfer" if request.args.get("track") == "transfer" else "twotech"
+    track_counts = {"twotech": sum(not is_transfer(p) for p in all_programs),
+                    "transfer": sum(is_transfer(p) for p in all_programs)}
+    programs = [p for p in all_programs if is_transfer(p) == (track == "transfer")]
+    slots = student_rules.target_slots(user)
+    track_targets = [t for t in slots["current"] if is_transfer(t.program) == (track == "transfer")]
+    old_targets = [t for t in slots["old"] if is_transfer(t.program) == (track == "transfer")]
     all_program_count = len(programs)
     program_options = sorted(programs, key=lambda p: (p.school_name, p.department_name, p.admission_category or ""))
     channels = {p.id: channel_label(p) for p in programs}
@@ -1032,18 +1178,16 @@ def target_list():
         if p.admission_category == "插大（轉學考）" else ""
         for p in programs
     }
-    gaps = {p.id: analyze_gap(user, p, journey) for p in programs}
-    # 資管科學生先看本科系；兩組各依準備度排序。科別不明時不猜測本科系。
-    class_name = user.student_profile.class_name if user.student_profile else ""
-    major_known = any(name in (class_name or "") for name in ("資管科", "資訊管理科"))
+    gaps = {p.id: analyze_gap(user, p, journey, evidence) for p in programs}
+    # 單一排行：全部校系依準備度由高到低；本科系只加標籤，不再分組排在前面（老師看第一名要能直接對上準備度）。
+    # 科別不明時不猜測本科系。
+    major_known = _home_major_known(user)
 
     def is_home_major(program):
-        department = (program.department_name or "").split("（", 1)[0].split("(", 1)[0].replace(" ", "")
-        return major_known and department in {"資管系", "資訊管理系", "資訊管理學系"}
+        return _is_home_major(program, major_known)
 
     def readiness_order(program):
-        return (not is_home_major(program) if major_known else False,
-                gaps[program.id]["readiness"] is None,
+        return (gaps[program.id]["readiness"] is None,
                 -(gaps[program.id]["readiness"] or 0),
                 program.school_name, program.department_name, program.id)
 
@@ -1060,21 +1204,39 @@ def target_list():
         programs = [p for p in programs if not is_home_major(p)]
     if program_filter:
         programs = [p for p in programs if str(p.id) == program_filter]
+    # 依地區、學校找（2026-11-13 導師：選校系要分北中南）：地圖與區域按鈕用篩選前的校系，才看得到全部學校
+    schools = school_directory.by_name()
+    map_points = school_directory.map_points(programs, schools)
+    region_filter = request.args.get("region", "")
+    region_filter = region_filter if region_filter in school_directory.REGIONS else ""
+    school_filter = request.args.get("school", "").strip()
+    school_filter = school_filter if school_filter in schools else ""
+    region_counts = {region: sum(1 for point in map_points if point["region"] == region)
+                     for region in school_directory.REGIONS}
+    # 2026-11-13 使用者：地圖每點一次就卡一下（整頁重載）。排行改成全部送到瀏覽器、依地區／學校先隱藏，
+    # 點地圖時由 school_map.html 的腳本直接切換，不再換頁；沒有 JavaScript 時 hidden 屬性一樣篩得對。
+    program_region = {p.id: schools[p.school_name].region if p.school_name in schools else "" for p in programs}
+    hidden_program_ids = {p.id for p in programs
+                          if (region_filter and program_region[p.id] != region_filter)
+                          or (school_filter and p.school_name != school_filter)}
+    school_card = next((point for point in map_points if point["school"].name == school_filter), None)
+    search_query = request.args.get("q", "").strip()[:60]
+    if search_query:
+        needle = "".join(search_query.split()).lower()
+        programs = [p for p in programs
+                    if needle in "".join(f"{p.school_name}{p.department_name}{channels[p.id]}{p.admission_category or ''}".split()).lower()]
 
     programs.sort(key=readiness_order)
-    if major_known:
-        program_groups = []
-        if major_filter in ("all", "home"):
-            program_groups.append({"label": "本科系（資訊管理）", "programs": [p for p in programs if is_home_major(p)]})
-        if major_filter in ("all", "other"):
-            program_groups.append({"label": "非本科系", "programs": [p for p in programs if not is_home_major(p)]})
-    else:
-        program_groups = [{"label": "全部校系（本科科別待確認）", "programs": programs}]
+    home_program_ids = {p.id for p in programs if is_home_major(p)}
+    program_groups = [{"label": "全部校系（依準備度由高到低）", "programs": programs}]
     school_links = load_school_links()
     return render_template(
         "student_targets.html",
         user=user,
         programs=programs,
+        track=track,
+        track_counts=track_counts,
+        old_targets=old_targets,
         all_program_count=all_program_count,
         program_options=program_options,
         channels=channels,
@@ -1082,61 +1244,208 @@ def target_list():
         major_known=major_known,
         major_filter=major_filter,
         program_filter=program_filter,
+        search_query=search_query,
+        home_program_ids=home_program_ids,
         program_groups=program_groups,
         selected=selected,
         selected_programs=selected_programs,
         slots=student_rules.target_slots(user),
-        cancelled_programs=_cancelled_autobiography_programs(user),
+        cancelled_programs=[p for p in _cancelled_autobiography_programs(user)
+                            if is_transfer(p) == (track == "transfer")],
         gaps=gaps,
-        links={p.id: admission_links(p, school_links) for p in programs},
-        focus=focus_view(user, journey),
+        links={p.id: admission_links(p, school_links) for p in program_options},
+        school_links={p.id: school_directory.school_links(p, schools) for p in program_options},
+        map_points=map_points,
+        program_region=program_region,
+        hidden_program_ids=hidden_program_ids,
+        map_data=school_directory.map_client_data(map_points, channels, track),
+        region_filter=region_filter,
+        school_filter=school_filter,
+        region_counts=region_counts,
+        regions=[r for r in school_directory.REGIONS if region_counts[r]],
+        school_card=school_card,
+        map_size=(school_directory.MAP_WIDTH, school_directory.MAP_HEIGHT),
+        # 點選地區時放大到那一區（2026-11-13 使用者要求）；圓點跟著縮小，放大後不會變得很大
+        map_view_box=school_directory.region_view_box(region_filter) if region_filter else
+        f"0 0 {school_directory.MAP_WIDTH} {school_directory.MAP_HEIGHT}",
+        map_zoom=(school_directory.MAP_HEIGHT / float(school_directory.region_view_box(region_filter).split()[3]))
+        if region_filter else 1,
+        focus=focus_view(user, journey, targets=track_targets),
         error=error,
     ), (400 if error else 200)
+
+
+@student_bp.get("/student/pathways")
+@role_required("student")
+def pathways():
+    """B19、B20：二技、插大、統測進四技三條路並排比較，附法條與官方出處。"""
+    from app.services import pathways as pathway_content
+
+    user = get_current_user()
+    return render_template(
+        "student_pathways.html",
+        user=user,
+        pathways=pathway_content.build_pathways(url_for("student.target_list", track="twotech"),
+                                                url_for("student.transfer_plans")),
+        default_status=pathway_content.default_status(student_rules.grade_of(user)),
+        checked_on=pathway_content.CHECKED_ON,
+        today=date.today(),
+    )
+
+
+def _own_transfer_plan(user, plan_id):
+    from app.models import TransferPlan
+
+    plan = db.session.get(TransferPlan, plan_id)
+    if not plan or plan.student_id != user.id:
+        abort(404)
+    return plan
+
+
+@student_bp.get("/student/transfer-plans")
+@student_bp.post("/student/transfer-plans")
+@role_required("student")
+def transfer_plans():
+    """B18 插大準備：學生自填目標校系、簡章、考科與日期，依考期倒數與考科進度算準備度。"""
+    from app.models import TransferPlan
+    from app.services import transfer_plan as tp
+
+    user = get_current_user()
+    error = None
+    if request.method == "POST":
+        try:
+            fields, names = tp.parse_plan_form(request.form)
+        except tp.PlanFormError as exc:
+            error = str(exc)
+        else:
+            plan = TransferPlan(student_id=user.id, updated_by_id=user.id, **fields)
+            tp.apply_subjects(plan, names)
+            db.session.add(plan)
+            db.session.flush()
+            audit_service.record(user, "transfer_plan.add", "transfer_plan", plan.id)
+            db.session.commit()
+            return redirect(url_for("student.transfer_plans", _anchor=f"plan-{plan.id}"))
+    rows = TransferPlan.query.filter_by(student_id=user.id).order_by(TransferPlan.exam_date.is_(None),
+                                                                      TransferPlan.exam_date, TransferPlan.id).all()
+    return render_template(
+        "student_transfer_plans.html",
+        user=user,
+        plans=[{"plan": plan, "ready": tp.readiness(plan)} for plan in rows if not plan.archived],
+        archived=[plan for plan in rows if plan.archived],
+        examples=tp.example_schools(),
+        default_year=tp.target_year(),
+        error=error,
+    )
+
+
+@student_bp.post("/student/transfer-plans/<int:plan_id>")
+@role_required("student")
+def transfer_plan_update(plan_id):
+    from app.services import transfer_plan as tp
+
+    user = get_current_user()
+    plan = _own_transfer_plan(user, plan_id)
+    try:
+        fields, names = tp.parse_plan_form(request.form)
+    except tp.PlanFormError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("student.transfer_plans", _anchor=f"plan-{plan.id}"))
+    for key, value in fields.items():
+        setattr(plan, key, value)
+    tp.apply_subjects(plan, names)
+    plan.updated_by_id = user.id
+    audit_service.record(user, "transfer_plan.update", "transfer_plan", plan.id)
+    db.session.commit()
+    return redirect(url_for("student.transfer_plans", _anchor=f"plan-{plan.id}"))
+
+
+@student_bp.post("/student/transfer-plans/<int:plan_id>/progress")
+@role_required("student")
+def transfer_plan_progress(plan_id):
+    from app.services.transfer_plan import clamp_progress
+
+    user = get_current_user()
+    plan = _own_transfer_plan(user, plan_id)
+    for subject in plan.subjects:
+        key = f"progress_{subject.id}"
+        if key in request.form:
+            subject.progress = clamp_progress(request.form[key])
+    plan.updated_by_id = user.id
+    db.session.commit()
+    return redirect(url_for("student.transfer_plans", _anchor=f"plan-{plan.id}"))
+
+
+@student_bp.post("/student/transfer-plans/<int:plan_id>/archive")
+@role_required("student")
+def transfer_plan_archive(plan_id):
+    user = get_current_user()
+    plan = _own_transfer_plan(user, plan_id)
+    plan.archived = True
+    audit_service.record(user, "transfer_plan.archive", "transfer_plan", plan.id)
+    db.session.commit()
+    return redirect(url_for("student.transfer_plans"))
 
 
 @student_bp.get("/student/matching")
 @role_required("student")
 def matching():
-    """A3 媒合排序：全部正式校系依可不可報與契合度排序，每一間都寫理由。可用科系、學制、是否可報篩選。"""
+    """A3 媒合排序：校系依可不可報與準備度排成一張排行，點進去看細項（10-28 導師建議）。
+    二技、插大分兩個分頁；可用關鍵字（學校或科系）搜尋，再加科系、學制、是否可報篩選；先列前 20 間，按「看更多」再載入。"""
     user = get_current_user()
-    journey = build_journey(user)
-    has_confirmed_data = any(journey["confirmed_totals"].values())
     selected = {t.rule_version_id for t in StudentTarget.query.filter_by(student_id=user.id).all()}
-    active_filters = {key: request.args.get(key, "").strip() for key in ("department", "level", "eligible")}
-    rows = rank_programs(user, published_programs(), journey=journey)
+    active_filters = {key: request.args.get(key, "").strip() for key in ("department", "level", "eligible", "q")}
+    track = "transfer" if request.args.get("track") == "transfer" else "twotech"
+    try:
+        show = max(MATCHING_PAGE_SIZE, int(request.args.get("show", MATCHING_PAGE_SIZE)))
+    except ValueError:
+        show = MATCHING_PAGE_SIZE
+    ranked = rank_programs(user, published_programs())
+    track_counts = {"twotech": sum(1 for r in ranked if not is_transfer(r["program"])),
+                    "transfer": sum(1 for r in ranked if is_transfer(r["program"]))}
+    rows = [r for r in ranked if is_transfer(r["program"]) == (track == "transfer")]
     total = len(rows)
+    major_known = _home_major_known(user)
+    major_filter = request.args.get("major", "all")
+    if major_filter not in {"all", "home", "other"} or not major_known:
+        major_filter = "all"
+    if major_filter != "all":
+        rows = [r for r in rows if _is_home_major(r["program"], major_known) == (major_filter == "home")]
+    rows.sort(key=lambda r: (r["status"] == "ineligible", r["fit"] is None, -(r["fit"] or 0), r["program"].school_name, r["program"].department_name, r["program"].id))
+    for row in rows:
+        row["home_major"] = _is_home_major(row["program"], major_known)
+        row["reasons"] = [reason for reason in row["reasons"] if not (reason.startswith("暫依你的科別") and "排前面" in reason)]
+        qualification = row.get("qualification") or {}
+        unmatched = [item["reason"] for item in qualification.get("conditions", [])
+                     if item.get("required", True) and item.get("status") == "not_matched" and item.get("reason")]
+        row["ineligible_reason"] = "；".join(unmatched) if qualification.get("status") == "not_eligible" and unmatched else ("；".join(row["reasons"]) or "請查看資格說明")
+    if active_filters["q"]:
+        words = active_filters["q"].split()
+        rows = [r for r in rows if all(word in f"{r['program'].school_name}{r['program'].department_name}" for word in words)]
     if active_filters["department"]:
         rows = [r for r in rows if active_filters["department"] in (r["program"].department_name or "")]
     if active_filters["level"]:
         rows = [r for r in rows if r["program"].admission_category == active_filters["level"]]
     if active_filters["eligible"]:
         rows = [r for r in rows if r["status"] == active_filters["eligible"]]
-    # 同一報考狀態內以已確認資料算出的準備度排序；同校校系收在一起。
-    rows.sort(key=lambda r: ({"eligible": 0, "needs_check": 1, "ineligible": 2}[r["status"]],
-                             r["fit"] is None, -(r["fit"] or 0)))
-    school_groups = []
-    by_school = {}
-    for row in rows:
-        name = row["program"].school_name
-        if name not in by_school:
-            group = {"name": name, "rows": [], "best": row}
-            by_school[name] = group
-            school_groups.append(group)
-        by_school[name]["rows"].append(row)
     filters = {category: MatchFilterOption.active_options(category) for category in ("department", "level", "eligible")}
     chart = "column" if request.args.get("chart") == "column" else "bar"
     return render_template(
         "student_matching.html",
         user=user,
-        rows=rows,
-        school_groups=school_groups,
+        rows=rows[:show],
+        matched=len(rows),
+        more=len(rows) > show,
+        show=show,
         total=total,
+        track=track,
+        track_counts=track_counts,
         selected=selected,
-        category_labels=ALL_LABELS,
+        category_labels=CATEGORY_LABELS,
         filters=filters,
         active_filters={k: v for k, v in active_filters.items() if v},
         chart=chart,
-        has_confirmed_data=has_confirmed_data,
+        major_known=major_known,
+        major_filter=major_filter,
     )
 
 
@@ -1148,12 +1457,15 @@ def matching_detail(program_id):
     program = _published_program_or_404(program_id)
     row = rank_programs(user, [program])[0]
     selected = {t.rule_version_id for t in StudentTarget.query.filter_by(student_id=user.id).all()}
+    upcoming = (row["schedule"] or {}).get("next")
+    days_left = (upcoming["start"].date() - date.today()).days if upcoming and upcoming.get("start") else None
     return render_template(
         "student_matching_detail.html",
         user=user,
         row=row,
         selected=selected,
-        category_labels=ALL_LABELS,
+        days_left=days_left,
+        category_labels=CATEGORY_LABELS,
     )
 
 
@@ -1164,14 +1476,41 @@ def schedule():
     user = get_current_user()
     targets = StudentTarget.query.filter_by(student_id=user.id).order_by(StudentTarget.selected_at).all()
     school_links = load_school_links()
+    from app.services import calendar_feed
+    calendar_url = url_for("student.calendar_ics", token=calendar_feed.commit_token(user), _external=True)
     return render_template(
         "student_schedule.html",
         user=user,
+        calendar_url=calendar_url,
         skill=latest_timeline("skill_review"),
         checked_on=CHECKED_ON,
         targets=[{"program": t.program, "schedule": timeline(t.program), "channel_label": channel_label(t.program),
                   "links": admission_links(t.program, school_links)} for t in targets],
     )
+
+
+@student_bp.post("/student/calendar/reset")
+@role_required("student")
+def calendar_reset():
+    """重設行事曆訂閱網址（網址外流時用）；舊網址立刻失效。"""
+    from app.services import audit_service, calendar_feed
+    user = get_current_user()
+    calendar_feed.reset_token(user)
+    audit_service.record(user, "calendar.reset", "user", user.id)
+    db.session.commit()
+    return redirect(url_for("student.schedule") + "#calendar")
+
+
+@student_bp.get("/calendar/<token>.ics")
+def calendar_ics(token):
+    """行事曆訂閱（不用登入，靠私密網址）。Google 日曆伺服器會定期來抓。"""
+    from app.services import calendar_feed
+    student = calendar_feed.find_student(token)
+    if student is None:
+        abort(404)
+    body = calendar_feed.build_ics(student)
+    return current_app.response_class(body, mimetype="text/calendar", headers={
+        "Content-Disposition": 'inline; filename="schedule.ics"', "Cache-Control": "no-store"})
 
 
 @student_bp.post("/student/agent/advise")
@@ -1234,13 +1573,15 @@ def target_gap(program_id):
         "student_gap.html",
         user=user,
         program=program,
+        target_track="transfer" if is_transfer(program) else "twotech",
         gap=gap,
-        chapters=chapter_order(program),
+        chapters=autobiography_service.custom_contents(user, program),
         targets=[t.program for t in targets],
         review=review,
         review_timeline=review_timeline(user, program),
         autobiography=autobiography,
         download_checklist=download_checklist(user, program, gap, review, autobiography),
+        mail_recipients=_package_recipients(user),
         labels=ALL_LABELS,
     )
 
@@ -1250,7 +1591,7 @@ def target_gap(program_id):
 def target_request_review(program_id):
     user = get_current_user()
     program = _selected_target_or_404(user, program_id)
-    reason = student_rules.review_block_reason(user) or student_rules.over_limit_reason(user)
+    reason = student_rules.review_block_reason(user)
     if reason:
         return _blocked(user, reason)
     review_snapshot_service.request_review(user, program)
@@ -1268,6 +1609,139 @@ def target_package(program_id):
         download_name=f"備審資料-{program.school_name}-{program.department_name}.docx",
         mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     )
+
+
+def _package_recipients(user):
+    from app.services import backup_email
+    return backup_email.recipients(user)
+
+
+PACKAGE_MAIL_DAILY_LIMIT = 5  # 每位學生每天最多寄幾次備審打包
+PACKAGE_MAIL_SUBJECT = "【資管科學習歷程】你的備審資料打包"
+
+
+@student_bp.get("/student/targets/<int:program_id>/package.zip")
+@role_required("student")
+def target_package_zip(program_id):
+    """一鍵打包：備審 Word、自傳、已確認的原始檔與佐證，壓縮成一個檔下載。"""
+    from app.services import package_zip
+    user = get_current_user()
+    program = _selected_target_or_404(user, program_id)
+    data, manifest = package_zip.build_zip(user, program)
+    audit_service.record(user, "package.zip_download", "admission_program", program.id,
+                         detail={"files": len(manifest["included"]), "skipped": len(manifest["skipped"])}, commit=True)
+    return send_file(data, as_attachment=True, download_name=package_zip.download_name(program),
+                     mimetype="application/zip")
+
+
+@student_bp.post("/student/targets/<int:program_id>/package/send")
+@role_required("student")
+def target_package_send(program_id):
+    """把打包寄到學生自己的學校信箱或已確認的備用信箱。太大就只寄下載連結（要登入才能下載）。"""
+    from app.services import backup_email, email_notify, package_zip
+    user = get_current_user()
+    program = _selected_target_or_404(user, program_id)
+    recipient = next((r for r in backup_email.recipients(user) if r["key"] == request.form.get("to")), None)
+    if recipient is None:
+        return _blocked(user, "這個信箱還不能收備審資料：備用信箱要先到「帳號設定」綁定並點確認信的連結。")[0], 400
+    day_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    sent_today = AuditLog.query.filter(AuditLog.user_id == user.id, AuditLog.action == "package.mail",
+                                       AuditLog.created_at >= day_start).count()
+    if sent_today >= PACKAGE_MAIL_DAILY_LIMIT:
+        return _blocked(user, f"今天已經寄了 {PACKAGE_MAIL_DAILY_LIMIT} 次備審打包，請明天再寄，或直接用「打包下載」。")[0], 429
+    data, manifest = package_zip.build_zip(user, program)
+    payload = data.getvalue()
+    label = f"{program.school_name} {program.department_name}"
+    limit = float(current_app.config.get("MAIL_MAX_ATTACHMENT_MB", 15)) * 1024 * 1024
+    intro = f"{user.display_name} 您好：\n\n這是你在資管科智慧學習歷程系統要求寄出的備審資料打包（{label}）。\n"
+    outro = "\n如果不是你本人要求的，請登入系統修改密碼並通知導師。這封信由系統自動寄出，請勿直接回覆。\n"
+    if len(payload) <= limit:
+        body = intro + "壓縮檔在附件，裡面的「清單.txt」列出放了哪些檔案。\n" + outro
+        attachments = [(package_zip.download_name(program), payload, "application/zip")]
+    else:
+        base = (current_app.config.get("MAIL_SITE_URL") or "").rstrip("/")
+        link = f"{base}{url_for('student.target_package_zip', program_id=program.id)}"
+        body = intro + f"檔案太大，沒辦法放在信裡。請登入系統後用這個連結下載：\n{link}\n" + outro
+        attachments = []
+    status = email_notify.deliver(recipient["address"], PACKAGE_MAIL_SUBJECT, body, attachments, user_id=user.id)
+    result = "link" if status == "sent" and not attachments else status
+    # 操作紀錄只記寄到哪一種信箱與結果，不記信箱與內容
+    audit_service.record(user, "package.mail", "admission_program", program.id,
+                         detail={"to": recipient["key"], "status": result, "bytes": len(payload),
+                                 "files": len(manifest["included"])}, commit=True)
+    return redirect(url_for("student.target_gap", program_id=program.id, mailed=result) + "#package-title")
+
+
+# ---------- 學生選擇不放進備審的資料（導師 2026-11-12） ----------
+
+EXCLUSION_KINDS = {"course": ("成績", LearningCourseRecord), "credential": ("證照", CredentialRecord),
+                   "portfolio": ("經歷", Portfolio)}
+
+
+def _exclusion_keys(kind, record):
+    return {"course": ("grades",), "credential": ("credential",)}.get(kind) or package_exclusion.portfolio_keys(record)
+
+
+def _exclusion_groups(user, targets):
+    """已確認的成績、證照、經歷，各附上能不能排除（簡章規定必備的不能）。"""
+    courses = (LearningCourseRecord.query.filter_by(student_id=user.id, confirmation_status="confirmed")
+               .order_by(LearningCourseRecord.school_year, LearningCourseRecord.id).all())
+    credentials = (CredentialRecord.query.filter_by(student_id=user.id, confirmation_status="confirmed")
+                   .order_by(CredentialRecord.id).all())
+    records = (Portfolio.active().filter_by(student_id=user.id, status="confirmed").order_by(Portfolio.id).all())
+
+    def row(kind, record, name, detail):
+        return {"id": record.id, "name": name, "detail": detail, "excluded": record.excluded_from_package,
+                "lock": package_exclusion.lock_state(targets, _exclusion_keys(kind, record))}
+
+    return [
+        {"kind": "course", "label": "成績", "rows": [
+            row("course", c, c.course_name,
+                f"{c.score} 分" if c.score is not None else (c.status_mark or "")) for c in courses]},
+        {"kind": "credential", "label": "證照", "rows": [
+            row("credential", c, autobiography_service.credential_label(c), "") for c in credentials]},
+        {"kind": "portfolio", "label": "經歷", "rows": [
+            row("portfolio", r, r.title, CATEGORY_LABELS.get(r.category, "")) for r in records]},
+    ]
+
+
+@student_bp.get("/student/package-exclusions")
+@student_bp.post("/student/package-exclusions")
+@role_required("student")
+def package_exclusions():
+    user = get_current_user()
+    targets = [t.program for t in StudentTarget.query.filter_by(student_id=user.id).order_by(StudentTarget.selected_at)]
+    program_id = request.values.get("program_id", type=int)
+    back_program = next((p for p in targets if p.id == program_id), None)
+    error = None
+    if request.method == "POST":
+        kind = request.form.get("kind", "")
+        if kind not in EXCLUSION_KINDS:
+            abort(400)
+        label, model = EXCLUSION_KINDS[kind]
+        record = db.session.get(model, request.form.get("record_id", type=int) or 0)
+        if not record or record.student_id != user.id or getattr(record, "deleted_at", None):
+            abort(404)
+        excluded = request.form.get("excluded") == "1"
+        lock = package_exclusion.lock_state(targets, _exclusion_keys(kind, record))
+        if excluded and lock["locked"]:
+            names = "、".join(f"{p.school_name} {p.department_name}" for p in lock["programs"])
+            error = f"這筆{label}不能排除：{names}{package_exclusion.REQUIRED_REASON}這類資料。"
+        else:
+            record.excluded_from_package = excluded
+            audit_service.record(user, "package_exclusion.set", model.__tablename__, record.id,
+                                 detail={"excluded": excluded}, commit=True)
+            return redirect(url_for("student.package_exclusions", saved=1,
+                                    program_id=back_program.id if back_program else None))
+    return render_template(
+        "student_package_exclusions.html",
+        user=user,
+        targets=targets,
+        back_program=back_program,
+        groups=_exclusion_groups(user, targets),
+        reason=package_exclusion.REQUIRED_REASON,
+        error=error,
+    ), (400 if error else 200)
 
 
 # ---------- AI 自傳小幫手：先回答幾題，AI 再依資料與校系加權寫草稿 ----------
@@ -1302,13 +1776,17 @@ def _render_autobiography(user, program, targets, error=None, answers=None, stat
         targets=targets,
         draft=draft,
         asking=asking,
-        questions=autobiography_service.QUESTIONS,
-        answers=answers or (draft.content_json.get("answers", {}) if draft else {}),
+        questions=autobiography_service.guided_questions(program),
+        valued_label=autobiography_service.VALUED_LABEL,
+        answers=answers or (draft.content_json.get("answers", {}) if draft else autobiography_service.carried_answers(user)),
         facts=autobiography_service.build_facts(user, program) if program else None,
         version=autobiography_service.version_of(draft) if draft else None,
         backup_label=autobiography_backup.status_label(draft) if draft else None,
         paragraph_reviews=paragraph_reviews,
-        school_turns=ai_quota_service.remaining(user) if ai_ready() else None,
+        pieces=autobiography_service.bio_pieces(user, program, draft) if program else {"facts": [], "own": []},
+        strength_inventory=autobiography_service.strength_inventory(user, program),
+        school_turns=ai_quota_service.remaining(user) if ai_ready() and not autobiography_service.ollama_ready() else None,
+        ai_on=ai_ready() or autobiography_service.ollama_ready(),
         review_note=student_rules.review_open_note(user),
         error=error,
         stale=stale,
@@ -1333,13 +1811,18 @@ def autobiography_generate():
     reason = student_rules.autobiography_block_reason(user)
     if reason:
         return _blocked(user, reason)
-    answers = {key: request.form.get(key, "") for key, _, _ in autobiography_service.QUESTIONS}
+    answers = {question["key"]: request.form.get(question["key"], "")
+               for question in autobiography_service.guided_questions(program)}
+    # 學生要先用自己的話寫（比重高的項目一定要寫到），AI 只整理（導師 2026-11-12）
+    problem = autobiography_service.own_words_problem(program, answers)
+    if problem:
+        return _render_autobiography(user, program, targets, error=problem, answers=answers, status=400)
     # 學生自己的金鑰：只放在這個函式的變數裡用一次，不存資料庫、不放 session、不放網址
     own_key = "" if current_app.config.get("LOCAL_DEMO_MODE") else request.form.get("own_api_key", "").strip() or None
     used_own_key = bool(own_key)
     try:
         # 學校金鑰每人每天有次數限制；先扣，AI 失敗時 rollback 就會退回
-        if not own_key and ai_ready():
+        if not own_key and ai_ready() and not autobiography_service.ollama_ready():
             ai_quota_service.consume(user)
         output = autobiography_service.generate_draft(user, program, answers, api_key=own_key)
         audit_service.record(user, "autobiography.generate", "learning_profile_output", output.id,
@@ -1352,8 +1835,11 @@ def autobiography_generate():
         return _render_autobiography(user, program, targets, error=str(exc), answers=answers)
     finally:
         own_key = None
+    from app.routes.google_docs import auto_create_after_generate
+    auto_created = auto_create_after_generate(user, output)  # 學生已連過 Google 就自動放一份到他的雲端硬碟
     return redirect(url_for("student.autobiography", program_id=program.id,
-                            used_own_key=1 if used_own_key else None))
+                            used_own_key=1 if used_own_key else None,
+                            google="auto_created" if auto_created else None))
 
 
 @student_bp.post("/student/autobiography/<int:output_id>/save")
@@ -1375,6 +1861,21 @@ def autobiography_save(output_id):
                                                                     "paragraphs": output.content_json["paragraphs"]})
     audit_service.record(user, "autobiography.save", "learning_profile_output", saved.id, commit=True)
     return redirect(url_for("student.autobiography", program_id=output.content_json["program_id"], saved=1))
+
+
+@student_bp.post("/student/autobiography/<int:output_id>/backup-retry")
+@role_required("student")
+def autobiography_backup_retry(output_id):
+    """備份失敗時的「再試一次」：重新排進背景備份，存檔本身不受影響。"""
+    user = get_current_user()
+    output = db.session.get(LearningProfileOutput, output_id)
+    if not output or output.output_type != autobiography_service.OUTPUT_TYPE:
+        abort(404)
+    if output.student_id != user.id:
+        abort(403)
+    autobiography_backup.retry(current_app._get_current_object(), output)
+    return redirect(url_for(
+        "student.autobiography", program_id=output.content_json.get("program_id")))
 
 
 @student_bp.get("/student/autobiography/versions")

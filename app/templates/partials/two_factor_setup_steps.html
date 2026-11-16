@@ -1,0 +1,18 @@
+{# 雙重驗證設定步驟：登入時的設定頁與帳號選單的「雙重驗證」頁共用。需要 qr_svg、secret_text。 #}
+<ol class="two-factor-steps">
+  <li>手機安裝 <b>Google Authenticator</b> 或 <b>Microsoft Authenticator</b>（免費）。</li>
+  <li>打開 App，按「＋」→「掃描 QR code」，對準下面的圖：
+    <div class="two-factor-qr" role="img" aria-label="雙重驗證設定 QR code">{{ qr_svg|safe }}</div>
+    <details class="small"><summary>掃不到？改成手動輸入金鑰</summary>
+      <p>在 App 選「輸入設定金鑰」，帳戶名稱打你的帳號，金鑰輸入（空格可以不打）：</p>
+      <p class="mono two-factor-secret">{{ secret_text }}</p>
+    </details>
+  </li>
+</ol>
+<style>
+  .two-factor-steps { padding-left: 1.2em; }
+  .two-factor-steps li { margin-bottom: .6em; }
+  .two-factor-qr { display: inline-block; background: #fff; padding: 6px; border-radius: 6px; margin: .4em 0; }
+  .two-factor-qr svg { display: block; width: 180px; height: auto; }
+  .two-factor-secret { font-size: 1.05rem; letter-spacing: .08em; overflow-wrap: anywhere; }
+</style>

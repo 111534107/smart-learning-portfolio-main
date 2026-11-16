@@ -1,0 +1,106 @@
+%%{init: {'theme':'base','themeVariables': {'fontFamily':'Arial, Microsoft JhengHei, sans-serif','fontSize':'14px','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280'},'er':{'minEntityWidth':160,'entityPadding':20}}}%%
+erDiagram
+    PUBLIC_SOURCES ||--o{ PUBLIC_SOURCE_SNAPSHOTS : "每次檢查"
+    PUBLIC_SOURCE_SNAPSHOTS |o--o{ ADMISSION_RULE_VERSIONS : "擷取候選校系"
+    PUBLIC_SOURCE_SNAPSHOTS ||--o{ INFO_ITEMS : "擷取並分類"
+    USERS ||--o{ AGENT_TASKS : "啟動 AI 代理"
+    USERS ||--o{ ANNOUNCEMENTS : "發布公告"
+    ANNOUNCEMENTS ||--o{ ANNOUNCEMENT_READS : "已讀"
+    USERS ||--o{ ANNOUNCEMENT_READS : "讀過"
+    FORM_CATEGORIES ||--o{ FORM_ITEMS : "分類"
+    FORM_ITEMS ||--o{ FORM_ITEM_VERSIONS : "版本"
+    USERS ||--o{ FORM_ITEM_VERSIONS : "科辦上傳"
+    USERS ||--o{ AUDIT_LOGS : "操作紀錄"
+
+    USERS["USERS 使用者　　　"] {
+        int id PK
+        string role
+    }
+    PUBLIC_SOURCES["PUBLIC_SOURCES 資料來源　　　"] {
+        int id PK
+        string name
+        string url
+        string source_type "二技招生 資管科官網 資圖中心 行事曆"
+        bool is_active
+        string check_status "正常 失效（待新增）"
+        string last_error "失效原因（待新增）"
+    }
+    PUBLIC_SOURCE_SNAPSHOTS["PUBLIC_SOURCE_SNAPSHOTS 來源檢查紀錄　　　"] {
+        int id PK
+        int source_id FK
+        string content_hash "內容雜湊，每次都保留"
+        datetime fetched_at
+    }
+    ADMISSION_RULE_VERSIONS["ADMISSION_RULE_VERSIONS 校系與年度　　　"] {
+        int id PK
+        string program_code "志願代碼"
+        string status
+    }
+    AGENT_TASKS["AGENT_TASKS AI 代理任務　　　"] {
+        int id PK
+        string task_type
+        int requester_id FK
+        string status
+        string error_message
+    }
+    INFO_ITEMS["INFO_ITEMS 分類後的學校資訊（待新增）　　　"] {
+        int id PK
+        int snapshot_id FK
+        string title
+        string url "原始連結"
+        string topic "主題"
+        string grades "適用年級"
+        string item_type "公告 規定 時程 比賽"
+        date valid_until "有效期間"
+        string status "candidate published"
+        int reviewed_by FK "核對的管理員"
+    }
+    ANNOUNCEMENTS["ANNOUNCEMENTS 公告（待新增）　　　"] {
+        int id PK
+        string title
+        string body
+        string audience "給哪些角色或指定學生"
+        int admission_year "對應學年度"
+        int published_by FK
+        datetime published_at
+        datetime withdrawn_at "下架（不刪除）"
+    }
+    ANNOUNCEMENT_READS["ANNOUNCEMENT_READS 公告已讀（待新增）　　　"] {
+        int id PK
+        int announcement_id FK
+        int user_id FK
+        datetime read_at
+    }
+    FORM_CATEGORIES["FORM_CATEGORIES 表單分類（待新增）　　　"] {
+        int id PK
+        string name
+        int sort_order
+        bool is_active
+    }
+    FORM_ITEMS["FORM_ITEMS 表單項目（待新增）　　　"] {
+        int id PK
+        int category_id FK
+        string name
+        bool open_to_students
+        bool open_to_teachers
+        bool is_listed "上架中"
+        int created_by FK
+    }
+    FORM_ITEM_VERSIONS["FORM_ITEM_VERSIONS 表單版本（待新增）　　　"] {
+        int id PK
+        int item_id FK
+        int version "發布後不可覆寫"
+        string file_path
+        string file_hash
+        int uploaded_by FK
+        datetime uploaded_at
+    }
+    AUDIT_LOGS["AUDIT_LOGS 操作紀錄　　　"] {
+        int id PK
+        int user_id FK
+        string action "動作"
+        string target_type
+        int target_id
+        json detail_json
+        datetime created_at
+    }

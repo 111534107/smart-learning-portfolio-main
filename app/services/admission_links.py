@@ -14,7 +14,18 @@ JOINT_SKILL_ENTRY = "https://www.jctv.ntut.edu.tw/enter/"
 
 
 def load_school_links(path=None):
-    """回傳 {學校名稱: 招生網址}。檔案不存在時回傳空的。"""
+    """回傳 {學校名稱: 招生網址}。2026-11-13 起以資料庫的學校名錄為準（管理員可改），名錄還沒資料時才讀 CSV。"""
+    from flask import has_app_context
+    if path is None and has_app_context():  # 沒有 app（例如單純讀檔的測試）就直接讀 CSV
+        try:
+            from app.models import School
+            stored = {school.name: school.admission_url for school in School.query.all() if school.admission_url}
+        except Exception:  # 舊資料庫還沒有 schools 表；查詢失敗要 rollback，後面的查詢才能繼續
+            from app.extensions import db
+            db.session.rollback()
+            stored = {}
+        if stored:
+            return stored
     path = path or SCHOOL_LINKS_FILE
     if not Path(path).is_file():
         return {}

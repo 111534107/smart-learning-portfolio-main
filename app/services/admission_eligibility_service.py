@@ -1,6 +1,7 @@
 """使用已確認的學生資料，比對管理者已確認的招生資格規則。"""
 
 from datetime import date
+from urllib.parse import urlparse
 
 from app.models import CredentialRecord, Portfolio
 
@@ -27,7 +28,8 @@ def _parse_date(value):
 def _source_for(rule, program):
     url = rule.source_url or program.source_url
     location = rule.source_location
-    return {"url": url, "location": location} if url and location else None
+    parsed = urlparse(url or "")
+    return {"url": url, "location": location} if parsed.scheme in {"http", "https"} and parsed.netloc and location else None
 
 
 def validate_eligibility_condition(condition_type, operator, value):
@@ -164,7 +166,7 @@ def _condition(rule, program, student):
         return result
 
     if rule.condition_type == "competition":
-        records = Portfolio.query.filter_by(student_id=student.id, category="competition").all()
+        records = Portfolio.query.filter_by(student_id=student.id, category="competition", deleted_at=None).all()
         confirmed = [record for record in records if record.status == "confirmed"]
         if confirmed:
             result["status"] = RESULT_MATCHED

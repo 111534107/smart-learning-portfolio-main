@@ -115,12 +115,18 @@ def test_review_page_has_combined_filters_visible_pending_badges_and_default_loc
     ])
     page = client.get(f"/student/learning-profile/documents/{document_id}/review").get_data(as_text=True)
     assert "資訊科技" in page and "资讯科技" in page
-    assert 'id="review-failure-filter"' in page
-    assert '<option value="pending">只看缺學分</option>' in page
-    assert "只列出學分空白或待確認的課程" in page
-    assert 'id="review-makeup-filter"' in page
-    assert re.search(r'<button[^>]*id="lock-all-scores"[^>]*>.*?解鎖成績', page, re.S)
-    assert 'id="all-fields-locked" name="all_fields_locked" value="0"' in page
+    # 11-06 改版：頂端一句話說要核對幾門；三個切換按鈕取代三個下拉選單；成績只有一個「允許修改」勾選框
+    assert "讀到 2 門課，有 1 門要請你看一下" in page
+    assert re.search(r'data-review-view="review" aria-pressed="true">要核對的 <strong>1</strong>', page)
+    assert 'data-review-view="failed"' in page and 'data-review-view="all"' in page
+    assert 'id="review-failure-filter"' not in page and 'id="review-makeup-filter"' not in page
+    assert 'id="allow-score-edit"' in page and "允許修改成績" in page
+    assert 'id="lock-all-scores"' not in page and 'id="all-fields-locked"' not in page
+    assert 'name="scores_unlocked" value="0"' in page
+    assert "另外 1 門沒有標出問題" in page
+    assert 'class="review-savebar"' in page
+    assert re.search(r'<details class="review-more">.*?重新分析來源檔.*?</details>', page, re.S)
+    assert 'value="fields" checked' in page
     assert 'data-makeup-season="summer"' in page
     assert 'data-needs-review="true"' in page
     assert "⚠ 待確認" in page
@@ -178,6 +184,44 @@ def test_unlocked_confirmation_can_edit_score_and_preserves_winter_season(tmp_pa
         assert (course.score, course.makeup_season) == (75, "winter")
 
 
+def test_blank_score_can_be_filled_without_unlocking(tmp_path):
+    """11-04 實測：OCR 沒讀到的空白成績，被「成績已鎖定」擋住，要先解鎖才能補。"""
+    app, client, document_id = _review_app(tmp_path, [
+        {"course_name": "中英文輸入", "credits": 2, "score": None, "semester": "第二學期",
+         "grade_level": "一年級", "school_year": 111},
+        {"course_name": "計算機概論", "credits": 3, "score": 80, "semester": "第二學期",
+         "grade_level": "一年級", "school_year": 111},
+    ])
+    page = client.get(f"/student/learning-profile/documents/{document_id}/review").get_data(as_text=True)
+    blank = page.split('name="course_0_score"', 1)[1].split(">", 1)[0]
+    assert "readonly" not in blank
+    assert "readonly" in page.split('name="course_1_score"', 1)[1].split(">", 1)[0]
+    response = client.post(
+        f"/student/learning-profile/documents/{document_id}/review/confirm",
+        data={"course_input_mode": "fields",
+              "course_0_course_name": "中英文輸入", "course_0_credits": "2", "course_0_score": "65",
+              "course_0_semester": "第二學期", "course_0_grade_level": "一年級",
+              "course_1_course_name": "計算機概論", "course_1_credits": "3", "course_1_score": "12",
+              "course_1_semester": "第二學期", "course_1_grade_level": "一年級"},
+    )
+    assert response.status_code == 302
+    with app.app_context():
+        scores = {c.course_name: c.score for c in LearningCourseRecord.query.all()}
+    assert scores == {"中英文輸入": 65, "計算機概論": 80}  # 已有成績仍受鎖定保護
+
+
+def test_normal_confidence_is_not_shown_on_every_field(tmp_path):
+    """11-04 實測：85 列 × 5 個信心值資訊過載；只顯示偏低或未知的科目、學分、成績。"""
+    app, client, document_id = _review_app(tmp_path, [
+        {"course_name": "資訊科技", "credits": 2, "score": 88, "semester": "第一學期", "grade_level": "一年級",
+         "field_confidence": {"course_name": 0.95, "credits": 0.6, "score": 0.97}},
+    ])
+    page = client.get(f"/student/learning-profile/documents/{document_id}/review").get_data(as_text=True)
+    visible = re.findall(r'<small id="confidence-0-(\w+)" class="([^"]*)"', page)
+    shown = [field for field, cls in visible if "visually-hidden" not in cls]
+    assert shown == ["credits"]
+
+
 def test_all_fields_locked_confirmation_preserves_original_course_fields(tmp_path):
     app, client, document_id = _review_app(tmp_path, [
         {"course_name": "原始課名", "credits": 3, "score": 85, "semester": "第二學期",
@@ -193,7 +237,7 @@ def test_all_fields_locked_confirmation_preserves_original_course_fields(tmp_pat
     with app.app_context():
         course = LearningCourseRecord.query.one()
         assert (course.course_name, course.credits, course.score, course.semester, course.grade_level) == (
-            "原始課名", 3, 85, "第二學期", "三年級",
+            "原始課名", 3, 85, "下", "三年級",  # 原值「第二學期」存成「下」（B25）
         )
 
 
@@ -208,7 +252,9 @@ def test_review_marks_low_confidence_rows(tmp_path):
     ])
     page = client.get(f"/student/learning-profile/documents/{document_id}/review").get_data(as_text=True)
     assert page.count('class="needs-review"') == 1
-    assert "還有 1 列待確認" in page
+    assert "讀到 2 門課，有 1 門要請你看一下" in page
+    assert 'data-attention="true"' in page and 'data-attention="false"' in page
+    assert "看不清楚，請對照原圖" in page
     assert 'class="review-layout"' in page
     # 學期、年級沒有信心資料時不標橘色；只有低信心的學分欄標出
     assert 'field-low" data-label="第幾學期"' not in page

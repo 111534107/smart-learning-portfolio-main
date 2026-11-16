@@ -1,0 +1,19 @@
+%%{init: {'theme':'base','themeVariables': {'fontSize':'18px','fontFamily':'DFKai-SB, BiauKai, serif','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280','edgeLabelBackground':'#FFFFFF'},'flowchart':{'wrappingWidth':400}}}%%
+flowchart LR
+    classDef student fill:#DBEAFE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef system fill:#F3F4F6,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef teacher fill:#DCFCE7,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef staff fill:#EDE9FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef ai fill:#FFEDD5,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+
+    Notice[二技公告<br/>管理員核對後發布]:::system --> Recommend
+    Recommend[AI 推薦校系]:::ai --> Target[學生選擇目標校系]:::student
+    Target --> Upload[上傳六類資料<br/>成績、獎懲、缺曠可貼上匯入]:::student
+    Upload --> Check[本機 OCR → 去識別化 → AI 整理欄位<br/>註記修改建議；學生確認才生效]:::ai
+    Check --> Confirm[學生確認並補齊資料]:::student
+    Confirm -.科上派的服務.-> Staff[科辦核准<br/>電子獎狀]:::staff
+    Staff -.-> Core
+    Confirm --> Core[系統比對缺件]:::system
+    Core --> Teacher
+    Teacher[班導師確認送審版本（V1 僅班導）<br/>可加段落註解]:::teacher
+    Teacher --> Output[產出完整備審資料]:::system

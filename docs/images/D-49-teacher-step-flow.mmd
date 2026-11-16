@@ -1,0 +1,42 @@
+%%{init: {'theme':'base','themeVariables': {'fontFamily':'Microsoft JhengHei, Noto Sans TC, Arial, sans-serif','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280','edgeLabelBackground':'#FFFFFF'},'flowchart':{'wrappingWidth':400}}}%%
+flowchart TD
+    classDef student fill:#DBEAFE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef teacher fill:#DCFCE7,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef system fill:#E0F2FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef alert fill:#FEE2E2,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef pending fill:#FFFFFF,stroke:#9CA3AF,color:#6B7280,stroke-width:1px,stroke-dasharray:5 3;
+
+    T1(["步驟 1　老師與科辦登入頁 /staff/login<br/>教職員 Google 或帳號密碼"]):::teacher --> T2["步驟 2　雙重驗證頁<br/>輸入六位數驗證碼"]:::teacher
+    T2 --> T3["步驟 3　導師工作台 /teacher/dashboard<br/>最上面看畢業門檻提醒與需要優先關心的學生"]:::teacher
+    T3 --> D1{"今天先處理哪一件？"}
+
+    D1 -- "畢業門檻有缺口的學生" --> G1["步驟 4　畢業缺口案件頁 /graduation/cases/編號<br/>看這位學生缺什麼"]:::teacher
+    G1 --> G2["步驟 5　記錄處理情形<br/>（已提醒學生、已約談等）"]:::teacher
+    G2 --> D2{"系統看得到學生已改善？"}
+    D2 -- "是" --> G3["系統自動結案"]:::system
+    D2 -- "否，但實際已改善" --> G4["步驟 6　導師填寫原因後結案"]:::teacher
+    G3 --> T3
+    G4 --> T3
+
+    D1 -- "等待確認的備審" --> R1["步驟 4　本班學生表按「確認」<br/>進入學生頁 /teacher/students/編號"]:::teacher
+    R1 --> R2["步驟 5　查看學生資料、原始檔與送審的那一版自傳"]:::teacher
+    R2 --> D3{"送審版是最新版？"}
+    D3 -- "否" --> R3["不能確認<br/>請學生重新送審"]:::alert
+    D3 -- "是" --> D4{"內容合理？"}
+    D4 -- "否" --> R4["步驟 6　按「請學生修改」<br/>一定要寫建議"]:::teacher
+    D4 -- "是" --> R5["步驟 6　按「確認」<br/>寫入操作紀錄"]:::teacher
+    R4 --> R6["學生在自己的頁面看到導師的建議<br/>修改後重新送審"]:::student
+    R3 --> R6
+    R6 --> R1
+    R5 --> R7["學生可以下載備審 Word"]:::student
+    R5 -.- R8["按錯可以「撤回確認」<br/>要填原因，原紀錄保留"]:::teacher
+    R2 --> R9["也可以直接修改自傳<br/>/teacher/students/編號/autobiography/編號/edit<br/>每段可留說明，存成新的一版"]:::teacher
+    R9 --> R6
+
+    D1 -- "學生申請抵免學分" --> C1["步驟 4　在學生頁核對抵免資料<br/>按「確認」"]:::teacher
+    C1 --> T3
+
+    T3 -.- H1["隨時可用：通知頁、表單下載頁 /forms、<br/>資管科小助手、修改密碼、雙重驗證設定"]:::teacher
+    T3 -.-> U1["尚未完成：一鍵提醒多位學生"]:::pending
+    T3 -.-> U2["尚未完成：二技公告推送給導師"]:::pending
+    R4 -.-> U3["尚未完成：電子郵件通知<br/>（目前只有站內通知）"]:::pending

@@ -10,9 +10,10 @@
 {% block content %}
 {{ page_band("匯入獎懲記錄", [("活動與經歷", url_for('student.portfolio_list'))]) }}
 <div class="page narrow page--banded">
-  <section class="sheet mb-1">
-    <h2>貼上學校獎懲表格</h2>
-    <p>在學校系統選取獎懲表格（包含表頭），複製後貼到下方。系統會整理成多筆資料，讓你確認後再匯入。</p>
+  <p><a class="button button--line" href="{{ url_for('award.discipline_records') }}">查看已保存的懲處紀錄</a></p>
+  <section class="sheet mb-1" aria-labelledby="paste-title">
+    <div class="sheet__head"><h2 id="paste-title">貼上學校獎懲表格 <span class="tag tag--ok">推薦</span></h2></div>
+    <p>到學校系統的「查歷年獎懲」，學年期選最早到最晚，用滑鼠選取整個表格（包含表頭「學號、姓名、獎懲日期…」），複製後貼到下面。<b>由系統伺服器解析並保存，不會送給 AI</b>，筆數多也沒關係（最多 1000 筆）。</p>
     {% if paste_error %}<p class="alert mb-1" role="alert">{{ paste_error }}</p>{% endif %}
     <form method="post" action="{{ url_for('award.award_paste') }}" class="form-stack">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -20,12 +21,14 @@
       <div><button class="button" type="submit">整理並核對</button></div>
     </form>
   </section>
-  <section class="sheet mb-1">
-    <h2>上傳 PDF 或圖片</h2>
+
+  <section class="sheet mb-1" aria-labelledby="upload-title">
+    <div class="sheet__head"><h2 id="upload-title">或上傳 PDF、截圖</h2></div>
+    <p class="notice small">上傳的檔案會送給 Google Gemini 讀取，檔案裡有你的學號與姓名；能用上面的貼上就先用貼上。</p>
     <ol class="muted small">
       <li>到學校系統的「查歷年獎懲」，學年期選最早到最晚，存成 PDF 或截圖。</li>
       <li>上傳後，AI 會一列一列讀出來，並建議放在活動、競賽、服務學習或幹部經歷。</li>
-      <li>你逐列檢查、勾選要匯入的，按確認才會存進「活動與經歷」。警告、小過等懲處不會匯入。</li>
+      <li>你逐列檢查、勾選要匯入的，按確認才會存進「活動與經歷」。警告、小過等懲處會另行保存，不會放進「活動與經歷」。</li>
     </ol>
     <form method="post" action="{{ url_for('award.award_upload') }}" enctype="multipart/form-data" class="form-stack">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

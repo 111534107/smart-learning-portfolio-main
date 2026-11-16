@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "partials/nav.html" import masthead, footer, guide_deck with context %}
+{% from "partials/nav.html" import masthead, footer, guide_deck, next_card with context %}
 {% set page_name = "student-dashboard" %}
 {% set add_links = {"grades": url_for("student.learning_profile_upload_page", type="transcript"), "credential": url_for("student.learning_profile_upload_page", type="credential")} %}
 {# 五個節點的位置（viewBox 0 0 1000 200），路線依序穿過 #}
@@ -29,11 +29,23 @@
 {% endif %}
 
 <div class="page journey-home{% if show_return %} is-waiting{% endif %}" data-journey-home>
+  {# 第一屏（2026-11-08 改版）：打招呼＋「今天先完成哪一步」放最上面，一打開就看得到最重要的一步和按鈕；
+     五年路線圖保留，接在下面（Canva 第 11 頁：最多三件事＋一行概況） #}
+  <section class="today" aria-labelledby="today-title" data-tour="不知道做什麼？從這裡開始，最上面那張最重要。" data-tour-order="1">
+    <h1 id="route-title" class="route-map__title" tabindex="-1">{% if user.display_name %}<span class="route-map__name">{{ user.display_name }}</span>・{% endif %}{{ home.grade_label }}，你在這裡。</h1>
+    <h2 id="today-title" class="today__title">今天先完成哪一步</h2>
+    {% if guide %}{{ guide_deck(guide) }}{% else %}{{ next_card() }}{% endif %}
+    {% include "partials/announcement_home.html" %}
+    <p class="today__stats">
+      <span>五年累積 <b>{{ home.summary.percent }}%</b> <small>只是累積比例，不是錄取機率</small></span>
+      <span>待處理 <b>{{ home.summary.pending }}</b></span>
+      <span>最近成果 <b>{{ home.summary.latest or "還沒有" }}</b></span>
+    </p>
+  </section>
+
   {# 五年路線：畫到「你在這裡」 #}
-  <section class="route-map" aria-labelledby="route-title" data-tour="這條路是你的五年，小人物站在今年。" data-tour-order="1">
-    <h1 id="route-title" class="route-map__title" tabindex="-1">{% if user.display_name %}<span class="route-map__name">{{ user.display_name }}</span>・{% endif %}{{ home.grade_label }}{% if home.grade_known %}，你在這裡。{% endif %}</h1>
-    {% if not home.grade_known %}<p>入學學年度尚未設定，請聯絡管理員補齊後確認年級。</p>{% endif %}
-    <svg class="route-map__svg" viewBox="0 0 1000 360" role="group" aria-label="專一到專五的路線，{{ home.grade_label }}">
+  <section class="route-map" aria-label="我的五年路線，目前在{{ home.grade_label }}" data-tour="這條路是你的五年，小人物站在今年。" data-tour-order="2">
+    <svg class="route-map__svg" viewBox="0 0 1000 360" role="group" aria-label="專一到專五的路線，目前在{{ home.grade_label }}">
       {% for key, label, href, cx, cy, color in places %}
       <a href="{{ href }}" class="place" data-place="{{ key }}" data-x="{{ cx }}" data-y="{{ cy - 6 }}" style="--c: {{ color }}; --p: {{ loop.index0 }};">
         <line class="place__branch" x1="{{ cx }}" y1="{{ cy - 30 }}" x2="{{ cx }}" y2="{{ 150 if loop.index0 % 2 == 0 else 120 }}"/>
@@ -49,7 +61,7 @@
       </a>
       {% endfor %}
       <path class="route-map__ghost" d="{{ route_d }}" pathLength="100"/>
-      {% if home.grade_known %}<path class="route-map__walked" d="{{ route_d }}" pathLength="100" style="--walked: {{ 100 - (home.grade - 1) * 25 }};"/>{% endif %}
+      <path class="route-map__walked" d="{{ route_d }}" pathLength="100" style="--walked: {{ 100 - (home.grade - 1) * 25 }};"/>
       {% for stop in home.stops %}
       {% set x, y = stop_xy[loop.index0] %}
       <a href="#folders" data-stop="{{ stop.grade }}" data-open-year="{{ stop.grade }}" class="stop-node stop-node--{{ stop.state }}"
@@ -68,7 +80,7 @@
       </a>
       {% endfor %}
       {# 代表學生的小人物：一開始在專一，走到今年（components.js） #}
-      {% if home.grade_known %}<g class="jwalker" data-walker data-grade="{{ home.grade }}" transform="translate(100 140)" aria-hidden="true">
+      <g class="jwalker" data-walker data-grade="{{ home.grade }}" transform="translate(100 140)" aria-hidden="true">
         <g class="jwalker__body">
           <circle cx="0" cy="-44" r="8"/>
           <path d="M-7 -34 H7 V-14 H-7 Z"/>
@@ -77,7 +89,7 @@
           <line class="jwalker__arm" x1="-7" y1="-32" x2="-11" y2="-20"/>
           <line class="jwalker__arm" x1="7" y1="-32" x2="11" y2="-20"/>
         </g>
-      </g>{% endif %}
+      </g>
     </svg>
 
     {# 手機版：橫的路線太小看不清楚，改成直的年級列表和四個大按鈕（CSS 依螢幕寬度切換） #}
@@ -97,54 +109,6 @@
       <a class="place-grid__item" href="{{ href }}" style="--c: {{ color }};">{{ label }}</a>
       {% endfor %}
     </nav>
-  </section>
-
-  {# 今天先完成哪一步（Canva 第 11 頁；放在拼圖前面，登入就看得到下一步）：最多三件事＋一行概況 #}
-  <section class="today" aria-labelledby="today-title" data-tour="不知道做什麼？從這三件事開始。" data-tour-order="2">
-    <h2 id="today-title" class="today__title">今天先完成哪一步</h2>
-    <p class="small">先新增或上傳學習歷程資料 → 核對辨識內容 → 查看校系建議。確認後資料才計入拼圖與推薦；之後可繼續新增或重複上傳。</p>
-    <div class="record-card__actions">
-      <a class="button button--small button--line" href="{{ url_for('student.learning_profile_upload_page', type='transcript') }}">1 上傳成績單</a>
-      <a class="button button--small button--line" href="{{ url_for('student.learning_profile') }}">2 核對資料</a>
-      <a class="button button--small button--line" href="{{ url_for('student.matching') }}">3 查看校系建議</a>
-    </div>
-    <p class="today__stats">
-      <span>五年累積 <b>{{ home.summary.percent }}%</b> <small>只是累積比例，不是錄取機率</small></span>
-      <span>待處理 <b>{{ home.summary.pending }}</b></span>
-      <span>最近成果 <b>{{ home.summary.latest or "還沒有" }}</b></span>
-    </p>
-    {{ guide_deck(guide) }}
-    {% if not has_transfer_record %}<p class="today__transfer small"><a href="{{ url_for('transfer_credit.student_transfer_credit') }}">轉學生？填寫抵免進度 →</a></p>{% endif %}
-  </section>
-
-  <section class="target-ranking" id="home-target-ranking" aria-labelledby="home-target-ranking-title">
-    <div class="target-ranking__head">
-      <h2 id="home-target-ranking-title">已選目標校系排行</h2>
-      <a class="button button--small button--line" href="{{ url_for('student.target_list') }}">查看全部校系與調整目標 →</a>
-    </div>
-    {% if target_groups %}
-    <p class="small muted">依本科系與非本科系分組，各組按準備度由高到低排列。百分比是資料準備度，並非錄取機率。</p>
-    {% for group in target_groups %}
-    <div class="target-ranking__group">
-      <h3>{{ group.label }}</h3>
-      <ol class="target-ranking__list">
-        {% for target in group.targets %}
-        {% set program = target.program %}
-        <li>
-          <a class="target-ranking__row" href="{{ url_for('student.target_gap', program_id=program.id) }}">
-            <span class="target-ranking__name"><span class="target-ranking__number">{{ loop.index }}.</span> {{ program.school_name }} {{ program.department_name }} <span class="target-ranking__channel">{{ target.channel }}</span></span>
-            <strong class="target-ranking__value">{{ target.readiness ~ '%' if target.readiness is not none else '無法計算' }}</strong>
-            <span class="target-ranking__bar" role="img" aria-label="{{ program.school_name }} {{ program.department_name }} {{ target.channel }}準備度 {{ target.readiness ~ '%' if target.readiness is not none else '無法計算' }}"><span style="width: {{ target.readiness or 0 }}%"></span></span>
-          </a>
-        </li>
-        {% endfor %}
-      </ol>
-    </div>
-    {% endfor %}
-    {% else %}
-    <p>尚未選擇目標校系。先查看校系建議，再把想準備的校系加入目標。</p>
-    <a class="button button--small" href="{{ url_for('student.target_list') }}">選擇目標校系 →</a>
-    {% endif %}
   </section>
 
   {# 五年資料夾：收起來，點路線上的節點才打開；放在拼圖前面，不用捲過拼圖才找得到 #}
@@ -195,7 +159,7 @@
           {% for target in targets %}
           <a class="paper-item" href="{{ url_for('student.target_gap', program_id=target.program.id) }}">
             <b>{{ target.program.school_name|replace("國立", "") }} {{ target.program.department_name }}</b>
-            <small>準備度 {{ target.readiness ~ '%' if target.readiness is not none else "無法計算" }}</small>
+            <small>準備度 {{ target.readiness if target.readiness is not none else "—" }}%</small>
           </a>
           {% else %}
           <a class="paper-item" href="{{ url_for('student.target_list') }}"><b>還沒選</b><small>去看學校 →</small></a>
@@ -218,14 +182,12 @@
   } %}
   <section class="year-puzzle" aria-labelledby="puzzle-title">
     <h2 id="puzzle-title" class="year-puzzle__title">五年拼圖桌</h2>
-    <p class="small muted">先用下方按鈕新增或上傳；核對完成的資料才成為拼圖。已收集的類別仍可繼續新增或重複上傳。</p>
 
     <nav class="maker-row" aria-label="做一片新的拼圖" data-tour="每留下一筆資料，就做出一片拼圖。" data-tour-order="4">
       {% for maker in home.makers %}
       <a class="button button--line button--small maker" href="{{ maker.href }}" data-make-piece="{{ maker.key }}" style="--cat: var(--cat-{{ maker.key }});">
         <svg class="maker__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="{{ maker_icons[maker.key] }}"/></svg>
         <span>＋{{ maker.label }}</span>
-        <small class="maker__status">{{ "待確認" if maker.pending else ("已完成・可再新增" if maker.complete else "待新增") }}</small>
       </a>
       {% endfor %}
     </nav>

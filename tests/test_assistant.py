@@ -139,6 +139,33 @@ def test_without_api_key_route_gives_friendly_message(app):
     assert "沒有開啟" in response.get_json()["answer"]
 
 
+def test_without_api_key_still_quotes_department_rules_with_sources(app):
+    """11-12 驗收：展示站沒有 AI 金鑰時，小助手只會說「沒有開啟」；改成仍從科上文件節錄段落並附來源。"""
+    client = app.test_client()
+    client.post("/login", data={"username": "stu", "password": "pw"})
+
+    result = client.post("/assistant/ask", data={"message": "畢業門檻要幾張證照？", "history": "[]"}).get_json()
+
+    assert "沒有開啟" in result["answer"]
+    assert "原文節錄" in result["answer"] and "畢業門檻" in result["answer"]
+    assert any("畢業門檻" in s["title"] for s in result["sources"])
+    assert result["steps"] == ["查科上規定"]
+    assert {"label": "查看畢業門檻提醒", "url": "/student/graduation-check"} in result["links"]
+
+
+def test_offline_answer_says_so_when_nothing_matches():
+    answer, sources = assistant_service.offline_answer("ㄅㄆㄇ", "學校的 AI 目前沒有開啟。")
+    assert sources == [] and "沒有找到相關段落" in answer
+
+
+def test_offline_excerpt_is_short_and_drops_headings():
+    text = "## 小標\n" + "\n".join(f"- 第 {i} 條規定，內容很長很長很長很長很長很長很長很長很長很長" for i in range(30))
+    excerpt = assistant_service._excerpt(text)
+    assert "##" not in excerpt and "小標" not in excerpt
+    assert excerpt.endswith("……（完整內容請看來源）")
+    assert len(excerpt) < assistant_service.OFFLINE_EXCERPT + 80
+
+
 def test_admin_cannot_use_assistant_route(app):
     client = app.test_client()
     client.post("/login", data={"username": "admin", "password": "pw"})

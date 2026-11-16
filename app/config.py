@@ -23,6 +23,36 @@ class Config:
         f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    # 雙重驗證（11-09 使用者決定：所有使用者都要開）。自動化測試與本機展示站預設不強制（見 app/__init__.py）。
+    TWO_FACTOR_REQUIRED = os.getenv("TWO_FACTOR_REQUIRED", "true").strip().lower() not in ("0", "false", "no", "off")
+    TWO_FACTOR_ISSUER = os.getenv("TWO_FACTOR_ISSUER", "資管科學習歷程")
+    # 管理員登入頁（11-10 使用者決定）：就算有人把 TWO_FACTOR_REQUIRED 關掉，管理員仍一定要六位數驗證碼；
+    # 閒置 15 分鐘登出。自動化測試與本機展示站預設不強制驗證碼（見 app/__init__.py）。
+    ADMIN_TWO_FACTOR_REQUIRED = True
+    ADMIN_IDLE_MINUTES = int(os.getenv("ADMIN_IDLE_MINUTES", "15"))
+    # 加密 Authenticator 金鑰用；沒設就由 SECRET_KEY 推導（換 SECRET_KEY 後大家要重設雙重驗證）
+    TWO_FACTOR_KEY = os.getenv("TWO_FACTOR_KEY")
+    # 電子郵件通知（2026-11-12，app/services/email_notify.py）。只放 .env，不要把真實帳密寫進程式或文件。
+    # .env 範例（數值換成學校提供的）：
+    #   MAIL_SMTP_HOST=smtp.example.edu.tw
+    #   MAIL_SMTP_PORT=587
+    #   MAIL_SMTP_USER=notify@example.edu.tw
+    #   MAIL_SMTP_PASSWORD=（學校給的密碼或應用程式密碼）
+    #   MAIL_SENDER=資管科學習歷程 <notify@example.edu.tw>
+    #   MAIL_SITE_URL=https://（系統網址）
+    # 主機或寄件人沒填、自動化測試、本機展示站：一律不寄信，只寫記錄檔與操作紀錄。
+    MAIL_SMTP_HOST = os.getenv("MAIL_SMTP_HOST", "")
+    MAIL_SMTP_PORT = int(os.getenv("MAIL_SMTP_PORT", "587"))
+    MAIL_SMTP_USER = os.getenv("MAIL_SMTP_USER", "")
+    MAIL_SMTP_PASSWORD = os.getenv("MAIL_SMTP_PASSWORD", "")
+    MAIL_SENDER = os.getenv("MAIL_SENDER", "")
+    MAIL_USE_TLS = os.getenv("MAIL_USE_TLS", "true").strip().lower() not in ("0", "false", "no", "off")
+    MAIL_USE_SSL = os.getenv("MAIL_USE_SSL", "false").strip().lower() in ("1", "true", "yes", "on")
+    MAIL_SITE_URL = os.getenv("MAIL_SITE_URL", "")
+    MAIL_RETRIES = int(os.getenv("MAIL_RETRIES", "2"))
+    MAIL_TIMEOUT = int(os.getenv("MAIL_TIMEOUT", "10"))
+    # 備審打包寄到信箱時，附件超過這個大小（MB）就只寄下載連結（要登入才能下載）
+    MAIL_MAX_ATTACHMENT_MB = float(os.getenv("MAIL_MAX_ATTACHMENT_MB", "15"))
     UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "instance/uploads")
     
     max_mb = int(os.getenv("MAX_CONTENT_LENGTH_MB", "10"))
@@ -32,6 +62,13 @@ class Config:
     AI_PROVIDER = os.getenv("AI_PROVIDER", "none").lower()
     AI_API_KEY = os.getenv("AI_API_KEY", "")
     GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    AUTOBIOGRAPHY_AI_PROVIDER = os.getenv("AUTOBIOGRAPHY_AI_PROVIDER", "gemini").lower()
+    OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b")
+    OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434")
+    # 其他 AI 的金鑰（11-11）：只放 .env；用哪幾家、模型、順序由管理員在「AI 設定」頁決定（app/services/ai_gateway.py）
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+    OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")  # DeepSeek、Groq 等相容服務改這裡
+    ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
     # Google Drive 原型只在本機明確啟用，且 OAuth 與 Picker 設定齊全時開放。
     GOOGLE_DRIVE_PREVIEW_ENABLED = os.getenv("GOOGLE_DRIVE_PREVIEW_ENABLED", "false").lower() == "true"
     GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "")
@@ -50,8 +87,7 @@ class Config:
     # 招生資料 Agent 只擷取科系名稱含這些字的校系（逗號分隔）
     AGENT_PROGRAM_KEYWORDS = [k.strip() for k in os.getenv("AGENT_PROGRAM_KEYWORDS", "資訊管理,資管,資訊應用,資訊工程").split(",") if k.strip()]
     AGENT_SOURCE_FOLDER = os.getenv("AGENT_SOURCE_FOLDER", "instance/agent-sources")
-    # 資管科小助手（規格第 10 節）：目標校系同時最多幾所、學校金鑰每人每天幾次、幾年級起可以送審
-    TARGET_LIMIT = int(os.getenv("TARGET_LIMIT", "5"))
+    # 資管科小助手：學校金鑰額度與送審年級
     SCHOOL_AI_DAILY_LIMIT = int(os.getenv("SCHOOL_AI_DAILY_LIMIT", "5"))
     MIN_REVIEW_GRADE = int(os.getenv("MIN_REVIEW_GRADE", "2"))
     # 生成自傳要到這個年級才開放（專一到專四只收集拼圖）；送審仍看 MIN_REVIEW_GRADE
@@ -67,6 +103,7 @@ class Config:
     OCR_DML_DEVICE_ID = int(os.getenv("OCR_DML_DEVICE_ID", "0"))
     # 上傳後的辨識方式：thread＝背景執行緒排隊（預設，學生先看到「辨識中」頁）；inline＝在上傳請求裡跑完
     OCR_QUEUE_MODE = os.getenv("OCR_QUEUE_MODE", "thread")
+    AUTOBIOGRAPHY_BACKUP_MODE = os.getenv("AUTOBIOGRAPHY_BACKUP_MODE", "thread")
     CSRF_ENABLED = os.getenv("CSRF_ENABLED", "true").lower() == "true"
     ALLOWED_UPLOAD_EXTENSIONS = {
         value.strip().lower()

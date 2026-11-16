@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% set page_name = "student-transfer-plans" %}
+
+{% block title %}插大準備｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "目標校系") }}{% endblock %}
+
+{% block content %}
+{{ page_band("插大準備") }}
+<div class="page page--banded transfer-plans">
+  <p class="muted mb-1">插大（轉學考）各校自辦、每年改。把你要考的學校、簡章與考科記在這裡，拖曳每科的進度條，系統依考期倒數提醒你先補哪一科。準備度是你的自評，不代表錄取機率。</p>
+  <div class="record-card__actions mb-1">
+    <a class="button button--small button--quiet" href="{{ url_for('student.pathways') }}">二技、插大、四技差在哪</a>
+    <a class="button button--small button--quiet" href="{{ url_for('student.target_list', track='transfer') }}">看插大範例校系</a>
+  </div>
+  {% if error %}<p class="alert" role="alert">{{ error }}</p>{% endif %}
+
+  {% for item in plans %}
+  {% set plan, ready = item.plan, item.ready %}
+  <article class="transfer-plan transfer-plan--{{ ready.level }}" id="plan-{{ plan.id }}">
+    <header class="transfer-plan__head">
+      <div class="transfer-plan__ring" data-ring style="--ring: {{ ready.score }}" role="img" aria-label="準備度 {{ ready.score }}%">
+        <span data-ring-value>{{ ready.score }}</span><small>%</small>
+      </div>
+      <div>
+        <h2>{{ plan.school_name }} {{ plan.department_name }}{% if plan.entry_grade %} <span class="muted small">插{{ "二" if plan.entry_grade == 2 else "三" }}年級</span>{% endif %}</h2>
+        <p class="small muted">{{ plan.admission_year }} 學年度簡章{% if plan.brochure_url %} · <a href="{{ plan.brochure_url }}" target="_blank" rel="noopener">開簡章</a>{% endif %}</p>
+        <p class="transfer-plan__message" role="status">{{ ready.message }}{% if ready.weakest and ready.level in ("urgent", "warn") %} 最需要補的是「{{ ready.weakest.name }}」。{% endif %}</p>
+      </div>
+    </header>
+    {% if ready.stale %}<p class="alert" role="note">{{ ready.stale_message }}</p>{% endif %}
+    {% if plan.teacher_note %}<p class="transfer-plan__teacher"><strong>導師留言：</strong>{{ plan.teacher_note }}</p>{% endif %}
+    <ul class="transfer-plan__dates">
+      <li>報名 {{ plan.apply_start or "未填" }} ～ {{ plan.apply_end or "未填" }}{% if ready.apply_days is not none and ready.apply_days >= 0 %} <span class="tag tag--info">截止前 {{ ready.apply_days }} 天</span>{% endif %}</li>
+      <li>考試 {{ plan.exam_date or "未填" }}{% if ready.days is not none and ready.days >= 0 %} <span class="tag tag--info">還有 {{ ready.days }} 天</span>{% endif %}</li>
+    </ul>
+
+    <form method="post" action="{{ url_for('student.transfer_plan_progress', plan_id=plan.id) }}" class="transfer-plan__subjects" data-progress-form>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% for subject in plan.subjects %}
+      <label class="subject-bar">
+        <span class="subject-bar__name">{{ subject.name }}</span>
+        <input type="range" min="0" max="100" step="5" name="progress_{{ subject.id }}" value="{{ subject.progress }}" data-subject>
+        <output class="subject-bar__value">{{ subject.progress }}%</output>
+      </label>
+      {% else %}
+      <p class="muted small">還沒有考科。在下面「修改」填上考科（用頓號分開），就能開始記進度。</p>
+      {% endfor %}
+      {% if plan.subjects %}<button class="button button--small" type="submit">儲存進度</button>{% endif %}
+    </form>
+
+    <details class="transfer-plan__edit">
+      <summary>修改學校、日期與考科</summary>
+      {% with action=url_for('student.transfer_plan_update', plan_id=plan.id), values=plan, subjects_text=plan.subjects|map(attribute='name')|join('、'), submit_label="儲存修改" %}{% include "partials/transfer_plan_form.html" %}{% endwith %}
+      <form method="post" action="{{ url_for('student.transfer_plan_archive', plan_id=plan.id) }}" class="mt-1">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="button button--small button--line" type="submit">不考這間了（封存）</button>
+      </form>
+    </details>
+  </article>
+  {% endfor %}
+
+  <section class="transfer-plans__new" aria-labelledby="new-plan-title">
+    <h2 id="new-plan-title">{{ "新增插大目標" if plans else "加入第一個插大目標" }}</h2>
+    {% if examples %}
+    <label class="small">從範例校帶入（{{ examples[0].admission_year }} 學年度，只當格式參考）
+      <select data-example-picker>
+        <option value="">自己填</option>
+        {% for ex in examples %}<option value="{{ loop.index0 }}">{{ ex.school }} {{ ex.department }}{% if ex.entry_grade %}（插{{ "二" if ex.entry_grade == 2 else "三" }}）{% endif %}</option>{% endfor %}
+      </select>
+    </label>
+    <script type="application/json" id="transfer-examples">{{ examples | tojson }}</script>
+    {% endif %}
+    {% with action=url_for('student.transfer_plans'), values=None, subjects_text="", submit_label="加入" %}{% include "partials/transfer_plan_form.html" %}{% endwith %}
+  </section>
+
+  {% if archived %}
+  <details class="mt-1"><summary class="muted">已封存 {{ archived|length }} 個</summary>
+    <ul>{% for plan in archived %}<li>{{ plan.school_name }} {{ plan.department_name }}（{{ plan.admission_year }} 學年度）</li>{% endfor %}</ul>
+  </details>
+  {% endif %}
+</div>
+<script>
+(function () {
+  document.querySelectorAll("[data-progress-form]").forEach(function (form) {
+    var ring = form.closest(".transfer-plan").querySelector("[data-ring]");
+    var value = ring.querySelector("[data-ring-value]");
+    function update() {
+      var bars = form.querySelectorAll("[data-subject]");
+      var sum = 0;
+      bars.forEach(function (bar) { sum += Number(bar.value); bar.nextElementSibling.textContent = bar.value + "%"; });
+      var score = bars.length ? Math.round(sum / bars.length) : 0;
+      ring.style.setProperty("--ring", score);
+      value.textContent = score;
+      ring.setAttribute("aria-label", "準備度 " + score + "%");
+      ring.classList.toggle("is-full", score === 100);
+    }
+    form.addEventListener("input", update);
+  });
+  var picker = document.querySelector("[data-example-picker]");
+  var data = document.getElementById("transfer-examples");
+  if (picker && data) {
+    var examples = JSON.parse(data.textContent);
+    var form = document.querySelector(".transfer-plans__new form");
+    picker.addEventListener("change", function () {
+      var ex = examples[picker.value];
+      if (!ex) return;
+      form.school_name.value = ex.school;
+      form.department_name.value = ex.department;
+      form.entry_grade.value = String(ex.entry_grade || "");
+      form.admission_year.value = ex.admission_year;
+      form.brochure_url.value = ex.brochure_url;
+      form.subjects.value = ex.subjects.join("、");
+    });
+  }
+})();
+</script>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

@@ -1,56 +1,135 @@
 {% extends "base.html" %}
 {% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% from "partials/matching_detail.html" import matching_detail %}
 {% set page_name = "student-matching" %}
 
-{% block title %}校系建議｜資管科智慧學習歷程系統{% endblock %}
+{% block title %}推薦排序｜資管科智慧學習歷程系統{% endblock %}
+
 {% block navigation %}{{ masthead(user, "目標校系") }}{% endblock %}
 
 {% block content %}
-{{ page_band("校系建議") }}
+{{ page_band("推薦排序") }}
 <div class="page page--banded">
-  <p class="muted mb-1">依已確認的學習歷程資料計算準備度，並按報考資格與準備度排序。自傳、專題等尚無法自動核對的文件先視為待準備。各校顯示目前最高的校系準備度；補上資料並確認後，重新開啟本頁即可看到更新的建議。</p>
-  {% if not has_confirmed_data %}<p class="notice mb-1">你尚未確認學習歷程資料；以下是初步校系清單，請先上傳並核對資料，再查看個人化建議。</p>{% endif %}
-  <p class="notice mb-1">百分比是資料準備度建議值，不是錄取機率，也不保證錄取；面試、筆試與正式審查結果仍以當年度招生簡章及學校公告為準。</p>
+  <p class="muted mb-1">系統把全部校系依「能不能報」和「準備度」排好，每一間都寫了理由，不能報的也會告訴你為什麼。這只是幫你找方向，目標校系由你自己決定。</p>
   <div class="record-card__actions mb-1">
     <a class="button button--small button--quiet" href="{{ url_for('student.target_list') }}">← 回目標校系</a>
-    <a class="button button--small button--line" href="{{ url_for('student.learning_profile') }}">補上學習歷程資料</a>
-    <form method="post" action="{{ url_for('student.agent_advise') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small" type="submit" data-busy-text="Agent 正在規劃…">請升學 Agent 幫我規劃</button></form>
+    <form method="post" action="{{ url_for('student.agent_advise') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small" type="submit" data-busy-text="小助手正在規劃…（約 30 秒～1 分鐘）">請小助手幫我規劃升學</button></form>
   </div>
-  {% if school_groups %}
-  <ol class="plain-list" aria-label="依準備度排序的學校">
-    {% for group in school_groups %}
+
+  {% set keep = dict(active_filters, track=track, chart=chart, major=major_filter) %}
+  <nav class="match-tabs mb-1" aria-label="招生管道">
+    <a class="button button--small {{ '' if track == 'twotech' else 'button--line' }}" href="{{ url_for('student.matching', track='twotech', chart=chart) }}" aria-current="{{ 'page' if track == 'twotech' else 'false' }}">二技（{{ track_counts.twotech }}）</a>
+    <a class="button button--small {{ '' if track == 'transfer' else 'button--line' }}" href="{{ url_for('student.matching', track='transfer', chart=chart) }}" aria-current="{{ 'page' if track == 'transfer' else 'false' }}">插大（{{ track_counts.transfer }}）</a>
+  </nav>
+  <form class="match-filter mb-1" method="get" action="{{ url_for('student.matching') }}" role="search">
+    <label class="match-filter__field">搜尋學校或科系
+      <input type="search" name="q" value="{{ active_filters.get('q', '') }}" placeholder="例如：北商 資管">
+    </label>
+    {% for key, label in (("department", "科系"), ("level", "學制"), ("eligible", "是否可報")) %}
+    {% if filters[key] %}
+    <label class="match-filter__field">{{ label }}
+      <select name="{{ key }}">
+        <option value="">全部</option>
+        {% for option in filters[key] %}<option value="{{ option.value }}"{% if active_filters.get(key) == option.value %} selected{% endif %}>{{ option.label }}</option>{% endfor %}
+      </select>
+    </label>
+    {% endif %}
+    {% endfor %}
+    <input type="hidden" name="track" value="{{ track }}">
+    <input type="hidden" name="chart" value="{{ chart }}">
+    <button class="button button--small" type="submit" name="major" value="{{ major_filter }}">找</button>
+    <div class="record-card__actions" role="group" aria-label="校系類別">
+      {% for value, label in [('all', '全部校系'), ('home', '本科系（資訊管理）'), ('other', '非本科系')] %}
+      {% if value == 'all' or major_known %}<button class="button button--small {{ '' if major_filter == value else 'button--line' }}" type="submit" name="major" value="{{ value }}" aria-pressed="{{ 'true' if major_filter == value else 'false' }}">{{ label }}</button>{% endif %}
+      {% endfor %}
+    </div>
+    {% if active_filters or major_filter != 'all' %}<a class="button button--small button--quiet" href="{{ url_for('student.matching', track=track, chart=chart) }}">清除</a>{% endif %}
+  </form>
+
+  {% if rows %}
+  <section class="match-chart-panel mb-1" aria-label="準備度圖表">
+    <div class="match-chart-panel__head">
+      <h2>{{ '二技' if track == 'twotech' else '插大' }}排行（共 {{ matched }} 間，列出前 {{ rows | length }} 間）</h2>
+      <div class="match-chart-toggle" role="group" aria-label="圖表樣式">
+        <a class="button button--small {{ 'button--line' if chart != 'bar' else '' }}" href="{{ url_for('student.matching', **dict(keep, chart='bar')) }}" data-chart-mode="bar" aria-pressed="{{ 'true' if chart == 'bar' else 'false' }}">橫條</a>
+        <a class="button button--small {{ 'button--line' if chart != 'column' else '' }}" href="{{ url_for('student.matching', **dict(keep, chart='column')) }}" data-chart-mode="column" aria-pressed="{{ 'true' if chart == 'column' else 'false' }}">長條</a>
+      </div>
+    </div>
+    {# 排序不是只看準備度（11-04 實測：學生以為排錯），把規則寫出來 #}
+    <p class="muted small mb-1">排序方式：不可報的排在最後，其餘依準備度由高到低；需確認不代表可報，請查看資格說明。</p>
+    <ol class="match-chart match-chart--{{ chart }} plain-list" data-match-chart>
+      {% for row in rows %}
+      <li class="match-chart__item">
+        <a class="match-chart__label" href="{{ url_for('student.matching_detail', program_id=row.program.id) }}">{{ loop.index }}. {{ row.program.school_name }} {{ row.program.department_name }}</a>
+        {# 同校同系可能有不同招生管道（技優甄審、日間部申請……），要標出來才分得出兩列（11-04 實測） #}
+        {# 兩個標籤包成一格，圖表格線的欄數才不會跑掉 #}
+        <span class="match-chart__tags"><span class="tag">{{ row.channel_label }}</span>{% if row.home_major %}<span class="tag">本科</span>{% endif %}<span class="tag {{ {'eligible': 'tag--info', 'needs_check': 'tag--warn', 'ineligible': 'tag--danger'}[row.status] }}">{{ row.status_label }}</span>{% if row.status == 'ineligible' %}<span class="small">{{ row.ineligible_reason }}</span>{% endif %}</span>
+        {% if row.fit is not none %}
+        <span class="match-chart__track"><span class="match-chart__fill" style="--fit: {{ row.fit }}%"></span></span>
+        <span class="match-chart__value">準備度 {{ row.fit }}%</span>
+        {% else %}
+        <span class="match-chart__note muted small">{{ row.fit_note or "無準備度數字" }}</span>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+    {% if more %}<p class="mt-1"><a class="button button--small button--line" href="{{ url_for('student.matching', **dict(keep, show=show + 20)) }}">看更多 →</a></p>{% endif %}
+  </section>
+  <details class="match-cards mb-1">
+  <summary>逐間看理由與細項（{{ rows | length }} 間）</summary>
+  <ol class="plain-list mt-1">
+    {% for row in rows %}
+    {% set program = row.program %}
     <li class="sheet mb-1" data-motion="reveal">
-      <details class="matching-school">
-        <summary class="matching-school__summary">
-          <span class="matching-school__name">{{ loop.index }}. {{ group.name }}</span>
-          {% if group.best.fit is not none %}<strong>最高校系準備度 {{ group.best.fit }}%（建議值）</strong>{% else %}<span class="muted">目前無法計算準備度</span>{% endif %}
-          <span class="matching-school__chevron" aria-hidden="true">⌄</span>
-        </summary>
-      <ul class="plain-list matching-school__programs">
-        {% for row in group.rows %}
-        {% set program = row.program %}
-        <li class="record-card mb-1">
-          <div class="record-card__meta">
-            <span class="tag">{{ row.channel_label }}</span>
-            <span class="tag {{ {'eligible': 'tag--info', 'needs_check': 'tag--warn', 'ineligible': 'tag--danger'}[row.status] }}">{{ row.status_label }}</span>
-          </div>
-          <h3>{{ program.department_name }}</h3>
-          {% if row.fit is not none %}
-          <p>準備度 <strong>{{ row.fit }}%</strong>（建議值）</p>
-          <progress value="{{ row.fit }}" max="100" aria-label="{{ program.department_name }}資料準備度 {{ row.fit }}%"></progress>
-          {% else %}<p class="muted">{{ row.fit_note or '目前無法計算準備度' }}</p>{% endif %}
-          <p class="small muted">{{ program.admission_year }} 學年度 · 各項比重與待補資料請至細項查看。</p>
-          <a class="button button--small button--line" href="{{ url_for('student.matching_detail', program_id=program.id) }}">查看校系細項與計算依據 →</a>
-        </li>
-        {% endfor %}
+      <div class="sheet__head">
+        <h2>{{ loop.index }}. {{ program.school_name }} {{ program.department_name }}</h2>
+        <span class="tag">{{ row.channel_label }}</span>
+        <span class="tag {{ {'eligible': 'tag--info', 'needs_check': 'tag--warn', 'ineligible': 'tag--danger'}[row.status] }}">{{ row.status_label }}</span>
+      </div>
+      <p class="muted small">{{ program.admission_year }} 學年度{% if program.admission_category and program.admission_category != row.channel_label %} · {{ program.admission_category }}{% endif %}{% if row.transfer %} · 插{{ row.transfer.grade }} · {{ row.transfer.quota }}{% endif %}{% if program.program_code.isdigit() %} · 志願代碼 {{ program.program_code }}{% endif %}</p>
+      <p class="mb-1">{% if row.fit_note %}<span class="muted">{{ row.fit_note }}</span>{% elif row.fit is not none %}準備度 <strong>{{ row.fit }}%</strong>（建議值）{% else %}<span class="muted">準備度：以自傳等文件為主，系統算不出來</span>{% endif %}</p>
+      <ul>
+        {% for reason in row.reasons %}<li>{{ reason }}</li>{% endfor %}
       </ul>
+      <details class="match-more mt-1">
+        <summary>看我的已符合與缺少</summary>
+        {{ matching_detail(row, category_labels) }}
       </details>
+      <p class="match-more-link small mt-1"><a href="{{ url_for('student.matching_detail', program_id=program.id) }}">看我的已符合與缺少 →</a></p>
+      {% set sched = row.schedule %}
+      <p class="small mt-1">
+        {% if sched is none %}{{ row.channel_label }}時程依各校簡章，請看下面的學校招生網站。
+        {% elif sched.next %}{% if sched.reference %}（參考 {{ sched.year }} 學年度）{% endif %}下一步：{{ sched.next.name }}（{{ sched.next.start.strftime('%Y/%m/%d') }}）
+        {% else %}{{ sched.year }} 學年度{{ sched.channel_label }}時程已結束，{{ sched.year + 1 }} 學年度尚未公告。
+        {% endif %}
+        <a href="{{ url_for('student.schedule') }}">看招生時程 →</a>
+      </p>
+      {% if row.links %}
+      <p class="small mt-1">招生資訊：{% for link in row.links %}<a href="{{ link.url }}" target="_blank" rel="noopener noreferrer">{{ link.label }}</a>{% if not loop.last %}／{% endif %}{% endfor %}</p>
+      {% endif %}
+      {% if row.status != "ineligible" %}
+      <div class="record-card__actions mt-1">
+        {% if program.id in selected %}
+        <a class="button button--small" href="{{ url_for('student.target_gap', program_id=program.id) }}">已是目標校系，看還缺什麼 →</a>
+        {% else %}
+        <form method="post" action="{{ url_for('student.target_list') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="program_id" value="{{ program.id }}"><button class="button button--small button--line" type="submit">設為目標校系</button></form>
+        {% endif %}
+      </div>
+      {% endif %}
     </li>
     {% endfor %}
   </ol>
+  </details>
+  {% elif (active_filters or major_filter != 'all') and total %}
+  <div class="paper-empty"><p>沒有符合的校系，請換個關鍵字或放寬篩選條件。</p></div>
   {% else %}
-  <div class="paper-empty"><p>{{ '沒有符合篩選條件的校系。' if total else '目前還沒有公開的校系資料。' }}</p></div>
+  <div class="paper-empty"><p>目前還沒有公開的校系資料。</p></div>
   {% endif %}
+
+  <p class="muted small mt-1">準備度是依你已確認的資料和簡章加權算的準備程度，不是錄取機率；能不能報與錄取結果以當年度招生簡章正式審核為準。</p>
 </div>
 {% endblock %}
+
+{% block scripts %}<script src="{{ url_for('static', filename='js/matching-chart.js') }}" defer></script>{% endblock %}
+
 {% block footer %}{{ footer() }}{% endblock %}

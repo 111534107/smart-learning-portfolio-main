@@ -1,11 +1,14 @@
 from datetime import date, datetime, timezone
+import json
 import re
+from urllib.parse import urlparse
 
 from flask import Blueprint, abort, current_app, redirect, render_template, request, session, url_for
 
 from app.extensions import db
 from app.security import validate_upload_filename
 from app.models import (
+    AdmissionEligibilityRule,
     AdmissionProgram,
     AgentTask,
     AuditLog,
@@ -23,7 +26,9 @@ from app.models import (
     User,
 )
 from app.services import admission_agent_service as agent
-from app.services.admission_service import import_seed_programs, published_programs
+from app.services.staff_accounts import STAFF_TITLES
+from app.services.admission_service import import_seed_programs, published_programs, refresh_seed_details
+from app.services.admission_eligibility_service import validate_eligibility_condition
 from app.services.gemini_client import ai_ready
 from app.services.gap_service import ALL_LABELS
 from app.services.journey_service import academic_year_of
@@ -171,12 +176,56 @@ def toggle_match_filter(option_id):
 @admin_bp.get("/admin/accounts")
 @role_required("admin")
 def accounts():
+    from app.services import login_guard
     return render_template(
         "admin_accounts.html",
         user=get_current_user(),
         accounts=User.query.order_by(User.role.asc(), User.username.asc()).all(),
         admission_import=session.pop("admission_import", None),
+        staff_result=session.pop("staff_account_result", None),
+        staff_titles=STAFF_TITLES,
+        staff_domain=_staff_domain(),
+        locked_usernames=login_guard.locked_usernames(),
     )
+
+
+def _staff_domain():
+    from app.services import google_workspace
+    return google_workspace.settings()["staff_domain"]
+
+
+@admin_bp.post("/admin/accounts/staff")
+@role_required("admin")
+def create_staff_account():
+    """新增老師、科辦、管理員帳號（不限人數）；科辦要選職稱。"""
+    from app.services import staff_accounts
+    try:
+        account = staff_accounts.create(get_current_user(), request.form, _staff_domain())
+    except ValueError as error:
+        db.session.rollback()
+        session["staff_account_result"] = {"error": str(error)}
+        return redirect(url_for("admin.accounts") + "#staff-create")
+    db.session.commit()
+    title = f"（{account.job_title}）" if account.job_title else ""
+    session["staff_account_result"] = {"created": f"已建立 {account.display_name}{title}，帳號 {account.username}。"}
+    return redirect(url_for("admin.accounts") + "#staff-create")
+
+
+@admin_bp.post("/admin/accounts/<int:user_id>/job-title")
+@role_required("admin")
+def set_job_title(user_id):
+    from app.services import staff_accounts
+    account = db.session.get(User, user_id)
+    if not account:
+        abort(404)
+    try:
+        staff_accounts.set_title(get_current_user(), account, request.form.get("job_title"),
+                                 request.form.get("job_title_other"))
+    except ValueError as error:
+        db.session.rollback()
+        abort(400, description=str(error))
+    db.session.commit()
+    return redirect(url_for("admin.accounts"))
 
 
 @admin_bp.post("/admin/accounts/admission-years")
@@ -226,6 +275,32 @@ def toggle_account_active(user_id):
     return redirect(url_for("admin.accounts"))
 
 
+@admin_bp.post("/admin/accounts/<int:user_id>/reset-two-factor")
+@role_required("admin")
+def reset_two_factor(user_id):
+    """使用者手機遺失、又沒有備用碼時，管理員重設；對方下次登入要重新設定。管理員自己的請用 flask reset-2fa。"""
+    from app.services import two_factor
+    target = db.session.get(User, user_id)
+    if target is None:
+        abort(404)
+    two_factor.reset(target, get_current_user())
+    db.session.commit()
+    return redirect(url_for("admin.accounts"))
+
+
+@admin_bp.post("/admin/accounts/<int:user_id>/unlock-login")
+@role_required("admin")
+def unlock_login(user_id):
+    """密碼或驗證碼錯太多次被鎖住時，管理員確認是本人後解除；之前的錯誤次數歸零。"""
+    from app.services import login_guard
+    target = db.session.get(User, user_id)
+    if target is None:
+        abort(404)
+    login_guard.unlock(get_current_user(), target)
+    db.session.commit()
+    return redirect(url_for("admin.accounts"))
+
+
 @admin_bp.post("/admin/accounts/<int:user_id>/school-email")
 @role_required("admin")
 def bind_school_email(user_id):
@@ -234,7 +309,7 @@ def bind_school_email(user_id):
     if not account:
         abort(404)
     if account.role != "student":
-        abort(400, description="只能為學生綁定學校信箱。")
+        return _bind_staff_email(actor, account)
     school_account = request.form.get("school_account", "").strip().lower()
     student_no = (account.student_profile.student_no if account.student_profile else account.username).lower()
     if school_account and (not re.fullmatch(r"[a-z0-9._-]+", school_account) or school_account != student_no):
@@ -251,6 +326,51 @@ def bind_school_email(user_id):
                                 detail_json={"from": old_email, "to": account.email}))
         db.session.commit()
     return redirect(url_for("admin.accounts"))
+
+
+def _bind_staff_email(actor, account):
+    """老師、科辦、管理員：填完整的學校信箱，只接受「Google 登入設定」裡的教職員網域。"""
+    from app.services import google_workspace
+    domain = google_workspace.settings()["staff_domain"]
+    if "school_email" not in request.form:
+        abort(400, description="教職員請填完整的學校信箱（學號欄位只給學生用）。")
+    email = request.form.get("school_email", "").strip().lower()
+    if email and (not re.fullmatch(r"[a-z0-9._-]+@" + re.escape(domain), email)):
+        abort(400, description=f"教職員信箱須為 @{domain}（可在「Google 登入設定」修改網域）。")
+    if email and User.query.filter(db.func.lower(User.email) == email, User.id != account.id).first():
+        abort(400, description="此學校信箱已綁定其他帳號。")
+    if account.email != (email or None):
+        old_email = account.email
+        account.email = email or None
+        account.google_sub = None
+        db.session.add(AuditLog(user_id=actor.id, action="staff.school_email.update", target_type="user",
+                                target_id=account.id, detail_json={"from": old_email, "to": account.email}))
+        db.session.commit()
+    return redirect(url_for("admin.accounts"))
+
+
+@admin_bp.route("/admin/google-workspace", methods=["GET", "POST"])
+@role_required("admin")
+def google_workspace_page():
+    """學校 Google Workspace 一鍵登入：開關、學生第一次登入自動建帳號、教職員網域；看誰用 Google 登入過。"""
+    from app.services import google_workspace, school_google_login
+    error = None
+    if request.method == "POST":
+        try:
+            google_workspace.save_settings(request.form, get_current_user())
+            return redirect(url_for("admin.google_workspace_page", saved=1))
+        except ValueError as exc:
+            error = str(exc)
+    config = current_app.config
+    oauth = {"client_id": bool(config.get("GOOGLE_OAUTH_CLIENT_ID")),
+             "client_secret": bool(config.get("GOOGLE_OAUTH_CLIENT_SECRET")),
+             "redirect_uri": config.get("GOOGLE_LOGIN_REDIRECT_URI") or ""}
+    linked = (User.query.filter(User.google_sub.isnot(None)).order_by(User.updated_at.desc()).limit(50).all())
+    auto_created = {row.target_id for row in AuditLog.query.filter_by(action="user.google_auto_create").all()}
+    return render_template("admin_google_workspace.html", user=get_current_user(), settings=google_workspace.settings(),
+                           oauth=oauth, ready=school_google_login.configured(config), linked=linked,
+                           auto_created=auto_created, student_domain=school_google_login.DOMAIN,
+                           error=error), (400 if error else 200)
 
 
 @admin_bp.route("/admin/project-types", methods=["GET", "POST"])
@@ -368,7 +488,11 @@ def programs():
 @role_required("admin")
 def programs_import_seed():
     created = import_seed_programs()
-    return redirect(url_for("admin.programs", message=f"已匯入 {created} 個志願" if created else "種子資料都已存在，沒有新增"))
+    updated = refresh_seed_details()
+    parts = [f"已匯入 {created} 個志願" if created else "沒有新的志願"]
+    if updated:
+        parts.append(f"依核對過的簡章更新 {updated} 個項目")
+    return redirect(url_for("admin.programs", message="，".join(parts)))
 
 
 @admin_bp.post("/admin/programs/<int:program_id>/toggle-status")
@@ -398,6 +522,80 @@ def program_item_update(item_id):
     return redirect(url_for("admin.programs") + f"#program-{item.rule_version_id}")
 
 
+@admin_bp.post("/admin/eligibility-rules/<int:rule_id>")
+@role_required("admin")
+def admission_eligibility_rule_update(rule_id):
+    rule = db.session.get(AdmissionEligibilityRule, rule_id)
+    if not rule:
+        abort(404)
+    try:
+        rule_group = int(request.form.get("rule_group", ""))
+    except (TypeError, ValueError):
+        abort(400, description="資格條件群組必須是正整數。")
+    if rule_group < 1:
+        abort(400, description="資格條件群組必須是正整數。")
+
+    condition_type = request.form.get("condition_type", "").strip()
+    operator = request.form.get("operator", "").strip()
+    description = request.form.get("description", "").strip()
+    source_url = request.form.get("source_url", "").strip() or None
+    source_location = request.form.get("source_location", "").strip() or None
+    mapping_status = request.form.get("mapping_status", "pending")
+    if not description or len(description) > 2000:
+        abort(400, description="請填寫資格原文或清楚的待核對說明（最多 2000 字）。")
+    if mapping_status not in {"pending", "confirmed"}:
+        abort(400, description="資格規則狀態不正確。")
+    try:
+        value_json = json.loads(request.form.get("value_json", "").strip() or "null")
+    except (json.JSONDecodeError, TypeError):
+        abort(400, description="條件內容必須是有效的 JSON。")
+
+    if mapping_status == "confirmed":
+        validation_error = validate_eligibility_condition(condition_type, operator, value_json)
+        parsed_url = urlparse(source_url or "")
+        if validation_error:
+            abort(400, description=validation_error)
+        if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+            abort(400, description="確認資格規則前，請填寫官方簡章網址。")
+        if not source_location:
+            abort(400, description="確認資格規則前，請填寫頁碼或章節位置。")
+
+    before = {
+        "condition_type": rule.condition_type,
+        "operator": rule.operator,
+        "mapping_status": rule.mapping_status,
+        "source_url": rule.source_url,
+        "source_location": rule.source_location,
+    }
+    rule.rule_group = rule_group
+    rule.condition_type = condition_type or "unresolved"
+    rule.operator = operator or "unresolved"
+    rule.value_json = value_json
+    rule.description = description
+    rule.source_url = source_url
+    rule.source_location = source_location
+    rule.mapping_status = mapping_status
+    rule.is_required = request.form.get("is_required") == "on"
+    db.session.add(AuditLog(
+        user_id=get_current_user().id,
+        action="admission.eligibility_rule_updated",
+        target_type="admission_eligibility_rule",
+        target_id=rule.id,
+        detail_json={
+            "before": before,
+            "after": {
+                "condition_type": rule.condition_type,
+                "operator": rule.operator,
+                "mapping_status": rule.mapping_status,
+                "source_url": rule.source_url,
+                "source_location": rule.source_location,
+            },
+        },
+    ))
+    db.session.commit()
+    return redirect(url_for("admin.programs") + f"#eligibility-rule-{rule.id}")
+
+
 # ---------- 招生資料 Agent（系統亮點第二、三階段） ----------
 
 @admin_bp.get("/admin/agent")
@@ -412,11 +610,13 @@ def agent_home():
                .join(PublicSourceSnapshot, PublicSourceChange.snapshot_id == PublicSourceSnapshot.id)
                .join(PublicSource, PublicSourceSnapshot.source_id == PublicSource.id)
                .order_by(PublicSourceChange.id.desc()).limit(20).all())
-    tasks = (AgentTask.query.filter(AgentTask.task_type.in_(["admission_source_check", "admission_extract", "agent_patrol"]))
+    tasks = (AgentTask.query.filter(AgentTask.task_type.in_(["admission_source_search", "admission_source_check", "admission_extract", "agent_patrol"]))
              .order_by(AgentTask.id.desc()).limit(15).all())
     from app.services.admission_schedule import schedule_groups
+    from app.services.admin_todos import failed_source_ids
     return render_template(
         "admin_agent.html",
+        failed_sources=failed_source_ids(),
         schedule_groups=schedule_groups(),
         user=get_current_user(),
         sources=sources,
@@ -492,7 +692,14 @@ def agent_schedule_decide(channel, year, decision):
     db.session.add(AuditLog(user_id=actor.id, action=f"admission_schedule.{decision}", target_type="admission_schedule",
                             target_id=year, detail_json={"channel": channel, "year": year, "count": len(candidates)}))
     db.session.commit()
-    text = "已核准，招生時程頁改用這一組日程" if decision == "approve" else "已退回這一組候選日程"
+    if decision == "approve":
+        # UC-25：核准後直接打開系統擬好的二技公告草稿，管理員改字後發布
+        from app.services.announcement_service import draft_from_schedule
+        draft = draft_from_schedule(channel, year, actor)
+        message = (f"{year} 學年度：已核准，招生時程頁改用這一組日程（{len(candidates)} 項）。"
+                   "公告草稿已擬好，確認內容後按「發布」。")
+        return redirect(url_for("announcement.admin_edit", announcement_id=draft.id, message=message))
+    text = "已退回這一組候選日程"
     return redirect(url_for("admin.agent_home", message=f"{year} 學年度：{text}（{len(candidates)} 項）。"))
 
 
@@ -512,6 +719,58 @@ def agent_extract(change_id):
 
 
 # ---------- 導師班級 ----------
+
+# ---------- 修業科目表代理（11-09）：抓 PDF、程式解析、管理員確認才生效 ----------
+
+@admin_bp.get("/admin/curriculum")
+@role_required("admin")
+def curriculum_home():
+    from app.models import CurriculumVersion
+    from app.services import curriculum_agent_service as curriculum
+    versions = (CurriculumVersion.query
+                .order_by(CurriculumVersion.admission_year.desc(), CurriculumVersion.id.desc()).all())
+    pending = [v for v in versions if v.status in ("candidate", "check_failed")]
+    published = {v.admission_year: v for v in versions if v.status == "published"}
+    return render_template("admin_curriculum.html", user=get_current_user(), pending=pending, published=published,
+                           history=[v for v in versions if v.status in ("superseded", "rejected")][:20],
+                           index_url=curriculum.INDEX_URL, min_year=curriculum.MIN_YEAR,
+                           message=request.args.get("message"), error=request.args.get("error"))
+
+
+@admin_bp.post("/admin/curriculum/check")
+@role_required("admin")
+def curriculum_check():
+    from app.services import curriculum_agent_service as curriculum
+    try:
+        outcome = curriculum.check_updates(get_current_user())
+    except Exception as exc:  # 網站連不上等
+        db.session.rollback()
+        return redirect(url_for("admin.curriculum_home", error=f"抓取失敗：{str(exc)[:120]}"))
+    parts = [f"新的候選版本 {len(outcome['created'])} 份", f"沒有變動 {len(outcome['unchanged'])} 份"]
+    if outcome["failed"]:
+        parts.append(f"檢查不通過 {len(outcome['failed'])} 份")
+    if outcome["errors"]:
+        parts.append(f"下載或讀取失敗 {len(outcome['errors'])} 份")
+    return redirect(url_for("admin.curriculum_home", message="、".join(parts) + "。"))
+
+
+@admin_bp.post("/admin/curriculum/<int:version_id>/<decision>")
+@role_required("admin")
+def curriculum_decide(version_id, decision):
+    from app.models import CurriculumVersion
+    from app.services import curriculum_agent_service as curriculum
+    version = db.session.get(CurriculumVersion, version_id)
+    if version is None or decision not in ("publish", "reject"):
+        abort(404)
+    try:
+        (curriculum.publish if decision == "publish" else curriculum.reject)(version, get_current_user())
+    except curriculum.CurriculumError as exc:
+        db.session.rollback()
+        return redirect(url_for("admin.curriculum_home", error=str(exc)))
+    db.session.commit()
+    done = "已確認，畢業門檻改用這一版" if decision == "publish" else "已設為不採用"
+    return redirect(url_for("admin.curriculum_home", message=f"{version.admission_year} 學年度：{done}。"))
+
 
 @admin_bp.get("/admin/classes")
 @admin_bp.post("/admin/classes")
@@ -551,6 +810,24 @@ def class_delete(advisor_id):
         db.session.delete(advisor)
         db.session.commit()
     return redirect(url_for("admin.classes"))
+
+
+@admin_bp.get("/admin/ai")
+@admin_bp.post("/admin/ai")
+@role_required("admin")
+def ai_settings_page():
+    """選要用哪幾家 AI、模型、先後順序（11-11 使用者決定）。金鑰只放 .env，這裡只顯示有沒有設定。"""
+    from app.services import ai_gateway
+    message = None
+    if request.method == "POST":
+        rows = []
+        for name in ai_gateway.PROVIDERS:
+            if request.form.get(f"enabled_{name}"):
+                rows.append((request.form.get(f"order_{name}", type=int) or 99, name))
+        ai_gateway.save(get_current_user(), [name for _order, name in sorted(rows)],
+                        {name: request.form.get(f"model_{name}", "") for name in ai_gateway.PROVIDERS})
+        message = "已儲存。之後呼叫 AI 會照這個順序，前一家不能用就自動換下一家。"
+    return render_template("admin_ai.html", user=get_current_user(), providers=ai_gateway.status(), message=message)
 
 
 @admin_bp.get("/admin/ocr")

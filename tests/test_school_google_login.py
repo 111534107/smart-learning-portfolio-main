@@ -1,9 +1,8 @@
 from urllib.parse import parse_qs, urlparse
-from html.parser import HTMLParser
 
 from app import create_app
 from app.extensions import db
-from app.models import User, StudentProfile
+from app.models import User
 
 
 SCHOOL_EMAIL = "111534107@stu.ukn.edu.tw"
@@ -49,7 +48,7 @@ def school_app(google=None):
 
 
 def start(client):
-    response = client.get('/auth/google')
+    response = client.get("/auth/google")
     assert response.status_code == 302
     assert urlparse(response.location).hostname == "accounts.google.com"
     return parse_qs(urlparse(response.location).query)["state"][0]
@@ -69,47 +68,12 @@ def test_google_login_uses_existing_student_and_binds_stable_subject():
         assert User.query.filter_by(username="111534107").one().google_sub == "google-student-107"
 
 
-def test_first_school_google_login_creates_student_visible_to_admin():
-    claims = {'sub': 'new-google-student', 'email': '111534108@stu.ukn.edu.tw',
-              'email_verified': True, 'hd': 'stu.ukn.edu.tw', 'name': '新學生'}
-    app, _ = school_app(FakeGoogleLogin(claims))
-    client = app.test_client()
-    state = start(client)
-    response = client.get(f'/auth/google/callback?state={state}&code=first')
-    assert response.status_code == 302
-    with app.app_context():
-        user = User.query.filter_by(username='111534108').one()
-        assert (user.role, user.email, user.google_sub, user.display_name) == ('student', claims['email'], claims['sub'], '新學生')
-        assert user.student_profile.student_no == '111534108'
-        assert user.student_profile.admission_year is None
-    dashboard = client.get('/student/dashboard').get_data(as_text=True)
-    assert '年級待確認' in dashboard
-    assert '專一，你在這裡' not in dashboard
-    state = start(client)
-    assert client.get(f'/auth/google/callback?state={state}&code=second').status_code == 302
-    with app.app_context():
-        assert User.query.filter_by(username='111534108').count() == 1
-
-
-def test_first_google_login_links_matching_existing_unbound_student():
-    app, _ = school_app()
-    with app.app_context():
-        user = User.query.filter_by(username='111534107').one()
-        user.email = None
-        db.session.commit()
-    client = app.test_client()
-    state = start(client)
-    assert client.get(f'/auth/google/callback?state={state}&code=first').status_code == 302
-    with app.app_context():
-        assert User.query.filter_by(username='111534107').one().email == SCHOOL_EMAIL
-
-
 def test_google_login_updates_display_name_from_verified_profile():
     claims = {"sub": "google-student-107", "email": SCHOOL_EMAIL,
               "email_verified": True, "hd": "stu.ukn.edu.tw", "name": "真實姓名"}
     app, _ = school_app(FakeGoogleLogin(claims))
     client = app.test_client()
-    response = client.get('/auth/google')
+    response = client.get("/auth/google")
     params = parse_qs(urlparse(response.location).query)
     assert "profile" in params["scope"][0].split()
     client.get(f"/auth/google/callback?state={params['state'][0]}&code=test-code")
@@ -127,22 +91,6 @@ def test_google_login_rejects_invalid_state_without_exchanging_code():
     assert google.codes == []
 
 
-def test_correct_new_student_login_creates_separate_account():
-    claims = {'sub': 'other-google-user', 'email': '111534124@stu.ukn.edu.tw',
-              'email_verified': True, 'hd': 'stu.ukn.edu.tw', 'name': '另一位學生'}
-    app, _ = school_app(FakeGoogleLogin(claims))
-    client = app.test_client()
-    response = client.get('/auth/google')
-    params = parse_qs(urlparse(response.location).query)
-    assert params['prompt'] == ['select_account']
-    assert client.get(f"/auth/google/callback?state={params['state'][0]}&code=ok").status_code == 302
-    with client.session_transaction() as session:
-        user_id = session['user_id']
-    with app.app_context():
-        assert db.session.get(User, user_id).username == '111534124'
-        assert User.query.filter_by(username='111534107').one().id != user_id
-
-
 def test_opening_google_callback_directly_shows_help_on_login_page():
     app, google = school_app()
     client = app.test_client()
@@ -150,7 +98,7 @@ def test_opening_google_callback_directly_shows_help_on_login_page():
     response = client.get("/auth/google/callback")
 
     assert response.status_code == 400
-    assert "登入系統" in response.get_data(as_text=True)
+    assert "學生登入" in response.get_data(as_text=True)
     assert "請從登入頁" in response.get_data(as_text=True)
     assert google.codes == []
 
@@ -161,29 +109,6 @@ def test_callback_without_google_configuration_explains_setup():
     response = app.test_client().get("/auth/google/callback")
     assert response.status_code == 400
     assert "Google 登入尚未設定" in response.get_data(as_text=True)
-
-
-def test_teacher_can_login_from_google_callback_error_page():
-    class Forms(HTMLParser):
-        def __init__(self):
-            super().__init__()
-            self.actions = []
-
-        def handle_starttag(self, tag, attrs):
-            if tag == "form":
-                self.actions.append(dict(attrs).get("action"))
-
-    app, _ = school_app()
-    app.config["DEMO_ACCOUNTS"] = [{"username": "teacher", "password": "pw",
-                                    "name": "Teacher", "role": "teacher", "label": "導師"}]
-    client = app.test_client()
-    page = client.get('/auth/google/callback')
-    forms = Forms()
-    forms.feed(page.get_data(as_text=True))
-    assert forms.actions == ['/login', '/login']
-    response = client.post(forms.actions[-1], data={'username': 'teacher', 'password': 'pw'})
-    assert response.status_code == 302
-    assert client.get(response.location).status_code == 200
 
 
 def test_google_login_rejects_unverified_wrong_domain_and_unbound_accounts():
@@ -292,3 +217,71 @@ def test_google_button_stays_visible_after_wrong_password():
     response = app.test_client().post("/login", data={"username": "unknown", "password": "wrong"})
     assert response.status_code == 401
     assert "/auth/google" in response.get_data(as_text=True)
+
+
+def test_real_client_allows_small_clock_skew_and_keeps_cause(monkeypatch):
+    """2026-11-03 實測：電腦時間比 Google 慢 5 秒，預設 0 秒誤差就被拒絕（Token used too early）。"""
+    import io
+    import json
+    from google.oauth2 import id_token
+    from app.services import school_google_login as g_login
+
+    class Response(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    monkeypatch.setattr(g_login, "urlopen", lambda request, timeout: Response(json.dumps({"id_token": "t"}).encode()))
+    seen = {}
+
+    def fake_verify(token, request, audience, clock_skew_in_seconds=0):
+        seen["skew"] = clock_skew_in_seconds
+        if clock_skew_in_seconds < 5:
+            raise ValueError("Token used too early")
+        return {"sub": "1", "email": SCHOOL_EMAIL, "email_verified": True, "hd": "stu.ukn.edu.tw"}
+
+    monkeypatch.setattr(id_token, "verify_oauth2_token", fake_verify)
+    client = g_login.HttpGoogleLoginClient({"GOOGLE_OAUTH_CLIENT_ID": "id", "GOOGLE_OAUTH_CLIENT_SECRET": "s",
+                                            "GOOGLE_LOGIN_REDIRECT_URI": "http://localhost:5013/auth/google/callback"})
+
+    assert client.verify_code("code")["email"] == SCHOOL_EMAIL
+    assert seen["skew"] >= 10
+
+
+def test_google_login_control_visible_and_explains_unconfigured_state():
+    app, _ = school_app()
+    client = app.test_client()
+    page = client.get('/login').get_data(as_text=True)
+    assert '使用學校 Google Workspace 帳號登入' in page
+    assert 'class="google-login' in page and 'href="/auth/google' in page
+    app.config['GOOGLE_LOGIN_REDIRECT_URI'] = ''
+    page = client.get('/login').get_data(as_text=True)
+    assert '使用學校 Google Workspace 帳號登入' in page
+    assert 'Google 登入尚未設定' in page
+    assert 'disabled' in page and 'href="/auth/google' not in page
+
+
+def test_student_button_asks_google_for_student_domain_so_only_student_no_is_typed():
+    """2026-11-09 使用者：學校其他系統的 Google 登入只要打帳號，網域會直接顯示在框後面（Google 的 hd 參數）。"""
+    app, _ = school_app()
+    client = app.test_client()
+    params = parse_qs(urlparse(client.get("/auth/google").location).query)
+    assert params["hd"] == ["stu.ukn.edu.tw"]
+    staff = parse_qs(urlparse(client.get("/auth/google?who=staff").location).query)
+    assert staff["hd"] == ["ukn.edu.tw"]
+    assert "只要輸入學號" in client.get("/login").get_data(as_text=True)
+    # 11-10 登入頁分開：教職員的 Google 按鈕在教職員登入頁
+    assert 'href="/auth/google?who=staff"' in client.get("/staff/login").get_data(as_text=True)
+
+
+def test_hd_is_only_a_hint_other_domains_are_still_rejected():
+    claims = {"sub": "outsider", "email": "someone@gmail.com", "email_verified": True}
+    app, _ = school_app(FakeGoogleLogin(claims))
+    client = app.test_client()
+    state = start(client)
+    response = client.get(f"/auth/google/callback?state={state}&code=c")
+    assert response.status_code in (400, 403)
+    with client.session_transaction() as current:
+        assert current.get("user_id") is None

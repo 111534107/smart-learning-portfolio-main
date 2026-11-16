@@ -143,12 +143,17 @@ def test_transfer_credit_is_hidden_from_students_without_a_transfer_record(clien
     html = client.get("/student/dashboard").get_data(as_text=True)
 
     assert "抵免進度" not in nav_html(html)
-    assert "轉學生？填寫抵免進度" in html
+    # 首頁不對所有學生顯示轉學生入口；改放在成績頁
+    assert "轉學生？填寫抵免進度" not in html
+    assert "轉學生？填寫抵免進度" in client.get("/student/learning-profile").get_data(as_text=True)
     with app.app_context():
         student = User.query.filter_by(username="student_syn").one()
         db.session.add(TransferCreditRecord(student_id=student.id))
         db.session.commit()
-    assert "抵免進度" in nav_html(client.get("/student/dashboard").get_data(as_text=True))
+    # 2026-11-08：主選單只留 5 項，抵免進度放進「我的資料」的分頁標籤
+    assert "抵免進度" not in nav_html(client.get("/student/dashboard").get_data(as_text=True))
+    profile = client.get("/student/learning-profile").get_data(as_text=True)
+    assert re.search(r'<nav class="subnav" aria-label="我的資料">.*?抵免進度</a>.*?</nav>', profile, re.S)
 
 
 # 5. 上傳時顯示辨識中

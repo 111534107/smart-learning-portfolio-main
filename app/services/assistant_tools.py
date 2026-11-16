@@ -12,7 +12,7 @@ from app.models import CredentialRecord, Portfolio, StudentProfile, StudentTarge
 from app.services import knowledge_service
 from app.services.admission_service import published_programs
 from app.services.autobiography_service import build_facts, latest_draft
-from app.services.gap_service import ALL_LABELS, analyze_gap
+from app.services.gap_service import ALL_LABELS, analyze_gap, student_evidence
 from app.services.journey_service import CATEGORY_KEYS, CATEGORY_LABELS, build_journey
 from app.services.package_service import latest_review
 from app.services.teacher_scope import can_view_student, students_for_teacher
@@ -36,6 +36,7 @@ def _program_by_code(code):
 def _overview(student):
     journey = build_journey(student)
     profile = student.student_profile
+    evidence = student_evidence(student)
     targets = []
     for target in StudentTarget.query.filter_by(student_id=student.id).order_by(StudentTarget.selected_at):
         gap = analyze_gap(student, target.program, journey)
@@ -54,9 +55,9 @@ def _overview(student):
         "student_no": profile.student_no if profile else None,
         "class_name": profile.class_name if profile else None,
         "current_grade": f"專{'一二三四五'[journey['current_grade'] - 1]}" if journey.get("current_grade") else "未知",
-        "record_counts": {CATEGORY_LABELS[k]: journey["totals"][k] for k in CATEGORY_KEYS},
+        "record_counts": {CATEGORY_LABELS[k]: evidence["totals"][k] for k in CATEGORY_KEYS},
         "credentials": [c.credential_name + (f"（{c.level}）" if c.level else "")
-                        for c in CredentialRecord.query.filter_by(student_id=student.id)],
+                        for c in CredentialRecord.query.filter_by(student_id=student.id, confirmation_status="confirmed")],
         "targets": targets,
     }
 
@@ -67,7 +68,7 @@ def _gap(student, program):
         "school_department": f"{program.school_name} {program.department_name}",
         "admission_year": program.admission_year,
         "readiness_percent": gap["readiness"],
-        "readiness_rule": "準備度＝Σ（項目加權×已有資料比例）÷ 列入計算的加權；自傳、專題屬於自己準備的文件，不列入計算",
+        "readiness_rule": "\u6e96\u5099\u5ea6\uff1d\u5404\u9805\u52a0\u6b0a\u4e58\u5b8c\u6210\u5ea6\u4e4b\u548c\uff0c\u9664\u4ee5\u5df2\u5c0d\u61c9\u9805\u76ee\u7684\u7e3d\u52a0\u6b0a\uff1b\u5df2\u5c0d\u61c9\u7684\u81ea\u50b3\u8207\u5c08\u984c\u4e5f\u5217\u5165\u8a08\u7b97\u3002",
         "items": [{
             "item": item["name"], "weight_percent": item["weight"],
             "status": {"complete": "已備齊", "partial": "部分備齊", "missing": "缺資料", "prepare": "需自己準備的文件"}[item["status"]],
@@ -75,16 +76,20 @@ def _gap(student, program):
             "missing": [ALL_LABELS[k] for k in item["missing"]],
             "documents_to_prepare": [ALL_LABELS[k] for k in item["documents"]],
             "mapping_unconfirmed": item["mapping_pending"],
+            "brochure_requirement": item.get("requirement"),  # 簡章原文整理的要繳什麼（2026-11-10）
         } for item in gap["items"]],
+        "highlights": [f"{h['text']}（{h['page']}）" if h.get("page") else h["text"] for h in (program.highlights or [])],
+        "source": program.source_note,
+        "source_url": program.source_url,
     }
 
 
 def _consistency(student, program):
     draft = latest_draft(student, program)
     if not draft:
-        return {"autobiography": None, "note": "這個校系還沒有自傳草稿，請先用「自傳小幫手」寫。"}
+        return {"autobiography": None, "note": "這個校系還沒有自傳草稿，請先用「小助手寫自傳」寫。"}
     facts = build_facts(student, program)["items"]
-    records = Portfolio.active().filter_by(student_id=student.id).all()
+    records = Portfolio.active().filter_by(student_id=student.id, status="confirmed").all()
     return {
         "autobiography_paragraphs": [{"title": p["title"], "text": p["text"]} for p in draft.content_json["paragraphs"]],
         "confirmed_facts": [f["text"] for f in facts],

@@ -1,7 +1,7 @@
 """add structured admission eligibility rules
 
 Revision ID: a20261022e01
-Revises: a7c3e9d10f42
+Revises: c9e1a7d43b58
 Create Date: 2026-10-22
 """
 from alembic import op
@@ -9,7 +9,7 @@ import sqlalchemy as sa
 
 
 revision = "a20261022e01"
-down_revision = "a7c3e9d10f42"
+down_revision = "c9e1a7d43b58"
 branch_labels = None
 depends_on = None
 

@@ -66,7 +66,6 @@ def build_journey(student, today=None):
     for course in courses:
         place(grade_for(course.year_for_placement, admission_year), "grades", {
             "id": f"course-{course.id}",  # 來源＋資料庫編號：改標題也不會變（首頁拼圖桌的片靠它固定位置）
-            "confirmed": course.confirmation_status == "confirmed",
             "title": course.course_name,
             "detail": " · ".join(part for part in (
                 f"{course.credits} 學分" if course.credits is not None else "",
@@ -79,7 +78,6 @@ def build_journey(student, today=None):
         year = academic_year_of(credential.issue_date) if credential.issue_date else None
         place(grade_for(year, admission_year), "credential", {
             "id": f"credential-{credential.id}",
-            "confirmed": credential.confirmation_status == "confirmed",
             "title": credential.credential_name,
             "detail": credential.level or "",
         })
@@ -92,25 +90,21 @@ def build_journey(student, today=None):
             continue
         place(grade_for(record.school_year, admission_year), record.category, {
             "id": f"portfolio-{record.id}",
-            "confirmed": record.status != "draft",
             "title": record.title,
             "detail": record.description or "",
             "source": "" if record.source == "student" else record.source_label,
         })
 
     totals = {key: 0 for key in CATEGORY_KEYS}
-    confirmed_totals = {key: 0 for key in CATEGORY_KEYS}
     years = []
     for grade, categories in folders.items():
         count = 0
         for key, items in categories.items():
             totals[key] += len(items)
-            confirmed_totals[key] += sum(item.get("confirmed", True) for item in items)
             count += len(items)
         years.append({"grade": grade, "label": GRADE_LABELS[grade], "categories": categories, "count": count})
     for key, items in unsorted.items():
         totals[key] += len(items)
-        confirmed_totals[key] += sum(item.get("confirmed", True) for item in items)
         unsorted_count += len(items)
 
     return {
@@ -120,6 +114,5 @@ def build_journey(student, today=None):
         "unsorted": unsorted,
         "unsorted_count": unsorted_count,
         "totals": totals,
-        "confirmed_totals": confirmed_totals,
         "missing_categories": [key for key in CATEGORY_KEYS if totals[key] == 0],
     }

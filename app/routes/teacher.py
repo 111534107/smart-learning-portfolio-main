@@ -12,6 +12,7 @@ from app.models import (
     SourceDocument,
     StudentTarget,
     TransferCreditRecord,
+    TransferPlan,
     User,
 )
 from app.routes.main import get_current_user, role_required
@@ -19,9 +20,14 @@ from app.services.gap_service import ALL_LABELS, analyze_gap
 from app.services.journey_service import CATEGORY_KEYS, CATEGORY_LABELS, build_journey
 from app.services.package_service import latest_review
 from app.services import audit_service, autobiography_service, review_snapshot_service
+from app.services import transfer_plan as transfer_plan_service
 from app.services.autobiography_service import latest_draft, version_of
 from app.services.file_preview import inline_file
 from app.services.teacher_scope import can_view_student
+from app.routes import graduation as graduation_routes
+from app.services import graduation_case_service, graduation_check_service
+from app.services import check_dates, semester_warning
+from app.models import GraduationCase, GraduationCaseEvent
 
 teacher_bp = Blueprint("teacher", __name__)
 
@@ -69,8 +75,22 @@ def student_detail(student_id):
             "autobiography": draft,
             "current_version": version_of(draft) if draft else None,
         })
+    assessment = graduation_check_service.assess(student)
+    grad_cases = (GraduationCase.query.filter_by(student_id=student.id)
+                  .order_by(GraduationCase.id.desc()).all())
     return render_template(
         "teacher_student.html",
+        grad_assessment=assessment,
+        grad_cases=[{"case": case, "events": case.events.order_by(GraduationCaseEvent.id.desc()).limit(5).all()}
+                    for case in grad_cases],
+        grad_next_check=graduation_case_service.next_check_text(assessment["stage"]),
+        grad_countdown=check_dates.countdown(assessment["stage"]),
+        semester_warnings=semester_warning.build(student),
+        warning_labels=semester_warning.LEVEL_LABELS,
+        grad_item_labels=graduation_case_service.ITEM_LABELS,
+        grad_event_labels=graduation_routes.EVENT_LABELS,
+        grad_result_labels=graduation_check_service.RESULT_LABELS,
+        grad_disclaimer=graduation_check_service.DISCLAIMER,
         review_notices=review_snapshot_service.NOTICES,
         user=teacher,
         student=student,
@@ -78,6 +98,9 @@ def student_detail(student_id):
         journey_stops=journey_stops,
         targets=targets,
         transfer_credit=TransferCreditRecord.query.filter_by(student_id=student.id).first(),
+        transfer_plans=[{"plan": plan, "ready": transfer_plan_service.readiness(plan)}
+                        for plan in TransferPlan.query.filter_by(student_id=student.id, archived=False)
+                        .order_by(TransferPlan.id)],
         documents=SourceDocument.query.filter_by(owner_id=student.id, status="confirmed")
                                       .order_by(SourceDocument.created_at).all(),
         records_with_evidence=[r for r in Portfolio.active().filter_by(student_id=student.id).order_by(Portfolio.id).all()
@@ -183,3 +206,29 @@ def autobiography_edit(student_id, output_id):
         return redirect(url_for("teacher.student_detail", student_id=student.id, saved=1))
     return render_template("teacher_autobiography_edit.html", user=teacher, student=student, program=program,
                            output=output, version=autobiography_service.version_of(output))
+
+
+@teacher_bp.post("/teacher/students/<int:student_id>/transfer-plans/<int:plan_id>")
+@role_required("teacher")
+def transfer_plan_update(student_id, plan_id):
+    """B18：導師修正學生的插大目標（日期、考科打錯）並留言；不蓋掉學生備註，修改寫進操作紀錄。"""
+    teacher = get_current_user()
+    student = db.session.get(User, student_id)
+    plan = db.session.get(TransferPlan, plan_id)
+    if not student or not can_view_student(teacher, student) or not plan or plan.student_id != student.id:
+        abort(403)
+    try:
+        fields, names = transfer_plan_service.parse_plan_form(request.form)
+    except transfer_plan_service.PlanFormError as exc:
+        abort(400, description=str(exc))
+    fields.pop("note", None)
+    before = {"exam_date": str(plan.exam_date), "subjects": [s.name for s in plan.subjects]}
+    for key, value in fields.items():
+        setattr(plan, key, value)
+    transfer_plan_service.apply_subjects(plan, names)
+    plan.teacher_note = (request.form.get("teacher_note") or "").strip()[:2000] or None
+    plan.updated_by_id = teacher.id
+    audit_service.record(teacher, "transfer_plan.teacher_update", "transfer_plan", plan.id,
+                         detail={"before": before, "after": {"exam_date": str(plan.exam_date), "subjects": names}})
+    db.session.commit()
+    return redirect(url_for("teacher.student_detail", student_id=student.id, _anchor=f"transfer-plan-{plan.id}"))

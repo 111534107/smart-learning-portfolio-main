@@ -104,3 +104,23 @@ def test_student_portfolio_page_stays_in_the_shared_student_experience():
     assert response.status_code == 200
     assert b'data-page="student-portfolio"' in response.data
     assert b"/static/css/design-system.css" in response.data
+
+
+def test_public_masthead_drops_route_link_and_school_subtitle():
+    """2026-11-09 使用者試用後要求：訪客頂端列拿掉「我的五年」和「康寧大學 · 資訊管理科五專」。"""
+    html = ui_app().test_client().get("/").get_data(as_text=True)
+    masthead = html.split('<header class="masthead">', 1)[1].split("</header>", 1)[0]
+    assert "我的五年" not in masthead and "#route" not in masthead
+    assert "brand__issue" not in masthead and "資訊管理科五專" not in masthead
+    assert "資管科學習歷程" in masthead and 'href="/login"' in masthead
+
+
+def test_public_home_bundle_scene_stacks_to_one_column_on_narrow_screens():
+    """2026-11-09 使用者回報：手機上第六幕「組成資料包」的標題被擠成直排長條。"""
+    import re
+    from pathlib import Path
+    css = (Path(__file__).resolve().parents[1] / "app" / "static" / "css" / "design-system.css").read_text(encoding="utf-8")
+    blocks = [part.split("\n}\n", 1)[0] for part in css.split("@media (max-width: 960px)")[1:]]
+    rules = [m.group(1) for block in blocks
+             for m in re.finditer(r'\.story-scene__inner--bundle\s*\{([^}]*)\}', block)]
+    assert any("grid-template-columns: minmax(0, 1fr)" in rule for rule in rules)

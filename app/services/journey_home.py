@@ -112,9 +112,19 @@ def table_pieces(journey):
     for year in journey["years"]:
         for key in CATEGORY_KEYS:
             seen = {}
+            if key == "grades":
+                # 成績一年一片（11-04 實測：一門課一片，上傳成績單後一次冒出 89 片）
+                courses = year["categories"][key]
+                if courses:
+                    items.append({
+                        "id": f"grades-{year['grade']}",
+                        "key": key,
+                        "label": PIECE_LABELS[key],
+                        "grade_label": GRADE_LABELS[year["grade"]],
+                        "title": f"{GRADE_LABELS[year['grade']]}成績 {len(courses)} 門課",
+                    })
+                continue
             for item in year["categories"][key]:
-                if item.get("confirmed") is False:
-                    continue
                 title = item.get("title") or ""
                 # 片的 id＝資料來源＋資料庫編號（改標題、換年級都不變）；沒有編號的假資料才退回用標題
                 if item.get("id"):
@@ -184,8 +194,7 @@ def board_progress(journey):
     grade = journey["current_grade"] or 1
     walked = [year for year in journey["years"] if year["grade"] <= grade]
     total = len(walked) * len(CATEGORY_KEYS)
-    filled = sum(1 for year in walked for key in CATEGORY_KEYS
-                 if any(item.get("confirmed", True) for item in year["categories"][key]))
+    filled = sum(1 for year in walked for key in CATEGORY_KEYS if year["categories"][key])
     return total, filled
 
 
@@ -199,15 +208,11 @@ def journey_home(user, journey=None, now=None):
         "label": GRADE_LABELS[year["grade"]],
         "word": words.get(year["grade"], ""),
         "count": year["count"],
-        "state": ("past" if year["grade"] < grade else ("now" if year["grade"] == grade else "future")) if journey["current_grade"] else "future",
+        "state": "past" if year["grade"] < grade else ("now" if year["grade"] == grade else "future"),
     } for year in journey["years"]]
 
     previous = next((year for year in journey["years"] if year["grade"] == grade - 1), None)
     board_total, board_filled = board_progress(journey)
-    table = table_pieces(journey)
-    completed_keys = {piece["key"] for piece in table["pieces"]}
-    totals = journey.get("totals", {})
-    confirmed_totals = journey.get("confirmed_totals", totals)
     pending = (SourceDocument.query.filter(SourceDocument.owner_id == user.id, SourceDocument.status != "confirmed").count()
                + Portfolio.active().filter_by(student_id=user.id, status="draft").count())
     latest = Portfolio.active().filter_by(student_id=user.id).order_by(Portfolio.created_at.desc(), Portfolio.id.desc()).first()
@@ -219,15 +224,11 @@ def journey_home(user, journey=None, now=None):
     return {
         "summary": summary,
         "grade": grade,
-        "grade_label": GRADE_LABELS[grade] if journey["current_grade"] else "年級待確認",
-        "grade_known": bool(journey["current_grade"]),
+        "grade_label": GRADE_LABELS[grade],
         "stops": stops,
-        "table": table,
+        "table": table_pieces(journey),
         "sample_piece": SAMPLE_PIECE,
-        "makers": [{"key": key, "label": PIECE_LABELS[key], "href": _add_link(key),
-                    "complete": key in completed_keys,
-                    "pending": totals.get(key, 0) > confirmed_totals.get(key, 0)}
-                   for key in CATEGORY_KEYS],
+        "makers": [{"key": key, "label": PIECE_LABELS[key], "href": _add_link(key)} for key in CATEGORY_KEYS],
         "away_days": away_days(user, now),
         "previous": {"label": previous["label"], "count": previous["count"]} if previous else None,
     }

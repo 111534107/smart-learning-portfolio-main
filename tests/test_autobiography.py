@@ -20,6 +20,8 @@ ANSWERS = {
     "challenge": "",
     "future": "想學資料分析。",
 }
+from tests.autobio_helpers import FOCUS_ANSWERS  # noqa: E402
+ANSWERS = {**ANSWERS, **FOCUS_ANSWERS}  # 比重高的項目也要學生自己寫（2026-11-12）
 
 
 @pytest.fixture()
@@ -148,6 +150,21 @@ def test_page_shows_questions_after_target_chosen(app):
     assert 'name="motivation"' in html
 
 
+def test_second_school_carries_answers_from_latest_draft(app):
+    with app.app_context():
+        other_id = AdmissionProgram.query.filter(AdmissionProgram.program_code != "208003").first().id
+    client = login(app)
+    choose_target(app, client)
+    client.post("/student/autobiography/generate", data={"program_id": program(app), **ANSWERS})
+    client.post("/student/targets", data={"program_id": other_id})
+
+    html = client.get(f"/student/autobiography?program_id={other_id}").get_data(as_text=True)
+
+    assert "專二做網頁設計時發現自己喜歡把需求變成系統。" in html
+    assert "黑客松時負責後端 API。" in html
+    assert "想學資料分析。" in html
+
+
 def test_student_edits_are_saved_and_go_into_word(app):
     client = login(app)
     choose_target(app, client)
@@ -163,6 +180,52 @@ def test_student_edits_are_saved_and_go_into_word(app):
     assert response.status_code == 302
     text = "\n".join(p.text for p in Document(io.BytesIO(docx.data)).paragraphs)
     assert "我修改過的第1段" in text
+
+
+def test_synthetic_transcript_to_excluded_evidence_and_word(app):
+    from tests.test_document_ocr_candidates import FakeOcrEngine, synthetic_png_bytes
+    from app.models import DocumentExtraction, SourceDocument
+
+    app.config.update(DOCUMENT_ANALYSIS_PROVIDER="offline_ocr", OCR_ENGINE=FakeOcrEngine("課程：模擬資料結構 學分：3 分數：88"))
+    client = login(app)
+    upload = client.post("/student/learning-profile/documents", data={
+        "document_type": "transcript",
+        "file": (io.BytesIO(synthetic_png_bytes((3200, 800))), "synthetic.png"),
+    }, content_type="multipart/form-data")
+    assert upload.status_code == 302
+    with app.app_context():
+        source = SourceDocument.query.one()
+        extraction = DocumentExtraction.query.one()
+        assert not LearningCourseRecord.query.filter_by(course_name="模擬資料結構").count()
+        source_id, revision = source.id, extraction.result_json["draft_revision"]
+    response = client.post(f"/student/learning-profile/documents/{source_id}/review/confirm", data={
+        "draft_revision": revision,
+        "courses_json": '[{"school_year":"3","semester":"上","course_name":"模擬資料結構","credits":"3","score":"88"}]',
+        "credentials_json": "[]",
+    })
+    assert response.status_code == 302
+    with app.app_context():
+        student = User.query.filter_by(username="stu").one()
+        assert LearningCourseRecord.query.filter_by(student_id=student.id, course_name="模擬資料結構").count() == 1
+        record = Portfolio(student_id=student.id, title="不放入備審的測試經歷", category="activity", status="confirmed")
+        db.session.add(record)
+        db.session.commit()
+        record_id = record.id
+    choose_target(app, client)
+    response = client.post("/student/package-exclusions", data={"kind": "portfolio", "record_id": record_id, "excluded": "1"})
+    assert response.status_code == 302
+    with app.app_context():
+        assert db.session.get(Portfolio, record_id).excluded_from_package
+    response = client.post("/student/autobiography/generate", data={"program_id": program(app), **ANSWERS})
+    assert response.status_code == 302
+    with app.app_context():
+        assert LearningProfileOutput.query.filter_by(output_type="autobiography_ai").count() == 1
+    output = client.get(f"/student/targets/{program(app)}/package.docx")
+    assert output.status_code == 200
+    document = Document(io.BytesIO(output.data))
+    text = "\n".join([p.text for p in document.paragraphs] + [cell.text for table in document.tables for row in table.rows for cell in row.cells])
+    assert "模擬資料結構" in text
+    assert "不放入備審的測試經歷" not in text
 
 
 def test_other_student_cannot_save_my_draft(app):
@@ -336,3 +399,176 @@ def test_grade_one_is_told_autobiography_opens_at_grade_five(app):
         reason = student_rules.autobiography_block_reason(stu)
         assert "專五" in reason and "專二" not in reason
         assert student_rules.review_open_note(stu) == "專五開放生成自傳"
+
+
+def test_custom_draft_prompt_uses_flexible_headings_and_evidence_based_length(app):
+    captured = {}
+    def fake_ai(prompt, schema):
+        captured['prompt'] = prompt
+        return {'paragraphs': [{'title': '從實作學習', 'text': '測試內容', 'sources': ['F1']}]}
+    with app.app_context():
+        student = User.query.filter_by(username='stu').one()
+        prog = AdmissionProgram.query.filter_by(program_code='208003').one()
+        generate_draft(student, prog, ANSWERS, generate=fake_ai)
+    assert '1500' in captured['prompt'] and '2500' in captured['prompt']
+    assert '標題依內容' in captured['prompt']
+    assert '不得編造' in captured['prompt']
+
+
+def test_custom_draft_prompt_uses_flexible_headings_and_evidence_based_length(app):
+    captured = {}
+    def fake_ai(prompt, schema):
+        captured['prompt'] = prompt
+        return {'paragraphs': [{'title': '從實作學習', 'text': '測試內容', 'sources': ['F1']}]}
+    with app.app_context():
+        student = User.query.filter_by(username='stu').one()
+        prog = AdmissionProgram.query.filter_by(program_code='208003').one()
+        generate_draft(student, prog, ANSWERS, generate=fake_ai)
+    assert '1500' in captured['prompt'] and '2500' in captured['prompt']
+    assert '標題依內容' in captured['prompt']
+    assert '不得編造' in captured['prompt']
+
+
+def test_custom_contents_lists_only_confirmed_evidence_in_weighted_order(app):
+    from app.services.autobiography_service import custom_contents
+    with app.app_context():
+        student = User.query.filter_by(username='stu').one()
+        prog = AdmissionProgram.query.filter_by(program_code='208003').one()
+        db.session.add(Portfolio(student_id=student.id, title='尚未確認的競賽', category='competition', status='draft'))
+        db.session.commit()
+        chapters = custom_contents(student, prog)
+        names = [e['name'] for c in chapters for e in c['evidence']]
+        assert '校園黑客松' in names
+        assert '尚未確認的競賽' not in names
+        assert all(e['evidence_id'] for c in chapters for e in c['evidence'])
+        weighted = [c['weight'] for c in chapters if c['weight']]
+        assert weighted == sorted(weighted, reverse=True)
+
+
+def test_course_evidence_is_summarized_not_listed_course_by_course():
+    """11-04 實測：備審目錄把 85 門課逐一列出（含勞作教育、體育）。"""
+    from types import SimpleNamespace
+    from app.services.autobiography_service import TOP_COURSES, _course_summary
+    courses = [SimpleNamespace(id=i, course_name=f"專業科目{i}", score=60 + i) for i in range(1, 80)]
+    courses += [SimpleNamespace(id=100, course_name="勞作教育", score=100),
+                SimpleNamespace(id=101, course_name="體育(一)", score=99),
+                SimpleNamespace(id=102, course_name="班會", score=None)]
+    items = _course_summary(courses)
+    names = [item["name"] for item in items]
+    assert len(items) == 1 + TOP_COURSES
+    assert names[0].startswith("歷年成績單：已確認 82 門課")
+    assert not any("勞作" in n or "體育" in n for n in names)
+    assert "專業科目79" in names[1]
+    assert _course_summary([]) == []
+
+
+def test_credential_label_shows_level_only_when_missing_from_name():
+    from types import SimpleNamespace
+    from app.services.autobiography_service import credential_label
+    assert credential_label(SimpleNamespace(credential_name="網頁設計", level="丙級")) == "網頁設計（丙級）"
+    assert credential_label(SimpleNamespace(credential_name="網頁設計丙級", level="丙級")) == "網頁設計丙級"
+    assert credential_label(SimpleNamespace(credential_name="TQC Word", level=None)) == "TQC Word"
+
+
+def test_strength_inventory_counts_only_confirmed_records_and_links_evidence(app):
+    from app.services.autobiography_service import strength_inventory
+    with app.app_context():
+        student = User.query.filter_by(username='stu').one()
+        db.session.add_all([
+            CredentialRecord(student_id=student.id, credential_name='測試證照甲', category='國際', confirmation_status='confirmed'),
+            CredentialRecord(student_id=student.id, credential_name='未確認證照', category='國際', confirmation_status='draft'),
+            Portfolio(student_id=student.id, title='未確認經歷', category='competition', status='draft'),
+        ])
+        db.session.commit()
+        inventory = strength_inventory(student)
+        entries = [e for group in inventory for e in group['evidence']]
+        assert any(e['name'] == '測試證照甲' for e in entries)
+        assert not any(e['name'] in ('未確認證照', '未確認經歷') for e in entries)
+        assert all(group['count'] == len(group['evidence']) for group in inventory)
+        assert all(e['evidence_id'] for e in entries)
+
+
+def test_student_can_expand_inventory_without_hiding_question(app):
+    client = login(app)
+    choose_target(app, client)
+    page = client.get('/student/autobiography').get_data(as_text=True)
+    assert '<details class="strengths-disclosure"' in page
+    assert '<summary' in page and '已確認資料盤點' in page
+    assert 'name="motivation"' in page
+
+
+def test_contents_evidence_is_nested_under_its_chapter(app):
+    from html.parser import HTMLParser
+
+    class Outline(HTMLParser):
+        def __init__(self):
+            super().__init__(); self.inside = False; self.depth = 0; self.chapters = 0; self.evidence_nested = False
+        def handle_starttag(self, tag, attrs):
+            attrs = dict(attrs)
+            if tag == 'ol' and attrs.get('class') == 'toc':
+                self.inside = True; self.depth = 1
+            elif self.inside and tag in ('ol', 'ul'):
+                self.depth += 1
+            elif self.inside and tag == 'li' and self.depth == 1:
+                self.chapters += 1
+            elif self.inside and tag == 'li' and self.depth > 1:
+                self.evidence_nested = True
+        def handle_endtag(self, tag):
+            if self.inside and tag in ('ol', 'ul'):
+                self.depth -= 1
+                if self.depth == 0: self.inside = False
+    client = login(app)
+    choose_target(app, client)
+    page = client.get(f'/student/targets/{program(app)}').get_data(as_text=True)
+    tree = Outline(); tree.feed(page)
+    assert tree.chapters == 10
+    assert tree.evidence_nested
+
+
+# ---------- B1／B2（2026-11-13）：素材拖放、保留學生自己打的字 ----------
+
+def _rewrite(prompt, schema):
+    return {"paragraphs": [{"title": "動機", "text": "AI 重寫的新版本。", "sources": []}]}
+
+
+def test_regenerating_keeps_paragraphs_the_student_edited(app):
+    from app.services.autobiography_service import own_words, guided_questions, save_edits
+
+    with app.app_context():
+        student = User.query.filter_by(username="stu").one()
+        prog = AdmissionProgram.query.filter_by(program_code="208003").one()
+        first = generate_draft(student, prog, ANSWERS, generate=_rewrite)
+        save_edits(first, ["這是我自己改的一句話。"], student)
+        second = generate_draft(student, prog, ANSWERS, generate=_rewrite)
+
+        assert second.content_json["paragraphs"][0]["text"] == "AI 重寫的新版本。"
+        assert second.content_json["kept_paragraphs"] == [{"title": "動機", "text": "這是我自己改的一句話。"}]
+        # 再重寫一次（上一版沒人改）也不會弄丟
+        third = generate_draft(student, prog, ANSWERS, generate=_rewrite)
+        assert third.content_json["kept_paragraphs"] == second.content_json["kept_paragraphs"]
+        texts = [item["text"] for item in own_words(third.content_json, guided_questions(prog))]
+        assert "這是我自己改的一句話。" in texts
+        assert ANSWERS["motivation"] in texts
+
+
+def test_draft_page_offers_own_words_and_facts_as_draggable_pieces(app):
+    client = login(app)
+    choose_target(app, client)
+    client.post("/student/autobiography/generate", data={"program_id": program(app), **ANSWERS})
+
+    html = client.get(f"/student/autobiography?program_id={program(app)}").get_data(as_text=True)
+
+    assert "data-bio-pieces" in html and "js/bio-pieces.js" in html
+    assert "你自己寫的文字" in html
+    assert f'data-bio-piece="{ANSWERS["motivation"]}"' in html
+    assert 'draggable="true"' in html and "（F1）" in html
+
+
+def test_question_page_offers_facts_as_draggable_pieces(app):
+    client = login(app)
+    choose_target(app, client)
+
+    html = client.get("/student/autobiography").get_data(as_text=True)
+
+    assert "data-bio-pieces" in html
+    assert "校園黑客松" in html and "（F" in html

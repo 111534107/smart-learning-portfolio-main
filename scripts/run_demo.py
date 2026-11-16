@@ -5,10 +5,12 @@
 然後打開 http://127.0.0.1:5000
 
 展示帳號（皆為假資料）：
-    學生  111534105 / demo1234（王小明，還沒選目標校系）
-    學生  111534107 / demo1234（林小美，已送導師確認）
+    學生  113534901 / demo1234（王小明，還沒選目標校系）
+    學生  113534902 / demo1234（林小美，已送導師確認）
+    學生  113534903 / demo1234（張小華，專五，可以產生自傳）
     導師  teacher01 / demo1234（負責資管科三甲）
-    科辦  staff01   / demo1234（林科助，核准電子獎狀）
+    科辦  staff01   / demo1234（林科助，職稱科助：可審核、建立電子獎狀，要等主任核准）
+    科辦  chief01   / demo1234（陳主任，職稱主任：核准電子獎狀、看科辦全部操作紀錄、核准表單上架）
     管理者 admin     / demo1234
 每次啟動都會重建 instance/demo.db。
 """
@@ -28,6 +30,7 @@ from app.extensions import db  # noqa: E402
 from app.services.admission_service import import_seed_programs  # noqa: E402
 from app.services.transfer_exam import import_transfer_programs  # noqa: E402
 from app.services import certificate_service, review_snapshot_service  # noqa: E402
+from app.services import form_library_service  # noqa: E402
 from app.models import (  # noqa: E402
     AdmissionProgram,
     AwardCertificate,
@@ -44,32 +47,38 @@ DEMO_PASSWORD = "demo1234"
 
 # 登入頁「Demo 快速登入」列出的帳號，和 seed() 建立的帳號一致
 DEMO_ACCOUNTS = [
-    {"role": "student", "label": "學生", "username": "111534105", "password": DEMO_PASSWORD,
+    {"role": "student", "label": "學生", "username": "113534901", "password": DEMO_PASSWORD,
      "name": "王小明", "note": "還沒選目標校系"},
-    {"role": "student", "label": "學生", "username": "111534107", "password": DEMO_PASSWORD,
+    {"role": "student", "label": "學生", "username": "113534902", "password": DEMO_PASSWORD,
      "name": "林小美", "note": "已送導師確認"},
+    {"role": "student", "label": "學生", "username": "113534903", "password": DEMO_PASSWORD,
+     "name": "張小華", "note": "專五，可以產生自傳"},
     {"role": "teacher", "label": "導師", "username": "teacher01", "password": DEMO_PASSWORD,
      "name": "陳導師", "note": "負責資管科三甲"},
+    {"role": "staff", "label": "科辦主任", "username": "chief01", "password": DEMO_PASSWORD,
+     "name": "陳主任", "note": "核准電子獎狀、核准表單上架"},
     {"role": "staff", "label": "科辦", "username": "staff01", "password": DEMO_PASSWORD,
-     "name": "林科助", "note": "核准電子獎狀"},
+     "name": "林科助", "note": "科助：審核、建立電子獎狀"},
     {"role": "admin", "label": "管理者", "username": "admin", "password": DEMO_PASSWORD, "name": "系統管理者"},
 ]
 
 
 def seed():
-    student = User(username="111534105", display_name="王小明", role="student")
+    student = User(username="113534901", display_name="王小明", role="student")
     teacher = User(username="teacher01", display_name="陳導師", role="teacher")
     admin = User(username="admin", display_name="系統管理者", role="admin")
-    staff = User(username="staff01", display_name="林科助", role="staff")
-    for user in (student, teacher, admin, staff):
+    staff = User(username="staff01", display_name="林科助", role="staff", job_title="科助")
+    chief = User(username="chief01", display_name="陳主任", role="staff", job_title="主任")  # 僅為測試資料
+    for user in (student, teacher, admin, staff, chief):
         user.set_password(DEMO_PASSWORD)
         db.session.add(user)
     db.session.flush()
-    db.session.add(StudentProfile(user_id=student.id, student_no="111534105", class_name="資管科三甲", admission_year=113))
+    db.session.add(StudentProfile(user_id=student.id, student_no="113534901", class_name="資管科三甲", admission_year=113))
 
     courses = [
-        (1, "上", "計算機概論", 3, 88), (1, "下", "程式設計（一）", 3, 91), (1, "下", "國文", 2, 82),
-        (2, "上", "資料庫管理實務(SQL)", 3, 85), (2, "下", "網頁設計", 3, 93), (3, "上", "系統分析與設計", 3, 79),
+        # 前四門和假成績單（scripts/make_fake_transcript.py）同名、同年級學期、同分數，上傳後認得是同一門課（B26）
+        (1, "上", "資訊科技", 3, 86), (1, "下", "程式設計", 3, 88), (1, "下", "國文", 2, 83),
+        (1, "下", "網頁設計", 3, 93), (2, "上", "資料庫管理實務(SQL)", 3, 85), (3, "上", "系統分析與設計", 3, 79),
     ]
     for year, semester, name, credits, score in courses:
         db.session.add(LearningCourseRecord(
@@ -96,18 +105,23 @@ def seed():
     import_seed_programs()
     # 展示用：再補上 PDF 裡所有國立校系，讓「選很多校系」的畫面有足夠的資料
     import_seed_programs(PROJECT_ROOT / "app" / "content" / "admission_demo_national_116.csv")
+    # 2026-11-13：同一份 PDF 附錄裡的私立校系（目標校系地圖才會有私立學校）
+    import_seed_programs(PROJECT_ROOT / "app" / "content" / "admission_demo_private_116.csv")
+    import_seed_programs(PROJECT_ROOT / "app" / "content" / "admission_demo_night_private_115.csv")  # 2026-11-13 私立二技進修部
     import_seed_programs(PROJECT_ROOT / "app" / "content" / "admission_demo_dayapply_115.csv")
     # 插大（轉學考）：北中南資訊相關科系的示範資料（官方簡章，見 CSV 的出處欄）
     import_transfer_programs()
+    from app.services import school_directory
+    school_directory.import_defaults()  # 學校名錄：地區、座標、官網、招生網站（目標校系的地圖用）
     db.session.add(ClassAdvisor(teacher_id=teacher.id, class_name="資管科三甲", school_year=115))
-    classmate = User(username="111534107", display_name="林小美", role="student")
+    classmate = User(username="113534902", display_name="林小美", role="student")
     classmate.set_password(DEMO_PASSWORD)
     db.session.add(classmate)
     db.session.flush()
-    db.session.add(StudentProfile(user_id=classmate.id, student_no="111534107", class_name="資管科三甲", admission_year=113))
-    db.session.add(LearningCourseRecord(student_id=classmate.id, school_year=1, semester="上", course_name="計算機概論",
-                                        normalized_course_name="計算機概論", credits=3, score=90))
-    # 113 學年度課綱的資訊類專業科目各一門，學群才判斷得出來（只有計算機概論時對不到課綱，推薦排序會亂）
+    db.session.add(StudentProfile(user_id=classmate.id, student_no="113534902", class_name="資管科三甲", admission_year=113))
+    db.session.add(LearningCourseRecord(student_id=classmate.id, school_year=1, semester="上", course_name="資訊科技",
+                                        normalized_course_name="資訊科技", credits=3, score=90))
+    # 113 學年度課綱的資訊類專業科目各一門，學群才判斷得出來（課名都要在科目表裡，B26）
     for year, semester, name, score in ((1, "下", "程式設計", 88), (2, "上", "網頁設計", 85), (2, "下", "管理資訊系統", 82)):
         db.session.add(LearningCourseRecord(student_id=classmate.id, school_year=year, semester=semester, course_name=name,
                                             normalized_course_name=name, credits=3, score=score))
@@ -121,14 +135,50 @@ def seed():
                                source="award_record", status="confirmed")
     db.session.add(service_record)
     db.session.flush()
-    db.session.add(AwardCertificate(student_id=classmate.id, portfolio=service_record, status="pending",
+    db.session.add(AwardCertificate(portfolio=service_record, status="pending",
                                     title=certificate_service.KINDS["service"], issuer=certificate_service.DEFAULT_ISSUER,
                                     body=certificate_service.default_body(service_record)))
     program = AdmissionProgram.query.filter_by(program_code="208003").one()
     db.session.add(StudentTarget(student_id=classmate.id, rule_version_id=program.id))
+    _seed_senior(teacher, program)  # 專五學生：示範產生自傳與修改草稿頁的拖放（2026-11-13，B10）
+    # 2026-11-13 不放合成表單：表單由科辦按「從學校網站更新表單」抓真的，沒有的請學生到科辦拿紙本
     db.session.flush()
+    # 示範學生用假學號（113 學年入學＝專三），不綁學校信箱：真的學生用學校 Google 登入時會建立自己的帳號
     db.session.commit()
     review_snapshot_service.request_review(classmate, program)  # 送審時存快照
+
+
+def _seed_senior(teacher, program):
+    """專五學生（111 學年入學）：五年資料齊全、已選目標校系、還沒寫自傳。僅為測試資料。"""
+    senior = User(username="113534903", display_name="張小華", role="student")
+    senior.set_password(DEMO_PASSWORD)
+    db.session.add(senior)
+    db.session.flush()
+    db.session.add(StudentProfile(user_id=senior.id, student_no="113534903", class_name="資管科五甲", admission_year=111))
+    db.session.add(ClassAdvisor(teacher_id=teacher.id, class_name="資管科五甲", school_year=115))
+    courses = [
+        (1, "上", "資訊科技", 92), (1, "下", "程式設計", 90), (2, "上", "網頁設計", 88), (2, "下", "管理資訊系統", 85),
+        (3, "上", "資料庫管理實務(SQL)", 91), (3, "下", "系統分析與設計", 87), (4, "上", "資料結構", 84), (4, "下", "實務專題", 95),
+    ]
+    for year, semester, name, score in courses:
+        db.session.add(LearningCourseRecord(student_id=senior.id, school_year=year, semester=semester, course_name=name,
+                                            normalized_course_name="".join(name.split()), credits=3, score=score,
+                                            confirmation_status="confirmed"))
+    for name, level, day in (("電腦軟體應用丙級", "丙級", date(2023, 5, 20)), ("網頁設計乙級", "乙級", date(2024, 11, 2)),
+                             ("資料庫應用乙級", "乙級", date(2025, 6, 15))):
+        db.session.add(CredentialRecord(student_id=senior.id, credential_name=name, level=level, issuing_organization="勞動部",
+                                        issue_date=day, confirmation_status="confirmed"))
+    records = [
+        ("competition", 3, 2, "全國技藝競賽 網頁設計職類 第三名", "獨立完成購物網站前後端。"),
+        ("competition", 4, 1, "校園黑客松 最佳技術獎", "三人一組，負責後端 API 與資料庫設計。"),
+        ("activity", 2, 1, "資管科資訊週", "擔任工作人員，協助程式體驗攤位。"),
+        ("leadership", 3, 1, "資管科學會 活動長", "規劃迎新與資訊週活動。"),
+        ("service", 4, 2, "社區長者手機教學志工", "教長者使用通訊軟體與防詐騙。"),
+    ]
+    for category, year, semester, title, description in records:
+        db.session.add(Portfolio(student_id=senior.id, category=category, school_year=year, semester=semester,
+                                 title=title, description=description, status="confirmed"))
+    db.session.add(StudentTarget(student_id=senior.id, rule_version_id=program.id))
 
 
 def main():
@@ -156,7 +206,7 @@ def main():
         db.create_all()
         seed()
     print(f"展示網站：http://127.0.0.1:{port}")
-    print(f"帳號（密碼都是 {DEMO_PASSWORD}）：學生 111534105、111534107｜導師 teacher01｜科辦 staff01｜管理者 admin")
+    print(f"帳號（密碼都是 {DEMO_PASSWORD}）：學生 113534901、113534902、113534903｜導師 teacher01｜科辦 staff01（科助）、chief01（主任）｜管理者 admin")
     app.run(port=port, debug=False)
 
 

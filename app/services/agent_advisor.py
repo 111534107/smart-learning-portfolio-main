@@ -23,13 +23,13 @@ from app.services.matching_service import rank_programs
 GOAL = ("請依我已確認的資料，推薦適合我的二技或插大校系並說明理由；"
         "如果我已經選了目標校系、也回答過自傳問題，請挑一個最適合的目標校系幫我準備自傳草稿。")
 
-INSTRUCTION = """你是康寧大學資管科學習歷程系統的「升學 Agent」，正在幫一位五專資管科學生規劃升學。
+INSTRUCTION = """你是康寧大學資管科學習歷程系統的「資管科小助手」，正在幫一位五專資管科學生規劃升學。
 規則：
 1. 先用工具排序全部校系，再查學生已選的目標校系；不要自己猜資料。
 2. 不可以替學生決定目標校系；自傳草稿只能寫學生「已選」的目標校系，而且學生要先回答過自傳問題。
 3. 不可報的學校要說明原因；「需確認」的要提醒學生自己核對簡章。
-4. 契合度是依學生資料和簡章加權算的準備程度，不是錄取機率；不可以說學生一定會上或不會上。
-   插大（轉學考）只考筆試的校系依考試成績錄取，不算契合度；提到插大時要說插幾年級、考什麼科目，並提醒學生自己核對報考資格。
+4. 準備度是依學生資料和簡章加權算的準備程度，不是錄取機率；不可以說學生一定會上或不會上。
+   插大（轉學考）只考筆試的校系依考試成績錄取，不算準備度；提到插大時要說插幾年級、考什麼科目，並提醒學生自己核對報考資格。
 5. 最後用繁體中文給 3～5 點條列建議：先講最適合的校系與理由，再講還缺什麼、下一步做什麼。每點一行；不要輸出 HTML，也不要用 Markdown 符號（例如 ** 或 #）。"""
 
 AUTO = "auto"
@@ -122,6 +122,9 @@ def _tools(student, generate):
         answers = _latest_answers(student)
         if answers is None:
             return {"error": "你還沒回答自傳問題；自傳要用你自己的經驗，請先到自傳頁回答 4 題。", "link": link}
+        problem = autobiography_service.own_words_problem(program, answers)
+        if problem:  # 比重高的項目學生還沒自己寫：不替他產生草稿
+            return {"error": problem, "link": link}
         try:
             if generate is None and ai_ready():
                 ai_quota_service.consume(student)  # 和自傳頁一樣計次；AI 失敗時 rollback 退回
@@ -137,7 +140,7 @@ def _tools(student, generate):
                 "link": link}
 
     return [
-        Tool("rank_programs", "排序校系", "依學生已確認的資料，排序全部正式校系（可報／需確認／不可報、契合度、理由）。", rank),
+        Tool("rank_programs", "排序校系", "依學生已確認的資料，排序全部正式校系（可報／需確認／不可報、準備度、理由）。", rank),
         Tool("list_my_targets", "查目標校系", "列出學生已選的目標校系、各自能不能報，以及是否回答過自傳問題。", list_targets),
         Tool("draft_autobiography", "準備自傳草稿", "為學生已選的一個目標校系產生自傳草稿（每段標出依據）；學生要先回答過自傳問題。",
              draft, params={"program_id": "目標校系的編號（從目標校系清單取得）"}),
@@ -208,7 +211,7 @@ def start_advisor(student, background=False):
             except Exception:  # 背景執行沒有人接例外；記下來，畫面才會停在「失敗」而不是一直轉
                 db.session.rollback()
                 app.logger.exception("升學 Agent 背景執行失敗（紀錄 %s）", task_id)
-                fail_task(task_id, "Agent 執行時發生錯誤，請稍後再按一次「再請 Agent 規劃一次」。")
+                fail_task(task_id, "小助手執行時發生錯誤，請稍後再按一次「再請小助手規劃一次」。")
 
     threading.Thread(target=work, name=f"agent-advisor-{task_id}", daemon=True).start()
     return task_id

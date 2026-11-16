@@ -23,6 +23,8 @@ EXTRACTED = {"programs": [{"program_code": "208099", "admission_year": 116, "sch
                            "department_name": "資訊管理系", "admission_category": "管理類四",
                            "items": [{"name": "證照", "weight": 100, "categories": ["credential"]}]}]}
 ANSWERS = {"motivation": "專二做網頁時喜歡上資管。", "proud": "黑客松負責後端。", "challenge": "", "future": "想學資料分析。"}
+from tests.autobio_helpers import FOCUS_ANSWERS  # noqa: E402
+ANSWERS = {**ANSWERS, **FOCUS_ANSWERS}  # 比重高的項目也要學生自己寫（2026-11-12）
 
 
 @pytest.fixture()
@@ -202,7 +204,7 @@ def test_admin_can_run_patrol_from_agent_page(app):
 
     assert response.status_code == 302
     assert AgentTask.query.filter_by(task_type="agent_patrol").count() == 1
-    assert "讓 Agent 巡查一次" in client.get("/admin/agent").get_data(as_text=True)
+    assert "讓 Agent 上網找資料並巡查" in client.get("/admin/agent").get_data(as_text=True)
 
 
 # ---------- 使用者觸發（T6、T7）----------
@@ -455,8 +457,8 @@ def test_agent_buttons_tell_the_user_to_wait(app):
     html = login(app, "stu").get("/student/matching").get_data(as_text=True)
     admin_html = login(app, "admin").get("/admin/agent").get_data(as_text=True)
 
-    assert 'data-busy-text="Agent 正在規劃' in html
-    assert 'data-busy-text="Agent 巡查中' in admin_html
+    assert 'data-busy-text="小助手正在規劃' in html
+    assert 'data-busy-text="Agent 上網找資料並巡查中' in admin_html
 
 
 # ---------- 邊做邊顯示（DEMO-01） ----------
@@ -522,7 +524,7 @@ def test_running_page_polls_progress_and_disables_rerun(app):
     page = login(app, "stu").get(f"/student/agent/runs/{task_id}").get_data(as_text=True)
 
     assert f"/student/agent/runs/{task_id}/progress" in page and "準備開始" in page
-    assert "Agent 的建議" not in page
+    assert "小助手的建議" not in page
     assert "disabled" in page
 
 
@@ -557,7 +559,7 @@ def test_background_run_finishes_and_failures_are_recorded(tmp_path, monkeypatch
         raise RuntimeError("故意失敗")
     monkeypatch.setattr(agent_advisor, "run_advisor", boom)
     failed = wait_done(client.post("/student/agent/advise").headers["Location"])
-    assert failed["status"] == "failed" and "再請 Agent 規劃一次" in failed["summary"]
+    assert failed["status"] == "failed" and "再請小助手規劃一次" in failed["summary"]
 
 
 def test_run_left_running_by_a_restart_is_shown_as_interrupted(app):
@@ -574,7 +576,7 @@ def test_run_left_running_by_a_restart_is_shown_as_interrupted(app):
 
     assert data["done"] is True and data["status"] == "failed"
     assert "中斷" in data["summary"]
-    assert "再請 Agent 規劃一次" in client.get(f"/student/agent/runs/{task_id}").get_data(as_text=True)
+    assert "再請小助手規劃一次" in client.get(f"/student/agent/runs/{task_id}").get_data(as_text=True)
 
 
 def test_recent_running_task_is_not_marked_interrupted(app):

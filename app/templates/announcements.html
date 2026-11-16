@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "announcements" %}
+{% block title %}二技公告｜資管科學習歷程{% endblock %}
+{% block navigation %}{{ masthead(user, "二技公告") }}{% endblock %}
+{% block content %}
+<section class="work-shell">
+  <header class="work-heading">
+    <div>
+      <p class="small">管理員核對官方簡章後發布</p>
+      <h1>二技公告</h1>
+      <p>招生日程與重要提醒。點標題看內容，看過後「未讀」標記會消失。</p>
+    </div>
+  </header>
+  <section class="work-panel">
+    {% if rows %}
+    <ul class="work-list">
+      {% for row in rows %}
+      <li{% if row.id in unread %} data-unread{% endif %}>
+        <a href="{{ url_for('announcement.detail', announcement_id=row.id) }}"><strong>{{ row.title }}</strong></a>
+        <span class="small muted">{{ row.published_at|taipei_time("%Y-%m-%d") }}</span>
+        {% if row.id in unread %}<span class="tag tag--warn">未讀</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">目前沒有二技公告。管理員核准新的招生日程後會出現在這裡。</p>
+    {% endif %}
+  </section>
+</section>
+{% endblock %}

@@ -1,4 +1,4 @@
-from flask import Blueprint, redirect, request, url_for
+from flask import Blueprint, redirect, render_template, request, url_for
 
 from app.extensions import db
 from app.models import PortfolioSubmission
@@ -16,9 +16,11 @@ def staff_review_result(submission_id):
     if not submission:
         from flask import abort
         abort(404)
-    decision = request.form.get("decision", "needs_revision")
+    decision = request.form.get("decision", "")
     comment = request.form.get("comment", "").strip()
     issues = [value.strip() for value in request.form.getlist("revision_item") if value.strip()]
+    if decision not in {"approved", "needs_revision", "rejected"} or (decision in {"needs_revision", "rejected"} and not comment):
+        return render_template("staff_review_error.html"), 400
     from app.routes.main import get_current_user
     record_review_result(submission, get_current_user(), decision, comment, issues)
     db.session.commit()

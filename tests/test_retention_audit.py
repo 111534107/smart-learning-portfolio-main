@@ -35,6 +35,8 @@ STUDENT_NAME = "測試學生甲"
 STUDENT_NO = "111534188"
 BLOCKED_MESSAGE = "這筆已經送導師確認，不能刪除；如果內容有誤，請修改後再送一次"
 ANSWERS = {"motivation": "喜歡把需求變成系統。", "proud": "黑客松負責後端。", "challenge": "", "future": "想學資料分析。"}
+from tests.autobio_helpers import FOCUS_ANSWERS  # noqa: E402
+ANSWERS = {**ANSWERS, **FOCUS_ANSWERS}  # 比重高的項目也要學生自己寫（2026-11-12）
 
 
 @pytest.fixture()

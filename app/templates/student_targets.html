@@ -9,20 +9,15 @@
 {% block content %}
 {{ page_band("目標校系") }}
 <div class="page page--banded">
-  {% if slots.limit and slots.used > slots.limit %}
-  <div class="mb-1">
-    <p class="alert" role="alert">五年級準備備審資料時，目標校系最多 {{ slots.limit }} 所。你目前有 {{ slots.used }} 所，請先取消 {{ slots.used - slots.limit }} 所；已寫好的自傳仍會保留。</p>
-    <div class="record-card__actions"><a class="button button--small" href="#my-targets">查看已選目標校系</a></div>
-  </div>
-  {% endif %}
-  {% if slots.limit %}
-  <p class="muted mb-1" data-tour="五年級最多選 5 所，換學校自傳要重寫。" data-tour-order="0">先選最想上的 {{ slots.limit }} 所，看準備度。換掉學校，寫好的自傳要重寫。</p>
-  <p class="mb-1"><span class="tag {{ 'tag--warn' if slots.used >= slots.limit else 'tag--info' }}">已選 {{ slots.used }}／{{ slots.limit }}</span></p>
-  {% else %}
-  <p class="muted mb-1" data-tour="想去哪裡都可以選，隨時可以換。" data-tour-order="0">目標校系隨時可以更換。五年級準備備審資料時最多保留 5 所。</p>
-  {% endif %}
+  {% if config.LOCAL_DEMO_MODE %}<p class="small muted">本機展示使用示範校系資料，學年度與招生條件請以當年度官方簡章確認。</p>{% endif %}
+  <p class="muted mb-1" data-tour="想去哪裡都可以選，隨時可以換。" data-tour-order="0">目標校系不限所數，隨時可以更換；報名條件與所需資料請依各校簡章確認。</p>
+  <nav class="match-tabs mb-1" aria-label="升學管道">
+    <a class="button button--small {{ '' if track == 'twotech' else 'button--line' }}" href="{{ url_for('student.target_list', track='twotech') }}" aria-current="{{ 'page' if track == 'twotech' else 'false' }}">二技（{{ track_counts.twotech }}）</a>
+    <a class="button button--small {{ '' if track == 'transfer' else 'button--line' }}" href="{{ url_for('student.target_list', track='transfer') }}" aria-current="{{ 'page' if track == 'transfer' else 'false' }}">插大（{{ track_counts.transfer }}）</a>
+  </nav>
+  <p class="mb-1"><span class="tag tag--info">{{ '插大' if track == 'transfer' else '二技' }}已選 {{ selected_programs|length }} 所</span></p>
   {% if focus %}{% include "partials/focus.html" %}{% endif %}
-  <div class="record-card__actions mb-1"><a class="button button--small button--quiet" href="{{ url_for('student.schedule') }}">招生時程</a></div>
+  <div class="record-card__actions mb-1"><a class="button button--small button--quiet" href="{{ url_for('student.schedule') }}">招生時程</a><a class="button button--small button--quiet" href="{{ url_for('student.pathways') }}">二技、插大、四技差在哪</a>{% if track == 'transfer' %}<a class="button button--small" href="{{ url_for('student.transfer_plans') }}">我的插大準備（自填簡章與考科）</a>{% endif %}</div>
   {% if error %}
   <div class="mb-1">
     <p class="alert" role="alert">{{ error }}</p>
@@ -54,12 +49,12 @@
     {% endif %}
   </section>
 
-  {% if slots.old %}
+  {% if old_targets %}
   <section class="sheet mb-1" aria-labelledby="old-targets">
     <div class="sheet__head"><h2 id="old-targets">舊學年度的目標校系</h2></div>
-    <p class="small muted mb-1">新的簡章已經公布，這些是舊學年度的校系，不占名額。之前的送審紀錄會保留。</p>
+    <p class="small muted mb-1">新的簡章已經公布，這些是舊學年度的校系。之前的送審紀錄會保留。</p>
     <ul class="plain-list">
-      {% for target in slots.old %}
+      {% for target in old_targets %}
       <li class="record-card__actions">
         <span>{{ target.program.school_name }} {{ target.program.department_name }}（{{ target.program.admission_year }} 學年度）</span>
         <form method="post" action="{{ url_for('student.target_remove', program_id=target.rule_version_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small button--quiet" type="submit">刪除</button></form>

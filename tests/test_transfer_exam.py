@@ -132,7 +132,7 @@ def test_exam_only_transfer_has_no_fit_and_lists_subjects_and_eligibility(app, t
     row = rank_programs(student, [program], conditions={}, transfer=load_transfer_details(transfer_csv))[0]
 
     assert row["fit"] is None
-    assert row["fit_note"] == "依考試成績，不算契合度"
+    assert row["fit_note"] == "依考試成績，不算準備度"
     assert row["channel_label"] == "插大（轉學考）"
     assert row["status"] == "needs_check"  # 報考資格系統無法自動判斷（D8）
     text = "".join(row["reasons"])
@@ -206,12 +206,15 @@ def login(app):
     return client
 
 
-def test_matching_page_shows_skill_review_and_transfer_cards_side_by_side(site):
-    html = login(site).get("/student/matching").get_data(as_text=True)
+def test_matching_page_shows_skill_review_and_transfer_in_separate_tabs(site):
+    # 10-30 起二技、插大分兩個分頁（使用者：混在一頁要一直滑）
+    client = login(site)
+    twotech = client.get("/student/matching").get_data(as_text=True)
+    html = client.get("/student/matching?track=transfer").get_data(as_text=True)
 
-    assert "二技大學" in html and "測試大學" in html
-    assert "二技技優甄審" in html and "插大（轉學考）" in html
-    assert "依考試成績，不算契合度" in html
+    assert "二技大學" in twotech and "二技技優甄審" in twotech and "測試大學" not in twotech
+    assert "測試大學" in html and "插大（轉學考）" in html and "二技大學" not in html
+    assert "依考試成績，不算準備度" in html
     assert "計算機概論×1、英文×1" in html
     assert "專科畢業可報二或三年級" in html
     assert 'href="https://exam.test.edu.tw/115.pdf"' in html
@@ -272,7 +275,7 @@ def test_advisor_rank_tool_tells_ai_about_transfer_programs(app, transfer_csv, m
     assert {item["department"] for item in transfer} == {"資訊管理學系", "資訊工程學系"}
     exam_only = next(item for item in transfer if item["department"] == "資訊管理學系")
     assert exam_only["subjects"] == "計算機概論×1、英文×1"
-    assert exam_only["fit_note"] == "依考試成績，不算契合度"
+    assert exam_only["fit_note"] == "依考試成績，不算準備度"
     assert "插大" in rank["summary"]
     assert all(item["channel"] for item in rank["programs"])
     assert "插大" in INSTRUCTION

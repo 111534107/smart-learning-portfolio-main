@@ -1,0 +1,44 @@
+%%{init: {'theme':'base','themeVariables': {'fontSize':'18px','fontFamily':'DFKai-SB, BiauKai, serif','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280','edgeLabelBackground':'#FFFFFF'},'flowchart':{'wrappingWidth':400}}}%%
+flowchart TD
+    classDef student fill:#DBEAFE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef system fill:#E0F2FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef teacher fill:#DCFCE7,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef staff fill:#EDE9FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef ai fill:#FFEDD5,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef alert fill:#FEE2E2,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef note fill:#FFFFFF,stroke:#9CA3AF,color:#6B7280,stroke-width:1px,stroke-dasharray:5 3;
+
+    Start([學生登入]) --> HasTarget{已選擇目標校系？}
+    Start -.- Home[首頁：引導卡片（一次最多 3 張）與二技公告<br/>（公告流程見圖 12）]:::note
+    HasTarget -- 否 --> Recommend[AI 依學生條件推薦資管相關二技校系<br/>規則算符合程度＋AI 寫推薦理由]:::ai
+    Recommend --> Choose[學生選擇想去的校系<br/>不限數量、隨時可換<br/>（10-21 指導老師：不能限制學生的選擇）]:::student
+    Choose --> Req
+    HasTarget -- 是 --> Req[系統列出該校系需要的<br/>備審資料項目與標準]:::system
+    Req --> Download[學生自行登入學校系統<br/>下載或複製成績、獎懲記錄、缺曠、電子證書]:::student
+    Download -.- Note1[本系統不使用學生帳號登入或爬取學校系統<br/>期中修畢課程以列印版成績單為準<br/>微學分沒有線上系統，要寫紙本向教務處申請（放進系統的方式待確認）]:::note
+    Download --> Upload[上傳資料或貼上表格，並選擇類別<br/>成績與學分、證照、活動、<br/>競賽、服務學習、幹部經歷]:::student
+    Upload --> FileOK{檔案格式與大小正確？}
+    Upload -.- Paste[成績、獎懲、缺曠可以整段貼上表格<br/>缺曠只存合計、只有本人與班導看得到（見圖 7）]:::note
+    FileOK -- 否 --> FileErr[顯示錯誤原因，請重新上傳]:::alert
+    FileErr --> Upload
+    FileOK -- 是 --> Extract[本機 OCR 辨識文件（原始檔不送外部）<br/>去識別化後，AI 只整理必要欄位<br/>獎懲記錄逐列分類；證照初判；<br/>電子證書讀出驗證碼]:::ai
+    Extract --> Recognized{辨識成功？}
+    Recognized -- 否 --> Explain[AI 說明可能哪裡有問題<br/>與建議怎麼修正]:::alert
+    Explain --> Retry{重新上傳？}
+    Retry -- 是 --> Upload
+    Retry -- 否 --> Manual[學生手動輸入]:::student
+    Recognized -- 是 --> Confirm[學生確認與修正（候選結果不會直接生效）<br/>AI 在旁註記可能的問題與修改建議]:::student
+    Manual --> Confirm
+    Confirm -.- Note2[一定要學生本人確認後才存入<br/>成績單、證照與競賽證明不經導師審核<br/>競賽證明由主辦方開立，學生自行上傳]:::note
+    Confirm --> Compare[系統比對校系要求]:::system
+    Confirm -.科上派的服務.-> StaffRec[申請電子獎狀 → 科辦核准<br/>產出後列入學生資料（見圖 9）]:::staff
+    StaffRec -.-> Compare
+    Compare --> Enough{資料符合要求？}
+    Enough -- 否 --> Missing[列出還缺什麼]:::alert
+    Missing --> Upload
+    Enough -- 是 --> Teacher[學生送審，老師查看送審版本<br/>可加段落註解、修改自傳（見圖 8）]:::teacher
+    Teacher --> Reasonable{內容合理？}
+    Reasonable -- 否 --> Advice[老師按「請學生修改」並留下建議]:::teacher
+    Advice --> Confirm
+    Reasonable -- 是 --> Output[導師確認送審的那一版後產出完整備審資料<br/>自傳可由 AI 依確認過的資料協助撰寫]:::system
+    Output --> Print([學生下載列印])

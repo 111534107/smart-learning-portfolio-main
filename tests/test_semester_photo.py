@@ -87,6 +87,26 @@ def test_upload_replaces_puzzle_picture_and_strips_metadata(app):
     assert client.get(f"/student/photo/3/{photo_url}").status_code == 200
 
 
+def test_photo_served_when_upload_folder_is_relative(tmp_path, monkeypatch):
+    """預設 UPLOAD_FOLDER 是相對路徑 instance/uploads；send_file 會以 app 資料夾為基準找，曾因此回 500。"""
+    monkeypatch.chdir(tmp_path)
+    app = create_app({"SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:", "TESTING": True, "UPLOAD_FOLDER": "instance/uploads"})
+    with app.app_context():
+        db.create_all()
+        user = User(username="stu", display_name="stu", role="student")
+        user.set_password("pw")
+        db.session.add(user)
+        db.session.flush()
+        db.session.add(StudentProfile(user_id=user.id, student_no="stu", admission_year=academic_year_of(date.today()) - 2))
+        db.session.add(AuditLog(user_id=user.id, action="student.welcome_done"))
+        db.session.commit()
+    client = login(app)
+    client.post("/student/photo", data={"photo": (jpeg_with_gps(), "happy.jpg")}, content_type="multipart/form-data")
+
+    assert list((tmp_path / "instance" / "uploads").rglob("*.jpg"))
+    assert client.get(f"/student/photo/3/{current_semester(date.today())}").status_code == 200
+
+
 def test_only_owner_can_see_photo(app):
     client = login(app)
     client.post("/student/photo", data={"photo": (jpeg_with_gps(), "happy.jpg")}, content_type="multipart/form-data")

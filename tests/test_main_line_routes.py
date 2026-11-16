@@ -115,6 +115,8 @@ def test_teacher_sees_own_class_and_can_confirm(app):
     dashboard = teacher.get("/teacher/dashboard").get_data(as_text=True)
     assert "111534100" in dashboard
     assert "111534200" not in dashboard
+    # 只有一位學生等確認：數字卡直接連到那位學生的頁面
+    assert f'href="/teacher/students/{stu_id}" data-pending-link' in dashboard
     assert teacher.get(f"/teacher/students/{stu_id}").status_code == 200
     assert teacher.get(f"/teacher/students/{other_id}").status_code == 403
 

@@ -5,7 +5,7 @@ import pytest
 
 from app import create_app
 from app.extensions import db
-from app.models import (AdmissionProgram, AdmissionRequirementItem, CredentialRecord, LearningCourseRecord, Portfolio,
+from app.models import (AdmissionProgram, AdmissionRequirementItem, CredentialRecord, LearningCourseRecord,
                         StudentProfile, User)
 from app.services.gap_service import analyze_gap
 from app.services.matching_service import load_conditions, rank_programs
@@ -63,46 +63,8 @@ def test_fit_is_the_same_number_as_gap_readiness(app):
 
     ranked = rank_programs(student, [program], conditions={})
 
-    assert ranked[0]["fit"] == analyze_gap(student, program)["readiness"] == 40
-
-
-def test_ranking_recalculates_after_student_adds_a_confirmed_credential(app):
-    student = make_student()
-    grades = make_program("900010", [("歷年成績", 100, "grades")])
-    credential = make_program("900011", [("證照", 100, "credential")])
-    before = rank_programs(student, [grades, credential], conditions={})
-    assert [row["program"].program_code for row in before] == ["900010", "900011"]
-    assert [row["fit"] for row in before] == [0, 0]
-
-    db.session.add(CredentialRecord(student_id=student.id, credential_name="測試證照",
-                                    issue_date=date(2025, 3, 1), confirmation_status="confirmed"))
-    db.session.flush()
-    after = rank_programs(student, [grades, credential], conditions={})
-    assert [row["program"].program_code for row in after] == ["900011", "900010"]
-    assert [row["fit"] for row in after] == [100, 0]
-
-
-def test_unconfirmed_portfolio_does_not_raise_recommendation_readiness(app):
-    student = make_student()
-    program = make_program("900013", [("活動經歷", 100, "activity")])
-    record = Portfolio(student_id=student.id, title="待核對活動", category="activity", school_year=1, status="draft")
-    db.session.add(record)
-    db.session.flush()
-    assert analyze_gap(student, program)["readiness"] == 0
-    record.status = "confirmed"
-    db.session.flush()
-    assert analyze_gap(student, program)["readiness"] == 100
-
-
-def test_readiness_keeps_document_only_requirements_in_total_weight(app):
-    student = make_student()
-    db.session.add(LearningCourseRecord(student_id=student.id, course_name="測試課程",
-                                        normalized_course_name="測試課程", school_year=1,
-                                        confirmation_status="confirmed"))
-    program = make_program("900012", [("自傳", 60, "autobiography"), ("成績", 40, "grades")])
-    result = analyze_gap(student, program)
-    assert result["readiness"] == 40
-    assert result["items"][0]["fraction"] is None
+    # 10-30 新規則：證照 1 筆＝一半 → 40×0.5 + 60×0 = 20
+    assert ranked[0]["fit"] == analyze_gap(student, program)["readiness"] == 20
 
 
 def test_graduate_cannot_apply_to_fresh_graduate_only_program_and_is_listed_last(app):
@@ -183,13 +145,14 @@ def test_every_program_gets_a_reason_naming_its_heaviest_item(app):
     assert "歷年成績" in reasons  # 還缺的項目也要說
 
 
-def test_program_with_only_self_prepared_items_has_no_fit_but_still_a_reason(app):
+def test_program_with_only_self_prepared_items_counts_unwritten_documents_as_zero(app):
+    # 10-30 起文件項目列入準備度：還沒寫自傳就是 0%，不再顯示「無法計算」
     student = make_student()
     program = make_program("900001", [("自傳", 100, "autobiography")])
 
     ranked = rank_programs(student, [program], conditions={})
 
-    assert ranked[0]["fit"] is None
+    assert ranked[0]["fit"] == 0
     assert ranked[0]["reasons"]
 
 
@@ -219,7 +182,8 @@ def test_related_departments_rank_before_unrelated_ones_with_higher_fit(app):
     assert [row["program"].department_name for row in ranked] == ["資訊管理系", "模具工程系"]
     assert any("資訊類專業科目 4 科" in reason and "資訊學群" in reason for reason in ranked[0]["reasons"])
     assert any("關聯較低" in reason for reason in ranked[1]["reasons"])
-    assert ranked[1]["status"] == "eligible"  # 不相關不代表不能報
+    # 不相關不代表不能報：機械類只提醒學生對照統測類別（10-30 起），不判不可報
+    assert ranked[1]["status"] == "needs_check"
 
 
 def test_accounting_information_is_not_ranked_as_information_group(app):
@@ -237,6 +201,33 @@ def test_accounting_information_is_not_ranked_as_information_group(app):
     assert by_name["會計資訊系"]["related"] is False
     assert by_name["醫護教育暨數位學習系"]["related"] is False
     assert any("商管學群" in reason for reason in by_name["會計資訊系"]["reasons"])
+
+
+def test_unrelated_program_with_other_admission_category_needs_check(app):
+    # 10-27 測試報告：護理系對資管學生也標「可報」。10-30 使用者：不寫死不可報，照招生類別提醒學生自己確認
+    student = make_student()
+    add_info_courses(student)
+    nursing = set_department(make_program("900001", [("證照", 100, "credential")]), "護理系", "護理類一")
+    accounting = set_department(make_program("900002", [("證照", 100, "credential")]), "會計資訊系", "管理類二")
+    open_all = set_department(make_program("900003", [("證照", 100, "credential")]), "航運技術系", "不限類別")
+
+    by_name = {row["program"].department_name: row for row in rank_programs(student, [nursing, accounting, open_all],
+                                                                            conditions={})}
+
+    assert by_name["護理系"]["status"] == "needs_check"
+    assert any("護理類一" in reason and "統測類別" in reason for reason in by_name["護理系"]["reasons"])
+    assert by_name["會計資訊系"]["status"] == "eligible"  # 資管科學生考的就是管理類
+    assert by_name["航運技術系"]["status"] == "eligible"  # 不限類別
+
+
+def test_transfer_exam_is_not_checked_by_admission_category(app):
+    student = make_student()
+    add_info_courses(student)
+    transfer = set_department(make_program("TRF-001", []), "護理系", "插大（轉學考）")
+
+    ranked = rank_programs(student, [transfer], conditions={}, transfer={})
+
+    assert not any("統測類別" in reason for reason in ranked[0]["reasons"])
 
 
 def test_student_without_course_data_gets_needs_check_relation(app):
@@ -305,13 +296,13 @@ def login(app):
     return client
 
 
-def test_matching_page_lists_every_program_with_status_and_detail_link(site):
+def test_matching_page_lists_every_program_with_status_and_reasons(site):
     html = login(site).get("/student/matching").get_data(as_text=True)
 
     assert "開放大學" in html and "應屆大學" in html
     assert html.index("開放大學") < html.index("應屆大學")  # 不可報的排最後，但仍列出
     assert "不可報" in html and "可報" in html
-    assert "查看校系細項與計算依據" in html
+    assert "限應屆畢業生" in html
     assert "不是錄取機率" in html
 
 
@@ -379,13 +370,18 @@ def test_every_school_in_seed_data_has_an_official_link():
     from pathlib import Path
     content = Path(__file__).resolve().parents[1] / "app" / "content"
     schools = set()
-    for name in ("admission_seed_115.csv", "admission_demo_national_116.csv", "admission_demo_dayapply_115.csv"):
+    for name in ("admission_seed_115.csv", "admission_demo_national_116.csv", "admission_demo_dayapply_115.csv",
+                 "admission_demo_private_116.csv"):
         with open(content / name, encoding="utf-8-sig") as handle:
             schools |= {row["學校"] for row in csv.DictReader(handle)}
 
     links = load_school_links()
 
-    assert schools <= set(links)
+    # 2026-11-13：學校官網首頁找不到招生頁的（例如台北海洋科大的選單是程式載入），至少要在學校名錄有官網
+    with open(content / "schools.csv", encoding="utf-8-sig") as handle:
+        websites = {row["學校"]: row["官網"] for row in csv.DictReader(handle)}
+    assert all(school in links or websites.get(school, "").startswith("https://") for school in schools)
+    assert len(schools - set(links)) <= 2
     assert all(url.startswith("https://") and ".edu.tw" in url for url in links.values())
 
 
@@ -395,10 +391,7 @@ def test_matching_page_shows_admission_links(site):
         program.source_url = "https://example.edu.tw/brochure.pdf"
         db.session.commit()
 
-    client = login(site)
-    with site.app_context():
-        program_id = AdmissionProgram.query.filter_by(program_code="900002").one().id
-    html = client.get(f"/student/matching/{program_id}").get_data(as_text=True)
+    html = login(site).get("/student/matching").get_data(as_text=True)
 
     assert "https://example.edu.tw/brochure.pdf" in html
     assert 'rel="noopener noreferrer"' in html

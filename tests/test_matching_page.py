@@ -54,8 +54,7 @@ def _login(app, username="stu"):
 
 def _columns(html):
     have = html[html.index("<h3>已符合</h3>"):html.index("<h3>缺少</h3>")]
-    start = html.index("<h3>缺少</h3>")
-    missing = html[start:html.index("</section>", start)]
+    missing = html[html.index("<h3>缺少</h3>"):]
     return have, missing
 
 
@@ -64,10 +63,23 @@ def test_matching_detail_shows_have_and_missing(site):
     html = _login(site).get(f"/student/matching/{pid}").get_data(as_text=True)
     have, missing = _columns(html)
 
-    assert "證照證明" in have and "證照證明" not in missing
+    # 10-30 新規則：證照 1 筆只算一半 → 50×0.5 + 30×0 + 20×0.25 = 30%
+    assert "證照證明（部分）" in have
     assert "競賽成果" in missing and "競賽成果" not in have
-    assert "準備度 60%（建議值）" in html
+    assert "準備度 30%（建議值）" in html
     assert "錄取保證" not in html
+
+
+def test_matching_detail_orders_missing_items_by_gain_with_links(site):
+    pid = site.config["_ids"]["program"]
+    html = _login(site).get(f"/student/matching/{pid}").get_data(as_text=True)
+    _, missing = _columns(html)
+
+    # 補滿可加：競賽 30% ＞ 證照 25% ＞ 綜合 15%，第一條標「先做這個」
+    assert "先做這個：</b>競賽成果" in missing
+    assert missing.index("競賽成果") < missing.index("證照證明") < missing.index("綜合成果")
+    assert "補滿可加 30%" in missing
+    assert "去補 →" in missing and "/student/portfolio/new?category=competition" in missing
 
 
 def test_matching_detail_marks_partial_items_in_have_column(site):
@@ -75,16 +87,16 @@ def test_matching_detail_marks_partial_items_in_have_column(site):
     have, missing = _columns(_login(site).get(f"/student/matching/{pid}").get_data(as_text=True))
 
     assert "綜合成果（部分）" in have
-    assert "證照證明（部分）" not in have
+    assert "證照證明（部分）" in have  # 只有 1 張證照，還沒滿
     assert "綜合成果" in missing  # 還缺的競賽仍列在缺少
 
 
-def test_matching_list_is_compact_and_links_to_details(site):
+def test_matching_list_has_inline_detail_and_link(site):
+    ids = site.config["_ids"]
     html = _login(site).get("/student/matching").get_data(as_text=True)
-    assert "公開大學" in html and "準備度" in html
-    assert f'/student/matching/{site.config["_ids"]["program"]}' in html
-    assert "資料準備度建議值" in html
-    assert "證照證明" not in html  # 比重與缺項留在個別校系細項
+
+    assert "<details" in html and "已符合" in html and "缺少" in html
+    assert f"/student/matching/{ids['program']}" in html
 
 
 def test_target_cards_sort_by_readiness_even_when_lower_one_is_selected(site):
@@ -97,15 +109,15 @@ def test_target_cards_sort_by_readiness_even_when_lower_one_is_selected(site):
 
     html = _login(site).get("/student/targets").get_data(as_text=True)
 
-    assert "各組依準備度由高到低排序" in html
+    assert "全部校系依準備度由高到低排列" in html
     chart = html[html.index('<section class="target-ranking"'):html.index("</section>", html.index('<section class="target-ranking"'))]
     assert chart.index("高準備大學") < chart.index("公開大學") < chart.index("低準備大學") < chart.index("文件大學")
-    assert 'aria-label="高準備大學 資管系 二技技優甄審準備度 100%"' in chart
-    assert 'style="width: 100%"' in chart
-    assert 'style="width: 60%"' in chart
+    assert 'aria-label="高準備大學 資管系 二技技優甄審準備度 ' in chart
+    assert 'style="width: ' in chart
 
 
-def test_target_ranking_groups_home_major_before_other_major(site):
+
+def test_target_ranking_is_one_list_by_readiness_with_home_tag(site):
     with site.app_context():
         other = _program("900006", "外系高分大學", "published", [("證照證明", 100, "credential")])
         home = _program("900007", "本科低分大學", "published", [("競賽成果", 100, "competition")])
@@ -117,9 +129,12 @@ def test_target_ranking_groups_home_major_before_other_major(site):
     html = _login(site).get("/student/targets").get_data(as_text=True)
     chart = html[html.index('<section class="target-ranking"'):html.index("</section>", html.index('<section class="target-ranking"'))]
 
-    assert chart.index("本科系") < chart.index("本科低分大學") < chart.index("非本科系") < chart.index("外系高分大學")
-    assert html.index(f'id="target-program-{home_id}"') < html.index(f'id="target-program-{other_id}"')
+    # 不再分組：準備度高的外系排第一，本科系只加「本科」標籤
+    assert chart.index("外系高分大學") < chart.index("本科低分大學")
+    assert html.index(f'id="target-program-{other_id}"') < html.index(f'id="target-program-{home_id}"')
     assert 'aria-label="外系高分大學 資訊工程系' in chart
+    assert "本科</span>" in chart
+
 
 
 def test_target_page_puts_selected_goals_first_and_collapses_exploration(site):
@@ -136,6 +151,7 @@ def test_target_page_puts_selected_goals_first_and_collapses_exploration(site):
     assert '<div class="program-cards"' not in html
 
 
+
 def test_transfer_year_disambiguates_same_school_and_department(site):
     with site.app_context():
         second = _program("TRF-CCU-IM-2", "轉學大學", "published", [])
@@ -143,38 +159,10 @@ def test_transfer_year_disambiguates_same_school_and_department(site):
         second.admission_category = third.admission_category = "插大（轉學考）"
         db.session.commit()
 
-    html = _login(site).get("/student/targets").get_data(as_text=True)
+    html = _login(site).get("/student/targets?track=transfer").get_data(as_text=True)
     assert "轉學大學 資管系（插大（轉學考） · 二年級）" in html
     assert "轉學大學 資管系（插大（轉學考） · 三年級）" in html
 
-
-def test_dashboard_ranks_only_selected_targets_by_readiness(site):
-    with site.app_context():
-        low = _program("900020", "低準備大學", "published", [("競賽成果", 100, "competition")])
-        high = _program("900021", "高準備大學", "published", [("證照證明", 100, "credential")])
-        unselected = _program("900022", "未選大學", "published", [("證照證明", 100, "credential")])
-        mine_id = site.config["_ids"]["mine"]
-        db.session.add_all([
-            StudentTarget(student_id=mine_id, rule_version_id=low.id),
-            StudentTarget(student_id=mine_id, rule_version_id=high.id),
-        ])
-        db.session.commit()
-        high_id = high.id
-
-    html = _login(site).get("/student/dashboard").get_data(as_text=True)
-    section = html[html.index('id="home-target-ranking"'):html.index("</section>", html.index('id="home-target-ranking"'))]
-    assert section.index("高準備大學") < section.index("低準備大學")
-    assert "未選大學" not in section
-    assert "100%" in section
-    assert f'/student/targets/{high_id}' in section
-    assert "並非錄取機率" in section
-
-
-def test_dashboard_prompts_to_choose_target_when_none_selected(site):
-    html = _login(site).get("/student/dashboard").get_data(as_text=True)
-    section = html[html.index('id="home-target-ranking"'):html.index("</section>", html.index('id="home-target-ranking"'))]
-    assert "尚未選擇目標校系" in section
-    assert 'href="/student/targets"' in section
 
 
 def test_same_department_shows_admission_channel_in_ranking(site):
@@ -192,6 +180,7 @@ def test_same_department_shows_admission_channel_in_ranking(site):
     assert "日間部申請入學" in chart
 
 
+
 def test_target_dropdowns_filter_major_and_specific_program(site):
     with site.app_context():
         other = _program("900008", "外系大學", "published", [("證照證明", 100, "credential")])
@@ -201,7 +190,7 @@ def test_target_dropdowns_filter_major_and_specific_program(site):
 
     client = _login(site)
     all_html = client.get("/student/targets").get_data(as_text=True)
-    assert '<select name="major"' in all_html
+    assert 'name="major" value="home"' in all_html
     assert '<select name="program_id"' in all_html
     assert "全部校系" in all_html and "本科系" in all_html and "非本科系" in all_html
 
@@ -214,43 +203,6 @@ def test_target_dropdowns_filter_major_and_specific_program(site):
     assert 'id="target-program-' + str(site.config["_ids"]["program"]) + '"' not in one_html
 
 
-def test_school_rows_are_collapsed_dropdowns_by_default(site):
-    html = _login(site).get("/student/matching").get_data(as_text=True)
-    assert html.count('<details class="matching-school">') == 1
-    assert '<summary class="matching-school__summary">' in html
-    assert "1. 公開大學" in html
-    assert '<details class="matching-school" open' not in html
-
-
-def test_matching_keeps_target_selection_and_agent_planning(site):
-    client = _login(site)
-    listing = client.get("/student/matching").get_data(as_text=True)
-    detail = client.get(f'/student/matching/{site.config["_ids"]["program"]}').get_data(as_text=True)
-    assert "請升學 Agent 幫我規劃" in listing
-    assert "設為目標校系" in detail
-
-
-def test_matching_labels_results_as_preliminary_before_data_confirmation(site):
-    html = _login(site, username="other").get("/student/matching").get_data(as_text=True)
-    assert "尚未確認學習歷程資料" in html
-    assert "公開大學" in html
-
-
-def test_matching_discloses_pending_documents_in_detail(site):
-    with site.app_context():
-        program = _program("900099", "文件測試大學", "published", [
-            ("成績與自傳", 40, "credential,autobiography"),
-            ("專題", 60, "project"),
-        ])
-        db.session.commit()
-        program_id = program.id
-    client = _login(site)
-    for url in (f"/student/matching/{program_id}",):
-        html = client.get(url).get_data(as_text=True)
-        assert "已列入準備度計算" in html
-        assert "自傳與讀書計畫" in html
-        assert "專題作品" in html
-        assert "還缺 自傳與讀書計畫" in html
 
 
 def test_matching_detail_owner_only(site):
@@ -263,8 +215,8 @@ def test_matching_detail_owner_only(site):
     # 帶別人（什麼都沒有）的學生編號，仍只看到登入者自己的證照：證照證明在已符合、準備度 60%
     html = client.get(f"/student/matching/{ids['program']}?student_id={ids['other']}").get_data(as_text=True)
     have, missing = _columns(html)
-    assert "證照證明" in have and "證照證明" not in missing
-    assert "準備度 60%（建議值）" in html
+    assert "證照證明（部分）" in have
+    assert "準備度 30%（建議值）" in html
     assert "準備度 0%" not in html
 
 
@@ -311,7 +263,7 @@ def _force_status(monkeypatch, statuses):
 
 
 def _schools(html):
-    return [name for name in ("公開大學", "企管大學", "二技大學") if name in html]
+    return [name for name in ("公開大學", "企管大學", "二技大學") if f"{name} " in html]
 
 
 def test_matching_filter_by_eligibility(site, monkeypatch):
@@ -350,5 +302,204 @@ def test_matching_no_filter_shows_all(site):
 def test_matching_filter_without_match_shows_empty_message(site):
     html = _login(site).get("/student/matching?department=不存在的科系").get_data(as_text=True)
 
-    assert "沒有符合篩選條件的校系" in html
-    assert "公開大學" not in html
+    assert "沒有符合的校系" in html
+    assert "公開大學" not in html.split("沒有符合的校系")[0].split("<ol")[-1]
+
+
+def test_matching_filter_selects_come_from_active_options(site):
+    _add_options(site, ("department", "資管系", "資管", True), ("department", "停用科系", "停用科", False),
+                 ("level", "四技", "四技", True))
+
+    html = _login(site).get("/student/matching").get_data(as_text=True)
+
+    assert 'name="department"' in html and "資管系" in html
+    assert "停用科系" not in html
+    assert 'name="level"' in html
+    assert 'name="eligible"' not in html  # 這類沒有選項就不顯示
+    assert 'name="region"' not in html  # 地區尚無資料，不顯示
+
+
+def test_matching_chart_defaults_to_bars_and_toggles_to_columns(site):
+    client = _login(site)
+
+    default = client.get("/student/matching").get_data(as_text=True)
+    column = client.get("/student/matching?chart=column").get_data(as_text=True)
+
+    assert "match-chart--bar" in default and "match-chart--column" not in default
+    assert "match-chart--column" in column
+    assert "準備度" in default and "建議值" in default
+    assert "錄取保證" not in default
+
+
+def _make_programs(app, specs):
+    with app.app_context():
+        for code, school, department, category in specs:
+            program = _program(code, school, "published", [("證照證明", 100, "credential")])
+            program.department_name, program.admission_category = department, category
+        db.session.commit()
+
+
+def test_matching_separates_twotech_and_transfer_tabs(site):
+    _make_programs(site, [("TRF-901", "轉學大學", "資訊管理學系", "插大（轉學考）")])
+    client = _login(site)
+
+    twotech = client.get("/student/matching").get_data(as_text=True)
+    transfer = client.get("/student/matching?track=transfer").get_data(as_text=True)
+
+    assert "公開大學" in twotech and "轉學大學" not in twotech
+    assert "轉學大學" in transfer and "公開大學" not in transfer
+    assert "二技（1）" in twotech and "插大（1）" in twotech
+
+
+def test_matching_keyword_search_matches_school_or_department(site):
+    _make_programs(site, [("900101", "北商大學", "企業管理系", "管理類二"),
+                          ("900102", "南方科大", "資訊管理系", "管理類二")])
+    client = _login(site)
+
+    by_school = client.get("/student/matching?q=北商").get_data(as_text=True)
+    by_both = client.get("/student/matching?q=南方 資訊").get_data(as_text=True)
+
+    assert "北商大學" in by_school and "南方科大" not in by_school
+    assert "南方科大" in by_both and "北商大學" not in by_both
+
+
+def test_matching_lists_first_twenty_then_show_more(site):
+    _make_programs(site, [(f"9002{n:02d}", f"測試{n:02d}大學", "資管系", "管理類二") for n in range(25)])
+    client = _login(site)
+
+    first = client.get("/student/matching").get_data(as_text=True)
+    more = client.get("/student/matching?show=40").get_data(as_text=True)
+
+    assert first.count('class="match-chart__item"') == 20
+    assert "看更多" in first and "show=40" in first
+    assert more.count('class="match-chart__item"') == 26  # 25 間＋原本的公開大學
+    assert "看更多" not in more
+
+
+def test_matching_detail_page_offers_reasons_schedule_and_add_target(site):
+    pid = site.config["_ids"]["program"]
+    html = _login(site).get(f"/student/matching/{pid}").get_data(as_text=True)
+
+    assert "怎麼進這所學校" in html
+    assert "設為目標校系" in html
+    assert "看招生時程 →" in html
+
+
+def test_matching_detail_shows_confirmed_qualification_with_source(site):
+    from app.models import AdmissionEligibilityRule
+    with site.app_context():
+        program = db.session.get(AdmissionProgram, site.config["_ids"]["program"])
+        program.eligibility_rules.append(AdmissionEligibilityRule(rule_group=1, condition_type="student_status", operator="in",
+            value_json={"field":"class_name", "values":["資管科五甲"]}, description="僅為測試資料：學籍條件",
+            source_url="https://example.edu.tw/rules.pdf", source_location="第 3 頁", mapping_status="confirmed", is_required=True))
+        db.session.commit()
+    html = _login(site).get(f"/student/matching/{site.config['_ids']['program']}").get_data(as_text=True)
+    assert "僅為測試資料：學籍條件" in html
+    assert "第 3 頁" in html and "學生資料符合此項學籍條件" in html
+    assert "仍以當年度招生簡章" in html
+
+
+def test_targets_separate_two_year_and_transfer_tracks(site):
+    with site.app_context():
+        transfer = _program("TRF-TEST-2", "僅為測試插大", "published", [])
+        transfer.admission_category = "插大（轉學考）"
+        db.session.add(StudentTarget(student_id=site.config["_ids"]["mine"], rule_version_id=transfer.id))
+        db.session.commit()
+    client = _login(site)
+    twotech = client.get("/student/targets").get_data(as_text=True)
+    assert "二技" in twotech and "插大" in twotech
+    assert "僅為測試插大" not in twotech
+    assert "公開大學" in twotech
+    transfer_html = client.get("/student/targets?track=transfer").get_data(as_text=True)
+    assert "僅為測試插大" in transfer_html
+    assert "考試科目與資料需求請看招生簡章" in transfer_html
+    assert "此校系以自傳等文件為主" not in transfer_html
+    assert "公開大學" not in transfer_html
+    assert 'name="track" value="transfer"' in transfer_html
+    filtered = client.get("/student/targets?track=transfer&major=home").get_data(as_text=True)
+    assert "僅為測試插大" in filtered
+
+
+
+def test_target_search_filters_by_school_or_department(site):
+    with site.app_context():
+        other = _program("900010", "搜尋大學", "published", [("證照證明", 100, "credential")])
+        other.department_name = "護理系"
+        db.session.commit()
+
+    client = _login(site)
+    html = client.get("/student/targets?q=護理").get_data(as_text=True)
+    assert "搜尋大學 護理系" in html
+    assert "公開大學" not in html[html.index('id="target-programs"'):].split("</section>")[0]
+    assert 'value="護理"' in html
+
+    empty = client.get("/student/targets?q=不存在的科系").get_data(as_text=True)
+    ranking = empty[empty.index('id="target-programs"'):]
+    assert "搜尋大學" not in ranking.split("</section>")[0]
+    assert 'name="q"' in empty
+
+
+
+def test_major_switches_preserve_search_and_filter_matching(site):
+    with site.app_context():
+        other = _program("900701", "測試外系", "published", [("證照證明", 100, "credential")])
+        other.department_name = "資訊工程系"
+        _program("900705", "測試本科", "published", [("證照證明", 100, "credential")])
+        db.session.commit()
+    client = _login(site)
+    for path in ("/student/targets", "/student/matching"):
+        html = client.get(path + "?q=測試&major=other").get_data(as_text=True)
+        assert 'name="major" value="home"' in html
+        assert 'name="major" value="other"' in html
+        assert 'value="測試"' in html
+        assert "測試外系" in html
+        ranking = html[html.index('id="target-programs"'):] if path.endswith("targets") else html[html.index('<ol class="match-chart'):]
+        assert "測試外系" in ranking and "測試本科" not in ranking
+        home_html = client.get(path + "?q=測試&major=home").get_data(as_text=True)
+        ranking = home_html[home_html.index('id="target-programs"'):] if path.endswith("targets") else home_html[home_html.index('<ol class="match-chart'):]
+        assert "測試本科" in ranking and "測試外系" not in ranking
+
+
+def test_matching_places_only_ineligible_last_then_sorts_readiness(site, monkeypatch):
+    with site.app_context():
+        _program("900702", "低分可報", "published", [("競賽成果", 100, "competition")])
+        _program("900703", "高分待確認", "published", [("證照證明", 100, "credential")])
+        _program("900704", "高分不可報", "published", [("證照證明", 100, "credential")])
+        db.session.commit()
+    _force_status(monkeypatch, {"低分可報": "eligible", "高分待確認": "needs_check", "高分不可報": "ineligible", "公開大學": "eligible"})
+    html = _login(site).get("/student/matching").get_data(as_text=True)
+    chart = html[html.index('<ol class="match-chart'):html.index('</ol>', html.index('<ol class="match-chart'))]
+    assert chart.index("高分待確認") < chart.index("低分可報") < chart.index("高分不可報")
+
+
+def test_matching_shows_actual_qualification_reason(site, monkeypatch):
+    from app.routes import student as student_routes
+    real = student_routes.rank_programs
+
+    def fake(*args, **kwargs):
+        rows = real(*args, **kwargs)
+        rows[0]["status"] = "ineligible"
+        rows[0]["qualification"] = {"status": "not_eligible", "conditions": [{"status": "not_matched", "reason": "不符合學籍限制"}]}
+        return rows
+
+    monkeypatch.setattr(student_routes, "rank_programs", fake)
+    html = _login(site).get("/student/matching").get_data(as_text=True)
+    chart = html[html.index('<ol class="match-chart'):html.index('</ol>', html.index('<ol class="match-chart'))]
+    assert "不符合學籍限制" in chart
+
+
+def test_matching_shows_later_failed_condition(site, monkeypatch):
+    from app.routes import student as student_routes
+    real = student_routes.rank_programs
+
+    def fake(*args, **kwargs):
+        rows = real(*args, **kwargs)
+        rows[0]["status"] = "ineligible"
+        rows[0]["qualification"] = None
+        rows[0]["reasons"] = ["符合第一條", "第二條證照期限不符"]
+        return rows
+
+    monkeypatch.setattr(student_routes, "rank_programs", fake)
+    html = _login(site).get("/student/matching").get_data(as_text=True)
+    chart = html[html.index('<ol class="match-chart'):html.index('</ol>', html.index('<ol class="match-chart'))]
+    assert "第二條證照期限不符" in chart

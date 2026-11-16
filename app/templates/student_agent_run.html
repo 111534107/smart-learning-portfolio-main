@@ -2,7 +2,7 @@
 {% from "partials/nav.html" import masthead, footer, page_band with context %}
 {% set page_name = "student-agent-run" %}
 
-{% block title %}升學 Agent｜資管科智慧學習歷程系統{% endblock %}
+{% block title %}小助手升學規劃｜資管科智慧學習歷程系統{% endblock %}
 
 {% block navigation %}{{ masthead(user, "目標校系") }}{% endblock %}
 
@@ -13,11 +13,11 @@
 {% for step in run.steps or [] %}{% if step.tool not in order %}{% set _ = order.update({step.tool: order|length}) %}{% endif %}{% endfor %}
 {% set groups = namespace(used=0) %}
 {% for card in lineup %}{% if card.tools|select("in", order)|list %}{% set groups.used = groups.used + 1 %}{% endif %}{% endfor %}
-{{ page_band("升學 Agent") }}
+{{ page_band("小助手升學規劃") }}
 <div class="page page--banded">
   <div class="record-card__actions mb-1">
     <a class="button button--small button--quiet" href="{{ url_for('student.matching') }}">← 回推薦排序</a>
-    <form method="post" action="{{ url_for('student.agent_advise') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small button--line" type="submit" data-busy-text="Agent 正在規劃…（約 30 秒～1 分鐘）"{% if running %} disabled{% endif %}>再請 Agent 規劃一次</button></form>
+    <form method="post" action="{{ url_for('student.agent_advise') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small button--line" type="submit" data-busy-text="小助手正在規劃…（約 30 秒～1 分鐘）"{% if running %} disabled{% endif %}>再請小助手規劃一次</button></form>
   </div>
 
   <section class="agent-board mb-1{% if not running %} is-replay{% endif %}" aria-labelledby="board-title"
@@ -25,7 +25,7 @@
     <div class="agent-board__brain">
       <span class="agent-board__pulse" aria-hidden="true"></span>
       <div class="agent-board__who">
-        <h2 id="board-title">一個 Agent，分給不同工具做</h2>
+        <h2 id="board-title">小助手怎麼分工</h2>
         <p class="agent-board__phase" data-phase aria-live="polite">
           {% if running %}準備開始…
           {% elif task.status == "failed" %}這次沒有完成。
@@ -55,7 +55,7 @@
   {% if not running %}
   <section class="sheet mb-1" aria-labelledby="advice-title">
     <div class="sheet__head">
-      <h2 id="advice-title">Agent 的建議</h2>
+      <h2 id="advice-title">小助手的建議</h2>
       <span class="tag {{ 'tag--info' if run.mode == 'ai' else '' }}">{{ "AI 決定步驟" if run.mode == "ai" else "固定流程" }}</span>
     </div>
     {% if run.fallback_reason %}<p class="small muted mb-1">AI 這次不能用（{{ run.fallback_reason }}），改用固定流程完成。</p>{% endif %}
@@ -69,11 +69,11 @@
   {% endif %}
 
   <section class="sheet" aria-labelledby="steps-title">
-    <div class="sheet__head"><h2 id="steps-title">Agent 做了哪些事</h2></div>
+    <div class="sheet__head"><h2 id="steps-title">小助手做了哪些事</h2></div>
     <ol class="agent-steps" data-steps>
       {% for step in run.steps or [] %}<li style="--order: {{ loop.index0 }};"><strong>{{ step.label }}</strong>：{{ step.summary }}</li>{% endfor %}
     </ol>
-    <p class="small muted">{{ task.created_at|taipei_time }} 執行。Agent 只會排序、提醒、產生草稿；目標校系由你決定，草稿要你自己檢查修改後才算數。準備度不是錄取機率，能不能報與錄取以招生簡章為準。</p>
+    <p class="small muted">{{ task.created_at|taipei_time }} 執行。小助手只會排序、提醒、產生草稿；目標校系由你決定，草稿要你自己檢查修改後才算數。準備度不是錄取機率，能不能報與錄取以招生簡章為準。</p>
   </section>
 </div>
 

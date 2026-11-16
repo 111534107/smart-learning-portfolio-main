@@ -78,41 +78,6 @@ document.querySelectorAll("[data-record-table]").forEach((table) => {
   });
 });
 
-// 從學校網頁複製表格時保留欄列；純文字貼上仍使用瀏覽器原有行為。
-document.querySelectorAll('[data-award-paste]').forEach((field) => {
-  field.addEventListener('paste', (event) => {
-    const html = event.clipboardData && event.clipboardData.getData('text/html');
-    if (!html) return;
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    const rows = [...doc.querySelectorAll('tr')].map((row) =>
-      [...row.querySelectorAll(':scope > th, :scope > td')].map((cell) =>
-        (cell.textContent || '').replace(/\s+/g, ' ').trim()));
-    const first = rows.findIndex((row) => row.map((cell) => cell.replace(/\s+/g, '')).includes('獎懲事由'));
-    if (first < 0) return;
-    const text = rows.slice(first).filter((row) => row.length).map((row) => row.join('\t')).join('\n');
-    event.preventDefault();
-    field.setRangeText(text, field.selectionStart, field.selectionEnd, 'end');
-    field.dispatchEvent(new Event('input', { bubbles: true }));
-  });
-});
-
-// 獎懲核對：逐筆新增手動填寫列，勾選值對應後端的列索引。
-document.querySelectorAll('[data-award-add-row]').forEach((button) => {
-  const form = button.closest('form');
-  const body = form.querySelector('[data-award-table] tbody');
-  const template = form.querySelector('[data-award-row-template]');
-  button.addEventListener('click', () => {
-    const index = body.rows.length;
-    const row = template.content.firstElementChild.cloneNode(true);
-    row.querySelector('[name="include"]').value = String(index);
-    row.querySelectorAll('[data-award-field]').forEach((field) => {
-      field.setAttribute('aria-label', `第 ${index + 1} 列${field.dataset.awardField}`);
-    });
-    body.appendChild(row);
-    row.querySelector('[name="reason"]').focus();
-  });
-});
-
 // ---------- 缺件比對：容器依序裝滿、數字往上跳、點容器看細節 ----------
 document.querySelectorAll("[data-gap-board]").forEach((board) => {
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -278,9 +243,16 @@ document.querySelectorAll("[data-assistant]").forEach((root) => {
   const input = form.querySelector("textarea");
   const send = form.querySelector("button[type=submit]");
   const toggles = root.querySelectorAll("[data-assistant-toggle]");
-  const KEY = "assistant-history";
+  // 對話只存在這個分頁，而且依帳號分開：同一分頁換人登入時，看不到也不會送出前一個人的對話。
+  const KEY = `assistant-history:${root.dataset.user || ""}`;
   let history = [];
-  try { history = JSON.parse(sessionStorage.getItem(KEY) || "[]"); } catch (e) { history = []; }
+  try {
+    for (let i = sessionStorage.length - 1; i >= 0; i -= 1) {
+      const name = sessionStorage.key(i);
+      if (name && name.startsWith("assistant-history") && name !== KEY) sessionStorage.removeItem(name);
+    }
+    history = JSON.parse(sessionStorage.getItem(KEY) || "[]");
+  } catch (e) { history = []; }
 
   // 把 AI 回答的簡單 Markdown（粗體、條列）轉成畫面；先跳脫 HTML，避免被插入程式碼
   const ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" };
@@ -324,6 +296,80 @@ document.querySelectorAll("[data-assistant]").forEach((root) => {
       });
       box.append(list);
     }
+    // 站內導引連結（伺服器白名單產生；這裡再擋一次，只接受站內相對路徑）
+    const local = (url) => typeof url === "string" && url.startsWith("/") && !url.startsWith("//");
+    if (extra.links && extra.links.length) {
+      const links = document.createElement("div");
+      links.className = "assistant__links";
+      extra.links.forEach((link) => {
+        if (!link || !local(link.url)) return;
+        const anchor = document.createElement("a");
+        anchor.className = "button button--small button--line";
+        anchor.href = link.url;
+        anchor.textContent = `${link.label || "前往下一步"} →`;
+        links.append(anchor);
+      });
+      if (links.children.length) box.append(links);
+    }
+    if (extra.todos && extra.todos.length) {
+      const done = document.createElement("p");
+      done.className = "assistant__links";
+      const anchor = document.createElement("a");
+      anchor.className = "button button--small";
+      anchor.href = "/student/agent/issues";
+      anchor.textContent = `查看 ${extra.todos.length} 項待辦 →`;
+      done.append(anchor);
+      box.append(done);
+    }
+    // 組員版的同意式計畫：學生按「同意執行」才建立待辦
+    if (extra.plan && extra.plan.status === "pending") {
+      const plan = document.createElement("section");
+      plan.className = "assistant__plan";
+      const title = document.createElement("b");
+      title.textContent = `規劃提案 #${extra.plan.id}：${extra.plan.title}`;
+      const reason = document.createElement("p");
+      reason.textContent = extra.plan.reason || "";
+      const steps = document.createElement("ol");
+      (extra.plan.preview_todos || []).forEach((todo) => {
+        const item = document.createElement("li");
+        item.textContent = todo.title;
+        steps.append(item);
+      });
+      const hint = document.createElement("p");
+      hint.textContent = steps.children.length ? "同意後會建立這些待辦：" : "目前看不出需要新增的待辦。";
+      const actions = document.createElement("div");
+      actions.className = "assistant__plan-actions";
+      const decide = async (url, accepted) => {
+        const data = new FormData();
+        data.append("csrf_token", form.querySelector("[name=csrf_token]").value);
+        try {
+          const response = await fetch(url, { method: "POST", body: data, credentials: "same-origin" });
+          if (!response.ok) throw new Error(String(response.status));
+          const result = await response.json();
+          plan.remove();
+          add("bot", result.message || (accepted ? "計畫已完成。" : "計畫沒有執行。"), result);
+        } catch (error) {
+          add("bot", "這份計畫暫時無法處理，請稍後再試。");
+        }
+      };
+      const approve = document.createElement("button");
+      approve.type = "button";
+      approve.className = "button button--small";
+      approve.textContent = "同意執行";
+      approve.addEventListener("click", () => decide(extra.plan.action_url, true));
+      const reject = document.createElement("button");
+      reject.type = "button";
+      reject.className = "button button--small button--quiet";
+      reject.textContent = "不採用";
+      reject.addEventListener("click", () => decide(extra.plan.reject_url, false));
+      actions.append(approve, reject);
+      const open = document.createElement("a");
+      open.className = "assistant__plan-open";
+      open.href = `/student/agent/proposals/${Number(extra.plan.id)}`;
+      open.textContent = "在規劃頁查看完整提案 →";
+      plan.append(title, reason, hint, steps, actions, open);
+      box.append(plan);
+    }
     log.append(box);
     log.scrollTop = log.scrollHeight;
     return box;
@@ -335,8 +381,32 @@ document.querySelectorAll("[data-assistant]").forEach((root) => {
     panel.hidden = !open;
     toggles[0].setAttribute("aria-expanded", String(open));
     root.classList.toggle("is-open", open);
-    if (open) input.focus();
+    document.documentElement.classList.toggle("as-open", open);
+    panel.style.transform = "";
+    if (open) { log.scrollTop = log.scrollHeight; input.focus({ preventScroll: true }); }
   };
+  // 手機：往下拉把手關閉
+  const grab = root.querySelector("[data-assistant-grab]");
+  if (grab) {
+    let startY = null;
+    grab.addEventListener("pointerdown", (event) => { startY = event.clientY; grab.setPointerCapture(event.pointerId); panel.classList.add("is-dragging"); });
+    grab.addEventListener("pointermove", (event) => {
+      if (startY === null) return;
+      panel.style.transform = `translateY(${Math.max(0, event.clientY - startY)}px)`;
+    });
+    const release = (event) => {
+      if (startY === null) return;
+      const moved = event.clientY - startY;
+      startY = null;
+      panel.classList.remove("is-dragging");
+      panel.style.transform = "";
+      if (moved > 80) setOpen(false);
+    };
+    grab.addEventListener("pointerup", release);
+    grab.addEventListener("pointercancel", release);
+  }
+  // 輸入框隨內容長高（最多 120px）
+  input.addEventListener("input", () => { input.style.height = "auto"; input.style.height = `${Math.min(input.scrollHeight, 120)}px`; });
   toggles.forEach((button) => button.addEventListener("click", () => setOpen(panel.hidden)));
   document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !panel.hidden) setOpen(false); });
 
@@ -346,8 +416,15 @@ document.querySelectorAll("[data-assistant]").forEach((root) => {
     add("user", text);
     input.value = "";
     send.disabled = true;
-    const waiting = add("bot", "正在查資料…");
-    waiting.classList.add("is-waiting");
+    input.style.height = "";
+    // 打字中的三個點（螢幕閱讀器念「正在查資料」）
+    const waiting = document.createElement("div");
+    waiting.className = "assistant__msg assistant__msg--bot as-typing is-waiting";
+    waiting.setAttribute("role", "status");
+    waiting.setAttribute("aria-label", "正在查資料");
+    waiting.innerHTML = "<i></i><i></i><i></i>";
+    log.append(waiting);
+    log.scrollTop = log.scrollHeight;
     const data = new FormData();
     data.append("csrf_token", form.querySelector("[name=csrf_token]").value);
     data.append("message", text);
@@ -515,6 +592,8 @@ document.querySelectorAll("[data-walker]").forEach((walker) => {
   place(current);
 
   const end = lengthAtX(stops[grade - 1]);
+  let seen = false;
+  try { seen = sessionStorage.getItem("journey-walked") === "1"; } catch (e) { /* 讀不到就當沒看過 */ }
   const finish = () => {
     walker.classList.remove("is-walking");
     current = route.getPointAtLength(end);
@@ -522,7 +601,7 @@ document.querySelectorAll("[data-walker]").forEach((walker) => {
     notifyWalked();
   };
   const walk = () => {
-    if (reduce || grade === 1) { finish(); return; }
+    if (reduce || seen || grade === 1) { finish(); return; }
     walker.classList.add("is-walking");
     const start = performance.now();
     const duration = 900 + (grade - 1) * 450;
@@ -534,6 +613,7 @@ document.querySelectorAll("[data-walker]").forEach((walker) => {
       if (t < 1) requestAnimationFrame(step); else finish();
     };
     requestAnimationFrame(step);
+    try { sessionStorage.setItem("journey-walked", "1"); } catch (e) { /* 存不了也沒關係 */ }
   };
   // 「好久不見」播放中就等它關掉再走
   if (home && home.classList.contains("is-waiting")) {
@@ -735,7 +815,7 @@ document.querySelectorAll("[data-photo-form]").forEach((form) => {
 
 // ---------- 網頁導覽：一步一步指出畫面上的功能 ----------
 // 頁面上有 data-tour="一句話" data-tour-order="1" 的元素就是步驟；看不到的元素（例如手機版隱藏）自動略過。
-// 首頁第一次來會自動播一次（瀏覽器記住），其他頁按上方「導覽」才播；Esc 結束、← → 換步。
+// 第一次進一頁只在上方出現「看 30 秒導覽／不用」（不直接蓋住畫面），按上方「導覽」或從說明頁重看才播；Esc、點暗處結束，← → 換步。
 (() => {
   const page = document.body.dataset.page || "page";
   const steps = () => [...document.querySelectorAll("[data-tour]")]
@@ -749,6 +829,18 @@ document.querySelectorAll("[data-photo-form]").forEach((form) => {
   let list = [];
   let returnFocus = null;
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // 學生端 v2 導覽外觀（暗底加亮框、玻璃說明卡）：第一次用到時才載入 tour.css，老師頁也一樣
+  const loadStyle = () => {
+    if (document.getElementById("tour-v2-css")) return;
+    const self = document.querySelector('script[src*="js/components.js"]');
+    if (!self) return;
+    const link = document.createElement("link");
+    link.id = "tour-v2-css";
+    link.rel = "stylesheet";
+    link.href = self.src.replace(/js\/components\.js.*$/, "css/student-v2/tour.css");
+    document.head.appendChild(link);
+  };
+  const markSeen = () => { try { localStorage.setItem(`tour-seen-${page}`, "1"); } catch (e) { /* 存不了也沒關係 */ } };
 
   const place = () => {
     if (!layer) return;
@@ -760,8 +852,8 @@ document.querySelectorAll("[data-photo-form]").forEach((form) => {
     spot.style.width = `${rect.width + pad * 2}px`;
     spot.style.height = `${rect.height + pad * 2}px`;
     const card = layer.querySelector(".tour__card");
-    const below = rect.bottom + 14 + card.offsetHeight < window.innerHeight;
-    const top = below ? rect.bottom + 14 : rect.top - card.offsetHeight - 14;
+    const below = rect.bottom + 16 + card.offsetHeight < window.innerHeight;
+    const top = below ? rect.bottom + 16 : rect.top - card.offsetHeight - 16;
     card.style.top = `${Math.min(Math.max(12, top), window.innerHeight - card.offsetHeight - 12)}px`;
     card.style.left = `${Math.min(Math.max(12, rect.left), window.innerWidth - card.offsetWidth - 12)}px`;
   };
@@ -806,6 +898,8 @@ document.querySelectorAll("[data-photo-form]").forEach((form) => {
     list = steps();
     if (!list.length) return;
     close();
+    removeInvite();
+    loadStyle();
     returnFocus = document.activeElement;
     layer = document.createElement("div");
     layer.className = "tour";
@@ -813,27 +907,45 @@ document.querySelectorAll("[data-photo-form]").forEach((form) => {
     layer.setAttribute("aria-modal", "true");
     layer.setAttribute("aria-label", "網頁導覽");
     layer.innerHTML = '<div class="tour__spot"></div>'
-      + '<div class="tour__card"><p class="tour__text" aria-live="polite"></p>'
-      + '<div class="tour__actions"><span class="tour__count"></span>'
-      + '<button type="button" class="tour__skip" data-tour-close>結束</button>'
-      + '<button type="button" class="button button--small button--line" data-tour-prev>← 上一步</button>'
-      + '<button type="button" class="button button--small" data-tour-next>下一步 →</button></div></div>';
+      + '<div class="tour__card"><p class="tour__count"></p><p class="tour__text" aria-live="polite"></p>'
+      + '<div class="tour__actions">'
+      + '<button type="button" class="tour__skip" data-tour-close>略過</button><span class="tour__gap"></span>'
+      + '<button type="button" class="tour__prev" data-tour-prev>← 上一步</button>'
+      + '<button type="button" class="tour__next" data-tour-next>下一步 →</button></div></div>';
     document.body.appendChild(layer);
     layer.querySelector("[data-tour-close]").addEventListener("click", close);
     layer.querySelector("[data-tour-prev]").addEventListener("click", () => go(index - 1));
     layer.querySelector("[data-tour-next]").addEventListener("click", () => go(index + 1));
+    // 點暗處（說明卡以外）就離開
+    layer.addEventListener("click", (event) => { if (!event.target.closest(".tour__card")) close(); });
     document.addEventListener("keydown", onKey);
     window.addEventListener("resize", place);
     window.addEventListener("scroll", place, { passive: true });
     go(0);
-    try { localStorage.setItem(`tour-seen-${page}`, "1"); } catch (e) { /* 存不了也沒關係 */ }
+    markSeen();
+  };
+  // 第一次進這一頁：不直接蓋住畫面，上方出現一條小提示，要看才播
+  let invite = null;
+  function removeInvite() { if (invite) { invite.remove(); invite = null; } }
+  const offer = () => {
+    if (!steps().length || layer || invite) return;
+    loadStyle();
+    invite = document.createElement("div");
+    invite.className = "tour-invite";
+    invite.setAttribute("role", "status");
+    invite.innerHTML = '<span>第一次來這頁？</span>'
+      + '<button type="button" class="tour-invite__go" data-tour-invite-go>看 30 秒導覽</button>'
+      + '<button type="button" class="tour-invite__no" data-tour-invite-no>不用</button>';
+    document.body.appendChild(invite);
+    invite.querySelector("[data-tour-invite-go]").addEventListener("click", start);
+    invite.querySelector("[data-tour-invite-no]").addEventListener("click", () => { removeInvite(); markSeen(); });
   };
   if (startButton) startButton.addEventListener("click", start);
   document.querySelectorAll("[data-tour-replay]").forEach((button) => button.addEventListener("click", () => {
     try { localStorage.removeItem(`tour-seen-${button.dataset.tourReplay}`); } catch (e) { /* 沒關係 */ }
     window.location.href = button.dataset.tourReplayUrl || "/student/dashboard";
   }));
-  // 首頁第一次來自動播；「好久不見」那一幕還在的話等它關掉，也等小人物走完
+  // 從「怎麼操作」按「重看導覽」（?tour=1）直接播；第一次來只出現邀請。首頁要等「好久不見」那一幕關掉、小人物走完
   if (new URLSearchParams(window.location.search || "").get("tour") === "1") {
     start();
   } else if (page === "student-dashboard") {
@@ -841,7 +953,7 @@ document.querySelectorAll("[data-photo-form]").forEach((form) => {
     try { seen = localStorage.getItem(`tour-seen-${page}`) === "1"; } catch (e) { seen = true; }
     if (!seen) {
       const waitForWalker = () => {
-        if (document.documentElement.dataset.journeyWalked === "true") { start(); return; }
+        if (document.documentElement.dataset.journeyWalked === "true") { offer(); return; }
         let started = false;
         let fallback = null;
         const begin = () => {
@@ -849,7 +961,7 @@ document.querySelectorAll("[data-photo-form]").forEach((form) => {
           started = true;
           clearTimeout(fallback);
           document.removeEventListener("journey:walked", begin);
-          start();
+          offer();
         };
         document.addEventListener("journey:walked", begin, { once: true });
         fallback = setTimeout(begin, 6000);
@@ -860,5 +972,108 @@ document.querySelectorAll("[data-photo-form]").forEach((form) => {
       };
       wait();
     }
+  } else if (page !== "help") {
+    let seen = false;
+    try { seen = localStorage.getItem(`tour-seen-${page}`) === "1"; } catch (e) { seen = true; }
+    if (!seen) setTimeout(offer, 900);
   }
 })();
+
+// 字體大小切換（partials/nav.html 的 font_switch）：小／中／大，記在這台瀏覽器；「中」是預設，不另外存
+(() => {
+  const root = document.documentElement;
+  const current = () => root.getAttribute("data-font-size") || "md";
+  const sync = () => document.querySelectorAll("[data-font-size-set]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.fontSizeSet === current()));
+  });
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-font-size-set]");
+    if (!button) return;
+    const size = button.dataset.fontSizeSet;
+    if (size === "md") root.removeAttribute("data-font-size");
+    else root.setAttribute("data-font-size", size);
+    try {
+      if (size === "md") localStorage.removeItem("font-size");
+      else localStorage.setItem("font-size", size);
+    } catch (error) { /* 存不了也沒關係，這次瀏覽仍會套用 */ }
+    sync();
+  });
+  sync();
+})();
+
+// 學生頂端列的開合選單（partials/nav.html）：手機的「選單」和帳號選單。
+// 按鈕 data-menu-toggle＋aria-controls 指到面板；帳號面板用 hidden，主選單交給 CSS 看 aria-expanded。
+// Esc 關閉並回到按鈕、點外面或焦點離開就關；面板裡按了連結／導覽就關（字體大小可以連續調，不關）。
+(() => {
+  const toggles = [...document.querySelectorAll("[data-menu-toggle]")];
+  if (!toggles.length) return;
+  const panelOf = (toggle) => document.getElementById(toggle.getAttribute("aria-controls"));
+  const isOpen = (toggle) => toggle.getAttribute("aria-expanded") === "true";
+  const setOpen = (toggle, open) => {
+    toggle.setAttribute("aria-expanded", String(open));
+    const panel = panelOf(toggle);
+    if (panel && panel.classList.contains("account-menu__panel")) panel.hidden = !open;
+  };
+  const inside = (toggle, node) => toggle.contains(node) || (panelOf(toggle) && panelOf(toggle).contains(node));
+  toggles.forEach((toggle) => {
+    toggle.addEventListener("click", () => {
+      const open = !isOpen(toggle);
+      toggles.forEach((other) => { if (other !== toggle && isOpen(other)) setOpen(other, false); });
+      setOpen(toggle, open);
+    });
+    const panel = panelOf(toggle);
+    if (!panel) return;
+    panel.addEventListener("click", (event) => {
+      if (event.target.closest("a, [data-tour-start]")) setOpen(toggle, false);
+    });
+    panel.addEventListener("focusout", (event) => {
+      if (isOpen(toggle) && event.relatedTarget && !inside(toggle, event.relatedTarget)) setOpen(toggle, false);
+    });
+  });
+  document.addEventListener("click", (event) => {
+    toggles.forEach((toggle) => { if (isOpen(toggle) && !inside(toggle, event.target)) setOpen(toggle, false); });
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    toggles.forEach((toggle) => {
+      if (!isOpen(toggle)) return;
+      const hadFocus = inside(toggle, document.activeElement);
+      setOpen(toggle, false);
+      if (hadFocus) toggle.focus();
+    });
+  });
+})();
+
+// 獎懲記錄貼上（組員版）：從學校網頁複製表格時，剪貼簿有 HTML，轉成 Tab 分隔保留欄列；純文字照瀏覽器原本行為。
+document.querySelectorAll("[data-award-paste]").forEach((field) => {
+  field.addEventListener("paste", (event) => {
+    const html = event.clipboardData && event.clipboardData.getData("text/html");
+    if (!html) return;
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const rows = [...doc.querySelectorAll("tr")].map((row) =>
+      [...row.querySelectorAll(":scope > th, :scope > td")].map((cell) => (cell.textContent || "").replace(/\s+/g, " ").trim()));
+    const first = rows.findIndex((row) => row.map((cell) => cell.replace(/\s+/g, "")).includes("獎懲事由"));
+    if (first < 0) return;
+    const text = rows.slice(first).filter((row) => row.length).map((row) => row.join("\t")).join("\n");
+    event.preventDefault();
+    field.setRangeText(text, field.selectionStart, field.selectionEnd, "end");
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+});
+
+// ---------- 登入頁：密碼旁的眼睛，按一下顯示／隱藏 ----------
+document.querySelectorAll("[data-password-toggle]").forEach((button) => {
+  const input = button.parentElement.querySelector("input");
+  if (!input) return;
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    const show = input.type === "password";
+    input.type = show ? "text" : "password";
+    button.setAttribute("aria-pressed", String(show));
+    button.setAttribute("aria-label", show ? "隱藏密碼" : "顯示密碼");
+    button.title = show ? "隱藏密碼" : "顯示密碼";
+    input.focus();
+  });
+  // 送出前一定改回隱藏，瀏覽器才不會把密碼當一般文字記下來
+  input.form?.addEventListener("submit", () => { input.type = "password"; });
+});

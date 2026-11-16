@@ -22,3 +22,20 @@ class AutobiographyGoogleDoc(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     last_pulled_at = db.Column(db.DateTime, nullable=True)
     last_pulled_output_id = db.Column(db.Integer, db.ForeignKey("learning_profile_outputs.id"), nullable=True)
+
+
+class StudentDriveFolder(db.Model):
+    """學生雲端硬碟裡本系統建立的資料夾編號：「備審資料」一個，各校系一個（備審資料／校名_科系）。
+
+    只建一次，之後重用；編號只是 Drive 上的 ID，不含檔案內容。
+    folder_key：root 代表「備審資料」，program:<校系 id> 代表該校系的資料夾。
+    """
+
+    __tablename__ = "student_drive_folders"
+    __table_args__ = (db.UniqueConstraint("student_id", "folder_key", name="uq_student_drive_folder"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    folder_key = db.Column(db.String(40), nullable=False)
+    google_folder_id = db.Column(db.String(128), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))

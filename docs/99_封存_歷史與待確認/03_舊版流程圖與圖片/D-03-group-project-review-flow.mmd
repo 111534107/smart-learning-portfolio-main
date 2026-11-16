@@ -1,0 +1,19 @@
+%%{init: {'theme':'base','themeVariables': {'fontFamily':'Microsoft JhengHei, Noto Sans TC, Arial, sans-serif','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280','edgeLabelBackground':'#FFFFFF'},'flowchart':{'wrappingWidth':400}}}%%
+flowchart TD
+    classDef student fill:#DBEAFE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef teacher fill:#DCFCE7,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef staff fill:#EDE9FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef system fill:#E0F2FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef alert fill:#FEE2E2,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+
+    Start([專五專題開始（後續擴充）]) --> Team[學生建立小組與個人分工]:::student
+    Team --> Submit[學生繳交成果與佐證<br/>狀態：submitted]:::student
+    Submit --> Discuss[教師共同討論<br/>不在系統內個別評分]:::teacher
+    Discuss --> Record[科主任或科助登錄共同結論]:::staff
+    Record --> Result{共同結論}
+    Result -- approved 核可 --> Link[連結至每位組員的學習歷程]:::system
+    Result -- needs_revision 需要補正 --> NewVersion[建立新版本<br/>版本號加 1，保留前一版]:::system
+    NewVersion --> Submit
+    Result -- rejected 退件 --> Reject[記錄退件原因]:::alert
+    Link --> End([完成])
+    Reject --> End

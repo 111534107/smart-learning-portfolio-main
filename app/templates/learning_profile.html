@@ -12,25 +12,37 @@
 
 {% block content %}
 {{ page_band(page_label) }}
+{# 學生端 v2：檔案拖進整頁就上傳（js/student-v2-drop.js，走原本的上傳表單與路由） #}
+<div class="sv2-drop" aria-hidden="true"><b>放開就上傳</b><small>系統會用 OCR 辨識{{ page_label }}</small></div>
+<form class="sv2-drop-form" method="post" action="{{ url_for('student.learning_profile_document_upload') }}" enctype="multipart/form-data" data-sv2-drop-form>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="document_type" value="{{ kind }}">
+  {# 檔案欄位由 js/student-v2-drop.js 在拖放時才建立：列表頁本身不放上傳欄位（上傳有自己的頁面） #}
+</form>
 <div class="page page--banded">
   <div class="list-head">
     <p class="muted">{% if kind == "transcript" %}從學校系統下載歷年成績單（PDF 或圖片）後上傳{% else %}拍下或掃描證照正面後上傳{% endif %}，確認內容就會放進「我的五年」。</p>
     <a class="button" href="{{ url_for('student.learning_profile_upload_page', type=kind) }}" data-tour="{{ page_label }}從這裡上傳。" data-tour-order="1">＋ 上傳{{ page_label }}</a>
   </div>
+  {# 抵免入口只放在成績頁，不在首頁對所有學生顯示（11-04 實測）；建立抵免紀錄後主選單會出現「抵免進度」 #}
+  {% if kind == "transcript" and not has_transfer_record %}
+  <p class="muted small mb-1"><a href="{{ url_for('transfer_credit.student_transfer_credit') }}">轉學生？填寫抵免進度 →</a></p>
+  {% endif %}
+
 
     <div>
       <section class="record-group" aria-labelledby="docs-title" data-tour="上傳後按「確認」，資料才算數。" data-tour-order="2">
         <div class="record-group__head"><h2 id="docs-title">我上傳的文件</h2><span class="muted small">{{ documents|length }} 份</span></div>
         {% if documents %}
         <div class="table-wrap">
-          <table class="data-table">
+          <table class="data-table sv2-table sv2-table--docs">
             <thead><tr><th>檔案</th><th>狀態</th><th>上傳時間</th><th><span class="visually-hidden">操作</span></th></tr></thead>
-            <tbody>
+            <tbody class="sv2-deal">
               {% for document in documents %}
               <tr>
                 <td>{{ document.display_name }}</td>
-                <td>{{ status_chip(record_state(document)) }}</td>
-                <td class="mono small">{{ document.created_at|taipei_time("%Y-%m-%d") }}</td>
+                <td data-label="狀態">{{ status_chip(record_state(document)) }}</td>
+                <td class="mono small" data-label="上傳">{{ document.created_at|taipei_time("%Y-%m-%d") }}</td>
                 <td>{% if document.status in ("queued", "processing") %}<a class="button button--small button--line" href="{{ url_for('student.learning_profile_document_processing', document_id=document.id) }}">辨識中…</a>
                   {% else %}<a class="button button--small {{ 'button--line' if document.status == 'confirmed' else '' }}" href="{{ url_for('student.learning_profile_document_review', document_id=document.id) }}">{{ "修改" if document.status == "confirmed" else "確認" }}</a>
                   <form class="inline-form" method="post" action="{{ url_for('student.learning_profile_document_reanalyze', document_id=document.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small button--line" type="submit" title="重新辨識會建立新的待確認草稿；已確認的資料會保留到再次確認。">重新辨識</button></form>{% endif %}</td>
@@ -49,11 +61,11 @@
         <div class="record-group__head"><h2 id="courses-title">成績與學分</h2><span class="muted small">{{ courses|length }} 門課</span></div>
         {% if courses %}
         <div class="table-wrap">
-          <table class="data-table">
+          <table class="data-table course-table">
             <thead><tr><th>年級</th><th>學期</th><th>課程</th><th>學分</th><th>分數</th><th>狀態</th></tr></thead>
-            <tbody>
+            <tbody class="sv2-deal">
               {% for course in courses %}
-              <tr><td>{{ course.school_year or course.grade_level or "—" }}</td><td>{{ course.semester or "—" }}</td><td>{{ course.course_name }}</td><td>{{ course.credits if course.credits is not none else "—" }}</td><td>{{ course.score if course.score is not none else (course.status_mark or "—") }}</td><td>{{ status_chip(record_state(course)) }}</td></tr>
+              <tr><td data-label="年級">{{ course.school_year or course.grade_level or "—" }}</td><td data-label="學期">{{ course.semester or "—" }}</td><td data-label="課程">{{ course.course_name }}</td><td data-label="學分">{{ course.credits if course.credits is not none else "—" }}</td><td data-label="分數">{{ course.score if course.score is not none else (course.status_mark or "—") }}</td><td data-label="狀態">{{ status_chip(record_state(course)) }}</td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -67,7 +79,7 @@
       <section class="record-group" style="--slot: var(--year-2);" aria-labelledby="credentials-title">
         <div class="record-group__head"><h2 id="credentials-title">證照</h2><span class="muted small">{{ credentials|length }} 張</span></div>
         {% if credentials %}
-        <div class="record-cards">
+        <div class="record-cards sv2-deal">
           {% for credential in credentials %}
           <article class="record-card">
             <div class="record-card__meta">{{ status_chip(record_state(credential)) }}{% if credential.level %}<span class="tag tag--info">{{ credential.level }}</span>{% endif %}{% if credential.issue_date %}<span class="tag mono">{{ credential.issue_date.isoformat() }}</span>{% else %}<span class="tag tag--warn">未填取得日期</span>{% endif %}</div>
@@ -83,7 +95,21 @@
       {% endif %}
 
     </div>
+  {% if kind == "transcript" %}
+  <details class="outputs-disclosure" aria-labelledby="outputs-title">
+    <summary id="outputs-title">學習歷程成果</summary>
+    <p>依已確認的成績與證照整理草稿；課程缺漏依輸入學年度的課程規則計算，請自行核對。</p>
+    <form method="post" action="{{ url_for('student.learning_profile_generate') }}" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="field">課程規則學年度（民國）<input name="school_year" type="number" min="1" max="999" required></label>
+      <button class="button" type="submit">產生成果草稿</button>
+    </form>
+    <ul>{% for output in outputs if output.output_type in output_labels %}<li>{{ output_labels[output.output_type] }}（{{ output.created_at|taipei_time }}） <a href="{{ url_for('student.learning_profile_output_docx', output_id=output.id) }}">下載 Word</a></li>{% else %}<li>尚未產生成果草稿。</li>{% endfor %}</ul>
+  </details>
+  {% endif %}
 </div>
 {% endblock %}
 
 {% block footer %}{{ footer() }}{% endblock %}
+
+{% block scripts %}{% if user and user.role == "student" %}<script src="{{ url_for('static', filename='js/student-v2-drop.js') }}" defer></script>{% endif %}{% endblock %}

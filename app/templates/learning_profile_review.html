@@ -12,6 +12,8 @@
 {% block content %}
 {{ page_band("確認上傳內容", [(page_label, url_for('student.learning_profile') if document.document_type == "transcript" else url_for('student.learning_profile_credentials'))], note=document.display_name) }}
 <div class="page page--banded ocr-review">
+  {% if photo_check %}<p class="notice notice--warn mb-1" role="status" data-photo-check>{{ photo_check.message }}
+    <a href="{{ url_for('student.learning_profile_upload_page', type=document.document_type) }}">重新上傳</a></p>{% endif %}
   {% if document.extraction and document.extraction.provider == "demo" %}<p class="notice mb-1">本機模擬 OCR：辨識結果是合成資料，請修正後再確認；這不代表真實 OCR 已完成。</p>{% endif %}
 
   {# 左圖右表：電腦版原圖在左（跟著捲動）、確認表格在右；手機版改為單欄，原圖預設收合 #}
@@ -26,6 +28,12 @@
       <span class="small">點圖片放大</span>
     </button>
     {% elif document.preview_kind == "pdf" %}
+    {# PDF 也顯示第一頁預覽（辨識時產生的圖）；沒有預覽檔就只留開啟按鈕 #}
+    {% set preview_url = url_for('student.learning_profile_document_preview', document_id=document.id) %}
+    <button type="button" class="source-doc__image" data-lightbox="{{ preview_url }}" aria-label="放大 {{ document.display_name }} 第一頁">
+      <img src="{{ preview_url }}" alt="{{ document.display_name }} 第一頁" onerror="this.parentElement.hidden = true">
+      <span class="small">點圖片放大</span>
+    </button>
     <a class="button button--small button--line" href="{{ source_url }}" target="_blank" rel="noopener">在新分頁開啟 PDF</a>
     {% else %}
     <p class="muted small">這種檔案無法預覽，請改用 PDF、PNG 或 JPG。</p>
@@ -53,7 +61,7 @@
     {% if is_transcript %}
     <section class="sheet" aria-labelledby="course-table-title">
       <div class="sheet__head">
-        <div><h2 id="course-table-title">課程</h2><p class="muted small">年級填 1～5，或民國學年度（例如 113）。抵、免、補不是分數，請在「註記」選擇。</p></div>
+        <div><h2 id="course-table-title">課程 <span class="sv2-editable"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>可直接修改</span></h2><p class="muted small">年級填 1～5，或民國學年度（例如 113）。抵、免、補不是分數，請在「註記」選擇。</p></div>
         <button class="button button--small button--line" type="button" data-add-row="course-table">＋ 新增一門課</button>
       </div>
       <div class="table-wrap">
@@ -79,7 +87,7 @@
     {% else %}
     <section class="sheet" aria-labelledby="credential-table-title">
       <div class="sheet__head">
-        <div><h2 id="credential-table-title">證照</h2><p class="muted small">取得日期決定這張證照放在哪一個年級。</p></div>
+        <div><h2 id="credential-table-title">證照 <span class="sv2-editable"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>可直接修改</span></h2><p class="muted small">取得日期決定這張證照放在哪一個年級。</p></div>
         <button class="button button--small button--line" type="button" data-add-row="credential-table">＋ 新增一張證照</button>
       </div>
       <div class="table-wrap">
@@ -110,52 +118,106 @@
   {% endif %}
 
   {# 以下為組員 111534107 的 OCR 確認介面 #}
-<h2>確認擷取資料：{{ document.display_name }}</h2>
-<p>請只保留你能確認正確的資料。抵、免、補不是分數，仍須由課程規則與學校人員確認。</p>
 {% set result = review_result if review_result is defined else (document.extraction.result_json if document.extraction and document.extraction.result_json else {}) %}
-{% if review_error %}<p role="alert" class="review-warning">{{ review_error }}</p>{% endif %}
-<div class="review-actions">
-  <a href="{{ url_for('student.learning_profile') }}">回來源檔清單</a>
-  <a href="{{ url_for('student.learning_profile_document_source', document_id=document.id) }}">下載原始檔案</a>
-  <form method="post" action="{{ url_for('student.learning_profile_document_reanalyze', document_id=document.id) }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <button class="button button--small button--line" type="submit" data-busy-text="重新辨識中…">重新分析來源檔</button>
-  </form>
+{% set courses = (review_courses if review_courses is defined else (document.extraction.result_json.courses if document.extraction and document.extraction.result_json and document.extraction.result_json.courses else [])) %}
+{% set academic_summary = (document.extraction.result_json.academic_summary if document.extraction and document.extraction.result_json and document.extraction.result_json.academic_summary else []) %}
+{% set credentials = result.get('credentials') or [] %}
+{# 11-06 改版：一眼看出「現在該做什麼」。需要核對＝不及格、成績待確認、OCR 標記待確認、科目／學分／成績空白或看不清楚 #}
+{% macro attention_flag(course, kind) -%}
+{%- set confidence = course.get('field_confidence') or {} -%}
+{%- set flag = namespace(on=(kind in ('failed', 'pending') or course.get('needs_review'))) -%}
+{%- for field in ['course_name', 'credits', 'score'] -%}
+{%- set value = course.get(field) -%}
+{%- set certainty = confidence.get(field) -%}
+{%- if value is none or value == '' or (value is string and '待確認' in value) -%}{%- set flag.on = true -%}{%- endif -%}
+{%- if certainty is number and certainty is not sameas true and certainty is not sameas false and certainty >= 0 and certainty < 0.85 -%}{%- set flag.on = true -%}{%- endif -%}
+{%- endfor -%}
+{{- 'true' if flag.on else 'false' -}}
+{%- endmacro %}
+{% set attention = namespace(count=0, failed=0) %}
+{% if document.document_type == "transcript" and review_groups is defined %}
+{% for group in review_groups %}{% for semester in group.semesters %}
+{% for kind, entries in [('passed', semester.passed), ('failed', semester.failed), ('pending', semester.pending)] %}{% for entry in entries %}{% if attention_flag(entry.course, kind) == 'true' %}{% set attention.count = attention.count + 1 %}{% endif %}{% if kind == 'failed' %}{% set attention.failed = attention.failed + 1 %}{% endif %}{% endfor %}{% endfor %}
+{% endfor %}{% endfor %}
+{% endif %}
+{% if document.document_type == "transcript" %}
+<div class="review-headline" role="status">
+  {% if not courses %}
+  <h2>這份成績單沒有讀到課程</h2>
+  <p>可以在「其他資訊」重新分析，或改用進階 JSON 手動補上。</p>
+  {% elif attention.count %}
+  <h2>讀到 {{ courses|length }} 門課，有 {{ attention.count }} 門要請你看一下</h2>
+  <p>對照原圖，把橘色格子補好、紅色的不及格確認一下，再按最下面的「確認並儲存」。</p>
+  {% else %}
+  <h2>讀到 {{ courses|length }} 門課，沒有標出要核對的地方</h2>
+  <p>仍請對照原圖看一遍，沒問題就按最下面的「確認並儲存」。</p>
+  {% endif %}
 </div>
-<p>重新分析會建立新草稿；已確認的課程與證照會保留，直到你明確確認並儲存新草稿。尚未儲存的修改不會帶入新分析。</p>
-{% if result.get('history') %}<p>目前保留 {{ result.history|length }} 份先前擷取快照。</p>{% endif %}
-{% if result.get('source', {}).get('engine') %}<p>辨識引擎：{{ result.source.engine }}</p>{% endif %}
+{% else %}
+<h2>確認擷取資料：{{ document.display_name }}</h2>
+{% endif %}
+{% if review_error %}<p role="alert" class="review-warning">{{ review_error }}</p>{% endif %}
 {% for warning in result.get('warnings', []) %}<p class="review-warning">{{ warning }}</p>{% endfor %}
 {% if document.status == "analysis_failed" and document.extraction and document.extraction.error_message %}
 <p style="color:#b42318;font-weight:700">檔案目前沒有產生可確認資料：{{ document.extraction.error_message }}</p>
 {% endif %}
-{% set trace = result.get('processing_steps', []) %}
-{% set raw_text = result.get('raw_text', '') %}
-<details class="ocr-trace">
-  <summary>查看 OCR 辨識過程</summary>
-  <p>這些紀錄用來說明系統如何從圖片整理出下方資料。</p>
-  <ol>{% for item in trace %}<li>{{ item|ocr_step }}</li>{% else %}<li>目前沒有詳細處理紀錄。</li>{% endfor %}</ol>
-  {% if raw_text %}
-    {% if document.document_type == 'credential' %}
-      <label>OCR 辨識文字（繁體顯示）<textarea rows="8" readonly>{{ raw_text|traditional_text }}</textarea></label>
-    {% else %}
-      <label>OCR 原始文字<textarea rows="8" readonly>{{ raw_text }}</textarea></label>
+{# 說明、重新分析、辨識過程、學業統計都收在這裡，不擋在課程前面 #}
+<details class="review-more">
+  <summary>其他資訊（說明、重新分析、辨識過程{% if academic_summary %}、學業統計{% endif %}）</summary>
+  <p>請只保留你能確認正確的資料。抵、免、補不是分數，仍須由課程規則與學校人員確認。</p>
+  {% if document.document_type == "transcript" %}
+  <p>空白表示缺漏／待確認，0 表示來源明確記載零值。「看不清楚」是辨識引擎的信心偏低（低於 85%），不代表一定錯；修改欄位不會改變原本的信心分數。</p>
+  <p>各年級先分第一、第二學期，每學期依成績由高到低排列；不及格與缺成績另外列出。修改後請儲存，重新開啟時會更新分類。</p>
+  {% endif %}
+  <div class="review-actions">
+    <a href="{{ url_for('student.learning_profile') }}">回來源檔清單</a>
+    <a href="{{ url_for('student.learning_profile_document_source', document_id=document.id) }}">下載原始檔案</a>
+    <form method="post" action="{{ url_for('student.learning_profile_document_reanalyze', document_id=document.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="button button--small button--line" type="submit" data-busy-text="重新辨識中…">重新分析來源檔</button>
+    </form>
+  </div>
+  <p>重新分析會建立新草稿；已確認的課程與證照會保留，直到你明確確認並儲存新草稿。尚未儲存的修改不會帶入新分析。</p>
+  {% if result.get('history') %}<p>目前保留 {{ result.history|length }} 份先前擷取快照。</p>{% endif %}
+  {% if result.get('source', {}).get('engine') %}<p>辨識引擎：{{ result.source.engine }}</p>{% endif %}
+  {% set trace = result.get('processing_steps', []) %}
+  {% set raw_text = result.get('raw_text', '') %}
+  <details class="ocr-trace">
+    <summary>查看 OCR 辨識過程</summary>
+    <p>這些紀錄用來說明系統如何從圖片整理出下方資料。</p>
+    <ol>{% for item in trace %}<li>{{ item|ocr_step }}</li>{% else %}<li>目前沒有詳細處理紀錄。</li>{% endfor %}</ol>
+    {% if raw_text %}
+      {% if document.document_type == 'credential' %}
+        <label>OCR 辨識文字（繁體顯示）<textarea rows="8" readonly>{{ raw_text|traditional_text }}</textarea></label>
+      {% else %}
+        <label>OCR 原始文字<textarea rows="8" readonly>{{ raw_text }}</textarea></label>
+      {% endif %}
     {% endif %}
+  </details>
+  {% if document.document_type == "transcript" and academic_summary %}
+  <section class="academic-summary">
+    <h3>學業統計</h3>
+    <p class="empty">以下資料來自成績單底部統計區，不會列入課程或不及格判斷。</p>
+    <table>
+      <thead><tr><th>年級</th><th>統計項目</th><th>第一學期</th><th>第二學期</th></tr></thead>
+      <tbody>{% for item in academic_summary %}<tr><td>{{ item.grade_level }}</td><td>{{ item.metric }}</td><td>{{ item.semester_1 }}</td><td>{{ item.semester_2 }}</td></tr>{% endfor %}</tbody>
+    </table>
+    {% if academic_summary|selectattr('needs_confirmation')|list %}
+      <p class="empty">部分統計標籤不清楚，以上數字是依表格列順序擷取，請對照原始成績單確認。</p>
+    {% endif %}
+  </section>
   {% endif %}
 </details>
-{% set courses = (review_courses if review_courses is defined else (document.extraction.result_json.courses if document.extraction and document.extraction.result_json and document.extraction.result_json.courses else [])) %}
-{% set academic_summary = (document.extraction.result_json.academic_summary if document.extraction and document.extraction.result_json and document.extraction.result_json.academic_summary else []) %}
-{% set credentials = result.get('credentials') or [] %}
 <style>
   .score-groups { display: grid; gap: .75rem; max-width: 980px; }
   .score-group { border: 1px solid #d8dce5; border-radius: 12px; background: #fff; }
-  .score-group > summary { cursor: pointer; list-style: none; padding: 1rem 1.1rem; font-size: 1.15rem; font-weight: 800; display: flex; justify-content: space-between; gap: 1rem; align-items: center; }
+  .score-group > summary { cursor: pointer; list-style: none; padding: 1rem 1.1rem; font-size: var(--fs-md); font-weight: 800; display: flex; justify-content: space-between; gap: 1rem; align-items: center; }
   .score-group > summary::-webkit-details-marker { display: none; }
   .score-group > summary::after { content: "＋"; color: #52606d; }
   .score-group[open] > summary::after { content: "－"; }
   .score-group.failed { border-color: #f3b4ad; }
   .score-group.failed > summary { color: #b42318; background: #fff5f4; }
-  .score-group__best { font-size: .9rem; font-weight: 600; color: #667085; }
+  .score-group__best { font-size: var(--fs-sm); font-weight: 600; color: #667085; }
   .score-group__body { padding: 0 1.1rem 1rem; }
   .score-group table { width: 100%; border-collapse: collapse; }
   .score-group th, .score-group td { padding: .55rem; border-bottom: 1px solid #e7e9ef; text-align: left; }
@@ -190,34 +252,28 @@
   .course-editor td.field-pending { background: #fff7ed; }
   .course-editor input.value-pending { border: 2px solid #c2410c; background: #fff7ed; }
   .course-editor input.score-locked { background: #f2f4f7; color: #475467; cursor: not-allowed; }
-  .course-editor input.all-fields-locked { background: #e8edf5; color: #344054; border-color: #98a2b3; cursor: not-allowed; box-shadow: inset 0 0 0 1px #cbd5e1; }
   .pending-badge { color: #b42318; font-weight: 800; }
   .course-grade-filter { display: flex; align-items: center; gap: .75rem; margin: 1rem 0; font-weight: 700; }
   .course-grade-filter select { min-width: 12rem; padding: .55rem; font: inherit; }
   .review-filter-bar { position: sticky; top: 0; z-index: 20; display: flex; flex-wrap: wrap; align-items: end; gap: .75rem 1rem; margin: 1rem 0; padding: .8rem; border: 1px solid #cbd5e1; border-radius: 12px; background: #fff; box-shadow: 0 5px 16px rgb(16 24 40 / 14%); }
   .review-filter-bar label { display: grid; gap: .25rem; font-weight: 750; }
   .review-filter-bar select, .review-filter-bar button { min-height: 42px; padding: .5rem .7rem; font: inherit; }
-  .review-filter-bar .lock-all-scores { display: inline-flex; align-items: center; gap: .4rem; border: 1px solid #0ba8d5; color: #075985; background: #ecfeff; font-weight: 750; cursor: pointer; }
-  .review-filter-bar .lock-all-scores:hover { background: #cffafe; }
-  .lock-all-scores svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-  .lock-all-icon--open, .lock-all-scores.is-unlocked .lock-all-icon--closed { display: none; }
-  .lock-all-scores.is-unlocked .lock-all-icon--open { display: block; }
   .score-lock-status { color: #475467; font-weight: 700; }
   .course-year-group { margin: 1rem 0; }
   .course-year-group[hidden] { display: none; }
-  .course-year-group > summary { cursor: pointer; list-style: none; padding: 1rem 1.1rem; font-size: 1.1rem; font-weight: 800; display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; }
+  .course-year-group > summary { cursor: pointer; list-style: none; padding: 1rem 1.1rem; font-size: var(--fs-md); font-weight: 800; display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; }
   .course-year-group > summary::-webkit-details-marker { display: none; }
   .course-year-group > summary::after { content: "＋ 展開"; margin-left: auto; color: #365ac9; }
   .course-year-group[open] > summary::after { content: "－ 收合"; }
-  .course-year-group__top-three { flex: 1 0 100%; margin: 0; padding-left: 1.5rem; color: #344054; font-size: .93rem; font-weight: 500; }
+  .course-year-group__top-three { flex: 1 0 100%; margin: 0; padding-left: 1.5rem; color: #344054; font-size: var(--fs-sm); font-weight: 500; }
   .course-year-group[open] .course-year-group__top-three,
   .course-year-group[open] .course-year-group__top-label { display: none; }
   .course-year-group__body { padding: 0 1.1rem 1rem; }
   .course-year-group__empty[hidden] { display: none; }
   .course-review-semester[hidden] { display: none; }
-  .course-review-semester > summary { display: flex; align-items: center; gap: .5rem; margin: 1rem 0 .5rem; padding: .65rem .8rem; background: #eef4ff; border-radius: 8px; color: #1d3a6f; cursor: pointer; font-size: 1.1rem; font-weight: 800; list-style: none; }
+  .course-review-semester > summary { display: flex; align-items: center; gap: .5rem; margin: 1rem 0 .5rem; padding: .65rem .8rem; background: #eef4ff; border-radius: 8px; color: #1d3a6f; cursor: pointer; font-size: var(--fs-md); font-weight: 800; list-style: none; }
   .course-review-semester > summary::-webkit-details-marker { display: none; }
-  .course-review-semester > summary::after { content: "＋ 展開"; margin-left: auto; color: #365ac9; font-size: .95rem; }
+  .course-review-semester > summary::after { content: "＋ 展開"; margin-left: auto; color: #365ac9; font-size: var(--fs-base); }
   .course-review-semester[open] > summary::after { content: "－ 收合"; }
   .course-review-section { margin: .5rem 0 1rem; border: 1px solid #e7e9ef; border-radius: 10px; }
   .course-review-section h4 { margin: 0; padding: .7rem .9rem; background: #f8fafc; }
@@ -243,23 +299,23 @@
   .course-review-section tbody tr:last-child { border-bottom: 0; }
   .course-review-section th, .course-review-section td { padding: 0; border: 0; }
   .course-review-section thead tr { padding: .55rem 1rem; background: #f8fafc; border-bottom: 1px solid #e7e9ef; }
-  .course-review-section thead th { position: static; background: none; color: #475467; font-size: .82rem; font-weight: 700; }
+  .course-review-section thead th { position: static; background: none; color: #475467; font-size: var(--fs-sm); font-weight: 700; }
   .course-review-section thead th:last-child { display: none; }
   .course-review-section tr.needs-review { background: #fffdf7; box-shadow: inset 4px 0 0 #f2b33d; }
   .course-review-section input {
     width: 100%; min-width: 0; box-sizing: border-box; padding: .45rem .6rem;
-    border: 1px solid #cfd4dc; border-radius: 7px; background: #fff; font-size: .98rem;
+    border: 1px solid #cfd4dc; border-radius: 7px; background: #fff; font-size: var(--fs-base);
   }
   .course-review-section td:first-child input { min-width: 0; font-weight: 700; }
   .course-review-section input[type="number"] { text-align: center; }
   .course-review-section input.value-pending { border: 1.5px dashed #d97706; background: #fffaf0; }
   .course-review-section td.field-pending { background: none; }
-  .course-review-section td small[id^="confidence-"] { margin-top: .25rem; color: #98a2b3; font-size: .74rem; line-height: 1.35; }
+  .course-review-section td small[id^="confidence-"] { margin-top: .25rem; color: #98a2b3; font-size: var(--fs-xs); line-height: 1.35; }
   .course-review-section td small.confidence-low,
   .course-review-section td small.confidence-unknown { color: #b54708; }
-  .course-review-section .pending-badge { margin-top: .15rem; font-size: .74rem; }
+  .course-review-section .pending-badge { margin-top: .15rem; font-size: var(--fs-xs); }
   .course-review-section td.course-notes-cell { grid-column: 1 / -1; }
-  .course-notes { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .5rem; padding-top: .2rem; font-size: .8rem; }
+  .course-notes { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .5rem; padding-top: .2rem; font-size: var(--fs-xs); }
   .course-notes small { display: inline-flex; margin: 0; }
   .note-chip { align-items: center; padding: .12rem .6rem; border-radius: 999px; background: #eef2f6; color: #344054; font-weight: 700; }
   .note-chip--failed { background: #fee4e2; color: #b42318; }
@@ -283,7 +339,7 @@
     .review-layout .source-doc { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow: auto; margin-bottom: 0; }
     .review-layout .course-review-section thead { display: none; }
     .review-layout .course-review-section tr { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .review-layout .course-review-section td[data-label]::before { content: attr(data-label); display: block; margin-bottom: .2rem; color: #475467; font-size: .76rem; font-weight: 700; }
+    .review-layout .course-review-section td[data-label]::before { content: attr(data-label); display: block; margin-bottom: .2rem; color: #475467; font-size: var(--fs-xs); font-weight: 700; }
     .review-layout .course-review-section td:first-child { grid-column: 1 / -1; }
   }
   @media (max-width: 600px) {
@@ -294,64 +350,63 @@
     .course-review-section tr { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem .7rem; padding: .75rem; }
     .review-filter-bar { position: static; box-shadow: none; }
     .course-review-section td:first-child { grid-column: 1 / -1; }
-    .course-review-section td[data-label]::before { content: attr(data-label); display: block; margin-bottom: .2rem; color: #475467; font-size: .76rem; font-weight: 700; }
+    .course-review-section td[data-label]::before { content: attr(data-label); display: block; margin-bottom: .2rem; color: #475467; font-size: var(--fs-xs); font-weight: 700; }
     .note-source { margin-left: 0; }
   }
+  /* 11-06 改版：一個重點（頂端摘要）、一個主要按鈕（底部儲存）、其他說明收起來 */
+  .review-headline { margin: 0 0 .75rem; padding: 1rem 1.1rem; border: 1px solid #cbd5e1; border-radius: 12px; background: #fff; }
+  .review-headline h2 { margin: 0 0 .25rem; font-size: var(--fs-lg, 1.25rem); }
+  .review-headline p { margin: 0; color: #475467; }
+  .review-more { margin: .5rem 0 1rem; padding: .6rem .9rem; border: 1px solid #e4e7ec; border-radius: 10px; background: #f8fafc; }
+  .review-more > summary { cursor: pointer; color: #344054; font-weight: 700; }
+  .review-more[open] > summary { margin-bottom: .5rem; }
+  .review-views { display: inline-flex; flex-wrap: wrap; gap: .4rem; }
+  .review-view { min-height: 42px; padding: .45rem .9rem; border: 1px solid #cbd5e1; border-radius: 999px; background: #fff; color: #344054; font: inherit; font-weight: 700; cursor: pointer; }
+  .review-view[aria-pressed="true"] { border-color: #365ac9; background: #365ac9; color: #fff; }
+  .review-filter-bar { align-items: center; }
+  .score-edit-toggle { display: inline-flex !important; align-items: center; gap: .4rem; margin-left: auto; cursor: pointer; }
+  .score-edit-toggle input { width: 1.2rem; height: 1.2rem; }
+  .score-edit-toggle.is-attention { padding: .2rem .5rem; border-radius: 8px; outline: 3px solid #f2b33d; background: #fffaf0; }
+  .score-lock-status { flex-basis: 100%; font-size: var(--fs-sm); font-weight: 600; }
+  .review-rest { margin: .75rem 0; padding: .8rem 1rem; border: 1px dashed #cbd5e1; border-radius: 10px; color: #475467; }
+  .review-rest[hidden] { display: none; }
+  /* 按鈕放左邊：右下角是「資管科小助手」浮動按鈕，放右邊會被擋住（11-06 瀏覽器實測） */
+  .review-savebar { position: sticky; bottom: 0; z-index: 25; display: flex; align-items: center; gap: 1rem; margin-top: 1rem; padding: .75rem 1rem; border-top: 1px solid #cbd5e1; background: #fff; box-shadow: 0 -4px 12px rgb(16 24 40 / 10%); }
+  .review-savebar__count { color: #475467; font-weight: 600; }
+  /* 欄位名稱一律寫在每一格上方，不依賴最上面的表頭（捲動後就看不到） */
+  .course-review-section thead { display: none; }
+  .course-review-section td[data-label]::before { content: attr(data-label); display: block; margin-bottom: .2rem; color: #475467; font-size: var(--fs-xs); font-weight: 700; }
+  .course-review-section td.field-low small[id^="confidence-"] { color: #b54708; font-weight: 700; }
 </style>
 <form method="post" action="{{ url_for('student.learning_profile_document_confirm', document_id=document.id) }}">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   {% if result.get('draft_revision') %}<input type="hidden" name="draft_revision" value="{{ result.draft_revision }}">{% endif %}
   {% if next_path %}<input type="hidden" name="next" value="{{ next_path }}">{% endif %}
 {% if document.document_type == "transcript" %}
-{% if academic_summary %}
-<section class="academic-summary">
-  <h2>學業統計</h2>
-  <p class="empty">以下資料來自成績單底部統計區，不會列入課程或不及格判斷。</p>
-  <table>
-    <thead><tr><th>年級</th><th>統計項目</th><th>第一學期</th><th>第二學期</th></tr></thead>
-    <tbody>{% for item in academic_summary %}<tr><td>{{ item.grade_level }}</td><td>{{ item.metric }}</td><td>{{ item.semester_1 }}</td><td>{{ item.semester_2 }}</td></tr>{% endfor %}</tbody>
-  </table>
-  {% if academic_summary|selectattr('needs_confirmation')|list %}
-    <p class="empty">部分統計標籤不清楚，以上數字是依表格列順序擷取，請對照原始成績單確認。</p>
-  {% endif %}
-</section>
-{% endif %}
-<h2>辨識到的課程（共 {{ courses|length }} 門）</h2>
-<p>可直接修改科目、學分、成績、學期與年級。空白表示缺漏／待確認，0 表示來源明確記載零值。</p>
-<p>OCR 信心是辨識引擎的分數，不代表正確率。低於 85% 或未知時請優先核對；修改欄位不會改變原 OCR 信心。</p>
-{% set pending_rows = courses|selectattr('needs_review')|list|length %}
-{% if pending_rows %}<p class="review-count" role="status">還有 {{ pending_rows }} 列待確認</p>{% else %}<p class="review-count review-count--clear" role="status">沒有標示待確認的列，仍請對照原圖核對</p>{% endif %}
 {% set layout = namespace(inferred=false) %}
 {% for course in courses %}{% if '學期依表格位置推定，請核對表頭。' in (course.get('review_reasons') or []) %}{% set layout.inferred = true %}{% endif %}{% endfor %}
-{% if layout.inferred %}<p class="review-warning">每門課的學期是依成績單表格位置推定的，請對照原圖的表頭（第一學期／第二學期）核對。</p>{% endif %}
+{% if layout.inferred %}<p class="review-warning">學期是依成績單表格位置推定的，請對照原圖的表頭（第一學期／第二學期）。</p>{% endif %}
+{% set start_view = 'review' if attention.count else 'all' %}
 <div class="review-filter-bar" role="region" aria-label="課程篩選與成績鎖定">
-  <label for="review-grade-filter">查看年級
+  <div class="review-views" role="group" aria-label="要看哪些課">
+    <button type="button" class="review-view" data-review-view="review" aria-pressed="{{ 'true' if start_view == 'review' else 'false' }}">要核對的 <strong>{{ attention.count }}</strong></button>
+    <button type="button" class="review-view" data-review-view="failed" aria-pressed="false">不及格 <strong>{{ attention.failed }}</strong></button>
+    <button type="button" class="review-view" data-review-view="all" aria-pressed="{{ 'true' if start_view == 'all' else 'false' }}">全部 <strong>{{ courses|length }}</strong></button>
+  </div>
+  <label class="review-grade-select" for="review-grade-filter"><span class="visually-hidden">查看年級</span>
     <select id="review-grade-filter" aria-controls="review-grade-groups">
       <option value="all">全部年級</option>
       {% for group in review_groups %}<option value="{{ group.key }}">{{ group.label }}</option>{% endfor %}
     </select>
   </label>
-  <label for="review-failure-filter">課程狀態
-    <select id="review-failure-filter" aria-controls="review-grade-groups">
-      <option value="all">全部課程</option><option value="failed">只看不及格</option><option value="pending">只看缺學分</option>
-    </select>
-  </label>
-  <label for="review-makeup-filter">重補修
-    <select id="review-makeup-filter" aria-controls="review-grade-groups">
-      <option value="all">全部類別</option><option value="summer">暑期重補修</option><option value="winter">寒期重補修</option>
-    </select>
-  </label>
-  <button type="button" id="lock-all-scores" class="lock-all-scores" aria-label="全部鎖定欄位" title="鎖定所有課程欄位"><svg class="lock-all-icon--closed" viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="10" width="15" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><svg class="lock-all-icon--open" viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="10" width="15" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.5-2"/></svg><span class="lock-all-label">解鎖成績</span></button>
+  {# 成績只有開／關兩種狀態（11-06：原本三段循環的鎖頭讓學生連點好幾次還搞不清楚） #}
+  <label class="score-edit-toggle" id="allow-score-edit-label"><input type="checkbox" id="allow-score-edit"> 允許修改成績</label>
   <input type="hidden" id="scores-unlocked" name="scores_unlocked" value="0">
-  <input type="hidden" id="all-fields-locked" name="all_fields_locked" value="0">
   <span id="score-lock-status" class="score-lock-status" role="status" aria-live="polite">成績已鎖定，避免誤改</span>
 </div>
-<p class="empty">「只看缺學分」只列出學分空白或待確認的課程；可直接補填後儲存。</p>
-<p class="empty">各年級先分第一、第二學期，每學期依成績由高到低排列；不及格與缺成績另外列出。修改後請儲存，重新開啟時會更新分類。</p>
-<label><input type="radio" name="course_input_mode" value="fields" checked> 儲存下列表格修改</label>
 {% macro course_table(entries, group, semester, kind, heading, document, result) %}
 <section class="course-review-section {{ kind }}">
-  <h4 data-heading="{{ heading }}">{{ heading }}（{{ entries|length }} 門）</h4>
+  <h4 data-heading="{{ heading }}"><span data-heading-text>{{ heading }}（{{ entries|length }} 門）</span> <span class="sv2-editable"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>可直接修改</span></h4>
   <div class="course-editor">
     <table>
       <thead><tr><th scope="col">科目</th><th scope="col">學分</th><th scope="col">成績</th><th scope="col">第幾學期</th><th scope="col">年級</th><th scope="col">核對提示與來源</th></tr></thead>
@@ -360,16 +415,16 @@
       {% set index = entry.index %}
       {% set course = entry.course %}
       {% set confidence = course.get('field_confidence') or {} %}
-      <tr data-course-index="{{ index }}" data-review-grade="{{ group.key }}" data-review-semester="{{ semester.label }}" data-review-kind="{{ kind }}" data-needs-review="{{ 'true' if course.get('needs_review') else 'false' }}" data-makeup-season="{{ course.get('makeup_season') or '' }}" data-school-year="{{ course.get('school_year') or '' }}" class="{{ 'needs-review' if course.get('needs_review') else '' }}">
+      <tr data-course-index="{{ index }}" data-review-grade="{{ group.key }}" data-review-semester="{{ semester.label }}" data-review-kind="{{ kind }}" data-needs-review="{{ 'true' if course.get('needs_review') else 'false' }}" data-makeup-season="{{ course.get('makeup_season') or '' }}" data-school-year="{{ course.get('school_year') or '' }}" data-attention="{{ attention_flag(course, kind) }}" class="{{ 'needs-review' if course.get('needs_review') else '' }}">
         {% for field, label in [('course_name', '科目'), ('credits', '學分'), ('score', '成績'), ('semester', '第幾學期'), ('grade_level', '年級')] %}
           {% set value = course.get(field) %}
           {% set certainty = confidence.get(field) %}
           {% set known = certainty is number and certainty is not sameas true and certainty is not sameas false and certainty >= 0 and certainty <= 1 %}
           {% set field_pending = value is none or value == '' or (value is string and '待確認' in value) %}
           <td class="{{ 'field-pending' if field_pending else '' }}{{ ' field-low' if field in ['course_name', 'credits', 'score'] and known and certainty < 0.85 else '' }}" data-label="{{ label }}">
-            <input id="course-{{ index }}-{{ field }}" aria-label="第 {{ index + 1 }} 列{{ label }}" aria-describedby="confidence-{{ index }}-{{ field }}" name="course_{{ index }}_{{ field }}" value="{{ value if value is not none else '' }}" {% if field in ['credits', 'score'] %}type="number" min="0" step="1" {% if field == 'score' %}max="100"{% endif %}{% else %}type="text"{% endif %} {% if field == 'score' %}readonly class="score-locked{% if field_pending %} value-pending{% endif %}" title="成績目前已鎖定"{% elif field_pending %}class="value-pending"{% endif %} {% if field == 'course_name' %}required{% endif %} {% if field == 'grade_level' %}list="grade-options"{% endif %} placeholder="待確認">
+            <input id="course-{{ index }}-{{ field }}" aria-label="第 {{ index + 1 }} 列{{ label }}" aria-describedby="confidence-{{ index }}-{{ field }}" name="course_{{ index }}_{{ field }}" value="{{ value if value is not none else '' }}" {% if field in ['credits', 'score'] %}type="number" min="0" step="1" {% if field == 'score' %}max="100"{% endif %}{% else %}type="text"{% endif %} {# 空白成績不鎖：本來就沒有值，不會誤改，學生直接補（11-04 實測：空白成績要先解鎖） #}{% if field == 'score' and not field_pending %}readonly class="score-locked" title="成績目前已鎖定"{% elif field_pending %}class="value-pending"{% endif %} {% if field == 'course_name' %}required{% endif %} {% if field == 'grade_level' %}list="grade-options"{% endif %} placeholder="待確認">
             {% if field == 'course_name' and group.highest and group.highest.index == index %}<small class="highest-mark">最高成績</small>{% endif %}
-            <small id="confidence-{{ index }}-{{ field }}" class="{{ 'confidence-low' if known and certainty < 0.85 else ('confidence-unknown' if not known else '') }}" title="OCR 信心：{% if known %}{{ (certainty * 100)|round|int }}%{% else %}未知{% endif %}（不代表正確率{% if not known or certainty < 0.85 %}，請對照原圖核對{% endif %}）">信心 {% if known %}{{ (certainty * 100)|round|int }}%{% if certainty < 0.85 %}・偏低{% endif %}{% else %}未知{% endif %}</small>
+            {# 只有科目、學分、成績的信心偏低才顯示「看不清楚」；信心正常或未知只留給螢幕閱讀器（11-04 實測 85 列 × 5 個信心值太多；11-06 未知也不再每格顯示） #}{% set show_confidence = field in ['course_name', 'credits', 'score'] and known and certainty < 0.85 %}<small id="confidence-{{ index }}-{{ field }}" class="{{ 'confidence-low' if known and certainty < 0.85 else ('confidence-unknown' if not known else '') }}{{ '' if show_confidence else ' visually-hidden' }}" title="OCR 信心：{% if known %}{{ (certainty * 100)|round|int }}%{% else %}未知{% endif %}（不代表正確率{% if not known or certainty < 0.85 %}，請對照原圖核對{% endif %}）">{% if show_confidence %}看不清楚，請對照原圖{% else %}信心 {% if known %}{{ (certainty * 100)|round|int }}%{% else %}未知{% endif %}{% endif %}</small>
             {% if field_pending %}<small class="pending-badge">⚠ 待確認</small>{% endif %}
           </td>
         {% endfor %}
@@ -387,6 +442,8 @@
           <small class="note-source">{% if course.get('source_page') %}第 {{ course.source_page }} 頁{% if course.get('source_line') %}・第 {{ course.source_line }} 列{% endif %}{% if course.get('source_region') %}・區域 {{ course.source_region }}{% endif %}・{% endif %}{% if course.get('source_bbox') %}<a href="{{ url_for('student.learning_profile_course_source', document_id=document.id, course_index=index, revision=result.get('draft_revision')) }}" target="_blank" rel="noopener">查看原圖區域</a>{% else %}無定位資訊，請下載原始檔核對。{% endif %}</small>
           </div>
         </td>
+        {# 學生端 v2（11-11）：原圖這一列直接放在卡片最上面，一眼對照 OCR 讀到的字；放最後一格，CSS 用 order 排到最上面，不影響原本以 td:first-child 為科目的樣式與腳本 #}
+        {% if course.get('source_bbox') %}<td class="sv2-crop" aria-hidden="true"><img src="{{ url_for('student.learning_profile_course_source', document_id=document.id, course_index=index, revision=result.get('draft_revision')) }}" alt="" loading="lazy" decoding="async"></td>{% endif %}
       </tr>
       {% endfor %}
       </tbody>
@@ -413,6 +470,10 @@
   </details>
   {% endfor %}
 </div>
+{% if attention.count and courses|length > attention.count %}
+<p class="review-rest" id="review-rest">另外 {{ courses|length - attention.count }} 門沒有標出問題，仍建議對照原圖看一遍。
+  <button type="button" class="button button--small button--line" data-review-show-all>查看全部 {{ courses|length }} 門</button></p>
+{% endif %}
 {% if not courses %}<p class="empty">目前沒有課程草稿，可重新分析或使用下方 JSON 手動補上。</p>{% endif %}
 <datalist id="grade-options">{% for grade in ['一年級', '二年級', '三年級', '四年級', '五年級', '1年級', '2年級', '3年級', '4年級', '5年級'] %}<option value="{{ grade }}">{% endfor %}</datalist>
 {% elif document.document_type == "credential" %}
@@ -448,7 +509,7 @@
 {% endif %}
 {% endfor %}
 <section class="credential-editor">
-  <h2>證照資料</h2>
+  <h2>證照資料 <span class="sv2-editable"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>可直接修改</span></h2>
   {% if credentials|length > 1 %}<p>本檔案有 {{ credentials|length }} 筆證照；下方表單只修改第一筆，其餘筆會保留。若需逐筆修改，請使用下方進階 JSON 編輯。</p>{% endif %}
   {% if credentials %}
     {% set credential = credentials[0] %}
@@ -484,20 +545,27 @@
 {% endif %}
   <details>
     <summary>進階：修改原始確認資料</summary>
-    {% if document.document_type == 'transcript' %}<label><input type="radio" name="course_input_mode" value="json"> 改用下方 JSON 儲存課程（忽略表格修改，可增刪列或修改抵／免／補）</label>{% endif %}
+    {% if document.document_type == 'transcript' %}<label><input type="radio" name="course_input_mode" value="fields" checked> 用上面表格的修改儲存（一般都選這個）</label>
+    <label><input type="radio" name="course_input_mode" value="json"> 改用下方 JSON 儲存課程（忽略表格修改，可增刪列或修改抵／免／補）</label>{% endif %}
     {% if document.document_type == 'credential' %}<label><input type="radio" name="credential_input_mode" value="json"> 改用下方 JSON 儲存全部證照（忽略上方證照欄位，可增刪筆數）</label>{% endif %}
     <label>課程資料 JSON</label>
     <textarea name="courses_json" rows="10">{{ courses | tojson }}</textarea>
     <label>證照資料 JSON（進階）</label>
     <textarea name="credentials_json" rows="10">{{ credentials | tojson }}</textarea>
   </details>
-  <button class="button" type="submit" formnovalidate>確認並儲存</button>
+  {# 儲存列固定在畫面底部，不用捲到最後才按得到 #}
+  <div class="review-savebar">
+    <button class="button" type="submit" formnovalidate>確認並儲存</button>
+    {% if document.document_type == 'transcript' %}<span id="review-changed-count" class="review-savebar__count" aria-live="polite">還沒有修改</span>{% endif %}
+    {% if document.document_type == 'transcript' %}<button class="button button--line sv2-next" type="button" data-sv2-next hidden title="跳到下一筆要核對的課程">下一筆要核對 <b data-sv2-next-count></b></button>{% endif %}
+  </div>
 </form>
   </div>
   </div>
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='js/student-v2-review.js') }}" defer></script>
 <script>
   // 手機寬度：原圖預設收合，避免佔掉整個畫面
   (() => {
@@ -506,106 +574,90 @@
   })();
 </script>
 {% if document.document_type == 'transcript' %}
-<script>
+<script id="review-course-script">
   (() => {
     const filter = document.getElementById('review-grade-filter');
-    const failureFilter = document.getElementById('review-failure-filter');
-    const makeupFilter = document.getElementById('review-makeup-filter');
+    const viewButtons = Array.from(document.querySelectorAll('[data-review-view]'));
+    const showAll = document.querySelector('[data-review-show-all]');
+    const rest = document.getElementById('review-rest');
     const groups = document.querySelectorAll('#review-grade-groups .course-year-group[data-review-grade]');
-    const lockAllButton = document.getElementById('lock-all-scores');
+    const allowScores = document.getElementById('allow-score-edit');
+    const allowLabel = document.getElementById('allow-score-edit-label');
     const unlockInput = document.getElementById('scores-unlocked');
-    const allFieldsLockedInput = document.getElementById('all-fields-locked');
     const lockStatus = document.getElementById('score-lock-status');
-    const scoreInputs = document.querySelectorAll('#review-grade-groups input[name$="_score"]');
-    const courseInputs = document.querySelectorAll('#review-grade-groups input[name^="course_"]');
-    if (!filter || !failureFilter || !makeupFilter) return;
-    let scoresUnlocked = false;
-    let allFieldsLocked = false;
+    const changedCount = document.getElementById('review-changed-count');
+    const scoreInputs = Array.from(document.querySelectorAll('#review-grade-groups input[name$="_score"]:not(.value-pending)'));  // 空白成績不受鎖定影響
+    const courseInputs = Array.from(document.querySelectorAll('#review-grade-groups input[name^="course_"]'));
+    if (!filter) return;
+    const pressed = viewButtons.find((button) => button.getAttribute('aria-pressed') === 'true');
+    let view = pressed ? pressed.dataset.reviewView : 'all';
+
+    // 成績只有兩種狀態：鎖住（預設）或允許修改
     const setScoreLock = (unlocked) => {
-      if (allFieldsLocked && unlocked) return;
-      scoresUnlocked = unlocked;
-      unlockInput.value = unlocked ? '1' : '0';
-      lockStatus.textContent = allFieldsLocked ? '全部欄位已鎖定，避免誤改' : (unlocked ? '成績編輯已開啟，儲存前請再核對' : '成績已鎖定，避免誤改');
+      if (unlockInput) unlockInput.value = unlocked ? '1' : '0';
+      if (lockStatus) lockStatus.textContent = unlocked ? '可以修改成績，儲存前請再核對' : '成績已鎖定，避免誤改';
+      if (allowLabel) allowLabel.classList.remove('is-attention');
       for (const input of scoreInputs) {
         input.readOnly = !unlocked;
         input.classList.toggle('score-locked', !unlocked);
       }
     };
-    const setAllFieldsLock = (locked) => {
-      allFieldsLocked = locked;
-      allFieldsLockedInput.value = locked ? '1' : '0';
-      if (locked) setScoreLock(false);
-      else setScoreLock(true);
-      for (const input of courseInputs) {
-        input.readOnly = locked || (input.name.endsWith('_score') && !scoresUnlocked);
-        input.classList.toggle('all-fields-locked', locked);
-      }
-      refreshLockButton();
-    };
-    // 按鈕寫的是「按下去會怎樣」：一開始成績是鎖的，按一次就能改成績（10-27 實測問題 8）
-    const refreshLockButton = () => {
-      if (!lockAllButton) return;
-      const next = allFieldsLocked ? '全部解鎖' : (scoresUnlocked ? '全部鎖定' : '解鎖成績');
-      const label = lockAllButton.querySelector('.lock-all-label');
-      if (label) label.textContent = next;
-      lockAllButton.classList.toggle('is-unlocked', allFieldsLocked || !scoresUnlocked);
-      lockAllButton.setAttribute('aria-label', next);
-      lockAllButton.setAttribute('title', next);
-    };
-    if (lockAllButton) lockAllButton.addEventListener('click', () => {
-      if (!allFieldsLocked && !scoresUnlocked) {
-        setScoreLock(true);
-        refreshLockButton();
-      } else {
-        setAllFieldsLock(!allFieldsLocked);
-      }
-    });
-    refreshLockButton();
-    for (const mode of document.querySelectorAll('input[name="course_input_mode"]')) {
-      mode.addEventListener('change', () => {
-        if (mode.checked && mode.value === 'json') setAllFieldsLock(false);
+    if (allowScores) allowScores.addEventListener('change', () => setScoreLock(allowScores.checked));
+    // 點到鎖住的成績：直接告訴學生要怎麼做，不再沒反應
+    for (const input of scoreInputs) {
+      input.addEventListener('click', () => {
+        if (!input.readOnly) return;
+        if (lockStatus) lockStatus.textContent = '成績鎖住了：要改成績，請先勾選上方的「允許修改成績」';
+        if (allowLabel) allowLabel.classList.add('is-attention');
       });
     }
+
+    const countChanges = () => {
+      if (!changedCount) return;
+      const changed = courseInputs.filter((input) => input.value !== (input.defaultValue ?? input.value)).length;
+      changedCount.textContent = changed ? `已修改 ${changed} 格` : '還沒有修改';
+    };
+
+    const creditsPending = (row) => {
+      const credits = row.querySelector('input[name$="_credits"]');
+      return Boolean(credits) && (credits.value.trim() === '' || credits.value.includes('待確認'));
+    };
+    const viewMatches = (row) => view === 'all' ||
+      (view === 'failed' && row.dataset.reviewKind === 'failed') ||
+      (view === 'review' && (row.dataset.attention === 'true' || creditsPending(row)));
+
     const update = () => {
+      for (const button of viewButtons) button.setAttribute('aria-pressed', button.dataset.reviewView === view ? 'true' : 'false');
+      if (rest) rest.hidden = view !== 'review';
       for (const group of groups) {
         const rows = group.querySelectorAll('tr[data-course-index]');
         let visibleCount = 0;
         const scored = [];
         for (const row of rows) {
           const gradeMatches = filter.value === 'all' || row.dataset.reviewGrade === filter.value;
-          const creditsInput = row.querySelector('input[name$="_credits"]');
-          const creditsPending = creditsInput &&
-            (creditsInput.value.trim() === '' || creditsInput.value.includes('待確認'));
-          const failureMatches = failureFilter.value === 'all' ||
-            (failureFilter.value === 'failed' && row.dataset.reviewKind === 'failed') ||
-            (failureFilter.value === 'pending' && creditsPending);
-          const makeupMatches = makeupFilter.value === 'all' || row.dataset.makeupSeason === makeupFilter.value;
-          row.hidden = !(gradeMatches && failureMatches && makeupMatches);
+          row.hidden = !(gradeMatches && viewMatches(row));
           if (!row.hidden) {
             visibleCount += 1;
             const scoreInput = row.querySelector('input[name$="_score"]');
-            const score = Number(scoreInput.value);
-            if (scoreInput.value !== '' && Number.isInteger(score) && score >= 0 && score <= 100) {
-              const name = row.querySelector('input[name$="_course_name"]').value;
-              const semester = row.querySelector('input[name$="_semester"]').value;
-              const schoolYear = row.dataset.schoolYear;
-              const parts = [`${name}・${score} 分`];
-              if (semester) parts.push(semester);
-              if (schoolYear) parts.push(`${schoolYear} 學年度`);
+            const score = Number(scoreInput && scoreInput.value);
+            if (scoreInput && scoreInput.value !== '' && Number.isInteger(score) && score >= 0 && score <= 100) {
+              const nameInput = row.querySelector('input[name$="_course_name"]');
+              const semesterInput = row.querySelector('input[name$="_semester"]');
+              const parts = [`${nameInput ? nameInput.value : ''}・${score} 分`];
+              if (semesterInput && semesterInput.value) parts.push(semesterInput.value);
+              if (row.dataset.schoolYear) parts.push(`${row.dataset.schoolYear} 學年度`);
               scored.push({ score, index: Number(row.dataset.courseIndex), text: parts.join('・') });
             }
           }
         }
         for (const section of group.querySelectorAll('.course-review-section')) {
-          const sectionRows = section.querySelectorAll('tr[data-course-index]');
-          const visibleRows = Array.from(sectionRows).filter((row) => !row.hidden);
+          const visibleRows = Array.from(section.querySelectorAll('tr[data-course-index]')).filter((row) => !row.hidden);
           section.hidden = visibleRows.length === 0;
           const heading = section.querySelector('h4');
-          if (heading) heading.textContent = `${heading.dataset.heading}（${visibleRows.length} 門）`;
+          if (heading) (heading.querySelector('[data-heading-text]') || heading).textContent = `${heading.dataset.heading}（${visibleRows.length} 門）`;
         }
         for (const semester of group.querySelectorAll('.course-review-semester')) {
-          const semesterRows = Array.from(semester.querySelectorAll('tr[data-course-index]'));
-          const semesterCount = semesterRows.filter((row) => !row.hidden).length;
+          const semesterCount = Array.from(semester.querySelectorAll('tr[data-course-index]')).filter((row) => !row.hidden).length;
           semester.hidden = semesterCount === 0;
           const heading = semester.querySelector('summary [data-heading]');
           if (heading) heading.textContent = `${heading.dataset.heading}（${semesterCount} 門）`;
@@ -627,19 +679,23 @@
             topThree.append(entry);
           }
         }
-        group.hidden = (filter.value !== 'all' && rows.length > 0 &&
-          !Array.from(rows).some((row) => row.dataset.reviewGrade === filter.value)) ||
-          (filter.value === 'all' && group.dataset.reviewEmpty === 'true');
-        if (filter.value === 'all' && visibleCount === 0) group.hidden = true;
+        // 篩選後沒有課的年級整個藏起來；選了特定年級時保留「沒有符合」的提示
+        group.hidden = filter.value === 'all'
+          ? (group.dataset.reviewEmpty === 'true' || visibleCount === 0)
+          : group.dataset.reviewGrade !== filter.value;
       }
     };
+
+    for (const button of viewButtons) {
+      button.addEventListener('click', () => { view = button.dataset.reviewView; update(); });
+    }
+    if (showAll) showAll.addEventListener('click', () => { view = 'all'; update(); });
     filter.addEventListener('change', update);
-    failureFilter.addEventListener('change', update);
-    makeupFilter.addEventListener('change', update);
-    for (const input of scoreInputs) {
-      input.addEventListener('input', update);
+    for (const input of courseInputs) {
+      input.addEventListener('input', () => { countChanges(); if (input.name.endsWith('_score')) update(); });
     }
     setScoreLock(false);
+    countChanges();
     update();
   })();
 </script>

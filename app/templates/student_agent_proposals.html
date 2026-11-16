@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer with context %}
+{% from "partials/agent_hub.html" import hub_header, hub_footer, plan_badge with context %}
+{% set page_name = "student-agent-hub" %}
+
+{% block title %}規劃提案｜小助手規劃{% endblock %}
+{% block navigation %}{{ masthead(user, "我的待辦") }}{% endblock %}
+
+{% block content %}
+{{ hub_header(tab, counts) }}
+
+{% if rows %}
+<ol class="hub-prs">
+  {% for plan in rows %}
+  <li class="hub-prs__item hub-prs__item--{{ plan.status }}" style="--i: {{ loop.index0 }};">
+    <a class="hub-prs__link" href="{{ url_for('agent_plan.proposal_page', plan_id=plan.id) }}">
+      <span class="hub-prs__num">#{{ plan.id }}</span>
+      <span class="hub-prs__body">
+        <b>{{ plan.title }}</b>
+        <small>{{ when(plan.created_at)|taipei_time }} 提出{% if plan.status == "succeeded" %} · 建立 {{ plan.todos|length }} 項待辦{% elif plan.status == "pending" %} · 預計 {{ plan.preview_todos|length }} 項待辦{% endif %}</small>
+      </span>
+      {{ plan_badge(plan.status, plan_state) }}
+    </a>
+  </li>
+  {% endfor %}
+</ol>
+{% else %}
+<div class="hub-empty sheet">
+  <p class="hub-empty__big" aria-hidden="true">📝</p>
+  <p><b>還沒有規劃提案。</b></p>
+  <p class="muted">按上方「幫我規劃下一步」，或在右下角小助手輸入「幫我規劃下一步」。</p>
+</div>
+{% endif %}
+
+{{ hub_footer() }}
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

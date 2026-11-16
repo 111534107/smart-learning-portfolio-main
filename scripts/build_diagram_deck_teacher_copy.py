@@ -41,9 +41,7 @@ DIAGRAMS = ORIGINAL_DIAGRAMS + [
 
 def placeholder_slide(prs, filename, title):
     slide = base_slide(prs, title, "流程圖附錄")
-    add_text(slide, "此頁保留圖名與貼圖位置", 0.8, 1.7, 11.7, 0.5, 28, NAVY, True, PP_ALIGN.CENTER)
-    add_text(slide, f"圖稿原始碼：docs/images/{filename.removesuffix('.png')}.mmd", 0.8, 2.55, 11.7, 0.35, 17, MUTED, False, PP_ALIGN.CENTER)
-    add_text(slide, "目前環境尚未輸出 PNG；可將對應圖檔貼到此頁後，再上傳雲端或 Canva。", 0.8, 3.25, 11.7, 0.45, 17, MUTED, False, PP_ALIGN.CENTER)
+    add_text(slide, "圖檔待補", 0.8, 2.4, 11.7, 0.5, 24, NAVY, True, PP_ALIGN.CENTER)
     return slide
 
 
@@ -58,7 +56,7 @@ def make_deck():
     for filename, title in DIAGRAMS:
         path = IMG / filename
         if path.exists():
-            diagram_slide(prs, filename, title, "原圖：docs/images/" + filename)
+            diagram_slide(prs, filename, title)
         else:
             missing.append(filename)
             placeholder_slide(prs, filename, title)

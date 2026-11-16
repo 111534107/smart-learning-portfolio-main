@@ -36,38 +36,61 @@ def _retry_delay(error_body):
     return int(match.group(1)) + 1 if match else 10
 
 
+BUSY_CODES = (500, 502, 503, 504)  # Google 那邊忙或暫時故障（2026-11-04 上傳獎懲記錄實測 503）
+BUSY_WAITS = (2, 4)  # 同一個模型忙時，等 2 秒、4 秒各再試一次
+DEFAULT_FALLBACK_MODEL = "gemini-flash-lite-latest"  # 主要模型一直忙就換這個較輕的（小助手本來就用它）
+
+
 def _post(body, api_key, opener, model=None):
-    """送出請求並回傳 JSON。免費額度有「每分鐘次數」限制，遇到 429 會等一下再試一次。"""
+    """送出請求並回傳 JSON。
+
+    - 429（每分鐘次數用完）：等 Google 建議的秒數再試一次。
+    - 5xx（伺服器忙）：同模型再試兩次，還是忙就換備用模型（GEMINI_FALLBACK_MODEL，設空字串可關閉）。
+    """
     if not api_key and not ai_ready():
         raise AIUnavailable("學校的 AI 目前沒有開啟，請稍後再試或洽系統管理員。")  # 設定方式寫在 .env.example，不給學生看變數名
-    request = urllib.request.Request(
-        API_URL.format(model=model or current_app.config.get("GEMINI_MODEL", "gemini-2.5-flash")),
-        data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
-        headers={"Content-Type": "application/json", "x-goog-api-key": api_key or current_app.config["AI_API_KEY"]},
-        method="POST",
-    )
-    for attempt in (1, 2):
-        try:
-            with opener(request, timeout=120) as response:
-                return json.loads(response.read().decode("utf-8"))
-        except urllib.error.HTTPError as exc:
-            if exc.code == 429:
-                wait = _retry_delay(exc.read().decode("utf-8", "ignore") if exc.fp else "")
-                if attempt == 1 and wait <= MAX_RETRY_WAIT:
-                    time.sleep(wait)
-                    continue
-                if wait > 3600:
-                    raise AIUnavailable("今天的 AI 免費額度已經用完了，明天會自動恢復；急用可以改用自己的金鑰。") from None
-                raise AIUnavailable("AI 額度暫時用完了（每分鐘次數有限制），請過一分鐘再試，或改用自己的金鑰。") from None
-            if exc.code in (400, 401, 403):
-                raise AIUnavailable(f"金鑰無效或沒有權限（HTTP {exc.code}），請確認金鑰是否正確。") from None
-            raise AIUnavailable(f"Gemini 回應錯誤（HTTP {exc.code}），請稍後再試。") from None
-        except (urllib.error.URLError, TimeoutError):
-            # from None：不把原始錯誤（可能含請求內容）串進例外，避免金鑰出現在錯誤紀錄
-            raise AIUnavailable("連不到 Gemini，請確認網路後再試一次。") from None
+    config = current_app.config
+    primary = model or config.get("GEMINI_MODEL", "gemini-2.5-flash")
+    backup = config.get("GEMINI_FALLBACK_MODEL", DEFAULT_FALLBACK_MODEL)
+    models = [primary] + ([backup] if backup and backup != primary else [])
+    data = json.dumps(body, ensure_ascii=False).encode("utf-8")
+    headers = {"Content-Type": "application/json", "x-goog-api-key": api_key or config["AI_API_KEY"]}
+    busy_code = None
+    for current in models:
+        request = urllib.request.Request(API_URL.format(model=current), data=data, headers=headers, method="POST")
+        rate_retried = False
+        attempt = 0
+        while True:
+            try:
+                with opener(request, timeout=120) as response:
+                    return json.loads(response.read().decode("utf-8"))
+            except urllib.error.HTTPError as exc:
+                if exc.code == 429:
+                    wait = _retry_delay(exc.read().decode("utf-8", "ignore") if exc.fp else "")
+                    if not rate_retried and wait <= MAX_RETRY_WAIT:
+                        rate_retried = True
+                        time.sleep(wait)
+                        continue
+                    if wait > 3600:
+                        raise AIUnavailable("今天的 AI 免費額度已經用完了，明天會自動恢復；急用可以改用自己的金鑰。") from None
+                    raise AIUnavailable("AI 額度暫時用完了（每分鐘次數有限制），請過一分鐘再試，或改用自己的金鑰。") from None
+                if exc.code in (400, 401, 403):
+                    raise AIUnavailable(f"金鑰無效或沒有權限（HTTP {exc.code}），請確認金鑰是否正確。") from None
+                if exc.code in BUSY_CODES:
+                    busy_code = exc.code
+                    if attempt < len(BUSY_WAITS):
+                        time.sleep(BUSY_WAITS[attempt])
+                        attempt += 1
+                        continue
+                    break  # 這個模型一直忙：換下一個模型
+                raise AIUnavailable(f"Gemini 回應錯誤（HTTP {exc.code}），請稍後再試。") from None
+            except (urllib.error.URLError, TimeoutError):
+                # from None：不把原始錯誤（可能含請求內容）串進例外，避免金鑰出現在錯誤紀錄
+                raise AIUnavailable("連不到 Gemini，請確認網路後再試一次。") from None
+    raise AIUnavailable(f"Google 的 AI 現在太忙（HTTP {busy_code}），已經重試並換過備用模型，請過幾分鐘再試。") from None
 
 
-def generate_json(prompt, schema, files=None, api_key=None, opener=urllib.request.urlopen, uploaded=None):
+def generate_json(prompt, schema, files=None, api_key=None, opener=urllib.request.urlopen, uploaded=None, model=None):
     """送出提示詞（可附 PDF 或圖片），回傳 Gemini 依 schema 產生的 dict。
 
     files：[(MIME 類型, 檔案 bytes), ...]
@@ -83,7 +106,7 @@ def generate_json(prompt, schema, files=None, api_key=None, opener=urllib.reques
     payload = _post({
         "contents": [{"role": "user", "parts": parts}],
         "generationConfig": {"responseMimeType": "application/json", "responseSchema": schema, "temperature": 0.4},
-    }, api_key, opener)
+    }, api_key, opener, model=model)
     try:
         return json.loads(payload["candidates"][0]["content"]["parts"][0]["text"])
     except (KeyError, IndexError, json.JSONDecodeError):
@@ -106,3 +129,27 @@ def chat(contents, tools, system_instruction, api_key=None, opener=urllib.reques
         return payload["candidates"][0]["content"]
     except (KeyError, IndexError):
         raise AIUnavailable("小助手這次沒有產生回答，請換個方式再問一次。") from None
+
+
+def search_web(query, api_key=None, opener=urllib.request.urlopen):
+    """讓 Gemini 用內建的 Google 搜尋找網頁（grounding），回傳 {"text": 摘要, "sources": [{"title", "uri"}]}。
+
+    sources 的 uri 多半是 Google 的轉址連結，呼叫端要自己追到真正的網址再判斷是不是官方來源。
+    Google 搜尋工具不能和 JSON 格式輸出一起用，所以這裡只拿文字與來源清單。
+    """
+    payload = _post({
+        "contents": [{"role": "user", "parts": [{"text": (
+            "請用 Google 搜尋找臺灣官方招生資料（學校或政府網站上的招生簡章、備審資料準備指引），"
+            "只列出跟這個查詢直接相關的官方頁面或 PDF，用一兩句話說明找到什麼。\n查詢：" + query)}]}],
+        "tools": [{"google_search": {}}],
+        "generationConfig": {"temperature": 0.2},
+    }, api_key, opener)
+    try:
+        candidate = payload["candidates"][0]
+    except (KeyError, IndexError):
+        raise AIUnavailable("Gemini 這次沒有回傳搜尋結果，請再試一次。") from None
+    text = "".join(part.get("text", "") for part in candidate.get("content", {}).get("parts", []))
+    chunks = (candidate.get("groundingMetadata") or {}).get("groundingChunks") or []
+    sources = [{"title": chunk["web"].get("title", ""), "uri": chunk["web"]["uri"]}
+               for chunk in chunks if isinstance(chunk.get("web"), dict) and chunk["web"].get("uri")]
+    return {"text": text.strip(), "sources": sources}

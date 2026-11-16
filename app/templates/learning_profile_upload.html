@@ -12,11 +12,13 @@
 
 {% block content %}
 {{ page_band("上傳" ~ page_label, [(page_label, back_url)]) }}
+{# 學生端 v2：檔案拖進整頁就放進下面的上傳表單並送出（js/student-v2-drop.js） #}
+<div class="sv2-drop" aria-hidden="true"><b>放開就上傳</b><small>系統會用 OCR 辨識{{ page_label }}</small></div>
 <div class="page narrow page--banded">
   {% if config.DOCUMENT_ANALYSIS_PROVIDER == "demo" %}<p class="notice mb-1">本機展示模式：上傳後會出現合成的 OCR 辨識結果，可修改後再確認；不會呼叫 Google 或外部 AI。</p>{% endif %}
   {% if error %}<p class="alert mb-1" role="alert">{{ error }}</p>{% endif %}
   <section class="sheet">
-    <form method="post" action="{{ url_for('student.learning_profile_document_upload') }}" enctype="multipart/form-data" class="form-stack">
+    <form method="post" action="{{ url_for('student.learning_profile_document_upload') }}" enctype="multipart/form-data" class="form-stack" data-sv2-drop-form>
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       {% if next_path %}<input type="hidden" name="next" value="{{ next_path }}">{% endif %}
       {# 成績單和證照分開上傳，不讓學生選類型，避免傳錯地方 #}
@@ -40,3 +42,5 @@
 {% endblock %}
 
 {% block footer %}{{ footer() }}{% endblock %}
+
+{% block scripts %}{% if user and user.role == "student" %}<script src="{{ url_for('static', filename='js/student-v2-drop.js') }}" defer></script>{% endif %}{% endblock %}

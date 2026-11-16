@@ -10,13 +10,15 @@
 {% block navigation %}{{ masthead(user, "備審資料") }}{% endblock %}
 
 {% block content %}
-{{ page_band("備審資料", [("目標校系", url_for('student.target_list'))]) }}
-<div class="page page--banded">
+{{ page_band("備審資料", [("目標校系", url_for('student.target_list', track=target_track))]) }}
+{# 學生端 v2 外觀（2026-11-11）：樣式在 css/student-v2/gap.css，只在這頁載入；資料、表單、連結不變 #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/student-v2/gap.css') }}">
+<div class="page page--banded g2gap">
   <nav class="target-switch" aria-label="切換目標校系">
     {% for target in targets %}
     <a href="{{ url_for('student.target_gap', program_id=target.id) }}"{% if target.id == program.id %} aria-current="page"{% endif %}>{{ target.school_name|replace("國立", "") }} {{ target.department_name }}</a>
     {% endfor %}
-    <a class="add" href="{{ url_for('student.target_list') }}">＋ 其他校系</a>
+    <a class="add" href="{{ url_for('student.target_list', track=target_track) }}">＋ 其他校系</a>
   </nav>
 
   <header class="student-cover">
@@ -28,7 +30,7 @@
       {% endif %}
       <p>方塊越寬，佔分越多；裝得越滿，準備得越完整。點方塊看細節。</p>
     </div>
-    <div class="readiness" data-tour="這裡整理你已確認的資料。" data-tour-order="1">
+    <div class="readiness sv2-glass" data-tour="這裡整理你已確認的資料。" data-tour-order="1">
       {% if gap.readiness is not none %}
       <strong><span data-count="{{ gap.readiness }}">{{ gap.readiness }}</span><small>%</small></strong>
       <span>準備度</span>
@@ -36,7 +38,6 @@
       <span>此校系項目都需要自己準備文件</span>
       {% endif %}
       <small class="readiness__note">準備度只看你確認過的資料，不是錄取機率</small>
-      {% if gap.documents %}<small class="readiness__note">以下文件已列入準備度計算，目前系統尚無法自動核對，先視為待準備：{% for key in gap.documents %}{{ labels.get(key, key) }}{% if not loop.last %}、{% endif %}{% endfor %}。</small>{% endif %}
     </div>
   </header>
 
@@ -69,7 +70,7 @@
       <ul class="piece-list">
         {% for key in item.have %}<li class="piece piece--have"><b>{{ labels[key] }}</b><small>已有 {{ item.counts[key] }} 筆</small></li>{% endfor %}
         {% for key in item.missing %}<li class="piece piece--missing"><b>{{ labels[key] }}</b><a class="small" href="{{ add_links.get(key, url_for('student.portfolio_new', category=key, next=request.path)) }}">去新增 →</a></li>{% endfor %}
-        {% for key in item.documents %}<li class="piece piece--doc"><b>{{ labels[key] }}</b>{% if key == "autobiography" %}<a class="small" href="{{ url_for('student.autobiography', program_id=program.id) }}">{{ "看自傳草稿 →" if autobiography else "用自傳小幫手寫 →" }}</a>{% else %}<small>寫在備審資料裡，產出的 Word 已留好位置</small>{% endif %}</li>{% endfor %}
+        {% for key in item.documents %}<li class="piece piece--doc"><b>{{ labels[key] }}</b>{% if key == "autobiography" %}<a class="small" href="{{ url_for('student.autobiography', program_id=program.id) }}">{{ "看自傳草稿 →" if autobiography else "用小助手寫自傳寫 →" }}</a>{% else %}<small>寫在備審資料裡，產出的 Word 已留好位置</small>{% endif %}</li>{% endfor %}
       </ul>
     </div>
     {% endfor %}
@@ -79,9 +80,9 @@
     <section class="sheet" aria-labelledby="toc-title">
       <div class="sheet__head"><h2 id="toc-title">這個校系的備審目錄</h2></div>
       <p class="muted small mb-1">佔分越高的章節排越前面。</p>
-      <ol class="toc">
+      <ol class="toc" data-toc-bars>
         {% for chapter in chapters %}
-        <li><span>{{ chapter.title }} <span class="mono">原 {{ chapter.code }}</span></span>{% if chapter.weight %}<span class="toc__bar" style="--w: {{ chapter.weight }};" title="相關加權 {{ chapter.weight }}%"><i></i></span>{% else %}<span class="mono">{{ "固定章節" if chapter.code in ("01", "02") else "此校系未列加權" }}</span>{% endif %}</li>
+        <li><span>{{ chapter.title }} <span class="mono">原 {{ chapter.code }}</span></span>{% if chapter.weight %}<span class="toc__bar" style="--w: {{ chapter.weight }};" title="相關加權 {{ chapter.weight }}%"><i></i></span>{% else %}<span class="mono">{{ "固定章節" if chapter.code in ("01", "02") else "此校系未列加權" }}</span>{% endif %}{% if chapter.evidence %}<ul class="toc__evidence">{% for item in chapter.evidence %}<li>{{ item.name }}</li>{% endfor %}</ul>{% endif %}</li>
         {% endfor %}
       </ol>
     </section>
@@ -141,11 +142,34 @@
           </li>
           {% endfor %}
         </ul>
+        <p class="small mb-1">有不想放的成績、證照或經歷？<a href="{{ url_for('student.package_exclusions', program_id=program.id) }}">選擇放進備審的資料 →</a></p>
         <a class="button button--accent" href="{{ url_for('student.target_package', program_id=program.id) }}">下載 Word ↓</a>
+        <div class="mt-1" data-package-bundle>
+          <p class="small mb-1">要連同自傳、已確認的成績單證照原始檔和佐證一起帶走：</p>
+          <a class="button button--line" href="{{ url_for('student.target_package_zip', program_id=program.id) }}">一鍵打包下載（ZIP）↓</a>
+          {% set mailed = request.args.get("mailed") %}
+          {% if mailed == "sent" %}<p class="small mt-1" role="status"><b>✓ 已寄出</b>，壓縮檔在信件附件。</p>
+          {% elif mailed == "link" %}<p class="small mt-1" role="status"><b>✓ 已寄出下載連結</b>：檔案太大放不進信裡，要登入才能下載。</p>
+          {% elif mailed == "logged" %}<p class="small mt-1" role="status"><b>! 這次沒有寄出</b>：系統目前沒有設定寄信，請先用「一鍵打包下載」。</p>
+          {% elif mailed == "failed" %}<p class="small mt-1" role="status"><b>! 信寄不出去</b>，請稍後再試，或先用「一鍵打包下載」。</p>{% endif %}
+          <form class="mt-1" method="post" action="{{ url_for('student.target_package_send', program_id=program.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {% if mail_recipients %}
+            <label class="field small">寄到我的信箱
+              <select name="to">{% for r in mail_recipients %}<option value="{{ r.key }}">{{ r.label }}（{{ r.address }}）</option>{% endfor %}</select>
+            </label>
+            <button class="button button--line button--small" type="submit">打包寄給我</button>
+            {% else %}
+            <p class="small">帳號還沒有學校信箱，也還沒綁定備用信箱，所以不能寄。</p>
+            {% endif %}
+          </form>
+          <p class="small mt-1">學校信箱不用設定就能收；想寄到自己的信箱，<a href="{{ url_for('account_password.password_page') }}#backup-email">到帳號設定綁定備用信箱 →</a></p>
+        </div>
       </section>
     </aside>
   </div>
 </div>
+<script src="{{ url_for('static', filename='js/student-v2/gap.js') }}" defer></script>
 {% endblock %}
 
 {% block footer %}{{ footer() }}{% endblock %}

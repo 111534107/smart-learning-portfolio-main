@@ -1,3 +1,4 @@
+import click
 from flask import Flask
 
 from app.config import Config
@@ -11,8 +12,16 @@ def create_app(config_overrides=None):
     if config_overrides:
         app.config.update(config_overrides)
     # 自動化測試沒指定時在請求裡直接辨識，既有測試上傳後就能拿到辨識結果
+    # 雙重驗證：自動化測試與本機展示站（帳號密碼公開在登入頁）預設不強制，仍可自己到帳號選單開啟
+    if (app.config.get("TESTING") or app.config.get("LOCAL_DEMO_MODE")) and "TWO_FACTOR_REQUIRED" not in (config_overrides or {}):
+        app.config["TWO_FACTOR_REQUIRED"] = False
+    if (app.config.get("TESTING") or app.config.get("LOCAL_DEMO_MODE")) and "ADMIN_TWO_FACTOR_REQUIRED" not in (config_overrides or {}):
+        app.config["ADMIN_TWO_FACTOR_REQUIRED"] = False
     if app.config.get("TESTING") and "OCR_QUEUE_MODE" not in (config_overrides or {}):
         app.config["OCR_QUEUE_MODE"] = "inline"
+    if app.config.get("TESTING") and "AUTOBIOGRAPHY_BACKUP_MODE" not in (config_overrides or {}):
+        app.config["AUTOBIOGRAPHY_BACKUP_MODE"] = "inline"
+        app.config.setdefault("AUTOBIOGRAPHY_BACKUP_RETRY_DELAYS", (0,))
     if app.config.get("DOCUMENT_OCR_ENGINE") == "rapidocr" and app.config.get("OCR_ENGINE") is None:
         from app.services.document_analysis_service import RapidOcrEngine
 
@@ -46,6 +55,10 @@ def create_app(config_overrides=None):
     from app.routes.transfer_credit import transfer_credit_bp
     from app.routes.google_docs import google_docs_bp
     from app.routes.storage import storage_bp
+    from app.routes.agent_plan import agent_plan_bp
+    from app.routes.graduation import graduation_bp
+    from app.routes.forms import forms_bp
+    from app.routes.announcement import announcement_bp
     from app import models
 
     app.register_blueprint(main_bp)
@@ -61,6 +74,30 @@ def create_app(config_overrides=None):
     app.register_blueprint(transfer_credit_bp)
     app.register_blueprint(google_docs_bp)
     app.register_blueprint(storage_bp)
+    app.register_blueprint(agent_plan_bp)
+    app.register_blueprint(graduation_bp)
+    app.register_blueprint(forms_bp)
+    from app.routes.admin_schools import admin_schools_bp
+    app.register_blueprint(admin_schools_bp)
+    from app.routes.two_factor import two_factor_bp
+    app.register_blueprint(two_factor_bp)
+    from app.routes.account_password import account_password_bp
+    app.register_blueprint(account_password_bp)
+
+    @app.cli.command("reset-2fa")
+    @click.argument("username")
+    def reset_two_factor_command(username):
+        """手機遺失時重設某個帳號的雙重驗證（只有能登入伺服器的人能用）。"""
+        from app.models import User
+        from app.services import two_factor
+        user = User.query.filter_by(username=username).first()
+        if user is None:
+            print(f"找不到帳號 {username}。")
+            return
+        two_factor.reset(user, None, reason="cli")
+        db.session.commit()
+        print(f"已重設 {username} 的雙重驗證，下次登入要重新設定。")
+    app.register_blueprint(announcement_bp)
 
     @app.cli.command("agent-check")
     def agent_check_command():
@@ -105,9 +142,13 @@ def create_app(config_overrides=None):
         title, message = error_texts[error.code]
         if request.accept_mimetypes.best == "application/json":
             return jsonify(error=title, message=message), error.code
+        from flask import session
+        from app.services.admin_guard import LOGGED_OUT
         next_path = request.full_path.rstrip("?") if error.code == 401 and request.method == "GET" else None
-        return render_template("error_page.html", user=get_current_user(), code=error.code, title=title,
-                               message=message, next_path=next_path), error.code
+        user = get_current_user()
+        admin_logged_out = error.code == 401 and bool(session.pop(LOGGED_OUT, None))
+        return render_template("error_page.html", user=user, code=error.code, title=title,
+                               message=message, next_path=next_path, admin_logged_out=admin_logged_out), error.code
 
     for code in error_texts:
         app.register_error_handler(code, friendly_error)
@@ -119,5 +160,16 @@ def create_app(config_overrides=None):
         limit_mb = app.config["MAX_CONTENT_LENGTH"] // (1024 * 1024)
         back = request.referrer if request.referrer and request.referrer.startswith(request.host_url) else None
         return render_template("upload_too_large.html", user=get_current_user(), limit_mb=limit_mb, back=back), 413
+
+    @app.url_defaults
+    def static_version(endpoint, values):
+        """CSS、JS 網址自動加 ?v=檔案修改時間（2026-11-13）：改了樣式，手機瀏覽器不會還用舊的快取。"""
+        if endpoint != "static" or "v" in values or not str(values.get("filename", "")).endswith((".css", ".js")):
+            return
+        import os
+        try:
+            values["v"] = int(os.path.getmtime(os.path.join(app.static_folder, values["filename"])))
+        except OSError:
+            pass
 
     return app

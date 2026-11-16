@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer with context %}
+{% from "partials/agent_hub.html" import hub_header, hub_footer with context %}
+{% set page_name = "student-agent-hub" %}
+
+{% block title %}行動紀錄｜小助手規劃{% endblock %}
+{% block navigation %}{{ masthead(user, "我的待辦") }}{% endblock %}
+
+{% block content %}
+{{ hub_header(tab, counts) }}
+
+{% if events %}
+<ol class="hub-timeline" aria-label="行動紀錄，新的在上面">
+  {% for event in events %}
+  <li class="hub-timeline__item hub-timeline__item--{{ event.kind }}" style="--i: {{ loop.index0 }};">
+    <span class="hub-timeline__dot" aria-hidden="true">{{ event.icon }}</span>
+    <div class="hub-timeline__card">
+      <p>{{ event.text }}</p>
+      <small><time>{{ event.at|taipei_time }}</time> · <a href="{{ url_for('agent_plan.proposal_page', plan_id=event.plan.id) }}">提案 #{{ event.plan.id }}</a></small>
+    </div>
+  </li>
+  {% endfor %}
+</ol>
+{% else %}
+<div class="hub-empty sheet"><p><b>還沒有任何動作。</b></p></div>
+{% endif %}
+
+{{ hub_footer() }}
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

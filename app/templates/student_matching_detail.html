@@ -8,7 +8,7 @@
 {% block navigation %}{{ masthead(user, "目標校系") }}{% endblock %}
 
 {% block content %}
-{{ page_band("推薦排序細項") }}
+{{ page_band("怎麼進這所學校") }}
 <div class="page page--banded">
   <div class="record-card__actions mb-1">
     <a class="button button--small button--quiet" href="{{ url_for('student.matching') }}">← 回推薦排序</a>
@@ -19,25 +19,42 @@
       <span class="tag">{{ row.channel_label }}</span>
       <span class="tag {{ {'eligible': 'tag--info', 'needs_check': 'tag--warn', 'ineligible': 'tag--danger'}[row.status] }}">{{ row.status_label }}</span>
     </div>
-    <p class="muted small">{{ row.program.admission_year }} 學年度</p>
-    {{ matching_detail(row, category_labels) }}
+    <p class="muted small">{{ row.program.admission_year }} 學年度{% if row.program.admission_category and row.program.admission_category != row.channel_label %} · {{ row.program.admission_category }}{% endif %}</p>
+    {% set sched = row.schedule %}
+    <p class="small mb-1">
+      {% if sched and sched.next %}<strong>{% if days_left is not none and days_left > 0 %}還有 {{ days_left }} 天{% else %}進行中{% endif %}</strong>：{{ sched.next.name }}（{{ sched.next.start.strftime('%Y/%m/%d') }}）{% if sched.reference %}<span class="muted">（參考 {{ sched.year }} 學年度）</span>{% endif %}
+      {% elif sched %}{{ sched.year }} 學年度時程已結束，下一年度尚未公告。
+      {% else %}{{ row.channel_label }}時程依各校簡章。{% endif %}
+      <a href="{{ url_for('student.schedule') }}">看招生時程 →</a>
+    </p>
     {% if row.reasons %}
-    <h3>建議依據</h3>
-    <ul>{% for reason in row.reasons %}<li>{{ reason }}</li>{% endfor %}</ul>
+    <details class="match-more mb-1">
+      <summary>為什麼是「{{ row.status_label }}」、排在這裡</summary>
+      <ul>{% for reason in row.reasons %}<li>{{ reason }}</li>{% endfor %}</ul>
+    </details>
     {% endif %}
+    {% if row.qualification %}
+    <section class="sheet mb-1" aria-labelledby="eligibility-title">
+      <h3 id="eligibility-title">招生資格條件比對</h3>
+      <p class="small muted">以下是依已核對條件及本人已確認資料提供的參考，仍以當年度招生簡章與正式審查為準。</p>
+      <ul>{% for condition in row.qualification.conditions %}<li>
+        <strong>{{ condition.description }}</strong>：{{ condition.reason }}
+        {% if condition.source %}<a href="{{ condition.source.url }}" target="_blank" rel="noopener noreferrer">官方來源：{{ condition.source.location }}</a>{% else %}（來源待確認）{% endif %}
+      </li>{% endfor %}</ul>
+    </section>
+    {% endif %}
+    {{ matching_detail(row, category_labels) }}
     {% if row.links %}
-    <p class="small">招生資訊：{% for link in row.links %}<a href="{{ link.url }}" target="_blank" rel="noopener noreferrer">{{ link.label }}</a>{% if not loop.last %}／{% endif %}{% endfor %}</p>
+    <p class="small mt-1">招生資訊：{% for link in row.links %}<a href="{{ link.url }}" target="_blank" rel="noopener noreferrer">{{ link.label }}</a>{% if not loop.last %}／{% endif %}{% endfor %}</p>
     {% endif %}
-    <p class="small"><a href="{{ url_for('student.schedule') }}">查看招生時程 →</a></p>
     {% if row.status != "ineligible" %}
+    <div class="record-card__actions mt-1">
       {% if row.program.id in selected %}
-      <p class="mt-1"><a class="button button--small" href="{{ url_for('student.target_gap', program_id=row.program.id) }}">已是目標校系，看還缺什麼 →</a></p>
+      <a class="button button--small" href="{{ url_for('student.target_gap', program_id=row.program.id) }}">已是目標校系，看還缺什麼 →</a>
       {% else %}
-      <form method="post" action="{{ url_for('student.target_list') }}" class="mt-1">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="program_id" value="{{ row.program.id }}">
-        <button class="button button--small" type="submit">設為目標校系</button>
-      </form>
+      <form method="post" action="{{ url_for('student.target_list') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="program_id" value="{{ row.program.id }}"><button class="button button--small" type="submit">設為目標校系</button></form>
       {% endif %}
+    </div>
     {% endif %}
   </div>
   <p class="muted small mt-1">準備度是依你已確認的資料和簡章加權算的建議值，不是錄取機率；能不能報與錄取結果以當年度招生簡章正式審核為準。</p>

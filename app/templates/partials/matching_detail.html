@@ -1,36 +1,56 @@
-{# 推薦排序的細項：登入學生本人的已符合與缺少。列表頁展開與整頁共用這一份。 #}
+{# 推薦排序的細項：登入學生本人「怎麼進這所學校」。列表頁展開與整頁共用這一份。
+   缺少的項目依「補滿可加的準備度」由多到少排，第一條是先做的；每條都有直接去補的連結。 #}
+{# 已有部分資料時，具體說要補什麼（11-04 實測：「再多補一些」沒說補什麼）。門檻見 gap_service._grade_level／_count_level／_autobiography_level #}
+{% macro partial_hint(key, label) -%}
+{%- if key == "grades" -%}成績已上傳；歷年平均 85 分以上才算滿分，成績無法再補，可以靠其他項目加分
+{%- elif key == "autobiography" -%}自傳已有草稿；改成自己的話並再儲存一次（第 2 版）就算完成
+{%- else -%}{{ label }}目前 1 筆，再補 1 筆就滿分
+{%- endif -%}
+{%- endmacro %}
+
 {% macro matching_detail(row, category_labels) %}
-{% set have_items = row.gap["items"] | selectattr("have") | list %}
-{% set missing_items = row.gap["items"] | selectattr("status", "in", ["missing", "partial"]) | list %}
-{% set prepare_items = row.gap["items"] | selectattr("status", "equalto", "prepare") | list %}
+{% set doc_labels = {"autobiography": "自傳與讀書計畫", "project": "專題作品"} %}
+{% set have_items = row.gap["items"] | selectattr("fraction") | selectattr("fraction", "gt", 0) | list %}
+{% set open_items = row.gap["items"] | selectattr("gain", "gt", 0) | sort(attribute="gain", reverse=True) | list %}
+{% set exam_items = row.gap["items"] | selectattr("fraction", "none") | list %}
 <p class="small mb-1">
-  {% if row.fit is not none %}<strong>準備度 {{ row.fit }}%（建議值）</strong>{% else %}準備度：以自傳等文件為主，系統算不出來{% endif %}
+  {% if row.fit is not none %}<strong>準備度 {{ row.fit }}%（建議值）</strong>{% else %}準備度：簡章項目還沒對應到資料，系統算不出來{% endif %}
   <span class="muted">· 只列你自己的資料，不是錄取機率</span>
 </p>
-{% if row.gap.documents %}<p class="muted small">以下文件已列入準備度計算，目前系統尚無法自動核對，先視為待準備：{% for key in row.gap.documents %}{{ category_labels.get(key, key) }}{% if not loop.last %}、{% endif %}{% endfor %}。</p>{% endif %}
 <div class="match-detail">
   <section class="match-detail__col">
     <h3>已符合</h3>
     {% if have_items %}
     <ul>
       {% for item in have_items %}
-      <li>{{ item.name }}{% if item.status == "partial" %}（部分）{% endif %}（占 {{ item.weight }}%）<span class="muted small">：{% for key in item.have %}{{ category_labels.get(key, key) }}{% if not loop.last %}、{% endif %}{% endfor %}</span></li>
+      <li>{{ item.name }}{% if item.status != "complete" %}（部分）{% endif %}（占 {{ item.weight }}%）<span class="muted small">：{% for key, level in item.levels.items() if level > 0 %}{{ category_labels.get(key, doc_labels.get(key, key)) }}{% if key in item.counts %} {{ item.counts[key] }} 筆{% endif %}{% if not loop.last %}、{% endif %}{% endfor %}</span></li>
       {% endfor %}
     </ul>
     {% else %}<p class="muted small">目前沒有已符合的項目。</p>{% endif %}
   </section>
   <section class="match-detail__col">
     <h3>缺少</h3>
-    {% if missing_items or prepare_items %}
-    <ul>
-      {% for item in missing_items %}
-      <li>{{ item.name }}（占 {{ item.weight }}%）<span class="muted small">：還缺 {% for key in item.missing + item.documents %}{{ category_labels.get(key, key) }}{% if not loop.last %}、{% endif %}{% endfor %}</span></li>
+    {% if open_items %}
+    <ol class="match-detail__todo">
+      {% for item in open_items %}
+      {% set key = item.next_key %}
+      {% if key == "grades" %}{% set href = url_for("student.learning_profile_upload_page", type="transcript") %}
+      {% elif key == "credential" %}{% set href = url_for("student.learning_profile_upload_page", type="credential") %}
+      {% elif key == "autobiography" %}{% set href = url_for("student.autobiography", program_id=row.program.id) %}
+      {% elif key == "project" %}{% set href = url_for("student.portfolio_new") %}
+      {% else %}{% set href = url_for("student.portfolio_new", category=key) %}{% endif %}
+      <li>
+        {% if loop.first %}<b>先做這個：</b>{% endif %}{{ item.name }}（占 {{ item.weight }}%）
+        <span class="muted small">：{% if item.missing %}還缺 {% for k in item.missing %}{{ category_labels.get(k, k) }}{% if not loop.last %}、{% endif %}{% endfor %}{% else %}{{ partial_hint(key, category_labels.get(key, doc_labels.get(key, key))) }}{% endif %}{% for k in item.documents if item.levels[k] < 1 %}；{{ doc_labels.get(k, k) }}還沒完成{% endfor %}</span>
+        <span class="small">補滿可加 {{ item.gain }}%</span>
+        <a class="small" href="{{ href }}">去補 →</a>
+      </li>
       {% endfor %}
-      {% for item in prepare_items %}
-      <li>{{ item.name }}（占 {{ item.weight }}%）<span class="muted small">：需要自己準備的文件</span></li>
-      {% endfor %}
-    </ul>
+    </ol>
     {% else %}<p class="muted small">目前沒有缺少的項目。</p>{% endif %}
+    {% if exam_items %}
+    <p class="muted small mt-1">這些項目要靠考試、面試或簡章另訂，補資料加不了分：{% for item in exam_items %}{{ item.name }}（占 {{ item.weight }}%）{% if not loop.last %}、{% endif %}{% endfor %}</p>
+    {% endif %}
   </section>
 </div>
 {% endmacro %}

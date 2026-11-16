@@ -43,6 +43,8 @@ ANSWERS = {
     "challenge": "資料庫查詢常寫錯，後來每天練習題目。",
     "future": "想學資料分析，之後做系統分析師。",
 }
+from tests.autobio_helpers import FOCUS_ANSWERS  # noqa: E402
+ANSWERS = {**ANSWERS, **FOCUS_ANSWERS}  # 比重高的項目也要學生自己寫（2026-11-12）
 
 
 @pytest.fixture()

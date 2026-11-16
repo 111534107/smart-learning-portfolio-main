@@ -1,0 +1,57 @@
+{# 小助手規劃共用表頭：系統標題帶＋進度總覽卡＋分頁（待辦／規劃提案／行動紀錄）。
+   結構學 GitHub（Issues、Pull request、Activity），外觀沿用系統的紙張、深藍標題帶與五年色。 #}
+{% from "partials/nav.html" import page_band with context %}
+
+{% macro hub_header(tab, counts) %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/agent-hub.css') }}">
+{{ page_band("小助手規劃", [("目標校系", url_for("student.target_list"))]) }}
+<div class="page page--banded hub">
+  <section class="hub-hero" aria-labelledby="hub-hero-title">
+    <div class="hub-ring" style="--p: {{ counts.percent }};" role="img" aria-label="待辦完成 {{ counts.percent }}%">
+      <svg viewBox="0 0 120 120" aria-hidden="true">
+        <circle class="hub-ring__track" cx="60" cy="60" r="52"/>
+        <circle class="hub-ring__bar" cx="60" cy="60" r="52" pathLength="100"/>
+      </svg>
+      <span class="hub-ring__num"><b>{{ counts.percent }}</b><small>%</small></span>
+    </div>
+    <div class="hub-hero__body">
+      <p class="hub-hero__eyebrow">我的升學規劃 · 只有你看得到</p>
+      <h2 id="hub-hero-title" class="hub-hero__title">
+        {% if not counts.total %}還沒有待辦，先請小助手規劃一次
+        {% elif counts.issues %}還有 {{ counts.issues }} 件事要做
+        {% else %}待辦全部完成了！{% endif %}</h2>
+      <ul class="hub-stats">
+        <li><b>{{ counts.issues }}</b>進行中</li>
+        <li><b>{{ counts.done }}</b>已完成</li>
+        <li><b>{{ counts.proposals }}</b>規劃提案</li>
+      </ul>
+    </div>
+    <div class="hub-hero__action">
+      {% if counts.pending_id %}
+      <a class="button hub-pulse" href="{{ url_for('agent_plan.proposal_page', plan_id=counts.pending_id) }}">提案 #{{ counts.pending_id }} 等你同意 →</a>
+      {% else %}
+      <form method="post" action="{{ url_for('agent_plan.plan') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="button" type="submit">＋ 幫我規劃下一步</button>
+      </form>
+      {% endif %}
+      <p class="hub-hero__hint">小助手先列出計畫，你同意後才建立待辦</p>
+    </div>
+  </section>
+
+  <nav class="hub-tabs" aria-label="小助手規劃">
+    <a href="{{ url_for('agent_plan.issues') }}"{% if tab == "issues" %} aria-current="page"{% endif %}>待辦 <span class="hub-count">{{ counts.issues }}</span></a>
+    <a href="{{ url_for('agent_plan.proposals') }}"{% if tab == "proposals" %} aria-current="page"{% endif %}>規劃提案 <span class="hub-count">{{ counts.proposals }}</span></a>
+    <a href="{{ url_for('agent_plan.activity') }}"{% if tab == "activity" %} aria-current="page"{% endif %}>行動紀錄</a>
+  </nav>
+{% endmacro %}
+
+{# 各頁 content 最後呼叫，關閉 hub_header 開的 <div class="page"> #}
+{% macro hub_footer() %}
+  <p class="hub-note">小助手只會排序、提醒、產生待辦與草稿；目標校系由你決定。準備度是建議值，不是錄取機率，能不能報與錄取以招生簡章為準。聊天內容不會存進資料庫，這裡只記錄動作。</p>
+</div>
+{% endmacro %}
+
+{% macro label_pill(labels, key) %}{% set info = labels.get(key, {"text": key, "tone": "data"}) %}<span class="hub-label hub-label--{{ key }}">{{ info.text }}</span>{% endmacro %}
+
+{% macro plan_badge(status, plan_state) %}<span class="hub-badge hub-badge--{{ status }}">{{ plan_state.get(status, status) }}</span>{% endmacro %}

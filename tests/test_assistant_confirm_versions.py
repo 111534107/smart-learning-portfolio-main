@@ -99,7 +99,7 @@ def test_build_facts_skips_unconfirmed_records(app):
     texts = " ".join(facts_text(app))
 
     assert "確認過的競賽" in texts
-    assert "舊流程送出的" in texts
+    assert "舊流程送出的" not in texts
     assert "程式設計" in texts
     assert "網頁設計乙級" in texts
     assert "還在寫的草稿" not in texts
@@ -194,7 +194,9 @@ def target_count(app):
         return StudentTarget.query.filter_by(student_id=user_id(app, "stu")).count()
 
 
-def test_sixth_target_is_refused_in_fifth_year(app):
+def test_fifth_year_can_choose_more_than_five_targets_by_default(app):
+    # 舊設定即使仍在環境中，也不能重新啟用數量限制。
+    app.config["TARGET_LIMIT"] = 5
     with app.app_context():
         profile = StudentProfile.query.filter_by(student_no="111534100").one()
         profile.admission_year = GRADE3_ADMISSION_YEAR - 2
@@ -208,8 +210,11 @@ def test_sixth_target_is_refused_in_fifth_year(app):
 
     response = client.post("/student/targets", data={"program_id": add_programs(app, 1)[0]})
 
-    assert target_count(app) == 5
-    assert "最多 5 所" in response.get_data(as_text=True)
+    assert target_count(app) == 6
+    assert "最多 5 所" not in response.get_data(as_text=True)
+    page = client.get("/student/targets").get_data(as_text=True)
+    assert "5 所" not in page and "已選 6／" not in page
+    assert "不限所數" in page
 
 
 def test_third_year_can_choose_more_than_five(app):
@@ -508,6 +513,8 @@ def test_review_snapshot_migration_upgrades_and_downgrades(tmp_path):
 # ---------- Task 4：自傳版本紀錄、導師直接改文字與段落意見 ----------
 
 ANSWERS = {"motivation": "想把需求變成系統。", "proud": "黑客松負責後端。", "challenge": "", "future": "想學資料分析。"}
+from tests.autobio_helpers import FOCUS_ANSWERS  # noqa: E402
+ANSWERS = {**ANSWERS, **FOCUS_ANSWERS}  # 比重高的項目也要學生自己寫（2026-11-12）
 
 
 def write_autobiography(app, client):
@@ -710,6 +717,8 @@ def test_award_import_counts_toward_school_turns(app, monkeypatch):
     calls = []
     app.config.update(AI_ENABLED=True, AI_PROVIDER="gemini", AI_API_KEY="school-key-for-test")
     monkeypatch.setattr(gemini_client, "generate_json", lambda *a, **k: calls.append(1) or {"rows": []})
+    from app.services import ai_gateway  # 11-11：AI 不讀檔案，先轉成文字（這裡直接給轉好的文字）
+    monkeypatch.setattr(ai_gateway, "document_text", lambda path: "獎懲記錄 嘉獎一次")
     client = login(app)
 
     def upload():
@@ -881,3 +890,54 @@ def test_student_still_sees_versions_after_cancelling_target(app):
     assert "已取消" in versions.get_data(as_text=True)
     assert f"/student/autobiography/versions?program_id={pid}" in targets
     assert other.status_code in (302, 404) or "第 1 版" not in other.get_data(as_text=True)
+
+
+def test_submitted_without_confirmation_needs_student_confirmation(app):
+    record_id = add_portfolio(app, title="僅為測試資料 舊送件", status="submitted")
+    client = login(app)
+    assert "僅為測試資料 舊送件" not in " ".join(facts_text(app))
+    page = client.get("/student/portfolio").get_data(as_text=True)
+    assert "確認內容正確" in page
+    client.post(f"/student/portfolio/{record_id}/confirm")
+    with app.app_context():
+        assert db.session.get(Portfolio, record_id).status == "confirmed"
+    assert "僅為測試資料 舊送件" in " ".join(facts_text(app))
+
+
+def test_submitting_draft_does_not_confirm_it(app):
+    record_id = add_portfolio(app, title="僅為測試資料 草稿送件", status="draft")
+    client = login(app)
+    client.post(f"/student/portfolio/{record_id}/submit")
+    with app.app_context():
+        assert db.session.get(Portfolio, record_id).status == "draft"
+    assert "僅為測試資料 草稿送件" not in " ".join(facts_text(app))
+
+
+def test_assistant_overview_excludes_unconfirmed_learning_data(app):
+    from app.services.assistant_tools import _overview
+
+    with app.app_context():
+        student = User.query.filter_by(username="stu").one()
+        baseline = _overview(student)
+        db.session.add(Portfolio(student_id=student.id, title="pending competition", category="competition", school_year=3, status="draft"))
+        db.session.add(Portfolio(student_id=student.id, title="confirmed competition", category="competition", school_year=3, status="confirmed"))
+        db.session.add(CredentialRecord(student_id=student.id, credential_name="pending cert", confirmation_status="pending"))
+        db.session.add(CredentialRecord(student_id=student.id, credential_name="confirmed cert", confirmation_status="confirmed"))
+        db.session.commit()
+        overview = _overview(student)
+        assert sum(overview["record_counts"].values()) == sum(baseline["record_counts"].values()) + 2
+        assert "confirmed cert" in overview["credentials"]
+        assert "pending cert" not in overview["credentials"]
+
+
+def test_legacy_portfolio_categories_do_not_become_grades_or_credentials(app):
+    from app.services.gap_service import student_evidence
+
+    with app.app_context():
+        student = User.query.filter_by(username="stu").one()
+        before = student_evidence(student)["totals"]
+        for category in ("grades", "credential"):
+            db.session.add(Portfolio(student_id=student.id, title="legacy", category=category, school_year=3, status="confirmed"))
+        db.session.commit()
+        after = student_evidence(student)["totals"]
+        assert after == before

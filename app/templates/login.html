@@ -1,10 +1,11 @@
 {% extends "base.html" %}
 {% from "partials/nav.html" import masthead with context %}
+{% import "partials/login_parts.html" as parts with context %}
 {% set page_name = "login" %}
 
-{% block title %}登入｜資管科智慧學習歷程系統{% endblock %}
+{% block title %}學生登入｜資管科智慧學習歷程系統{% endblock %}
 
-{% block navigation %}{{ masthead() }}{% endblock %}
+{% block navigation %}{{ masthead(active="login") }}{% endblock %}
 
 {% block content %}
 <section class="auth">
@@ -18,46 +19,18 @@
   </div>
   <div class="auth__form">
     <div class="auth__card" data-motion="reveal">
-      <h2>登入系統</h2>
-      {% if error %}<p class="alert mb-1" role="alert">{{ error }}</p>{% endif %}
-      <form method="post" action="{{ url_for('main.login') }}" class="form-stack">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        {% if next_path %}<input type="hidden" name="next" value="{{ next_path }}">{% endif %}
-        <label class="field">帳號 <small>學生請輸入學號</small><input name="username" autocomplete="username" required></label>
-        <label class="field">密碼<input name="password" type="password" autocomplete="current-password" required></label>
-        <button class="button" type="submit">登入 →</button>
-      </form>
-      {% if google_login_enabled %}
-      <p class="small">請使用學號@stu.ukn.edu.tw；首次登入會建立學生帳號。</p>
-      <a class="button button--quiet" href="{{ url_for('main.google_login', next=next_path) }}">使用學校 Google 帳號登入 →</a>
-      {% endif %}
+      <p class="auth__portal">學生</p>
+      <h2>學生登入</h2>
+      {{ parts.error_box(error, wrong_page) }}
+      {{ parts.google_button(google_login_enabled, url_for('main.google_login', next=next_path), "使用學校 Google Workspace 帳號登入") }}
+      {% if google_login_enabled %}<p class="small">在 Google 頁面只要輸入學號（第一次登入會自動建立你的帳號）。</p>{% endif %}
+      <details class="auth__fallback"{% if request.method == "POST" and not wrong_page %} open{% endif %}>
+        <summary>沒有學校帳號？用帳號密碼登入</summary>
+        {{ parts.password_form(url_for('main.login'), next_path, "帳號", "學號") }}
+      </details>
+      <p class="auth__switch small">老師與科辦人員請到 <a href="{{ url_for('main.staff_login') }}">教職員登入</a></p>
     </div>
-    {% if config.get("DEMO_ACCOUNTS") and config.get("FLASK_ENV") != "production" %}
-    <section class="demo-login" aria-labelledby="demo-login-title">
-      <h3 id="demo-login-title">Demo 快速登入</h3>
-      <p class="small">開發測試用，資料都是假的；正式環境不顯示。點一下就用該帳號登入。</p>
-      <ul class="demo-login__list">
-        {% for account in config.DEMO_ACCOUNTS %}
-        <li>
-          <form method="post" action="{{ url_for('main.login') }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            {% if next_path %}<input type="hidden" name="next" value="{{ next_path }}">{% endif %}
-            <input type="hidden" name="username" value="{{ account.username }}">
-            <input type="hidden" name="password" value="{{ account.password }}">
-            <button class="demo-login__account demo-login__account--{{ account.role }}" type="submit">
-              <span class="demo-login__role">{{ account.label }}</span>
-              <span class="demo-login__who">
-                <strong>{{ account.name }}</strong>
-                {% if account.note %}<small>{{ account.note }}</small>{% endif %}
-              </span>
-              <span class="demo-login__cred mono">{{ account.username }}<br>{{ account.password }}</span>
-            </button>
-          </form>
-        </li>
-        {% endfor %}
-      </ul>
-    </section>
-    {% endif %}
+    {{ parts.demo_accounts(url_for('main.login'), ["student"]) }}
   </div>
 </section>
 {% endblock %}

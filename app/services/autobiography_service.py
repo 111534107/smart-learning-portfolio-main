@@ -15,18 +15,19 @@ import difflib
 from datetime import datetime, timezone
 
 from markupsafe import Markup, escape
+from flask import current_app
 
 from app.extensions import db
 from app.models import AdmissionProgram, CredentialRecord, LearningCourseRecord, LearningProfileOutput, Portfolio, User
-from app.services import autobiography_backup
+from app.services import autobiography_backup, package_exclusion
 from app.services.gap_service import ALL_LABELS
 from app.services.gemini_client import AIUnavailable, ai_ready, generate_json
 from app.services.journey_service import CATEGORY_LABELS
 
 OUTPUT_TYPE = "autobiography_ai"
 
-# 學生按過「確認」的經歷；submitted 是舊的專題送審流程，也代表學生確認過
-CONFIRMED_PORTFOLIO_STATUSES = ("confirmed", "submitted")
+# 舊 submitted 可能由草稿直接送出，無法證明學生已確認；需重新確認。
+CONFIRMED_PORTFOLIO_STATUSES = ("confirmed",)
 
 # 問題（key, 題目, 提示）。要改題目只要改這裡。
 QUESTIONS = [
@@ -35,6 +36,68 @@ QUESTIONS = [
     ("challenge", "遇過最大的困難是什麼？你怎麼解決？", "可以是課業、專題或團隊合作"),
     ("future", "進二技後想學什麼？之後想做什麼工作？", "和這個系的課程或特色連起來會更好"),
 ]
+
+# 依簡章比重引導（導師 2026-11-12）：比重高的項目一定要學生自己寫到，AI 只整理。
+# 每個資料類別的提示；題目本身用簡章的項目名稱與比重，沒有比重資料的校系不加題目。
+FOCUS_HINTS = {
+    "grades": "哪一門課學得最好、你怎麼學的",
+    "credential": "為什麼考這張證照、準備過程學到什麼",
+    "competition": "哪一個比賽、你負責什麼、結果如何",
+    "project": "專題題目、你負責的部分、做出什麼成果",
+    "activity": "參加過的社團或活動、你做了什麼",
+    "leadership": "擔任過的幹部、處理過的事情",
+    "service": "服務的對象與內容、你的體會",
+}
+VALUED_LABEL = "這所校系很看重"
+VALUED_WEIGHT = 30  # 比重最高的項目，以及比重達到這個百分比的項目，標示「這所校系很看重」
+MIN_OWN_CHARS = 10  # 少於這個字數不算「用自己的話寫過」
+
+
+def guided_questions(program):
+    """自傳引導題目：先列簡章評分項目（比重高到低），再列原本的共通題。
+
+    回傳 [{key, text, hint, weight, item, important}]。校系沒有比重資料時只有原本的題目，不自己編比重。
+    同一組資料類別只出一題（取比重最高的項目），key 用類別組成，換校系時回答可以沿用。
+    """
+    focus = {}
+    for item in (program.items if program else []):
+        keys = sorted(key for key in item.category_keys if key in FOCUS_HINTS)
+        if not keys or not item.weight_percent:
+            continue
+        key = "focus_" + "_".join(keys)
+        if key not in focus or item.weight_percent > focus[key]["weight"]:
+            focus[key] = {
+                "key": key,
+                "text": f"簡章評分項目「{item.source_item_name}」占 {item.weight_percent}%："
+                        "你有哪些相關經驗？你自己做了什麼、結果如何？",
+                "hint": "可以寫：" + "；".join(FOCUS_HINTS[k] for k in keys),
+                "weight": item.weight_percent,
+                "item": item.source_item_name,
+                "important": False,
+            }
+    ordered = sorted(focus.values(), key=lambda question: -question["weight"])  # 穩定排序，同比重維持簡章順序
+    for question in ordered:
+        question["important"] = question["weight"] == ordered[0]["weight"] or question["weight"] >= VALUED_WEIGHT
+    base = [{"key": key, "text": text, "hint": hint, "weight": None, "item": None, "important": False}
+            for key, text, hint in QUESTIONS]
+    return ordered + base
+
+
+def own_words_problem(program, answers):
+    """學生還沒用自己的話寫夠就回傳提示文字（不能產生草稿）；可以產生時回傳 None。"""
+    questions = guided_questions(program)
+
+    def written(key):
+        return len((answers.get(key) or "").strip()) >= MIN_OWN_CHARS
+
+    missing = [question["item"] for question in questions if question["important"] and not written(question["key"])]
+    if missing:
+        return (f"{VALUED_LABEL}「{'、'.join(missing)}」，請先用自己的話寫幾句（每題至少 {MIN_OWN_CHARS} 個字；"
+                "還沒有相關經驗，也可以寫你打算怎麼準備）。AI 只幫你整理文字，不會替你寫。")
+    if not any(written(question["key"]) for question in questions):
+        return f"請先用自己的話寫幾句（至少回答一題、{MIN_OWN_CHARS} 個字以上）。AI 只幫你整理文字，不會替你寫。"
+    return None
+
 
 PARAGRAPH_SCHEMA = {
     "type": "OBJECT",
@@ -60,30 +123,39 @@ def build_facts(student, program):
     """把學生已確認的資料整理成編號事實，並附上目標校系的評分項目與加權。
 
     只收學生確認過的資料：成績與證照要 confirmation_status 是 confirmed，經歷要學生按過「確認」。
+    學生標成「不放進備審」的資料不收；這個校系簡章規定必備的類別除外。
     """
+    required = package_exclusion.required_keys(program)
     lines = []
-    for course in (LearningCourseRecord.query.filter_by(student_id=student.id, confirmation_status="confirmed")
-                   .order_by(LearningCourseRecord.id)):
+    for course in package_exclusion.keep_courses(
+            LearningCourseRecord.query.filter_by(student_id=student.id, confirmation_status="confirmed")
+            .order_by(LearningCourseRecord.id), required):
         score = f"{course.score} 分" if course.score is not None else (course.status_mark or "")
         lines.append({
             "text": f"成績：{course.course_name}（{course.year_for_placement or '?'} 年級，{score}）",
             "evidence_id": f"course:{course.id}",
             "evidence_type": "course",
         })
-    for credential in (CredentialRecord.query.filter_by(student_id=student.id, confirmation_status="confirmed")
-                       .order_by(CredentialRecord.id)):
+    for credential in package_exclusion.keep_credentials(
+            CredentialRecord.query.filter_by(student_id=student.id, confirmation_status="confirmed")
+            .order_by(CredentialRecord.id), required):
         lines.append({
             "text": f"證照：{credential.credential_name}" + (f"（{credential.level}）" if credential.level else ""),
             "evidence_id": f"credential:{credential.id}",
             "evidence_type": "credential",
         })
-    for record in (Portfolio.active().filter_by(student_id=student.id)
-                   .filter(Portfolio.status.in_(CONFIRMED_PORTFOLIO_STATUSES)).order_by(Portfolio.id)):
+    for record in package_exclusion.keep_portfolios(
+            Portfolio.active().filter_by(student_id=student.id)
+            .filter(Portfolio.status.in_(CONFIRMED_PORTFOLIO_STATUSES)).order_by(Portfolio.id), required):
         label = CATEGORY_LABELS.get(record.category)
         if label:
             source = "" if record.source == "student" else f"（來源：{record.source_label}）"
+            details = "；".join(f"{name}：{value}" for name, value in (
+                ("我負責", record.role), ("成果", record.achievement), ("學到", record.learned), ("領域", record.domain_tags))
+                if value)
             lines.append({
-                "text": f"{label}：{record.title}" + (f"—{record.description}" if record.description else "") + source,
+                "text": f"{label}：{record.title}" + (f"—{record.description}" if record.description else "")
+                        + (f"（{details}）" if details else "") + source,
                 "evidence_id": f"portfolio:{record.id}",
                 "evidence_type": "portfolio",
             })
@@ -96,16 +168,99 @@ def build_facts(student, program):
     return {"items": items, "weights": weights}
 
 
+def strength_inventory(student, program=None):
+    """按現有類別盤點已確認資料；數量並非能力評分。有指定校系時，不列學生選擇不放進備審的資料。"""
+    required = package_exclusion.required_keys(program) if program else None
+    groups = {}
+    def add(label, name, evidence_id):
+        groups.setdefault(label, []).append({"name": name, "evidence_id": evidence_id})
+    courses = LearningCourseRecord.query.filter_by(student_id=student.id, confirmation_status="confirmed").all()
+    credentials = CredentialRecord.query.filter_by(student_id=student.id, confirmation_status="confirmed").all()
+    records = Portfolio.active().filter_by(student_id=student.id, status="confirmed").all()
+    if required is not None:
+        courses = package_exclusion.keep_courses(courses, required)
+        credentials = package_exclusion.keep_credentials(credentials, required)
+        records = package_exclusion.keep_portfolios(records, required)
+    for item in courses:
+        add("已確認課程", item.course_name, f"course:{item.id}")
+    for item in credentials:
+        add("證照：" + (item.category or "未分類"), credential_label(item), f"credential:{item.id}")
+    for item in records:
+        if item.category in CATEGORY_LABELS:
+            add(CATEGORY_LABELS[item.category], item.title, f"portfolio:{item.id}")
+    return [{"label": label, "count": len(items), "evidence": items} for label, items in groups.items()]
+
+# 備審目錄不列的共同課程（不是專業能力的證明）：勞作教育、體育、班會等
+GENERAL_COURSE_WORDS = ("勞作", "體育", "班會", "週會", "周會", "團體活動", "全民國防", "軍訓", "健康與護理", "生涯規劃")
+TOP_COURSES = 5
+
+
+def credential_label(credential):
+    """證照名稱加上級別（同名證照才分得出來），名稱已含級別就不重複。"""
+    name = credential.credential_name
+    level = (credential.level or "").strip()
+    return f"{name}（{level}）" if level and level not in name else name
+
+
+def _course_summary(courses):
+    """成績不逐門列出（11-04 實測：85 門課全列，連勞作教育、體育都在）：
+    一行總覽＋分數最高的幾門專業科目。"""
+    if not courses:
+        return []
+    scored = [c for c in courses if c.score is not None]
+    summary = f"歷年成績單：已確認 {len(courses)} 門課"
+    if scored:
+        summary += f"，平均 {round(sum(c.score for c in scored) / len(scored), 1)} 分"
+    items = [{"name": summary, "evidence_id": "course:all"}]
+    professional = [c for c in scored if not any(word in c.course_name for word in GENERAL_COURSE_WORDS)]
+    seen = set()
+    for course in sorted(professional, key=lambda c: c.score, reverse=True):
+        if course.course_name in seen:
+            continue
+        seen.add(course.course_name)
+        items.append({"name": f"表現較好的科目：{course.course_name} {course.score:g} 分", "evidence_id": f"course:{course.id}"})
+        if len(seen) >= TOP_COURSES:
+            break
+    return items
+
+
+def custom_contents(student, program):
+    """依加權列出已確認的具體佐證；保留資料來源供學生核對。"""
+    from app.services.gap_service import chapter_order
+
+    courses = LearningCourseRecord.query.filter_by(student_id=student.id, confirmation_status="confirmed").all()
+    credentials = CredentialRecord.query.filter_by(student_id=student.id, confirmation_status="confirmed").all()
+    records = Portfolio.active().filter_by(student_id=student.id, status="confirmed").all()
+    required = package_exclusion.required_keys(program)
+    courses = package_exclusion.keep_courses(courses, required)
+    credentials = package_exclusion.keep_credentials(credentials, required)
+    records = package_exclusion.keep_portfolios(records, required)
+    chapters = chapter_order(program)
+    for chapter in chapters:
+        evidence = []
+        if "grades" in chapter["keys"]:
+            evidence.extend(_course_summary(courses))
+        if "credential" in chapter["keys"]:
+            evidence.extend({"name": credential_label(c), "evidence_id": f"credential:{c.id}"} for c in credentials)
+        for record in records:
+            if record.category in chapter["keys"] or ("project" in chapter["keys"] and
+                    ("專題" in record.title or "作品" in record.title)):
+                evidence.append({"name": record.title, "evidence_id": f"portfolio:{record.id}"})
+        chapter["evidence"] = evidence
+    return chapters
+
 def build_evidence_package(student, program):
     """為指定校系整理學生已確認、可追溯來源的最小證據包。"""
     facts = build_facts(student, program)
     return {"version": 1, "program_id": program.id, "items": facts["items"]}
 
 
-def _prompt(student, program, facts, answers):
+def _prompt(student, program, facts, answers, questions=None):
+    questions = questions or guided_questions(program)
     fact_lines = "\n".join(f"{fact['id']}. {fact['text']}" for fact in facts["items"]) or "（沒有資料）"
     weight_lines = "\n".join(f"- {w['name']}：{w['weight']}%（{w['categories']}）" for w in facts["weights"])
-    answer_lines = "\n".join(f"- {question}\n  回答：{answers.get(key) or '（未回答）'}" for key, question, _ in QUESTIONS)
+    answer_lines = "\n".join(f"- {question['text']}\n  回答：{answers.get(question['key']) or '（未回答）'}"
+                             for question in questions)
     return f"""你是五專資管科學生的自傳寫作助手。請幫學生寫申請「{program.school_name} {program.department_name}」的自傳草稿。
 
 規則：
@@ -113,8 +268,9 @@ def _prompt(student, program, facts, answers):
 2. 只能使用下面的「學生資料」和「學生回答」，不得編造任何獎項、分數、證照、職位或經歷。資料不足就少寫，不要補。
 3. 學生沒回答的題目，那一段的 text 只寫「（請補上：題目內容）」，sources 給空陣列；不要從其他資料推想他的感受、心得或經過。
 4. 依校系加權，把加權高的項目相關經驗寫得比較完整。
-5. 分成 4 段：學習動機、學習歷程與具體經驗、困難與成長、未來規劃。總長約 600～900 字。
+5. 段落標題依內容命名，長度依簡章規定；沒有規定時以約 1500～2500 字為目標，資料不足時寧可較短，不得為湊字數編造。
 6. 每段的 sources 列出這段用到的學生資料編號（例如 F2）；只用到學生回答就給空陣列。
+7. 學生回答是自傳的主體：你只整理語句、順序與段落，不替學生新增他沒寫的經歷、感受或結論。
 
 學生資料（只能引用這些）：
 {fact_lines}
@@ -127,8 +283,10 @@ def _prompt(student, program, facts, answers):
 """
 
 
-def _demo_paragraphs(facts, answers):
+def _demo_paragraphs(facts, answers, questions=()):
     """沒有接上 AI 時的示範草稿：只把學生的回答和資料排好，明白標示不是 AI 寫的。"""
+    focus = [{"title": question["item"][:30], "text": answers[question["key"]], "sources": []}
+             for question in questions if question["weight"] and answers.get(question["key"])]
     experience = [f for f in facts["items"] if f["text"].split("：", 1)[0] in ("競賽", "活動", "幹部經歷")][:3]
     titles = "、".join(f["text"].split("：", 1)[1].split("—")[0] for f in experience)
     proud = answers.get("proud") or "（請補上你最有成就感的經驗）"
@@ -138,7 +296,7 @@ def _demo_paragraphs(facts, answers):
          "sources": [f["id"] for f in experience]},
         {"title": "困難與成長", "text": answers.get("challenge") or "（請補上你遇過的困難與解決方式）", "sources": []},
         {"title": "未來規劃", "text": answers.get("future") or "（請補上進二技後的學習計畫）", "sources": []},
-    ]
+    ] + focus  # 依簡章項目寫的回答原文接在後面（示範草稿不重排，接上 AI 才會依比重整理）
 
 
 def generate_draft(student, program, answers, generate=None, api_key=None):
@@ -150,12 +308,20 @@ def generate_draft(student, program, answers, generate=None, api_key=None):
     evidence_package = {"version": 1, "program_id": program.id, "items": facts["items"]}
     previous = latest_draft(student, program)
     known = {fact["id"] for fact in facts["items"]}
-    answers = {key: (answers.get(key) or "").strip()[:1000] for key, _, _ in QUESTIONS}
-    if generate is None and not api_key and not ai_ready():
-        paragraphs, provider = _demo_paragraphs(facts, answers), "demo"
+    questions = guided_questions(program)
+    answers = {question["key"]: (answers.get(question["key"]) or "").strip()[:1000] for question in questions}
+    use_ollama = not api_key and ollama_ready()
+    if generate is None and not api_key and not ai_ready() and not use_ollama:
+        paragraphs, provider = _demo_paragraphs(facts, answers, questions), "demo"
     else:
-        prompt = _prompt(student, program, facts, answers)
-        result = generate(prompt, PARAGRAPH_SCHEMA) if generate else generate_json(prompt, PARAGRAPH_SCHEMA, api_key=api_key)
+        prompt = _prompt(student, program, facts, answers, questions)
+        if generate:
+            result = generate(prompt, PARAGRAPH_SCHEMA)
+        elif use_ollama:
+            from app.services import ollama_client
+            result = ollama_client.generate_json(prompt, PARAGRAPH_SCHEMA)
+        else:
+            result = generate_json(prompt, PARAGRAPH_SCHEMA, api_key=api_key)
         paragraphs = [{
             "title": str(p.get("title", "")).strip()[:30],
             "text": str(p.get("text", "")).strip(),
@@ -163,10 +329,12 @@ def generate_draft(student, program, answers, generate=None, api_key=None):
         } for p in result.get("paragraphs", []) if str(p.get("text", "")).strip()]
         if not paragraphs:
             raise AIUnavailable("AI 沒有產生內容，請再試一次。")
-        provider = "gemini"
+        provider = "ollama" if use_ollama and generate is None else "gemini"
     content = {
         "program_id": program.id,
         "answers": answers,
+        # 重新產生草稿時，上一版學生（或導師）自己改過的段落不能被 AI 蓋掉不見：留在這裡，頁面上可拖回去用
+        "kept_paragraphs": _kept_paragraphs(previous),
         "paragraphs": paragraphs,
         "facts": facts["items"],
         "provider": provider,
@@ -176,7 +344,7 @@ def generate_draft(student, program, answers, generate=None, api_key=None):
         "editor_role": "ai",
         "based_on": previous.id if previous else None,
     }
-    content["backup_location"] = autobiography_backup.backup(student, program, content)
+    autobiography_backup.mark_pending(content)
     output = LearningProfileOutput(
         student_id=student.id,
         output_type=OUTPUT_TYPE,
@@ -187,7 +355,57 @@ def generate_draft(student, program, answers, generate=None, api_key=None):
     )
     db.session.add(output)
     db.session.commit()
+    autobiography_backup.schedule_after_save(current_app._get_current_object(), output)
     return output
+
+
+def _kept_paragraphs(previous):
+    """上一版若是人改過的，把有內容的段落留下（AI 重寫後學生自己打的字還在）；上一版是 AI 原稿就沿用它留下的。"""
+    if not previous:
+        return []
+    content = previous.content_json
+    if not content.get("edited"):
+        return content.get("kept_paragraphs", [])
+    return [{"title": p.get("title", ""), "text": p["text"]} for p in content.get("paragraphs", [])
+            if p.get("text", "").strip() and not p["text"].startswith("（請補上")]
+
+
+def own_words(content, questions):
+    """自傳頁「你自己寫的文字」：學生的回答原文＋上一版自己改過的段落。回傳 [{label, text}]，AI 不會動這些字。"""
+    answers = content.get("answers", {})
+    items = [{"label": q["text"], "text": answers[q["key"]]} for q in questions if answers.get(q["key"], "").strip()]
+    items += [{"label": f"上一版你改過的：{p['title']}", "text": p["text"]} for p in content.get("kept_paragraphs", [])]
+    return items
+
+
+def bio_pieces(student, program, draft=None):
+    """自傳頁可拖放的素材（B1）。facts：已確認資料，插入「內容（F 編號）」讓依據檢查對得到；own：學生自己寫的原文。
+    有草稿時用草稿存的資料（和段落引用的編號一致），沒有就用目前已確認的資料。"""
+    items = draft.content_json.get("facts", []) if draft else build_facts(student, program)["items"]
+    facts = [{"tag": f["id"], "text": f["text"], "insert": f"{f['text'].split('：', 1)[-1]}（{f['id']}）"} for f in items]
+    own = ([{"tag": "", "text": f"{w['label']}：{w['text']}", "insert": w["text"]}
+            for w in own_words(draft.content_json, guided_questions(program))] if draft else [])
+    return {"facts": facts, "own": own}
+
+
+def ollama_ready():
+    return bool(current_app.config.get("AI_ENABLED") and
+                current_app.config.get("AUTOBIOGRAPHY_AI_PROVIDER", "gemini") == "ollama")
+
+
+def carried_answers(student):
+    """新校系還沒有草稿時，帶入學生最近一份草稿存的回答；沒有就回傳空字典。
+
+    回答只打一次：第二所學校不用重打，學生再依該校系修改。依簡章項目寫的回答（focus_ 開頭）也一起帶。
+    """
+    outputs = (LearningProfileOutput.query.filter_by(student_id=student.id, output_type=OUTPUT_TYPE)
+               .order_by(LearningProfileOutput.id.desc()).all())
+    for output in outputs:
+        answers = output.content_json.get("answers") or {}
+        if any(answers.values()):
+            return {**{key: value for key, value in answers.items() if key.startswith("focus_") and value},
+                    **{key: answers.get(key, "") for key, _, _ in QUESTIONS}}
+    return {}
 
 
 def versions(student, program):
@@ -231,10 +449,8 @@ def _next_version(student_id, program_id):
 
 
 def _backup_existing(student_id, content):
-    """存修改／取回的新版本也要備份到學校端；找不到學生或校系時當作備份失敗。"""
-    student = db.session.get(User, student_id)
-    program = db.session.get(AdmissionProgram, content.get("program_id"))
-    content["backup_location"] = autobiography_backup.backup(student, program, content) if student and program else ""
+    """存修改／取回的新版本也要備份到學校端：先標成待備份，commit 後交給背景佇列。"""
+    autobiography_backup.mark_pending(content)
 
 
 def save_edits(output, texts, editor, comments=None):
@@ -279,6 +495,7 @@ def save_edits(output, texts, editor, comments=None):
     )
     db.session.add(new_version)
     db.session.commit()
+    autobiography_backup.schedule_after_save(current_app._get_current_object(), new_version)
     return new_version
 
 
@@ -315,6 +532,7 @@ def save_imported(output, paragraphs, editor, origin):
     )
     db.session.add(new_version)
     db.session.commit()
+    autobiography_backup.schedule_after_save(current_app._get_current_object(), new_version)
     return new_version
 
 

@@ -1,0 +1,242 @@
+<div id="im-journey-visual" aria-label="資管科智慧學習歷程系統首頁與學生五年地圖設計稿">
+  <style>
+    #im-journey-visual {
+      --im-ink: #10273b;
+      --im-soft-ink: #597186;
+      --im-paper: #f5f2ed;
+      --im-paper-2: #e8eef2;
+      --im-blue: #1d5ccf;
+      --im-cyan: #6cc9e8;
+      --im-pink: #fa8a9b;
+      --im-yellow: #f4ce62;
+      --im-line: rgba(16, 39, 59, .16);
+      --im-card: #ffffff;
+      box-sizing: border-box;
+      color: var(--im-ink);
+      font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+    }
+    #im-journey-visual *, #im-journey-visual *::before, #im-journey-visual *::after { box-sizing: inherit; }
+    #im-journey-visual button { font: inherit; }
+    #im-journey-visual .im-window {
+      overflow: hidden;
+      background: var(--im-paper);
+      border: 1px solid rgba(16, 39, 59, .18);
+      box-shadow: 0 18px 45px rgba(17, 54, 87, .18);
+    }
+    #im-journey-visual .im-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 64px;
+      padding: 0 28px;
+      background: var(--im-card);
+      border-bottom: 1px solid var(--im-line);
+    }
+    #im-journey-visual .im-brand { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; letter-spacing: .02em; }
+    #im-journey-visual .im-brand-mark { display: grid; grid-template-columns: repeat(2, 9px); gap: 3px; width: 21px; }
+    #im-journey-visual .im-brand-mark span { display: block; aspect-ratio: 1; background: var(--im-ink); }
+    #im-journey-visual .im-brand-mark span:nth-child(2) { background: var(--im-cyan); }
+    #im-journey-visual .im-brand-mark span:nth-child(3) { background: var(--im-pink); }
+    #im-journey-visual .im-brand-mark span:nth-child(4) { background: var(--im-yellow); }
+    #im-journey-visual .im-nav { display: flex; gap: 4px; }
+    #im-journey-visual .im-nav button {
+      border: 0;
+      background: transparent;
+      color: var(--im-soft-ink);
+      padding: 8px 11px;
+      font-size: 13px;
+    }
+    #im-journey-visual .im-nav button[aria-pressed="true"] { color: var(--im-ink); background: var(--im-paper-2); font-weight: 700; }
+    #im-journey-visual .im-login { border: 1px solid var(--im-ink); padding: 8px 13px; background: var(--im-ink); color: #fff; font-size: 13px; }
+    #im-journey-visual .im-panel { display: none; }
+    #im-journey-visual .im-panel.is-visible { display: block; }
+    #im-journey-visual .im-public-hero { position: relative; min-height: 545px; overflow: hidden; padding: 70px 7% 55px; background: linear-gradient(135deg, #d5f3fc 0%, #f6f0e8 47%, #e5edff 100%); }
+    #im-journey-visual .im-kicker { margin: 0 0 12px; color: var(--im-blue); font-size: 12px; font-weight: 700; letter-spacing: .13em; }
+    #im-journey-visual h1 { max-width: 570px; margin: 0; font-family: Georgia, "Noto Serif TC", serif; font-size: clamp(40px, 6vw, 74px); font-weight: 500; letter-spacing: -.055em; line-height: 1.06; }
+    #im-journey-visual .im-lead { max-width: 390px; margin: 20px 0 0; color: #38546c; font-size: 15px; line-height: 1.85; }
+    #im-journey-visual .im-hero-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 29px; }
+    #im-journey-visual .im-action { border: 1px solid var(--im-ink); padding: 11px 16px; background: var(--im-ink); color: #fff; font-size: 14px; }
+    #im-journey-visual .im-action.im-quiet { background: rgba(255,255,255,.55); color: var(--im-ink); }
+    #im-journey-visual .im-orbit { position: absolute; right: 4%; top: 12px; width: min(53vw, 560px); height: 500px; }
+    #im-journey-visual .im-orbit::before, #im-journey-visual .im-orbit::after { content: ""; position: absolute; border: 1px solid rgba(29,92,207,.27); border-radius: 50%; transform: rotate(-21deg); }
+    #im-journey-visual .im-orbit::before { inset: 29px 7px 79px 17px; }
+    #im-journey-visual .im-orbit::after { inset: 78px 83px 23px 26px; transform: rotate(42deg); }
+    #im-journey-visual .im-core { position: absolute; top: 164px; left: 46%; display: grid; place-items: center; width: 124px; aspect-ratio: 1; background: var(--im-blue); color: #fff; border-radius: 50%; box-shadow: 12px 14px 0 rgba(250,138,155,.45); font-size: 13px; font-weight: 700; text-align: center; transform: translateX(-50%) rotate(-8deg); }
+    #im-journey-visual .im-data-chip { position: absolute; display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: rgba(255,255,255,.87); color: var(--im-ink); border: 1px solid rgba(16,39,59,.12); box-shadow: 4px 5px 0 rgba(16,39,59,.08); font-size: 12px; }
+    #im-journey-visual .im-data-chip b { display: grid; place-items: center; width: 19px; height: 19px; color: var(--im-ink); background: var(--im-yellow); font-size: 12px; }
+    #im-journey-visual .im-data-chip.c1 { top: 58px; left: 12%; transform: rotate(-8deg); }
+    #im-journey-visual .im-data-chip.c2 { top: 89px; right: 4%; transform: rotate(6deg); }
+    #im-journey-visual .im-data-chip.c3 { top: 286px; left: 1%; transform: rotate(4deg); }
+    #im-journey-visual .im-data-chip.c4 { bottom: 61px; right: 11%; transform: rotate(-5deg); }
+    #im-journey-visual .im-data-chip.c5 { bottom: 7px; left: 25%; transform: rotate(7deg); }
+    #im-journey-visual .im-puzzle { position: absolute; right: 18%; bottom: -31px; display: grid; grid-template-columns: repeat(3, 57px); gap: 5px; transform: rotate(-9deg); }
+    #im-journey-visual .im-puzzle span { display: block; aspect-ratio: 1; background: var(--im-ink); }
+    #im-journey-visual .im-puzzle span:nth-child(2), #im-journey-visual .im-puzzle span:nth-child(4) { background: var(--im-pink); }
+    #im-journey-visual .im-puzzle span:nth-child(5) { background: var(--im-yellow); }
+    #im-journey-visual .im-puzzle span:nth-child(8) { background: var(--im-cyan); }
+    #im-journey-visual .im-story { padding: 69px 7%; background: var(--im-card); }
+    #im-journey-visual .im-section-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 31px; }
+    #im-journey-visual h2 { max-width: 530px; margin: 0; font-family: Georgia, "Noto Serif TC", serif; font-size: clamp(29px, 4vw, 48px); font-weight: 500; letter-spacing: -.045em; line-height: 1.15; }
+    #im-journey-visual .im-section-head p { max-width: 265px; margin: 0; color: var(--im-soft-ink); font-size: 13px; line-height: 1.75; }
+    #im-journey-visual .im-year-river { position: relative; display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; padding-top: 78px; }
+    #im-journey-visual .im-year-river::before { content: ""; position: absolute; z-index: 0; top: 69px; left: 3%; width: 93%; height: 41px; border-top: 5px solid var(--im-blue); border-radius: 52% 48% 10% 67%; transform: rotate(-2deg); }
+    #im-journey-visual .im-year { position: relative; z-index: 1; min-height: 150px; padding: 18px 14px; background: var(--im-paper); border-top: 8px solid var(--im-cyan); }
+    #im-journey-visual .im-year:nth-child(2) { margin-top: 28px; border-color: var(--im-yellow); }
+    #im-journey-visual .im-year:nth-child(3) { margin-top: -9px; border-color: var(--im-pink); }
+    #im-journey-visual .im-year:nth-child(4) { margin-top: 21px; border-color: var(--im-blue); }
+    #im-journey-visual .im-year:nth-child(5) { margin-top: 4px; border-color: var(--im-ink); }
+    #im-journey-visual .im-year-num { display: block; color: var(--im-soft-ink); font-size: 11px; }
+    #im-journey-visual .im-year strong { display: block; margin-top: 7px; font-size: 16px; }
+    #im-journey-visual .im-year small { display: block; margin-top: 13px; color: var(--im-soft-ink); font-size: 12px; line-height: 1.55; }
+    #im-journey-visual .im-paths { display: grid; grid-template-columns: 1.25fr .75fr; gap: 10px; padding: 46px 7% 58px; background: var(--im-ink); color: #fff; }
+    #im-journey-visual .im-paths h2 { max-width: 410px; }
+    #im-journey-visual .im-paths p { max-width: 450px; color: #c8d9e3; font-size: 14px; line-height: 1.8; }
+    #im-journey-visual .im-route-list { display: grid; gap: 7px; align-content: end; }
+    #im-journey-visual .im-route { display: flex; align-items: center; justify-content: space-between; gap: 13px; padding: 12px 14px; background: rgba(255,255,255,.1); font-size: 13px; }
+    #im-journey-visual .im-route span { color: #abdcec; }
+    #im-journey-visual .im-student { min-height: 730px; padding: 35px 5% 50px; background: linear-gradient(140deg, #eef5f4, #f8f2ed 63%, #e8eafd); }
+    #im-journey-visual .im-dash-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 22px; padding: 7px 0 29px; }
+    #im-journey-visual .im-dash-head h1 { max-width: 600px; font-size: clamp(35px, 5vw, 58px); }
+    #im-journey-visual .im-data-note { max-width: 250px; color: var(--im-soft-ink); font-size: 12px; line-height: 1.7; text-align: right; }
+    #im-journey-visual .im-stage { position: relative; min-height: 360px; padding: 25px; overflow: hidden; background: var(--im-card); border: 1px solid var(--im-line); }
+    #im-journey-visual .im-stage::after { content: ""; position: absolute; inset: auto -12% -74% 39%; height: 330px; border: 48px solid rgba(108,201,232,.26); border-radius: 50%; transform: rotate(-18deg); }
+    #im-journey-visual .im-tabs { position: relative; z-index: 2; display: flex; flex-wrap: wrap; gap: 7px; }
+    #im-journey-visual .im-tabs button { border: 1px solid var(--im-line); padding: 8px 11px; background: #fff; color: var(--im-soft-ink); font-size: 12px; }
+    #im-journey-visual .im-tabs button[aria-selected="true"] { border-color: var(--im-ink); background: var(--im-ink); color: #fff; }
+    #im-journey-visual .im-folder-stack { position: absolute; right: 5%; top: 89px; z-index: 1; width: min(43%, 330px); }
+    #im-journey-visual .im-folder { position: relative; height: 147px; margin-top: -70px; padding: 23px 23px; border-left: 7px solid var(--im-cyan); background: #eaf6fa; box-shadow: 12px 12px 0 rgba(16,39,59,.08); transform: rotate(-3deg); }
+    #im-journey-visual .im-folder::before { content: ""; position: absolute; top: -15px; left: 0; width: 104px; height: 19px; background: inherit; border-radius: 2px 2px 0 0; }
+    #im-journey-visual .im-folder:nth-child(2) { border-color: var(--im-yellow); background: #fff6d4; transform: rotate(3deg); }
+    #im-journey-visual .im-folder:nth-child(3) { border-color: var(--im-pink); background: #fff0f2; transform: rotate(-1deg); }
+    #im-journey-visual .im-folder:nth-child(4) { border-color: var(--im-blue); background: #eaf0ff; transform: rotate(4deg); }
+    #im-journey-visual .im-folder:nth-child(5) { border-color: var(--im-ink); background: #edf3f4; transform: rotate(-2deg); }
+    #im-journey-visual .im-folder b { display: block; font-size: 13px; }
+    #im-journey-visual .im-folder small { display: block; margin-top: 5px; color: var(--im-soft-ink); font-size: 11px; }
+    #im-journey-visual .im-current { position: relative; z-index: 3; width: min(57%, 478px); padding-top: 38px; }
+    #im-journey-visual .im-current .im-label { color: var(--im-blue); font-size: 12px; font-weight: 700; letter-spacing: .1em; }
+    #im-journey-visual .im-current h2 { margin-top: 8px; font-size: clamp(29px, 4vw, 44px); }
+    #im-journey-visual .im-current p { max-width: 370px; margin: 15px 0 21px; color: var(--im-soft-ink); font-size: 13px; line-height: 1.75; }
+    #im-journey-visual .im-checklist { display: grid; gap: 7px; }
+    #im-journey-visual .im-check { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; background: rgba(245,242,237,.9); font-size: 12px; }
+    #im-journey-visual .im-check b { font-size: 11px; font-weight: 700; }
+    #im-journey-visual .im-check.complete b { color: #19724d; }
+    #im-journey-visual .im-check.pending b { color: #a76614; }
+    #im-journey-visual .im-dashboard-bottom { display: grid; grid-template-columns: 1.3fr .7fr; gap: 10px; margin-top: 10px; }
+    #im-journey-visual .im-focus, #im-journey-visual .im-next { min-height: 202px; padding: 21px; background: var(--im-card); border: 1px solid var(--im-line); }
+    #im-journey-visual .im-focus h3, #im-journey-visual .im-next h3 { margin: 0; font-size: 15px; }
+    #im-journey-visual .im-orbital-list { position: relative; min-height: 125px; margin-top: 10px; }
+    #im-journey-visual .im-orbital-list::before { content: ""; position: absolute; top: 47%; left: 10%; width: 74%; border-top: 1px solid #a6c2d5; transform: rotate(-8deg); }
+    #im-journey-visual .im-node { position: absolute; display: grid; place-items: center; width: 56px; aspect-ratio: 1; background: #e8f7fb; color: var(--im-ink); border-radius: 50%; font-size: 11px; text-align: center; }
+    #im-journey-visual .im-node.n1 { left: 2%; top: 55px; }
+    #im-journey-visual .im-node.n2 { left: 27%; top: 18px; background: #fff5cc; }
+    #im-journey-visual .im-node.n3 { left: 52%; top: 61px; background: var(--im-blue); color: #fff; box-shadow: 0 0 0 9px rgba(29,92,207,.12); }
+    #im-journey-visual .im-node.n4 { right: 3%; top: 20px; background: #ffe4e9; }
+    #im-journey-visual .im-next { background: var(--im-ink); color: #fff; }
+    #im-journey-visual .im-next p { margin: 13px 0 0; color: #bfd2de; font-size: 12px; line-height: 1.75; }
+    #im-journey-visual .im-next strong { display: block; margin-top: 25px; color: var(--im-yellow); font-family: Georgia, "Noto Serif TC", serif; font-size: 24px; font-weight: 500; }
+    #im-journey-visual .im-caption { padding: 15px 7%; color: var(--im-soft-ink); background: var(--im-card); border-top: 1px solid var(--im-line); font-size: 12px; }
+    #im-journey-visual.im-compact .im-public-hero { min-height: 490px; padding-top: 50px; padding-bottom: 35px; }
+    #im-journey-visual.im-compact .im-story { padding-top: 47px; padding-bottom: 47px; }
+    #im-journey-visual.im-compact .im-year { min-height: 122px; }
+    @media (max-width: 720px) {
+      #im-journey-visual .im-topbar { padding: 0 16px; }
+      #im-journey-visual .im-nav { display: none; }
+      #im-journey-visual .im-public-hero { min-height: 620px; padding: 52px 24px 35px; }
+      #im-journey-visual .im-orbit { right: -15%; top: 273px; width: 118%; transform: scale(.8); transform-origin: top right; }
+      #im-journey-visual .im-story, #im-journey-visual .im-paths { padding-right: 24px; padding-left: 24px; }
+      #im-journey-visual .im-section-head, #im-journey-visual .im-dash-head { display: block; }
+      #im-journey-visual .im-section-head p, #im-journey-visual .im-data-note { margin-top: 14px; text-align: left; }
+      #im-journey-visual .im-year-river { grid-template-columns: 1fr; padding-top: 0; }
+      #im-journey-visual .im-year-river::before { display: none; }
+      #im-journey-visual .im-year, #im-journey-visual .im-year:nth-child(n) { min-height: auto; margin-top: 0; border-left: 8px solid var(--im-cyan); border-top: 0; }
+      #im-journey-visual .im-paths, #im-journey-visual .im-dashboard-bottom { grid-template-columns: 1fr; }
+      #im-journey-visual .im-student { padding: 27px 18px 38px; }
+      #im-journey-visual .im-stage { min-height: 590px; padding: 18px; }
+      #im-journey-visual .im-current { width: 100%; }
+      #im-journey-visual .im-folder-stack { top: 330px; right: 12%; width: 76%; }
+    }
+  </style>
+
+  <section class="im-window">
+    <header class="im-topbar">
+      <div class="im-brand"><span class="im-brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span></span>資管科智慧學習歷程</div>
+      <nav class="im-nav" aria-label="設計稿畫面切換">
+        <button type="button" data-im-screen="public" aria-pressed="true">公開首頁</button>
+        <button type="button" data-im-screen="student" aria-pressed="false">學生首頁</button>
+      </nav>
+      <button type="button" class="im-login">登入系統</button>
+    </header>
+
+    <main>
+      <div class="im-panel is-visible" data-im-panel="public">
+        <section class="im-public-hero">
+          <p class="im-kicker">KANG NING UNIVERSITY · INFORMATION MANAGEMENT</p>
+          <h1>五年，<br>會留下很多東西。</h1>
+          <p class="im-lead">課程、證照、作品、專題與實習，不該散在每一次繳交之後。讓每一段努力，都找得到下一站。</p>
+          <div class="im-hero-actions"><button type="button" class="im-action">探索五年旅程</button><button type="button" class="im-action im-quiet">看看我的學習檔案</button></div>
+          <div class="im-orbit" aria-label="學習資料被串成可回看的歷程">
+            <div class="im-core">你的<br>五年</div>
+            <div class="im-data-chip c1"><b>01</b>課程作品</div>
+            <div class="im-data-chip c2"><b>×</b>證照紀錄</div>
+            <div class="im-data-chip c3"><b>03</b>競賽成果</div>
+            <div class="im-data-chip c4"><b>04</b>實習經驗</div>
+            <div class="im-data-chip c5"><b>05</b>專題旅程</div>
+          </div>
+          <div class="im-puzzle" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+        </section>
+
+        <section class="im-story">
+          <div class="im-section-head"><h2>留下，不等於整理。<br>把五年走成自己的路。</h2><p>不是排名表，也不承諾任何升學結果；它是能持續整理、回看與準備的學習檔案。</p></div>
+          <div class="im-year-river" aria-label="五專五年成長旅程">
+            <article class="im-year"><span class="im-year-num">YEAR 1</span><strong>先會動手做</strong><small>程式基礎、數位作品、第一次存檔</small></article>
+            <article class="im-year"><span class="im-year-num">YEAR 2</span><strong>累積技能</strong><small>課堂實作、證照準備、興趣探索</small></article>
+            <article class="im-year"><span class="im-year-num">YEAR 3</span><strong>找到方向</strong><small>能力盤點、作品整理、未來選擇</small></article>
+            <article class="im-year"><span class="im-year-num">YEAR 4</span><strong>帶著能力出去</strong><small>實習準備、經驗紀錄、證明收納</small></article>
+            <article class="im-year"><span class="im-year-num">YEAR 5</span><strong>完成一件事</strong><small>專題、成果、升學或就業準備</small></article>
+          </div>
+        </section>
+
+        <section class="im-paths"><div><h2>五年不是終點，<br>而是下一次選擇的開始。</h2><p>把可被看見的成果留好，未來不管選擇升學、就業或繼續做作品，都不用從零翻找。</p></div><div class="im-route-list"><div class="im-route"><span>01</span>繼續升學 <b>→</b></div><div class="im-route"><span>02</span>實習／就業 <b>→</b></div><div class="im-route"><span>03</span>把作品做成下一個計畫 <b>→</b></div></div></section>
+      </div>
+
+      <div class="im-panel" data-im-panel="student">
+        <section class="im-student">
+          <div class="im-dash-head"><div><p class="im-kicker">我的學習地圖 · 示意資料</p><h1>不是待辦清單，<br>是正在長大的檔案。</h1></div><p class="im-data-note">每個人的地圖依實際已建立、已繳交與待補資料呈現；此畫面只示範版型。</p></div>
+          <section class="im-stage" aria-label="學生個人五年檔案地圖">
+            <div class="im-tabs" role="tablist" aria-label="年級檔案"><button type="button" aria-selected="false">專一</button><button type="button" aria-selected="false">專二</button><button type="button" aria-selected="false">專三</button><button type="button" aria-selected="false">專四</button><button type="button" aria-selected="true">專五</button></div>
+            <div class="im-current"><span class="im-label">YEAR 5 · PROJECT YEAR</span><h2>把共同專題，<br>放回自己的成長裡。</h2><p>你在團隊中的分工、Q&A 與個人作品連結，會成為專題共同成果之外的個人紀錄。</p><div class="im-checklist"><div class="im-check complete"><span>專題共同成果連結</span><b>已完成</b></div><div class="im-check pending"><span>個人分工與反思</span><b>待補</b></div><div class="im-check pending"><span>成果發表佐證</span><b>依學年規則建立</b></div></div></div>
+            <div class="im-folder-stack" aria-hidden="true"><div class="im-folder"><b>專一 · 起點</b><small>課程作品／自我探索</small></div><div class="im-folder"><b>專二 · 累積</b><small>技能／證照準備</small></div><div class="im-folder"><b>專三 · 方向</b><small>能力盤點／作品整理</small></div><div class="im-folder"><b>專四 · 經驗</b><small>實習準備／學習證明</small></div><div class="im-folder"><b>專五 · 成果</b><small>專題／下一站準備</small></div></div>
+          </section>
+          <div class="im-dashboard-bottom"><section class="im-focus"><h3>現在，哪些事情和我有關？</h3><div class="im-orbital-list" aria-label="以專題個人反思為目前焦點的關聯內容"><span class="im-node n1">作品</span><span class="im-node n2">證照</span><span class="im-node n3">專題<br>反思</span><span class="im-node n4">實習</span></div></section><section class="im-next"><h3>下一站</h3><p>先完成目前需要的佐證與整理，再由自己選擇接下來的方向。</p><strong>拼成你要去的地方。</strong></section></div>
+        </section>
+      </div>
+    </main>
+    <footer class="im-caption">方向稿：將拼圖、流動路徑、資料夾層次與資訊編輯感轉為原創網頁語言；不直接使用參考圖。</footer>
+  </section>
+
+  <script>
+    (() => {
+      const root = document.getElementById('im-journey-visual');
+      const screenButtons = [...root.querySelectorAll('[data-im-screen]')];
+      const panels = [...root.querySelectorAll('[data-im-panel]')];
+      function selectScreen(name, shouldSave = true) {
+        screenButtons.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.imScreen === name)));
+        panels.forEach((panel) => panel.classList.toggle('is-visible', panel.dataset.imPanel === name));
+        if (shouldSave) window.openai?.setWidgetState?.({ modelContent: { screen: name } }).catch(() => {});
+      }
+      screenButtons.forEach((button) => button.addEventListener('click', () => selectScreen(button.dataset.imScreen)));
+      const saved = window.openai?.widgetState?.modelContent;
+      if (saved?.screen === 'student') selectScreen('student', false);
+      if (globalThis.Tweak) {
+        const style = { density: 'balanced', accent: '#1d5ccf' };
+        const tweak = new Tweak({ container: root, onChange: () => {
+          root.style.setProperty('--im-blue', style.accent);
+          root.classList.toggle('im-compact', style.density === 'compact');
+        }});
+        tweak.addSelect(style, 'density', { label: '資訊密度', options: [{ label: '平衡', value: 'balanced' }, { label: '較精簡', value: 'compact' }], reference: 'visual.density' });
+        tweak.addColorPicker(style, 'accent', { label: '主色', reference: '--im-blue' });
+      }
+    })();
+  </script>
+</div>

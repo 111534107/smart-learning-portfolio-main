@@ -1,0 +1,45 @@
+%%{init: {'theme':'base','themeVariables': {'fontFamily':'Microsoft JhengHei, Noto Sans TC, Arial, sans-serif','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280','edgeLabelBackground':'#FFFFFF'},'flowchart':{'wrappingWidth':400}}}%%
+flowchart TD
+    classDef student fill:#DBEAFE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef staff fill:#EDE9FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef system fill:#E0F2FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef alert fill:#FEE2E2,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef pending fill:#FFFFFF,stroke:#9CA3AF,color:#6B7280,stroke-width:1px,stroke-dasharray:5 3;
+
+    F1(["步驟 1　老師與科辦登入頁 /staff/login<br/>教職員 Google 或帳號密碼"]):::staff --> F2["步驟 2　雙重驗證頁<br/>輸入六位數驗證碼"]:::staff
+    F2 --> F3["步驟 3　科辦工作台 /staff/dashboard<br/>看今天有幾件事等處理"]:::staff
+    F3 --> D1{"今天要做哪一件？"}
+
+    D1 -- "學生申請的電子獎狀" --> C1["步驟 4　工作台或電子獎狀清單 /staff/certificates<br/>在那一列按「審核」"]:::staff
+    C1 --> C2["步驟 5　審核頁 /staff/certificates/編號<br/>對照學生的獎懲記錄原文"]:::staff
+    C2 --> D2{"確實有這筆服務？"}
+    D2 -- "否" --> C3["步驟 6　按「退回」並寫原因"]:::alert
+    D2 -- "是" --> C4["步驟 6　視需要修改內文<br/>按「核准」"]:::staff
+    C3 --> C5["系統發站內通知給學生"]:::system
+    C4 --> C6["步驟 7　系統產生驗證碼與發證日<br/>發站內通知給學生"]:::system
+    C6 --> C7["步驟 8　獎狀頁 /certificates/編號<br/>可列印；學生的經歷多一筆「科辦電子獎狀」"]:::system
+    C7 --> C8["任何人到驗證頁 /verify<br/>輸入驗證碼可查真偽"]:::system
+
+    D1 -- "科辦主動開立" --> N1["步驟 4　電子獎狀清單按「開立電子獎狀」<br/>/staff/certificates/new"]:::staff
+    N1 --> N2["步驟 5　選學生、選類別（服務證明或 TA 證明）<br/>填事由或課名、學年度與學期"]:::staff
+    N2 --> C6
+
+    D1 -- "管理表單" --> M1["步驟 4　表單管理頁 /staff/forms"]:::staff
+    M1 --> M2["步驟 5　新增分類，或新增表單：<br/>名稱、說明、開放對象，上傳檔案"]:::staff
+    M2 --> D3{"檔案類型與大小<br/>（10MB 內）正確？"}
+    D3 -- "否" --> M3["顯示錯誤原因，重新上傳"]:::alert
+    M3 --> M2
+    D3 -- "是" --> M4["步驟 6　上架為第 1 版"]:::system
+    M4 --> M5["步驟 7　之後到表單明細頁 /staff/forms/編號<br/>上傳新版本（舊版保留）、下架或重新上架"]:::staff
+    M5 --> M6["學生、導師在表單下載頁 /forms<br/>只看得到開放給自己且上架中的最新版"]:::student
+
+    D1 -- "看全科狀況" --> O1["步驟 4　年級總覽頁 /grade-overview<br/>看各年級成績、證照、獎項統計（只算已確認資料）"]:::staff
+
+    C8 --> F3
+    M6 --> F3
+    O1 --> F3
+    F3 -.- H1["科辦不審備審資料（由導師確認）<br/>科學會證明由學務處辦理，科辦不開"]:::staff
+    N1 -.-> U1["尚未完成：一次替多位學生批次開立"]:::pending
+    C7 -.-> U2["待確認：電子獎狀能否放科章圖檔"]:::pending
+    M5 -.-> U3["尚未完成：學校網站表單更新時<br/>自動抓最新版"]:::pending
+    F3 -.-> U4["尚未完成：二技公告推送給科辦"]:::pending

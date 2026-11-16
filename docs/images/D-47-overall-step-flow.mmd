@@ -1,0 +1,55 @@
+%%{init: {'theme':'base','themeVariables': {'fontFamily':'Microsoft JhengHei, Noto Sans TC, Arial, sans-serif','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280','edgeLabelBackground':'#FFFFFF'},'flowchart':{'wrappingWidth':400}}}%%
+flowchart TD
+    classDef student fill:#DBEAFE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef teacher fill:#DCFCE7,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef staff fill:#EDE9FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef admin fill:#EDE9FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef system fill:#E0F2FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef ai fill:#FFEDD5,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef alert fill:#FEE2E2,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef pending fill:#FFFFFF,stroke:#9CA3AF,color:#6B7280,stroke-width:1px,stroke-dasharray:5 3;
+
+    subgraph A["第一段　系統管理者：開學前準備（細節見管理者步驟流程圖）"]
+        direction LR
+        A1["步驟 1　帳號管理頁<br/>建立教職員帳號、匯入入學學年度"]:::admin --> A2["步驟 2　導師班級頁<br/>指派各班導師"]:::admin
+        A2 --> A3["步驟 3　招生資料與校系資料頁<br/>核准小助手找到的簡章更新"]:::admin
+        A3 --> A4["步驟 4　修業科目表頁、系統總覽<br/>核准科目表、設定教務處檢核日期"]:::admin
+    end
+
+    subgraph S["第二段　學生：整理五年資料（細節見學生步驟流程圖）"]
+        direction LR
+        S1["步驟 5　登入頁<br/>學校 Google 或帳號密碼，加六位數驗證碼"]:::student --> S2["步驟 6　上傳頁<br/>上傳成績單、證照、獎懲記錄"]:::student
+        S2 --> S3["步驟 7　系統在本機辨識文字<br/>（不送外部）"]:::system
+        S3 --> S4["步驟 8　核對頁<br/>學生逐項確認後才生效"]:::student
+        S4 --> S5["步驟 9　畢業門檻頁、校系排行頁<br/>看還缺什麼、選目標校系"]:::student
+    end
+
+    subgraph F["第三段　科辦：電子獎狀與表單（細節見科辦步驟流程圖）"]
+        direction LR
+        F1["步驟 10　電子獎狀審核頁<br/>對照獎懲記錄，核准或退回"]:::staff --> F2["步驟 11　系統產生驗證碼<br/>並發站內通知給學生"]:::system
+        F3["表單管理頁<br/>上架、改版、下架表單"]:::staff
+    end
+
+    subgraph P["第四段　學生與導師：備審確認（細節見學生、導師步驟流程圖）"]
+        direction LR
+        P1["步驟 12　自傳頁<br/>小助手依確認過的資料寫草稿，學生修改"]:::student --> P2["步驟 13　目標校系細項頁<br/>學生按「送導師確認」"]:::student
+        P2 --> P3["步驟 14　導師的學生頁<br/>導師查看送審的那一版"]:::teacher
+        P3 --> P4{"內容合理？"}
+        P4 -- "否" --> P5["導師按「請學生修改」並留建議"]:::teacher
+        P4 -- "是" --> P6["步驟 15　導師按「確認」"]:::teacher
+        P6 --> P7["步驟 16　學生下載備審 Word"]:::student
+    end
+
+    A4 --> S1
+    S4 -- "科上派的服務" --> F1
+    F2 --> P1
+    S5 --> P1
+    P5 --> P1
+    F3 -. "學生、導師到表單下載頁下載" .-> S1
+
+    N1["尚未完成：二技公告發布給學生、導師、科辦"]:::pending
+    N2["尚未完成：電子郵件通知（目前只有站內通知）"]:::pending
+    A3 -.-> N1
+    F2 -.-> N2
+    X["每一步都會寫入操作紀錄<br/>管理者可在操作紀錄頁查詢"]:::system
+    P7 --> X

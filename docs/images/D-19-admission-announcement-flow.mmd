@@ -1,0 +1,21 @@
+%%{init: {'theme':'base','themeVariables': {'fontSize':'18px','fontFamily':'DFKai-SB, BiauKai, serif','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280','edgeLabelBackground':'#FFFFFF'},'flowchart':{'wrappingWidth':400}}}%%
+flowchart TD
+    classDef student fill:#DBEAFE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef teacher fill:#DCFCE7,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef admin fill:#EDE9FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef staff fill:#FEF3C7,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef system fill:#E0F2FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef ai fill:#FFEDD5,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef pending fill:#FFFFFF,stroke:#9CA3AF,color:#6B7280,stroke-width:1px,stroke-dasharray:5 3;
+
+    Approve([管理員核對 AI 查到的招生資料並核准<br/>（資料更新流程見圖 11）]):::admin --> Publish[發布二技公告<br/>公告內容系統先擬好，管理員可修改]:::admin
+    Publish --> Student[學生：看到公告與時程<br/>一～四年級看各校特色與 AI 推薦<br/>想去的學校不限數量、隨時可換]:::student
+    Publish --> Teacher[老師：收到公告<br/>看到自己的四、五年級學生與完成度<br/>可以按「提醒這些學生」]:::teacher
+    Publish --> Staff[科辦：收到公告與寄送備審日期<br/>處理還沒核准的電子獎狀申請]:::staff
+    Student --> Recommend[AI 推薦校系<br/>規則算出符合程度＋AI 寫推薦理由]:::ai
+    Recommend --> Choose[學生自己選，隨時可以換<br/>畫面提醒：只是幫你找方向]:::student
+    Choose --> Grade5{五年級開始做備審？}
+    Grade5 -- 否 --> Choose
+    Grade5 -- 是 --> Limit[準備報名時顯示各招生管道當年度簡章的規定<br/>（可報幾個志願、各校是否限報一系、期限），附出處<br/>系統不限制想去的學校數量；換學校時提醒自傳要調整]:::student
+    Teacher --> Remind[學生首頁出現老師的提醒]:::system
+    Staff -.- NotStaff[學生自己漏傳的獎狀<br/>科辦不處理]:::pending

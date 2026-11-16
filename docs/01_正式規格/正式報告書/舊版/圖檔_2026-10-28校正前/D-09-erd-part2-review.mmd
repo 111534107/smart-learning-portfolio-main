@@ -1,0 +1,80 @@
+%%{init: {'theme':'base','themeVariables': {'fontFamily':'Arial, Microsoft JhengHei, sans-serif','fontSize':'14px','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280'},'er':{'minEntityWidth':160,'entityPadding':20}}}%%
+erDiagram
+    ADMISSION_RULE_VERSIONS ||--o{ ADMISSION_RULE_ITEMS : "備審要求"
+    USERS ||--o{ STUDENT_TARGETS : "選擇校系"
+    ADMISSION_RULE_VERSIONS ||--o{ STUDENT_TARGETS : "被選擇"
+    USERS ||--o{ LEARNING_PROFILE_OUTPUTS : "自傳與備審"
+    USERS ||--o{ PACKAGE_REVIEWS : "送審與確認"
+    ADMISSION_RULE_VERSIONS ||--o{ PACKAGE_REVIEWS : "針對校系"
+    LEARNING_PROFILE_OUTPUTS ||--o{ AUTOBIOGRAPHY_COMMENTS : "段落註解"
+    USERS ||--o{ AUTOBIOGRAPHY_COMMENTS : "老師或學生寫"
+    AUTOBIOGRAPHY_COMMENTS |o--o{ AUTOBIOGRAPHY_COMMENTS : "回覆"
+    USERS ||--o{ AI_DAILY_USAGE : "每日 AI 用量"
+
+    USERS["USERS 使用者　　　"] {
+        int id PK
+        string role
+    }
+    ADMISSION_RULE_VERSIONS["ADMISSION_RULE_VERSIONS 校系與年度　　　"] {
+        int id PK
+        string program_code "志願代碼"
+        string school_name "學校"
+        string department_name "科系"
+        string admission_category "招生類別"
+        int admission_year "學年度"
+        string source_url "資料來源"
+        string status "candidate published"
+        string data_origin "manual agent"
+        json details_json "資格 文件 時程 連結 特色（待新增）"
+        date checked_at "最後確認日期"
+    }
+    ADMISSION_RULE_ITEMS["ADMISSION_RULE_ITEMS 校系備審要求　　　"] {
+        int id PK
+        int rule_version_id FK
+        string source_item_name "簡章原始項目名稱"
+        int weight_percent "加權百分比"
+        string mapped_categories "對應資料類別"
+        string mapping_status "確定 待確認"
+        bool is_required
+    }
+    STUDENT_TARGETS["STUDENT_TARGETS 學生目標校系　　　"] {
+        int id PK
+        int student_id FK
+        int rule_version_id FK
+        datetime selected_at
+    }
+    LEARNING_PROFILE_OUTPUTS["LEARNING_PROFILE_OUTPUTS 自傳版本與備審產出　　　"] {
+        int id PK
+        int student_id FK
+        string output_type "自傳 備審資料"
+        int version "第幾版"
+        int edited_by FK "誰存的"
+        datetime created_at
+    }
+    PACKAGE_REVIEWS["PACKAGE_REVIEWS 導師確認紀錄　　　"] {
+        int id PK
+        int student_id FK
+        int rule_version_id FK "目標校系"
+        int teacher_id FK "確認的導師"
+        string status "pending confirmed needs_revision"
+        json snapshot_json "送審快照：事實、自傳版本、完成度"
+        string comment "修改建議"
+    }
+    AUTOBIOGRAPHY_COMMENTS["AUTOBIOGRAPHY_COMMENTS 段落註解（待新增）　　　"] {
+        int id PK
+        int output_id FK "寫在哪個自傳版本"
+        int paragraph_index "第幾段"
+        int author_id FK "哪位老師或學生"
+        int parent_id FK "回覆哪一則"
+        string body
+        datetime created_at
+        datetime resolved_at "已處理"
+        int resolved_by FK
+    }
+    AI_DAILY_USAGE["AI_DAILY_USAGE 每日 AI 用量　　　"] {
+        int id PK
+        int user_id FK
+        date usage_date
+        string key_kind "school own"
+        int count
+    }

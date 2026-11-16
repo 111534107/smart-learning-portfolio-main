@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "graduation-case" %}
+{% block title %}案件 {{ case.number }}｜資管科學習歷程{% endblock %}
+{% block navigation %}{{ masthead(user, "通知") }}{% endblock %}
+{% block content %}
+<section class="work-shell">
+  <header class="work-heading">
+    <div>
+      <p class="small">畢業缺口案件</p>
+      <h1>案件 {{ case.number }}</h1>
+      <p>{{ case.student.display_name }}｜{{ type_labels.get(case.case_type, case.case_type) }}｜{{ item_label }}</p>
+    </div>
+  </header>
+  {% if error %}<p class="notice" role="alert">{{ error }}</p>{% endif %}
+  <p class="tag {% if case.status == 'closed' %}tag--ok{% else %}tag--warn{% endif %}" role="status">
+    {{ status_labels.get(case.status, case.status) }}{% if case.close_reason %}（{{ close_reason_labels.get(case.close_reason, case.close_reason) }}）{% endif %}
+  </p>
+
+  <section class="work-panel">
+    <h2>案件內容</h2>
+    {% if case.improved_pending %}<p>資料已改善，下次重新對照時會自動結案{% if case.initial_amount is not none %}（開案時還差 {{ case.initial_amount }} {{ case.unit }}）{% endif %}。</p>
+    {% elif case.current_amount is not none %}<p>目前還差 {{ case.current_amount }} {{ case.unit }}（開案時 {{ case.initial_amount }} {{ case.unit }}）。</p>{% endif %}
+    {% if case.detail %}<p>{{ case.detail }}</p>{% endif %}
+    {% if case.basis %}<p class="small muted">依據：{{ case.basis }}</p>{% endif %}
+    {% if case.status == "closed" and case.case_type != "inquiry" %}
+    <p class="notice">結案只代表這一筆缺口不再追蹤，不代表學生符合全部畢業資格；正式畢業資格審查由教務處負責。</p>
+    {% endif %}
+    {% if remedy %}<h3>補救方式</h3><p>{{ remedy }}</p>{% endif %}
+  </section>
+
+  <section class="work-panel mt-1">
+    <h2>處理紀錄</h2>
+    <ol>
+      {% for event in events %}
+      <li>
+        <strong>{{ event_labels.get(event.event_type, event.event_type) }}</strong>
+        <span class="small muted">{{ event.created_at|taipei_time("%Y-%m-%d %H:%M") }}｜{{ event.actor.display_name if event.actor else "系統" }}</span>
+        {% if event.note %}<br>{{ event.note }}{% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+
+  {% if available %}
+  <section class="work-panel mt-1">
+    <h2>可執行的動作</h2>
+    <form class="form-stack" method="post" action="{{ url_for('graduation.case_action', case_id=case.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="field">說明或原因（留言、結案必填，例如「教務處已確認補救」）
+        <textarea name="note" rows="3" maxlength="1000"></textarea>
+      </label>
+      <div>
+        {% for name in available %}
+        <button class="button button--small" type="submit" name="action" value="{{ name }}">{{ action_labels[name] }}</button>
+        {% endfor %}
+      </div>
+    </form>
+  </section>
+  {% endif %}
+
+  <p class="small muted">{{ disclaimer }}</p>
+</section>
+{% endblock %}

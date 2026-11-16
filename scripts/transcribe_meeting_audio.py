@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 
 
 ROOT = Path(__file__).resolve().parents[1]
-AUDIO = Path(r"C:\Users\lisa2\Downloads\專題討論-開發科助使用者端和小助手.m4a")
+AUDIO = ROOT.parent / "backup" / "專題素材" / "錄音" / "專題討論-開發科助使用者端和小助手.m4a"
 OUT = ROOT / "docs" / "06_會議錄音與逐字稿"
 MODEL = "gemini-flash-lite-latest"
 

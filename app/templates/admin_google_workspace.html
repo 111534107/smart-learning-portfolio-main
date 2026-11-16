@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "admin-google-workspace" %}
+
+{% block title %}Google 登入設定｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "Google 登入設定") }}{% endblock %}
+
+{% block content %}
+<style>
+  /* 開關要一眼看出開或關：用看得到的核取方塊，不用只靠框線表示的選項卡 */
+  .ws-toggle { display: grid; grid-template-columns: auto 1fr; gap: .75rem; align-items: start; padding: .9rem 1rem; border: 1.5px solid var(--line); border-radius: var(--radius); background: var(--sheet); cursor: pointer; }
+  .ws-toggle input { width: 1.3rem; height: 1.3rem; margin-top: .15rem; accent-color: var(--accent); }
+  .ws-toggle b { display: block; }
+  .ws-toggle small { display: block; color: var(--muted); }
+  .ws-toggle:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+</style>
+<section class="work-shell" data-work-role="admin">
+  <header class="work-heading">
+    <div><h1>Google 登入設定</h1><p>學校 Google Workspace 一鍵登入。學生用 <code>@{{ student_domain }}</code> 第一次登入時可以自動建立帳號；老師、科辦與管理員用 <code>@{{ settings.staff_domain }}</code>，帳號要由你先在「帳號管理」建立並填好信箱，系統不會自動給教職員權限。</p></div>
+  </header>
+
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>Google Cloud 連線</h2></div></div>
+    <p class="mb-1"><span class="tag {{ 'tag--ok' if oauth.client_id else 'tag--danger' }}">{{ "已設定" if oauth.client_id else "未設定" }}</span>　用戶端 ID</p>
+    <p class="mb-1"><span class="tag {{ 'tag--ok' if oauth.client_secret else 'tag--danger' }}">{{ "已設定" if oauth.client_secret else "未設定" }}</span>　用戶端密鑰（只放在 .env，這裡不顯示內容）</p>
+    <p class="mb-1"><span class="tag {{ 'tag--ok' if oauth.redirect_uri else 'tag--danger' }}">{{ "已設定" if oauth.redirect_uri else "未設定" }}</span>　重新導向網址：{{ oauth.redirect_uri or "未設定" }}</p>
+    {% if ready %}
+    <p class="notice">重新導向網址必須和 Google Cloud Console「已授權的重新導向 URI」完全一致，主機與埠號也要和學生打開的網址相同。</p>
+    {% else %}
+    <p class="alert">三個值都在 <code>.env</code> 設好並重開網站後，登入頁的 Google 按鈕才能按。</p>
+    {% endif %}
+  </section>
+
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>登入規則</h2></div></div>
+    {% if error %}<p class="alert mb-1" role="alert">{{ error }}</p>{% endif %}
+    {% if request.args.get("saved") and not error %}<p class="notice mb-1" role="status">已儲存，立即生效，不用重開網站。</p>{% endif %}
+    <form class="form-stack" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="ws-toggle"><input type="checkbox" name="enabled" value="1" {{ "checked" if settings.enabled }}><span><b>開放學校 Google 一鍵登入</b><small>關掉後登入頁的 Google 按鈕會停用，只能用帳號密碼登入。</small></span></label>
+      <label class="ws-toggle"><input type="checkbox" name="auto_create" value="1" {{ "checked" if settings.auto_create }}><span><b>學生第一次 Google 登入自動建立帳號</b><small>學號取信箱 @ 前面的 9 碼數字；入學學年度預填學號前三碼（例如 111534105 → 111 學年度），班級留空，請之後在「帳號管理」或「導師班級」補上。關掉時，學生要由你先建帳號並綁信箱。</small></span></label>
+      <label class="field">教職員 Google 網域<input name="staff_domain" value="{{ settings.staff_domain }}" required autocomplete="off"><small>老師、科辦、管理員的學校信箱網域；不能和學生網域相同。</small></label>
+      <button class="button" type="submit">儲存</button>
+    </form>
+    <p class="muted small">每次儲存都會記入稽核紀錄。學生信箱只能登入學生帳號，教職員信箱只能登入非學生帳號。</p>
+  </section>
+
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>用 Google 登入過的帳號</h2><p>最近 50 個；要綁定或改信箱請到「帳號管理」。</p></div></div>
+    {% if linked %}
+    <ul class="work-list">
+      {% for account in linked %}
+      <li><span class="work-list__index">{{ loop.index }}</span><div><strong>{{ account.display_name }}</strong>
+        <span>{{ account.username }} · {{ account.role }} · {{ account.email }}{% if account.id in auto_created %} · <b class="tag tag--info">第一次登入自動建立</b>{% endif %}
+        {% if account.role == "student" and not (account.student_profile and account.student_profile.class_name) %} · <b class="tag tag--warn">未填班級</b>{% endif %}</span></div></li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">還沒有人用 Google 登入。</p>
+    {% endif %}
+  </section>
+</section>
+{% endblock %}

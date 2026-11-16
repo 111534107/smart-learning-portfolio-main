@@ -58,6 +58,8 @@
       <p class="ocr-panel__eyebrow">{{ page_label }}自動辨識</p>
       <h1 class="ocr-panel__title" id="ocr-title">正在讀你的{{ page_label }}</h1>
       <p class="ocr-panel__lead" id="ocr-message" role="status" aria-live="polite">讀完會自動打開確認頁，不用重新整理。</p>
+      {# 學生端 v2：辨識中閃爍的骨架卡片；讀完時翻成主色依序彈出（只是裝飾，螢幕閱讀器略過） #}
+      <div class="sv2-skeleton" id="sv2-skeleton" aria-hidden="true">{% for _ in range(3) %}<div><i></i><i></i><i></i></div>{% endfor %}</div>
       <ol class="ocr-timeline" aria-label="辨識進度">
         <li class="is-finished"><b>已收到檔案</b><small>原檔只存在本系統，不會傳到外部</small></li>
         {% set reading_note = "一列一列讀出" ~ ("課名、學分與成績" if is_transcript else "證照名稱與日期") %}
@@ -121,6 +123,8 @@
   function finish(data) {
     clearInterval(ticker);
     desk.classList.remove("is-working");
+    var skeleton = document.getElementById("sv2-skeleton");
+    if (skeleton) { skeleton.classList.add("is-done"); }
     readStep.className = "is-finished";
     setStep("辨識文字", "讀完了");
     document.getElementById("ocr-step-review").className = "is-current";

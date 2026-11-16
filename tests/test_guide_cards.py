@@ -123,3 +123,17 @@ def test_snooze_rejects_unknown_card(app):
 
 def test_snooze_requires_student(app):
     assert app.test_client().post("/student/guide/snooze", data={"card": "welcome"}).status_code == 401
+
+
+def test_fifth_year_cards_do_not_repeat_the_same_destination(app):
+    """11-04 實測：專五有待確認文件、沒有目標時，「確認上傳」「選校系」各出現兩張。"""
+    from app.models import SourceDocument
+    with app.test_request_context():
+        user = make_student(4, username="s5")
+        db.session.add(SourceDocument(owner_id=user.id, document_type="transcript", display_name="t.pdf",
+                                      file_path="x", sha256="0" * 64, status="extracted"))
+        db.session.commit()
+        cards = guide_cards(user)
+
+    hrefs = [card["href"].split("?")[0] for card in cards]
+    assert len(hrefs) == len(set(hrefs))

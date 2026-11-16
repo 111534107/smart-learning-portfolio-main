@@ -1,0 +1,46 @@
+%%{init: {'theme':'base','themeVariables': {'fontSize':'18px','fontFamily':'DFKai-SB, BiauKai, serif','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280','edgeLabelBackground':'#FFFFFF'},'flowchart':{'wrappingWidth':400}}}%%
+flowchart TD
+    classDef student fill:#DBEAFE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef teacher fill:#DCFCE7,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef system fill:#E0F2FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef ai fill:#FFEDD5,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef alert fill:#FEE2E2,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef note fill:#FFFFFF,stroke:#9CA3AF,color:#6B7280,stroke-width:1px,stroke-dasharray:5 3;
+
+    Card([引導卡片提醒<br/>依教務處行事曆「成績上網登錄」期間：<br/>網路成績只開放約一週，現在去複製]):::system --> Login[學生自己登入學校的學生資訊系統<br/>複製表格或下載檔案]:::student
+    Login -.- Rule[本系統不使用學生帳號登入、不爬學校系統<br/>選課清單、個人課表不匯入]:::note
+    Login --> Kind{要匯入哪一種？}
+
+    Kind -- 歷年成績（網頁） --> PasteGrade[整段貼上成績表格]:::student
+    PasteGrade --> ParseGrade[系統解析：學年、學期、選別、課號、<br/>課名、學分數、學期成績]:::system
+    ParseGrade --> Dup{同一科已經存過？<br/>以課號＋學年學期判斷}
+    Dup -- 是，成績相同 --> Skip[不重複新增]:::system
+    Dup -- 是，成績不同 --> Diff[列出差異，讓學生決定是否更新]:::alert
+    Dup -- 否 --> GradeConfirm
+    Diff --> GradeConfirm[學生核對後確認才存入<br/>標示「來源：網頁成績（僅供參考）」]:::student
+    Kind -- 紙本成績單 --> Paper[拍照或掃描上傳<br/>錯過網路成績也可以用學校寄來的紙本]:::student
+    Paper --> OCR[本機 OCR 辨識成績單<br/>（原始檔不送外部；辨識後由學生確認）]:::ai
+    OCR --> OCRNote[AI 在確認畫面旁註記<br/>例如：這一格可能被印章蓋住，請手動確認]:::ai
+    OCRNote --> PaperConfirm[學生確認才存入<br/>標示「來源：紙本成績單」]:::student
+
+    Kind -- 歷年獎懲 --> AwardWay{截圖或貼上？}
+    AwardWay -- 截圖 --> AwardAI[本機 OCR 後去識別化<br/>AI 只整理事由欄位]:::ai
+    AwardWay -- 貼上表格 --> AwardParse[系統直接解析<br/>比截圖準]:::system
+    AwardAI --> AwardSort[依事由分到六類<br/>懲處與已銷過的不匯入]:::system
+    AwardParse --> AwardSort
+    AwardSort --> AwardConfirm[學生可改分類，確認後才存入<br/>科上派的服務可再申請電子獎狀（見圖 9）]:::student
+
+    Kind -- 缺曠記錄 --> PasteAbs[貼上缺曠統計]:::student
+    PasteAbs --> AbsSum[只存各學年期的假別合計<br/>不存逐日明細]:::system
+    AbsSum --> AbsSee[只有學生本人與班導看得到<br/>不送給 AI；查看與匯入都寫操作紀錄]:::system
+    AbsSee --> AbsWarn{接近請假上限<br/>（上課總時數三分之一）？}
+    AbsWarn -- 是 --> AbsAlert[只在學生本人首頁提醒]:::alert
+    AbsSee --> AbsPkg{學生要放進備審資料？<br/>預設不放}
+    AbsPkg -- 勾選 --> AbsShow[列出會放進去的所有假別與次數<br/>（含病假、生理假、心理假）]:::alert
+    AbsShow --> AbsOK[學生再按一次確認<br/>全部假別合計都放進備審]:::student
+
+    GradeConfirm --> Check[畢業學分檢查<br/>依入學年度（學號前三碼）的修業科目表<br/>列出已取得與還差的學分（僅供參考）]:::system
+    PaperConfirm --> Check
+    GradeConfirm --> Gap[缺件比對與推薦校系使用<br/>（只用學生確認過的資料）]:::system
+    PaperConfirm --> Gap
+    AwardConfirm --> Gap

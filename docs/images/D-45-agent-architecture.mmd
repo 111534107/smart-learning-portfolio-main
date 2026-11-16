@@ -1,0 +1,39 @@
+flowchart LR
+    classDef ai fill:#FFEDD5,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef admin fill:#EDE9FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef student fill:#DBEAFE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef system fill:#E0F2FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef source fill:#FFFFFF,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+
+    subgraph SCHOOL["學校端"]
+        direction TB
+        S1[二技、插大簡章<br/>各校招生網頁]:::source
+        S2[資管科網頁<br/>畢業門檻、證照地圖、修業科目表]:::source
+        A1[A1 校系蒐集 Agent<br/>偵測更新、擷取加權與報考資格]:::ai
+        A5[A5 科規追蹤 Agent<br/>偵測更新、擷取畢業門檻與認可證照]:::ai
+        R1[管理員核對原文後核准]:::admin
+        R5[科辦／管理員核對原文後核准]:::admin
+        D1[(正式校系資料<br/>加權、報考資格 C1～C12)]:::system
+        D5[(科規版本<br/>依入學年度分版)]:::system
+        S1 --> A1 --> R1 --> D1
+        S2 --> A5 --> R5 --> D5
+    end
+
+    subgraph PERSON["個人端"]
+        direction TB
+        P1[成績單 OCR<br/>學生確認後的科目與成績]:::student
+        P2[證照、競賽、活動<br/>預計畢業年月]:::student
+        A2[A2 資格判斷 Agent<br/>學群、已修專業科目、條件摘要]:::ai
+        P1 --> A2
+        P2 --> A2
+    end
+
+    A3[A3 媒合排序 Agent<br/>規則：可報／不可報／需確認、契合度排序<br/>AI：每間學校寫理由]:::ai
+    A4[A4 小助手<br/>嵌在推薦頁、缺件頁、首頁<br/>顯示結果與下一步提醒]:::ai
+    U[學生自己選目標校系<br/>導師確認]:::student
+
+    D1 --> A3
+    D5 --> A2
+    A2 --> A3
+    D5 -. 規定更新提醒 .-> A4
+    A3 --> A4 --> U

@@ -1,0 +1,53 @@
+%%{init: {'theme':'base','themeVariables': {'fontSize':'18px','fontFamily':'DFKai-SB, BiauKai, serif','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280','edgeLabelBackground':'#FFFFFF'},'flowchart':{'wrappingWidth':400}}}%%
+flowchart LR
+    classDef student fill:#DBEAFE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef teacher fill:#DCFCE7,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef admin fill:#EDE9FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef ai fill:#FFEDD5,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef usecase fill:#FFFFFF,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef staff fill:#EDE9FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+
+    Student[學生]:::student
+    Teacher[班導師（V1）]:::teacher
+
+    subgraph SYS[資管科智慧學習歷程系統]
+        direction TB
+        UC1([選擇目標校系]):::usecase
+        UC2([上傳六類學習資料]):::usecase
+        UC3([確認與修正整理結果]):::usecase
+        UC4([查看還缺什麼]):::usecase
+        UC5([產出完整備審資料]):::usecase
+        UC6([查看本班學生資料]):::usecase
+        UC7([確認內容或留下修改建議]):::usecase
+        UC8([辨識上傳文件]):::usecase
+        UC11([AI 判斷證照真偽]):::usecase
+        UC12([AI 推薦校系並回答問題]):::usecase
+        UC13([核准電子獎狀]):::usecase
+        UC14([申請科上服務的電子獎狀]):::usecase
+        UC9([維護校系備審要求]):::usecase
+        UC10([維護帳號與權限]):::usecase
+    end
+
+    Admin[系統管理者（開發者）]:::admin
+    AI[AI 輔助服務]:::ai
+    Staff[科辦／科助<br/>不審備審資料]:::staff
+
+    Student --- UC1
+    Student --- UC2
+    Student --- UC3
+    Student --- UC4
+    Student --- UC5
+    Student --- UC14
+    UC14 -. 送科辦 .-> UC13
+    UC1 -. 包含 .-> UC12
+    UC2 -. 包含 .-> UC11
+    Teacher --- UC6
+    Teacher --- UC7
+    UC2 -. 包含 .-> UC8
+    UC8 --- AI
+    UC11 --- AI
+    UC12 --- AI
+    Staff --- UC13
+    UC9 --- Admin
+    UC10 --- Admin
+    SYS ~~~ Staff
