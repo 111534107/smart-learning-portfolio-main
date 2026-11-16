@@ -22,9 +22,9 @@ def _grade_key(value):
 
 def _semester_label(value):
     raw = str(value or "").strip()
-    if raw in ("1", "一", "第一學期", "上學期"):
+    if raw in ("1", "一", "上", "第一學期", "上學期"):
         return "第一學期"
-    if raw in ("2", "二", "第二學期", "下學期"):
+    if raw in ("2", "二", "下", "第二學期", "下學期"):
         return "第二學期"
     return raw or "學期待確認"
 

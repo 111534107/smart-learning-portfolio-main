@@ -237,7 +237,7 @@ def test_all_fields_locked_confirmation_preserves_original_course_fields(tmp_pat
     with app.app_context():
         course = LearningCourseRecord.query.one()
         assert (course.course_name, course.credits, course.score, course.semester, course.grade_level) == (
-            "原始課名", 3, 85, "第二學期", "三年級",
+            "原始課名", 3, 85, "下", "三年級",  # 原值「第二學期」存成「下」（B25）
         )
 
 

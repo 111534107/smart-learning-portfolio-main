@@ -414,7 +414,7 @@ def test_editable_course_fields_save_without_javascript(tmp_path):
     assert response.status_code == 302
     with app.app_context():
         course = LearningCourseRecord.query.one()
-        assert (course.course_name, course.credits, course.score, course.semester, course.grade_level) == ("Edited", 0, None, "第二學期", "5年級")
+        assert (course.course_name, course.credits, course.score, course.semester, course.grade_level) == ("Edited", 0, None, "下", "5年級")
         assert course.school_year == 5 and course.status_mark == "抵"
 
 

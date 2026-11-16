@@ -91,6 +91,21 @@ def certificate_status(student):
             "needed": CERTIFICATE_MINIMUM, "missing": missing, "notes": notes}
 
 
+SEMESTER_WORDS = {
+    "上": "上", "一": "上", "1": "上", "上學期": "上", "第一學期": "上", "第1學期": "上",
+    "下": "下", "二": "下", "2": "下", "下學期": "下", "第二學期": "下", "第2學期": "下",
+}
+
+
+def normalize_semester(value):
+    """學期統一成「上」「下」。成績單印「一」「二」、辨識送來「第一學期」都換掉；寒修等其他字原樣保留。
+
+    2026-11-14 假學生實測（B25）：辨識的「第一學期」原字存進資料庫，畢業門檻只認「上／下」。
+    """
+    text = str(value or "").strip()
+    return SEMESTER_WORDS.get(text, text or None)
+
+
 def course_term_key(course, admission_year=None):
     """同一門課的辨識鍵：（年級, 學期, 正規化課名）；沒有年級或學期時回傳 None（無法判斷是否重複）。
 
@@ -99,9 +114,10 @@ def course_term_key(course, admission_year=None):
     year = course.year_for_placement
     if year is not None and year > 5 and admission_year:
         year = year - admission_year + 1
-    if year is None or not course.semester:
+    semester = normalize_semester(course.semester)
+    if year is None or not semester:
         return None
-    return (year, course.semester, normalize_course_name(course.course_name))
+    return (year, semester, normalize_course_name(course.course_name))
 
 
 def unique_courses(courses, admission_year=None):
@@ -274,7 +290,7 @@ def _missing_terms(student, admission_year, ended_terms):
     """已結束、但沒有已確認課程紀錄的學期；school_year 可能存民國學年度，也可能存年級。"""
     courses = (LearningCourseRecord.query
                .filter_by(student_id=student.id, confirmation_status="confirmed").all())
-    have = {(course.school_year, course.semester) for course in courses}
+    have = {(course.school_year, normalize_semester(course.semester)) for course in courses}
     return [(year, semester) for year, semester in ended_terms
             if (year, semester) not in have and (year - admission_year + 1, semester) not in have]
 

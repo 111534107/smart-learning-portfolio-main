@@ -1,5 +1,30 @@
 # 開發日誌
 
+## 2026-11-14 B25 學期格式統一成「上／下」
+
+日期：2026-11-14（台灣時間）
+
+開發者：Claude（分支 `preview/student-v2`，工作資料夾 `D:\democase\_worktrees\ai-wt-v2-preview`）。
+
+目標：修假學生實測（`D:\democase\ai\docs\05_交接與專案管理\假學生實測報告_2026-11-14.md` 第 1 點）發現的錯誤。辨識送來「第一學期／第二學期」，`_course_semester` 只轉換「一、1、上、二、2、下」，原字存進資料庫；畢業門檻、各學期預警、重複上傳去重只認「上／下」。結果：有成績的學期被判「沒有資料」、同一門課「上」與「第一學期」變兩筆、平均與學分被重複的課影響。
+
+做了什麼：
+1. `app\services\graduation_check_service.py` 新增 `normalize_semester`（上學期、第一學期、一、1 → 上；下學期、第二學期、二、2 → 下；寒修等其他字原樣），`course_term_key` 與 `_missing_terms` 都先轉換，遷移前的舊資料也認得。
+2. `app\routes\student.py`：`_course_semester` 改用 `normalize_semester`，拿掉原本的 `SEMESTER_WORDS`；`_same_term_course` 不再用學期字串直接篩資料庫，交給 `course_term_key` 比對。
+3. `app\services\course_review_presentation.py`：確認頁的學期分組也認得「上／下」。
+4. 資料庫遷移 `migrations\versions\b20261114s01_normalize_course_semester.py`：把 `learning_course_records.semester` 的舊字改成「上／下」，只改資料不改欄位；downgrade 不還原。
+5. 測試：新增 `tests\test_semester_format.py`（13 項：轉換表、存檔、與舊「上」資料去重、學期不再被判沒有資料、舊資料比對、資料庫遷移）；`test_learning_profile_confirmation.py`、`test_learning_profile_review_enhancements.py` 各一處原本把「存成第二學期」當正確答案，改成「下」。
+
+驗證：
+- 新測試先跑 13 項全部失敗，修正後通過；相關 8 個測試檔 110 項通過、1 略過。
+- 完整測試 `D:\democase\ai\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp=logs/test-runs/b25-full`：1691 通過、2 略過（18 分鐘）。
+- 驗收腳本 `scripts/acceptance_check.py`：87 項通過、0 失敗。
+- 瀏覽器（本機 5098，沒動公開站 5097）：示範學生 `113534901` 上傳假成績單並確認後，學期都顯示「上／下」；課程從修正前的 31 門變 28 門（「計算機概論」「國文」不再重複）；畢業門檻「對不到科目表」不再重複列「計算機概論」，總學分從 66 修正為 61。
+
+還沒處理：
+- 「程式設計（一）」與「程式設計」課名不同仍算兩門；示範學生的「網頁設計」放在專二、假成績單放在專一；假成績單 3 門課名對不到科目表 → 都屬 B26（示範資料）。
+- 正式 MySQL 要跑這支遷移（併入 A10）。
+
 ## 2026-11-14 備審一鍵打包、綁定備用信箱寄給自己、雲端每位學生一個資料夾
 
 日期：2026-11-14（台灣時間）

@@ -602,13 +602,9 @@ def _course_integer(value, label, upper=None):
 
 
 
-SEMESTER_WORDS = {"一": "上", "1": "上", "上": "上", "二": "下", "2": "下", "下": "下"}
-
-
 def _course_semester(value):
-    """成績單印「一」「二」或 1、2，系統統一存「上」「下」（10-27 實測問題 3）。"""
-    text = str(value or "").strip()
-    return SEMESTER_WORDS.get(text, text or None)
+    """成績單印「一」「二」、辨識送來「第一學期」，系統統一存「上」「下」（10-27 實測問題 3、11-14 B25）。"""
+    return graduation_check_service.normalize_semester(value)
 
 
 def _course_grade(user, school_year, grade_level):
@@ -637,8 +633,9 @@ def _same_term_course(user, fields):
     key = graduation_check_service.course_term_key(probe, admission_year)
     if key is None:
         return None
+    # 不用學期字串直接篩：遷移前的舊資料可能還是「第一學期」，交給 course_term_key 統一比對
     candidates = LearningCourseRecord.query.filter_by(
-        student_id=user.id, semester=fields["semester"], confirmation_status="confirmed").all()
+        student_id=user.id, confirmation_status="confirmed").all()
     for course in candidates:
         if graduation_check_service.course_term_key(course, admission_year) == key:
             return course
