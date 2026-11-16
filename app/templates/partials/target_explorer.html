@@ -8,27 +8,165 @@
     <a class="button button--small button--quiet" href="{{ url_for('student.matching', track=track) }}">查看推薦依據 →</a>
   </div>
   {% include "partials/school_map.html" %}
-  <form class="target-filter" method="get" action="{{ url_for('student.target_list') }}" aria-label="校系排行篩選">
-    {% if region_filter %}<input type="hidden" name="region" value="{{ region_filter }}">{% endif %}
-    {% if school_filter %}<input type="hidden" name="school" value="{{ school_filter }}">{% endif %}
+  {# B22 篩選選單（2026-11-16 使用者要求）：地區、學校和地圖同步；招生管道等選項來自這個分頁的校系資料。
+     沒有 JavaScript 時按「套用」照網址參數由伺服器篩；有 JavaScript 時選了就即時篩、更新網址（可分享、上一頁回得去）。 #}
+  {% set shown_total = programs|rejectattr("id", "in", hidden_program_ids)|list|length %}
+  {% set has_filter = filter_values or region_filter or school_filter or search_query or program_filter or major_filter != 'all' %}
+  <form class="target-filter" method="get" action="{{ url_for('student.target_list') }}#target-explorer-title" aria-label="校系篩選" data-target-filter>
     <input type="hidden" name="track" value="{{ track }}">
-    <label>選擇校系
-      <select name="program_id" id="target-program-filter">
-        <option value="">全部校系</option>
-        {% for option in program_options %}<option value="{{ option.id }}"{% if program_filter == option.id|string %} selected{% endif %}>{{ option.school_name }} {{ option.department_name }}（{{ channels[option.id] }}{% if option.admission_category and option.admission_category != channels[option.id] %} · {{ option.admission_category }}{% endif %}{% if entry_grades[option.id] %} · {{ entry_grades[option.id] }}{% endif %}）</option>{% endfor %}
-      </select>
-    </label>
-    <label>搜尋學校或科系
-      <input type="search" name="q" value="{{ search_query }}" maxlength="60" placeholder="例如：資訊管理、臺中、護理" data-target-search>
-    </label>
-    <button class="button button--small" type="submit" name="major" value="{{ major_filter }}">顯示排行</button>
-    <div class="record-card__actions" role="group" aria-label="校系類別">
-      {% for value, label in [('all', '全部校系'), ('home', '本科系（資訊管理）'), ('other', '非本科系')] %}
-      {% if value == 'all' or major_known %}<button class="button button--small {{ '' if major_filter == value else 'button--line' }}" type="submit" name="major" value="{{ value }}" aria-pressed="{{ 'true' if major_filter == value else 'false' }}">{{ label }}</button>{% endif %}
-      {% endfor %}
+    <div class="target-filter__result">
+      <p aria-live="polite">符合 <strong data-filter-shown>{{ shown_total }}</strong>／<span data-filter-total>{{ programs|length }}</span> 個校系</p>
+      <span class="target-filter__meter" aria-hidden="true"><span data-filter-meter style="width: {{ (shown_total * 100 / programs|length)|round|int if programs else 0 }}%"></span></span>
+      <a class="small" href="{{ url_for('student.target_list', track=track) }}#target-explorer-title" data-filter-clear{% if not has_filter %} hidden{% endif %}>清除篩選</a>
     </div>
-    {% if major_filter != 'all' or program_filter or search_query or region_filter or school_filter %}<a class="button button--small button--quiet" href="{{ url_for('student.target_list', track=track) }}#target-programs">清除篩選</a>{% endif %}
+    <div class="target-filter__menus">
+      {% if regions %}
+      <label>地區
+        <select name="region" data-filter-key="region" data-filter-region>
+          <option value="">全部地區</option>
+          {% for region in regions %}<option value="{{ region }}" data-label="{{ region }}"{% if region == region_filter %} selected{% endif %}>{{ region }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>學校
+        <select name="school" data-filter-key="school" data-filter-school>
+          <option value="">全部學校</option>
+          {% for point in map_points|sort(attribute="school.name") %}<option value="{{ point.school.name }}" data-label="{{ point.school.name }}" data-region="{{ point.region }}"{% if point.school.name == school_filter %} selected{% endif %}>{{ point.school.name }}</option>{% endfor %}
+        </select>
+      </label>
+      {% endif %}
+      {% for option in filter_options %}
+      <label>{{ option.label }}
+        <select name="{{ option.name }}" data-filter-key="{{ option.name }}" data-filter-facet>
+          <option value="">{{ option.all_label }}</option>
+          {% for choice in option.choices %}<option value="{{ choice.value }}" data-label="{{ choice.value }}"{% if filter_values.get(option.name) == choice.value %} selected{% endif %}>{{ choice.value }}（{{ choice.count }}）</option>{% endfor %}
+        </select>
+      </label>
+      {% endfor %}
+      <label class="target-filter__wide">學校或科系關鍵字
+        <input type="search" name="q" value="{{ search_query }}" maxlength="60" placeholder="例如：資訊管理、臺中、護理" data-target-search>
+      </label>
+      <label class="target-filter__wide">直接找一個校系
+        <select name="program_id" id="target-program-filter">
+          <option value="">全部校系</option>
+          {% for option in program_options %}<option value="{{ option.id }}"{% if program_filter == option.id|string %} selected{% endif %}>{{ option.school_name }} {{ option.department_name }}（{{ channels[option.id] }}{% if option.admission_category and option.admission_category != channels[option.id] %} · {{ option.admission_category }}{% endif %}{% if entry_grades[option.id] %} · {{ entry_grades[option.id] }}{% endif %}）</option>{% endfor %}
+        </select>
+      </label>
+    </div>
+    <div class="target-filter__actions">
+      <button class="button button--small" type="submit" name="major" value="{{ major_filter }}">套用</button>
+      <div class="record-card__actions" role="group" aria-label="校系類別">
+        {% for value, label in [('all', '全部校系'), ('home', '本科系（資訊管理）'), ('other', '非本科系')] %}
+        {% if value == 'all' or major_known %}<button class="button button--small {{ '' if major_filter == value else 'button--line' }}" type="submit" name="major" value="{{ value }}" aria-pressed="{{ 'true' if major_filter == value else 'false' }}">{{ label }}</button>{% endif %}
+        {% endfor %}
+      </div>
+    </div>
   </form>
+  <script>
+  /* B22：選單即時篩選。每一列帶 data-f-*（招生管道等）與 data-region、data-school；
+     選了就算哪些列符合、重新編號，並更新每個選項旁「還剩幾個」，0 個的選項變灰。 */
+  (function () {
+    var form = document.querySelector("[data-target-filter]");
+    if (!form || !window.history || !window.history.pushState || !window.URL) { return; }
+    var selects = Array.prototype.slice.call(form.querySelectorAll("select[data-filter-key]"));
+    var facets = selects.filter(function (s) { return s.hasAttribute("data-filter-facet"); });
+    var rows = [];  // 排行在這個表單下面，頁面載入完才抓得到
+    var shownNode = form.querySelector("[data-filter-shown]"), meter = form.querySelector("[data-filter-meter]");
+    function key(s) { return s.getAttribute("data-filter-key"); }
+    function valueOf(li, k) {
+      return k === "region" ? li.getAttribute("data-region") : k === "school" ? li.getAttribute("data-school") : li.getAttribute("data-f-" + k);
+    }
+    function chosen() {
+      var st = {};
+      selects.forEach(function (s) { if (s.value) { st[key(s)] = s.value; } });
+      return st;
+    }
+    function fits(li, st, skip) {
+      for (var k in st) { if (k !== skip && valueOf(li, k) !== st[k]) { return false; } }
+      return true;
+    }
+    function refresh() {
+      var st = chosen(), n = 0;
+      rows.forEach(function (li) {
+        var facetOn = facets.every(function (s) { return !s.value || li.getAttribute("data-f-" + key(s)) === s.value; });
+        li.toggleAttribute("data-filter-off", !facetOn);
+        var on = facetOn && !li.hasAttribute("data-map-off");
+        li.hidden = !on;
+        if (on) {
+          n += 1;
+          var num = li.querySelector(".target-ranking__number");
+          if (num) { num.textContent = n + "."; }
+        }
+      });
+      document.querySelectorAll("[data-ranking-count]").forEach(function (c) { c.textContent = n; });
+      if (shownNode.textContent !== String(n)) {
+        shownNode.textContent = n;
+        shownNode.classList.remove("is-changed"); void shownNode.offsetWidth; shownNode.classList.add("is-changed");
+      }
+      meter.style.width = (rows.length ? Math.round(n * 100 / rows.length) : 0) + "%";
+      // 每個選項旁的數字：其他條件不變、改選這一項時會剩幾個
+      selects.forEach(function (s) {
+        var k = key(s);
+        Array.prototype.forEach.call(s.options, function (o) {
+          if (!o.value) { return; }
+          var c = rows.filter(function (li) { return valueOf(li, k) === o.value && fits(li, st, k); }).length;
+          o.textContent = o.getAttribute("data-label") + "（" + c + "）";
+          o.disabled = c === 0 && !o.selected;
+        });
+      });
+      var url = new URL(window.location.href);
+      var any = Object.keys(st).length || url.searchParams.get("q") || url.searchParams.get("program_id") ||
+                (url.searchParams.get("major") || "all") !== "all";
+      form.querySelector("[data-filter-clear]").hidden = !any;
+      var empty = document.querySelector("[data-filter-empty]");
+      if (empty) { empty.hidden = n > 0; }
+    }
+    function push(clearMap) {
+      var url = new URL(window.location.href);
+      facets.forEach(function (s) { s.value ? url.searchParams.set(key(s), s.value) : url.searchParams.delete(key(s)); });
+      if (clearMap) { url.searchParams.delete("region"); url.searchParams.delete("school"); }
+      url.hash = "";
+      window.history.pushState({ targetFilter: true }, "", url);
+    }
+    window.refreshTargetRanking = function () {
+      rows = Array.prototype.slice.call(document.querySelectorAll("[data-ranking-list] > li[data-region]"));
+      refresh();
+    };
+    form.addEventListener("change", function (event) {
+      var s = event.target.closest("select[data-filter-key]");
+      if (!s) { return; }
+      var region = form.querySelector("[data-filter-region]"), school = form.querySelector("[data-filter-school]");
+      if (region && (s === region || s === school)) {
+        var r = region.value, name = school.value;
+        if (s === region) { name = ""; }
+        else if (name) { r = school.options[school.selectedIndex].getAttribute("data-region"); }
+        if (window.schoolMapApply) { window.schoolMapApply(r, name); return; }  // 地圖負責放大、更新網址，再呼叫 refresh
+      }
+      refresh();
+      push();
+    });
+    form.querySelector("[data-filter-clear]").addEventListener("click", function (event) {
+      var url = new URL(window.location.href);
+      // 關鍵字、單一校系、本科系切換是伺服器篩掉的，要重新載入才拿得回來
+      if (url.searchParams.get("q") || url.searchParams.get("program_id") || (url.searchParams.get("major") || "all") !== "all" ||
+          event.metaKey || event.ctrlKey) { return; }
+      event.preventDefault();
+      facets.forEach(function (s) { s.value = ""; });
+      selects.forEach(function (s) { s.value = ""; });
+      push(true);
+      if (window.schoolMapApply) { window.schoolMapApply("", "", false); } else { refresh(); }
+    });
+    window.addEventListener("popstate", function () {
+      var url = new URL(window.location.href);
+      facets.forEach(function (s) {
+        var v = url.searchParams.get(key(s)) || "";
+        s.value = Array.prototype.some.call(s.options, function (o) { return o.value === v; }) ? v : "";
+      });
+      refresh();
+    });
+    if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", window.refreshTargetRanking); }
+    else { window.refreshTargetRanking(); }
+  })();
+  </script>
 
   {% if programs %}
   <p class="small muted mb-1">全部校系依準備度由高到低排列，標有「本科」的是資訊管理相關科系；可用上方按鈕切換。目前無法計算的校系排在最後。自傳、專題等尚無法自動核對的文件會先視為待準備。補上並確認資料後，重新開啟本頁即可看到更新的順序。</p>
@@ -48,7 +186,8 @@
       {% set is_hidden = program.id in hidden_program_ids %}
       {% if not is_hidden %}{% set shown.n = shown.n + 1 %}{% endif %}
       {# data-region、data-school：地圖不換頁切換時用來篩選（2026-11-13）；hidden 讓沒有 JavaScript 時也篩得對 #}
-      <li data-region="{{ program_region.get(program.id, '') }}" data-school="{{ program.school_name }}"{% if is_hidden %} hidden{% endif %}>
+      {# B22：data-f-* 是篩選選單用的值；data-map-off、data-filter-off 記錄是被地圖還是選單篩掉 #}
+      <li data-region="{{ program_region.get(program.id, '') }}" data-school="{{ program.school_name }}"{% for name, value in program_facets[program.id].items() %} data-f-{{ name }}="{{ value }}"{% endfor %}{% if program.id in map_hidden_ids %} data-map-off{% endif %}{% if program.id in filter_hidden_ids %} data-filter-off{% endif %}{% if is_hidden %} hidden{% endif %}>
         <details class="target-program" id="target-program-{{ program.id }}"{% if program_filter == program.id|string %} open{% endif %}>
           <summary class="target-ranking__row target-program__summary">
             <span class="target-ranking__name"><span class="target-ranking__number">{{ shown.n if not is_hidden else loop.index }}.</span> {{ program.school_name }} {{ program.department_name }} <span class="target-ranking__channel">{{ channels[program.id] }}{% if program.admission_category and program.admission_category != channels[program.id] %} · {{ program.admission_category }}{% endif %}{% if entry_grades[program.id] %} · {{ entry_grades[program.id] }}{% endif %}</span>{% if program.id in home_program_ids %} <span class="tag">本科</span>{% endif %}{% if chosen %} <span class="tag tag--info">已選</span>{% endif %}</span>
@@ -90,6 +229,7 @@
     </div>
     {% endfor %}
   </section>
+  <p class="paper-empty" data-filter-empty{% if programs|rejectattr("id", "in", hidden_program_ids)|list %} hidden{% endif %}>這些條件下沒有校系。放寬一個條件試試，或<a href="{{ url_for('student.target_list', track=track) }}#target-explorer-title" data-filter-clear>清除篩選</a>。</p>
   {% else %}
   <div class="paper-empty" id="target-programs"><p>沒有符合目前篩選條件的校系。</p><a class="button button--small" href="{{ url_for('student.target_list', track=track) }}">查看全部校系</a></div>
   {% endif %}

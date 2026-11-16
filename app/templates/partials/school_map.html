@@ -3,7 +3,8 @@
    點地區、點學校、回到全台灣都在瀏覽器裡直接切換、平滑放大，不再整頁重載（2026-11-13 使用者：每點一次就卡一下）。
    地圖資料 g0v/twgeojson（CC0），學校位置來自管理員維護的學校名錄。 #}
 {% if map_points %}
-{% set base_args = {"track": track, "major": major_filter} %}
+{# B22：地圖的連結也保留篩選選單的條件（招生管道、日間或進修部等） #}
+{% set base_args = dict(filter_values or {}, track=track, major=major_filter) %}
 <section class="school-map" aria-labelledby="school-map-title" data-school-map data-schedule-url="{{ url_for('student.schedule') }}">
   <div class="school-map__figure">
     {# 放大後回到全台灣（2026-11-13 使用者要求）：保留已選的分頁與科系類別，只拿掉地區與學校 #}
@@ -41,6 +42,7 @@
     <form method="get" action="{{ url_for('student.target_list') }}" class="school-map__pick" data-school-pick>
       <input type="hidden" name="track" value="{{ track }}"><input type="hidden" name="major" value="{{ major_filter }}">
       <input type="hidden" name="region" value="{{ region_filter }}" data-region-input>
+      {% for name, value in (filter_values or {}).items() %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
       <label>學校
         <select name="school" data-school-select>
           <option value="" data-all-label>{{ region_filter or "全部地區" }}的所有學校</option>
@@ -151,6 +153,9 @@
       list.querySelectorAll(":scope > li[data-region]").forEach(function (li) {
         var on = (!state.region || li.getAttribute("data-region") === state.region) &&
                  (!state.school || li.getAttribute("data-school") === state.school);
+        // B22：地圖只標記 data-map-off，真正隱藏與重新編號交給篩選選單一起算（兩邊條件都要符合）
+        li.toggleAttribute("data-map-off", !on);
+        if (window.refreshTargetRanking) { return; }
         li.hidden = !on;
         if (on) {
           n += 1;
@@ -159,8 +164,9 @@
         }
       });
       var count = list.parentNode.querySelector("[data-ranking-count]");
-      if (count) { count.textContent = n; }
+      if (count && !window.refreshTargetRanking) { count.textContent = n; }
     });
+    if (window.refreshTargetRanking) { window.refreshTargetRanking(); }
   }
 
   function escapeHtml(text) {
@@ -220,6 +226,10 @@
     var school = state.school && schoolsByName[state.school];
     slot.innerHTML = school ? renderCard(school) : "";
     show(list, !school);
+    // B22：篩選選單裡的地區、學校跟著地圖
+    var menuRegion = document.querySelector("[data-filter-region]"), menuSchool = document.querySelector("[data-filter-school]");
+    if (menuRegion) { menuRegion.value = state.region; }
+    if (menuSchool) { menuSchool.value = state.school; }
     filterRanking();
     if (push === true) {
       var url = new URL(window.location.href);
@@ -263,6 +273,9 @@
     var s = schoolsByName[name];
     apply({ region: s ? s.region : state.region, school: s ? name : "" }, true);
   });
+  window.schoolMapApply = function (region, school, push) {  // B22：篩選選單改地區、學校時，交給地圖一起放大與更新網址
+    apply({ region: data.boxes[region] ? region : "", school: schoolsByName[school] ? school : "" }, push !== false);
+  };
   window.addEventListener("popstate", function () {
     var url = new URL(window.location.href);
     var school = url.searchParams.get("school") || "";

@@ -42,7 +42,7 @@ from app.services.activity_fit import build_activity_fit
 from app.services.admission_service import published_programs
 from app.services.gap_service import ALL_LABELS, analyze_gap, chapter_order, student_evidence
 from app.services.admission_links import admission_links, load_school_links
-from app.services import school_directory
+from app.services import school_directory, target_filters
 from app.services.admission_schedule import CHECKED_ON, channel_label, latest_timeline, timeline
 from app.services.matching_service import rank_programs
 from app.services.transfer_exam import is_transfer
@@ -1216,9 +1216,16 @@ def target_list():
     # 2026-11-13 使用者：地圖每點一次就卡一下（整頁重載）。排行改成全部送到瀏覽器、依地區／學校先隱藏，
     # 點地圖時由 school_map.html 的腳本直接切換，不再換頁；沒有 JavaScript 時 hidden 屬性一樣篩得對。
     program_region = {p.id: schools[p.school_name].region if p.school_name in schools else "" for p in programs}
-    hidden_program_ids = {p.id for p in programs
-                          if (region_filter and program_region[p.id] != region_filter)
-                          or (school_filter and p.school_name != school_filter)}
+    map_hidden_ids = {p.id for p in programs
+                      if (region_filter and program_region[p.id] != region_filter)
+                      or (school_filter and p.school_name != school_filter)}
+    # B22 篩選選單（2026-11-16 使用者要求）：選項來自這個分頁的全部校系；和地區、學校一樣先隱藏，瀏覽器端可即時切換
+    program_facets = {p.id: target_filters.program_facets(p, channels[p.id], entry_grades[p.id])
+                      for p in program_options}
+    filter_options = target_filters.build_options(program_facets)
+    filter_values = target_filters.parse(request.args, filter_options)
+    filter_hidden_ids = {p.id for p in programs if not target_filters.matches(program_facets[p.id], filter_values)}
+    hidden_program_ids = map_hidden_ids | filter_hidden_ids
     school_card = next((point for point in map_points if point["school"].name == school_filter), None)
     search_query = request.args.get("q", "").strip()[:60]
     if search_query:
@@ -1258,6 +1265,11 @@ def target_list():
         map_points=map_points,
         program_region=program_region,
         hidden_program_ids=hidden_program_ids,
+        map_hidden_ids=map_hidden_ids,
+        filter_hidden_ids=filter_hidden_ids,
+        program_facets=program_facets,
+        filter_options=filter_options,
+        filter_values=filter_values,
         map_data=school_directory.map_client_data(map_points, channels, track),
         region_filter=region_filter,
         school_filter=school_filter,
