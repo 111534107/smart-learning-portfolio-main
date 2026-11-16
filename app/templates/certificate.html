@@ -32,8 +32,8 @@
     .signature { display: flex; align-items: baseline; gap: .6em; }
     .signature small { font-size: .45em; letter-spacing: .15em; }
     .signature-image { display: block; width: min(100%, 470px); height: auto; mix-blend-mode: multiply; }
-    .seal { position: relative; z-index: 2; align-self: center; width: 29%; aspect-ratio: 1; margin: 1% auto; background: #a43c40; color: #f7e9d1; display: grid; place-items: center; font-family: "Noto Serif TC", serif; font-size: clamp(.65rem, 1.8vw, 1.1rem); line-height: 1.2; text-align: center; opacity: .94; }
-    .seal::before { content: "康寧大學\A 資訊管理科\A 獎狀專用"; white-space: pre; border: 2px solid #f7e9d1; outline: 1px solid #f7e9d1; outline-offset: 4px; padding: 8%; }
+    .seal { position: relative; z-index: 2; align-self: center; width: 34%; margin: 1% auto; }
+    .seal svg { display: block; width: 100%; height: auto; transform: rotate(-2deg); }
     .date { position: relative; z-index: 3; margin: 0 0 2.7%; padding-top: 2%; text-align: center; font-size: clamp(.8rem, 2.2vw, 1.35rem); letter-spacing: .2em; }
     .verify { position: relative; z-index: 3; border-top: 1px solid #b9ad8b; padding-top: .45rem; display: flex; justify-content: space-between; gap: .4rem; font-family: sans-serif; font-size: clamp(.48rem, .9vw, .65rem); color: #5d5b53; overflow-wrap: anywhere; }
     .verify b { font-family: Consolas, monospace; color: #292821; letter-spacing: .08em; white-space: nowrap; }
@@ -62,7 +62,12 @@
         <div class="signatures" aria-label="核發簽章">
           <img class="signature-image" src="{{ url_for('static', filename='img/certificate-signatures.png') }}" alt="董事長吳慶堂、校長陳清溪簽名字樣">
         </div>
-        <div class="seal" aria-label="電子用印"></div>
+        <div class="seal" aria-label="資管科印章">
+          <svg viewBox="0 60 1368 1020" role="img" aria-label="康寧大學資管科印章">
+            <defs><filter id="seal-ink-{{ loop.index }}" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -3 0 3 0 0"/><feComponentTransfer result="ink-mask"><feFuncA type="linear" slope="1.6" intercept="-0.08"/></feComponentTransfer><feFlood flood-color="#204c82"/><feComposite in2="ink-mask" operator="in"/></filter></defs>
+            <image href="{{ url_for('static', filename='img/department-seal.jpg') }}" x="0" y="0" width="1368" height="1824" filter="url(#seal-ink-{{ loop.index }})"/>
+          </svg>
+        </div>
         <p class="date">{{ roc_date(cert.issued_on or today) }}　謹頒</p>
         <div class="verify">
           <span>康寧大學資訊管理科 電子獎狀<br>驗證網址：{{ verify_url }}</span>
