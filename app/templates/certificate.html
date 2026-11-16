@@ -27,10 +27,11 @@
     .emblem { width: 22%; height: 64%; object-fit: contain; }
     .title { font-size: clamp(2rem, 5.4vw, 3.25rem); letter-spacing: .55em; margin: .08em 0 0; padding-left: .55em; line-height: 1.2; font-weight: 500; }
     .number { text-align: right; font-size: clamp(.72rem, 1.6vw, 1rem); min-height: 6%; }
-    .body { white-space: pre-wrap; text-align: left; font-size: clamp(1rem, 2.7vw, 1.65rem); line-height: 1.9; letter-spacing: .06em; margin: 0; flex: 1; padding: 1% 0; }
+    .body { white-space: pre-wrap; text-align: left; font-size: clamp(1rem, 2.7vw, 1.65rem); line-height: 1.9; letter-spacing: .06em; margin: 0; flex: 0 0 auto; padding: 1% 0; }
     .signatures { min-height: 13%; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: .1em; color: #183f80; font-size: clamp(1.3rem, 4.5vw, 2.75rem); font-weight: 700; letter-spacing: .15em; }
     .signature { display: flex; align-items: baseline; gap: .6em; }
     .signature small { font-size: .45em; letter-spacing: .15em; }
+    .signature-image { display: block; width: min(100%, 470px); height: auto; mix-blend-mode: multiply; }
     .seal { position: relative; z-index: 2; align-self: center; width: 29%; aspect-ratio: 1; margin: 1% auto; background: #a43c40; color: #f7e9d1; display: grid; place-items: center; font-family: "Noto Serif TC", serif; font-size: clamp(.65rem, 1.8vw, 1.1rem); line-height: 1.2; text-align: center; opacity: .94; }
     .seal::before { content: "康寧大學\A 資訊管理科\A 獎狀專用"; white-space: pre; border: 2px solid #f7e9d1; outline: 1px solid #f7e9d1; outline-offset: 4px; padding: 8%; }
     .date { position: relative; z-index: 3; margin: 0 0 2.7%; padding-top: 2%; text-align: center; font-size: clamp(.8rem, 2.2vw, 1.35rem); letter-spacing: .2em; }
@@ -59,8 +60,7 @@
         <div class="number">康寧大學資訊管理科</div>
         <p class="body">{{ cert.body }}</p>
         <div class="signatures" aria-label="核發簽章">
-          <div class="signature"><small>董事長</small><span>＿＿＿＿＿＿</span></div>
-          <div class="signature"><small>校長</small><span>＿＿＿＿＿＿</span></div>
+          <img class="signature-image" src="{{ url_for('static', filename='img/certificate-signatures.png') }}" alt="董事長吳慶堂、校長陳清溪簽名字樣">
         </div>
         <div class="seal" aria-label="電子用印"></div>
         <p class="date">{{ roc_date(cert.issued_on or today) }}　謹頒</p>
