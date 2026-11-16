@@ -503,8 +503,23 @@ fieldset.field legend { padding: 0; margin-bottom: .35rem; }
 .program-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.25rem; }
 .target-filter { display: flex; flex-wrap: wrap; align-items: end; gap: .75rem 1rem; margin: 0 0 1.25rem; padding: 1rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--sheet); }
 .target-filter label { display: grid; gap: .4rem; min-width: 12rem; flex: 1 1 12rem; font-weight: 700; }
-.target-filter label:nth-child(2) { flex: 2 1 18rem; }
-.target-filter select { width: 100%; min-height: 2.8rem; padding: .55rem .7rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--sheet); color: var(--ink); font: inherit; }
+.target-filter { display: grid; gap: 1rem; }
+/* B22 篩選選單（2026-11-16）：選單排成格子，手機一欄；結果列用細長比例條表示還剩多少 */
+.target-filter__menus { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 8.5rem), 1fr)); gap: .75rem 1rem; }
+.target-filter__menus label { min-width: 0; }
+.target-filter__wide { grid-column: 1 / -1; }
+.target-filter input[type="search"] { width: 100%; min-width: 0; }
+.target-filter__actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; }
+.target-filter__result { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1rem; padding-bottom: .75rem; border-bottom: 1px solid var(--line); }
+.target-filter__result p { margin: 0; }
+.target-filter__result strong { display: inline-block; font-size: 1.35em; }
+.target-filter__result strong.is-changed { animation: target-filter-tick .45s ease-out; }
+.target-filter__meter { flex: 1 1 8rem; height: .55rem; background: var(--paper-deep); border: 1px solid var(--ink); overflow: hidden; }
+.target-filter__meter span { display: block; height: 100%; background: var(--accent); transition: width .35s ease-out; }
+.target-filter option:disabled { color: var(--muted, #888); }
+@keyframes target-filter-tick { from { transform: translateY(-.35em); opacity: .3; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .target-filter__result strong.is-changed { animation: none; } .target-filter__meter span { transition: none; } }
+.target-filter select { width: 100%; max-width: 100%; min-width: 0; min-height: 2.8rem; padding: .55rem .7rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--sheet); color: var(--ink); font: inherit; }
 .target-ranking { margin-bottom: 1.5rem; padding: 1.25rem; border: 1px solid var(--line); background: var(--sheet); }
 .target-ranking__group + .target-ranking__group { margin-top: 1.1rem; padding-top: 1rem; border-top: 1px solid var(--line); }
 .target-ranking__group h3 { margin: 0 0 .5rem; font-size: var(--fs-base); }

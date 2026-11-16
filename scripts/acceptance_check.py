@@ -118,6 +118,16 @@ rec("學校卡片有官網、招生網站、科系介紹與 Google 地圖",
     all(x in rr.text for x in ("https://www.nutc.edu.tw/", "https://admission.nutc.edu.tw/", "https://im.nutc.edu.tw/", "在 Google 地圖開啟")))
 rr = s.get(BASE + "/student/targets?q=資訊管理&major=home")
 rec("搜尋＋切換同時使用", rr.ok and "資訊管理" in text_of(rr.text), str(rr.status_code))
+# B22 篩選選單（2026-11-16）：選單選項來自校系資料；選「進修部」後沒隱藏的列都是進修部，且數字和列數一致
+rr = s.get(BASE + "/student/targets?session=進修部&region=南部")
+night_rows = re.findall(r'<li data-region="([^"]*)" data-school="[^"]+"([^>]*)>', rr.text)
+night_shown = [(region, a) for region, a in night_rows if not a.endswith(" hidden")]
+rec("目標校系篩選選單：日間或進修部＋地區",
+    # 「加權資料」選單只在有校系缺加權資料時出現（示範資料每個都有），所以不列入必須出現的選單
+    rr.ok and all(x in rr.text for x in ('name="channel"', 'name="session"', 'name="group"', 'name="school"'))
+    and bool(night_shown) and all(region == "南部" and 'data-f-session="進修部"' in a for region, a in night_shown)
+    and f"data-filter-shown>{len(night_shown)}<" in rr.text,
+    f"顯示 {len(night_shown)} / {len(night_rows)} 列")
 
 # 推薦排序頁
 for major in ("all", "home", "other"):
