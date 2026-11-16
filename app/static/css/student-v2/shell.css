@@ -344,3 +344,117 @@
 }
 @keyframes school-card-in { from { opacity: 0; transform: translateY(6px); } }
 .school-map .tw-county, .school-map__pin { -webkit-tap-highlight-color: transparent; }
+/* 2026-11-16 目標校系地圖：放大縮小、完整檢視、縣市深淺、點縣市跳出的視窗（手機改成從下往上的面板） */
+.school-map__bar { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin: 0 0 .4rem; }
+.school-map__bar .school-map__reset { position: static; box-shadow: none; }
+.school-map__reset[hidden] { display: none; }  /* 按鈕樣式的 display 會蓋過 hidden，原本沒選地區時也看得到 */
+.school-map__tools { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+.school-map__tools[hidden] { display: none; }
+.school-map__tool { min-width: 36px; height: 36px; padding: 0 .5rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-weight: 700; font-size: 1rem; line-height: 1; cursor: pointer; }
+.school-map__tool:hover { border-color: var(--ink); }
+.school-map__tool:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.school-map__tool--wide { font-size: .9rem; }
+.school-map__tool[aria-pressed="true"] { background: var(--ink); color: var(--on); border-color: var(--ink); }
+.school-map__level { min-width: 3.4rem; text-align: center; font-size: .82rem; color: var(--soft); font-variant-numeric: tabular-nums; }
+.school-map__svg { cursor: grab; }
+.school-map__figure.is-dragging .school-map__svg { cursor: grabbing; }
+.school-map__figure.is-dragging .tw-county, .school-map__figure.is-dragging .school-map__pin { pointer-events: none; }
+.school-map__svg:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+.school-map__hint { position: absolute; left: 50%; bottom: 3rem; transform: translateX(-50%); z-index: 3; margin: 0; padding: .45rem .8rem; border-radius: 8px; background: var(--ink); color: var(--on); font-size: .88rem; white-space: nowrap; pointer-events: none; }
+.school-map__legend { display: flex; align-items: center; gap: .5rem; margin: .4rem 0 .2rem; }
+.school-map__legend-bar { flex: 0 0 64px; height: 8px; border-radius: 2px; background: linear-gradient(90deg, var(--stripe), var(--accent)); border: 1px solid var(--line); }
+/* 縣市深淺：--heat 由腳本依符合篩選的校系數算出（0 到 1） */
+.school-map .school-map__counties.is-heat .tw-county[data-region] { fill: color-mix(in srgb, var(--accent) calc(var(--heat, 0) * 78%), var(--stripe)); }
+.school-map .school-map__counties.is-heat .tw-county.is-empty { fill: var(--stripe); }
+.school-map .school-map__counties.is-heat .tw-county:hover { stroke: var(--ink); stroke-width: 2; }
+.school-map .tw-county:focus { outline: none; }
+.school-map .tw-county:focus-visible { stroke: var(--ink); stroke-width: 3; }
+/* 完整檢視：地圖鋪滿整個視窗 */
+.school-map__figure.is-full { position: fixed; inset: 0; z-index: 1000; display: flex; flex-direction: column; gap: .5rem; padding: 12px 16px 16px; background: var(--card); overflow: hidden; }
+.school-map__figure.is-full .school-map__bar { margin: 0; }
+.school-map__figure.is-full .school-map__fullhead p { margin: 0; }
+.school-map__fulltitle { font-weight: 800; font-size: 1.15rem; color: var(--ink); }
+.school-map__figure.is-full .school-map__svg { flex: 1 1 auto; min-height: 0; width: 100%; height: 100%; max-height: none; touch-action: none; }
+.school-map__figure.is-full > p.small.muted:last-child { display: none; }
+html.map-locked, html.map-sheet-open { overflow: hidden; }
+@media (max-width: 640px) {
+  .school-map__figure.is-full .school-map__fullhead .small { display: none; }
+  .school-map__tools { margin-left: 0; width: 100%; }
+  .school-map__tools .school-map__tool--wide { margin-left: auto; }
+  .school-map__hint { white-space: normal; width: 80%; text-align: center; }
+}
+/* 點縣市跳出的視窗 */
+.map-sheet { width: min(680px, calc(100vw - 32px)); max-width: none; max-height: min(82vh, 780px); margin: auto; padding: 0; border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--ink); box-shadow: 0 24px 60px rgba(8, 20, 30, .28); overflow: hidden; }
+.map-sheet[open] { display: flex; flex-direction: column; }
+.map-sheet::backdrop { background: rgba(8, 18, 28, .5); }
+.map-sheet__grip { display: none; }
+.map-sheet__head { display: flex; gap: .75rem; align-items: flex-start; justify-content: space-between; padding: 1rem 1.1rem .8rem; border-bottom: 1px solid var(--line); background: var(--card); }
+.map-sheet__heading { min-width: 0; }
+.map-sheet__where { margin: 0 0 .15rem; color: var(--soft); font-weight: 700; letter-spacing: .02em; }
+.map-sheet__head h2 { margin: 0; font-size: 1.35rem; }
+.map-sheet__summary { margin: .3rem 0 0; color: var(--soft); }
+.map-sheet__top { display: block; margin-top: .35rem; padding-left: .6rem; border-left: 3px solid var(--warn); color: var(--ink); }
+.map-sheet__close { flex: 0 0 auto; width: 40px; height: 40px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 1.05rem; cursor: pointer; }
+.map-sheet__close:hover { border-color: var(--ink); }
+.map-sheet__close:focus-visible, .map-sheet summary:focus-visible, .map-sheet__link:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.map-sheet__link { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+.map-sheet__body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; padding: .5rem 1.1rem 1.2rem; overflow-wrap: anywhere; -webkit-overflow-scrolling: touch; }
+.map-sheet__group { margin: 1rem 0 .5rem; font-size: 1rem; }
+.map-sheet__list { display: grid; gap: .5rem; }
+.map-sheet__empty { margin: 1rem 0; }
+.map-school { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); min-width: 0; }
+.map-school[open] { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.map-school > summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .15rem .75rem; align-items: center; padding: .7rem .85rem; cursor: pointer; list-style: none; }
+.map-school > summary::-webkit-details-marker, .map-program > summary::-webkit-details-marker { display: none; }
+.map-school > summary::after { content: "▾"; grid-column: 2; grid-row: 1; justify-self: end; color: var(--soft); transition: transform .2s ease; }
+.map-school[open] > summary::after { transform: rotate(180deg); }
+.map-school__name { font-weight: 800; font-size: 1.05rem; }
+.map-school__meta { grid-column: 1; }
+.map-school__best { grid-column: 1 / -1; display: flex; align-items: center; gap: .5rem; }
+.map-school__body { padding: 0 .85rem .8rem; }
+.map-school__links { display: flex; flex-wrap: wrap; gap: .3rem 1rem; margin: 0 0 .6rem; padding: 0; list-style: none; font-weight: 700; }
+.map-school__programs { display: grid; gap: .4rem; margin: 0; padding: 0; list-style: none; }
+.map-meter { position: relative; display: block; flex: 1 1 auto; max-width: 220px; height: 6px; border-radius: 2px; background: var(--stripe); overflow: hidden; }
+.map-meter > span { position: absolute; inset: 0 auto 0 0; width: var(--w); background: var(--accent); border-radius: 2px; }
+.map-program { border-top: 1px dashed var(--line); }
+.map-program > summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .2rem .6rem; align-items: center; padding: .55rem 0; cursor: pointer; list-style: none; }
+.map-program > summary .map-meter { grid-column: 1 / -1; max-width: none; }
+.map-program__name { font-weight: 700; }
+.map-program__value { font-variant-numeric: tabular-nums; }
+.map-program[open] > summary .map-program__name { color: var(--accent); }
+.map-program__body { padding: .1rem 0 .7rem; }
+.map-program__gap { margin: .2rem 0; font-weight: 700; }
+.map-program__next { margin: .2rem 0; padding: .4rem .6rem; border-left: 3px solid var(--warn); background: color-mix(in srgb, var(--warn) 10%, transparent); }
+.map-program__detail .target-program__detail { display: grid; grid-template-columns: minmax(0, 1fr); gap: .6rem; padding: .5rem 0 0; border: 0; background: transparent; }
+.map-program__detail h4 { margin: .4rem 0 .2rem; font-size: .95rem; }
+@media (prefers-reduced-motion: no-preference) {
+  .map-sheet[open] { animation: map-sheet-in .24s cubic-bezier(.2, .8, .2, 1) both; }
+  .map-sheet.is-closing { animation: map-sheet-out .18s ease-in both; }
+  .map-sheet[open]::backdrop { animation: map-backdrop-in .24s ease both; }
+  .map-school { animation: map-row-in .32s ease-out both; animation-delay: calc(var(--i, 0) * 35ms + 60ms); }
+  .map-meter > span { animation: map-meter-grow .7s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i, 0) * 35ms + 160ms); }
+  .school-map .tw-county { transition: fill .45s ease, opacity .25s ease; }
+}
+@keyframes map-sheet-in { from { opacity: 0; transform: translateY(14px) scale(.98); } }
+@keyframes map-sheet-out { to { opacity: 0; transform: translateY(10px) scale(.98); } }
+@keyframes map-backdrop-in { from { opacity: 0; } }
+@keyframes map-row-in { from { opacity: 0; transform: translateY(8px); } }
+@keyframes map-meter-grow { from { width: 0; } }
+/* 手機：從下往上滑出的面板，不能左右滑 */
+@media (max-width: 640px) {
+  /* 先開到 60% 高，上方留給放大後的地圖；把手往上拉或點一下展開到 88% */
+  .map-sheet { width: 100%; max-width: 100%; height: 60vh; max-height: 60vh; margin: auto 0 0; transition: height .25s ease, max-height .25s ease; border-width: 1px 0 0; border-radius: 16px 16px 0 0; }
+  .map-sheet__grip { display: flex; justify-content: center; padding: 10px 0 4px; touch-action: none; cursor: grab; }
+  .map-sheet.is-tall { height: 88vh; max-height: 88vh; }
+  .map-sheet::backdrop { background: rgba(8, 18, 28, .28); }  /* 上方要看得到放大後的地圖，遮罩比電腦版淡 */
+  .map-sheet__grip span { width: 44px; height: 5px; border-radius: 3px; background: var(--line); }
+  .map-sheet__head { padding: .2rem 1rem .7rem; }
+  .map-sheet__body { padding: .4rem 1rem calc(1.2rem + env(safe-area-inset-bottom)); }
+  .map-sheet__head h2 { font-size: 1.2rem; }
+  @media (prefers-reduced-motion: no-preference) {
+    .map-sheet[open] { animation: map-sheet-up .3s cubic-bezier(.2, .8, .2, 1) both; }
+    .map-sheet.is-closing { animation: map-sheet-down .18s ease-in both; }
+  }
+}
+@keyframes map-sheet-up { from { transform: translateY(100%); } }
+@keyframes map-sheet-down { to { transform: translateY(100%); } }

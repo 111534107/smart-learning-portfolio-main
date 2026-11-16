@@ -7,6 +7,8 @@
 
 # (網址參數, 選單標題, 「全部」選項文字)
 FIELDS = (
+    # 2026-11-16 使用者要求：國立、私立篩選（放第一個，學生最常先分公私立）
+    ("ownership", "國立或私立", "國立私立都看"),
     ("channel", "招生管道", "全部管道"),
     ("group", "群類別", "全部群類別"),
     ("grade", "插入年級", "全部年級"),
@@ -21,10 +23,21 @@ def session_of(program, channel):
     return "進修部" if "進修" in text else "日間部"
 
 
+def ownership_of(school_name):
+    """依校名判斷：國立開頭是「國立」，市立、縣立是「公立」，其他是「私立」（目前資料只有國立與私立）。"""
+    name = (school_name or "").strip()
+    if name.startswith("國立"):
+        return "國立"
+    if "市立" in name or "縣立" in name:
+        return "公立"
+    return "私立"
+
+
 def program_facets(program, channel, entry_grade):
     """一個校系在各篩選條件上的值（空字串表示這個條件不適用）。"""
     category = program.admission_category or ""
     return {
+        "ownership": ownership_of(getattr(program, "school_name", "")),
         "channel": channel,
         # 群類別只在和招生管道名稱不同時才有意義（例如技優甄審的「管理類四」）
         "group": category if category and category != channel else "",
@@ -61,3 +74,20 @@ def parse(args, options):
 
 def matches(values, chosen):
     return all(values[name] == value for name, value in chosen.items())
+
+
+def gap_hint(gap):
+    """地圖彈出視窗用的「還缺什麼」摘要（2026-11-16 使用者要求點地圖看校系細項）。
+
+    回傳 {"missing": "證照、競賽", "next": "先補的簡章項目", "gain": 補滿可加幾個百分點}；
+    只用 analyze_gap 已算好的結果，不另外判斷。
+    """
+    from app.services.gap_service import ALL_LABELS
+
+    missing = "、".join(ALL_LABELS.get(key, key) for key in gap.get("missing_keys", []))
+    priority = next((item for item in gap.get("items", []) if item["id"] == gap.get("priority_id")), None)
+    return {
+        "missing": missing,
+        "next": priority["name"] if priority else "",
+        "gain": priority["gain"] if priority else 0,
+    }
