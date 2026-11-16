@@ -196,6 +196,12 @@ for p in ["/student/dashboard", "/student/learning-profile", "/student/learning-
     rr = s.get(BASE + p)
     rec(f"學生頁 {p}", rr.status_code == 200 and "Traceback" not in rr.text, title(rr.text))
 
+# 畢業門檻工作台（2026-11-16）：總覽環與四條量表、四個可展開的門檻區塊、下一步、學期預警同一頁
+grad = s.get(BASE + "/student/graduation-check").text
+rec("畢業門檻工作台：總覽、四個門檻區塊、下一步與學期預警", "data-grad-dashboard" in grad and "data-gd-ring" in grad
+    and grad.count('data-gd-block="') == 4 and "data-gd-steps" in grad and "data-semester-warning" in grad
+    and 'id="gd-ask"' in grad, f"{grad.count('data-gd-block=')} 個區塊、{grad.count('gd-go')} 個下一步按鈕標記")
+
 # 小助手待辦（B6）：規劃 → 同意 → 待辦頁；再規劃一次不會變兩份
 def plan_and_approve(session):
     page = session.get(BASE + "/student/agent/issues").text

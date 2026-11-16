@@ -258,13 +258,16 @@ def graduation_check():
             item_cases.setdefault(case.item, case)
     curriculum = graduation_check_service.load_curriculum()
     assessment = graduation_check_service.assess(user, curriculum=curriculum)
-    from app.services import check_dates, semester_warning
+    from app.services import check_dates, graduation_board, semester_warning
+    warnings = semester_warning.build(user, curriculum=curriculum)
+    result = graduation_check_service.evaluate(user, curriculum=curriculum)
     return render_template("student_graduation_check.html", user=user,
-                           warnings=semester_warning.build(user, curriculum=curriculum),
+                           warnings=warnings,
                            warning_labels=semester_warning.LEVEL_LABELS, warning_note=semester_warning.NOTE,
                            countdown=check_dates.countdown(assessment["stage"]),
-                           result=graduation_check_service.evaluate(user, curriculum=curriculum),
+                           result=result,
                            assessment=assessment,
+                           board=graduation_board.build(user, assessment, result, curriculum, warnings),
                            overall=graduation_check_service.overall_result(assessment),
                            item_cases=item_cases,
                            other_cases=[c for c in cases if c.case_type != "gap"],
