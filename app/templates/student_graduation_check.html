@@ -5,148 +5,252 @@
 {% set label, tag = check.OVERALL_LABELS[overall] %}
 {% set cert = result.certificates %}
 {% set credits = result.credits %}
+{% set lists = board.lists %}
+{% set items = assessment["items"] %}
+{% set stage = assessment.stage %}
+{% set stage_text %}{% if stage.grade %}專{{ stage.grade }}{{ stage.semester }}{% else %}尚未入學{% endif %}{% endset %}
+{% set case_status = {"pending": "待處理", "in_progress": "處理中", "awaiting_verification": "待確認（舊案件）", "closed": "已結案"} %}
+
+{% macro step_link(step) -%}
+  {%- if step.kind == "transcript" -%}{{ url_for('student.learning_profile_upload_page', type='transcript') }}
+  {%- elif step.kind == "credential" -%}{{ url_for('student.learning_profile_upload_page', type='credential') }}
+  {%- elif step.kind == "files" -%}{{ url_for('student.my_files') }}
+  {%- else -%}#gd-ask{%- endif -%}
+{%- endmacro %}
+
+{% macro step_button(step, small=false) -%}
+<a class="gd-go{% if small %} gd-go--small{% endif %}" href="{{ step_link(step) }}" data-step-kind="{{ step.kind }}"{% if step.prefill %} data-prefill="{{ step.prefill }}"{% endif %}>{{ step.action }}<span aria-hidden="true">→</span></a>
+{%- endmacro %}
 
 {% block title %}畢業門檻提醒｜資管科學習歷程{% endblock %}
 
 {% block navigation %}{{ masthead(user, "畢業門檻") }}{% endblock %}
 
 {% block content %}
-{# 學生端 v2 外觀（2026-11-11）：十格學期條、證照三個位子、學分進度條、判斷結果小卡。資料與表單送出不變。 #}
+{# 畢業門檻工作台（2026-11-16）：頂端總覽（總學分環、四條量表、檢核倒數）＋ 四個門檻區塊（點開看細項）＋ 右側下一步與學期預警。
+   數字全部沿用 graduation_check_service；graduation_board 只負責整理成工作台要的清單。 #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/student-v2/graduation.css') }}">
-<section class="work-shell g2grad">
+<section class="work-shell g2grad gdash" data-grad-dashboard>
   <header class="work-heading g2-head">
-    <div>
-      <p class="g2-kick">學習支援</p>
-      <h1>畢業門檻提醒</h1>
-      <p class="g2-lead">依已確認的成績與證照，整理證照與學分還差多少。只供提醒，不代表畢業資格。</p>
-      <p class="g2-registrar" data-registrar-note>正式畢業資格審查由<strong>教務處</strong>負責：專四下、專五上教務處會請你填一張自評表，寫哪些科目過了、哪些沒過。可以先用這一頁對照，再照實填寫。</p>
-    </div>
+    <p class="g2-kick">學習支援 · 畢業門檻提醒</p>
+    <h1>畢業門檻工作台</h1>
+    <p class="g2-lead">依已確認的成績與證照，整理證照與學分還差多少、下一步可以做什麼。只供提醒，不代表畢業資格。</p>
+    <p class="g2-registrar" data-registrar-note>正式畢業資格審查由<strong>教務處</strong>負責：專四下、專五上教務處會請你填一張自評表，寫哪些科目過了、哪些沒過。可以先用這一頁對照，再照實填寫。</p>
   </header>
 
-  <div class="g2-status">
-    <p class="tag {{ tag }} g2-pill" role="status" data-grad-overall="{{ overall }}">{{ label }}</p>
-    <span class="g2-count">目前階段：{% if assessment.stage.grade %}專{{ assessment.stage.grade }}{{ assessment.stage.semester }}{% else %}尚未入學{% endif %}{% if not assessment.stage.formal %}（專四下以後才會正式列為缺口）{% endif %}</span>
-  </div>
-  {% if countdown %}<p class="notice g2-countdown" data-check-countdown>{{ countdown.text }}</p>{% endif %}
-
-  {# ---- 各學期預警：十格學期條（舊→新），點格子看細節 ---- #}
-  <section class="g2-panel" aria-labelledby="warning-heading" data-semester-warning>
-    <h2 id="warning-heading">各學期預警</h2>
-    <p class="g2-small">{{ warning_note }}</p>
-    {% if warnings.reason %}<p>{{ warnings.reason }}</p>{% endif %}
-    {% set ended = warnings.terms|reverse|list %}
-    {% set future_n = [10 - ended|length, 0]|max %}
-    {% set flagged = warnings.terms|rejectattr("level", "equalto", "ok")|list %}
-    {% if assessment.stage.grade %}
-    <p class="g2-small">一格是一個學期。點有斜線的格子，看哪一科還沒補及格。</p>
-    <div class="g2-terms" data-term-strip>
-      {% for term in ended %}
-      {% set cls = "recovered" if (term.level == "ok" and term.recovered) else ("ok" if term.level == "ok" else ("nodata" if term.level == "no_data" else "warn " ~ term.level)) %}
-      <button type="button" class="g2-term {{ cls }}" style="--i: {{ loop.index0 }}" aria-controls="term-{{ loop.index }}" aria-pressed="false"><i aria-hidden="true"></i><span>{{ term.label }}</span></button>
-      {% endfor %}
-      {% for n in range(future_n) %}
-      <button type="button" class="g2-term future{% if loop.first %} now{% endif %}" style="--i: {{ ended|length + loop.index0 }}" aria-controls="term-future" aria-pressed="false"><i aria-hidden="true"></i><span>{% if loop.first %}現在{% else %}還沒到{% endif %}</span></button>
-      {% endfor %}
-    </div>
-    <div class="g2-legend" aria-hidden="true"><span><b class="ok"></b>沒有不及格</span><span><b class="warn"></b>有不及格</span><span><b class="recovered"></b>之後已補及格</span><span><b class="future"></b>還沒到</span></div>
-    {% endif %}
-    <div class="g2-details">
-    {% for term in ended %}
-    {% set wlabel, wtag = warning_labels[term.level] %}
-    <div class="g2-detail" id="term-{{ loop.index }}"{% if term.level != "ok" %} data-warning-term="{{ term.level }}"{% else %} hidden{% endif %}>
-      <h3>{{ term.label }} <span class="tag {{ wtag }}">{{ wlabel }}</span></h3>
-      <p>{{ term.message }}</p>
-      {% if term.still_failed %}<p class="small">還沒補及格：{% for c in term.still_failed %}{{ c.name }}（{{ c.score }} 分{% if c.required %}，必修{% endif %}）{% if not loop.last %}、{% endif %}{% endfor %}</p>{% endif %}
-      {% if term.recovered %}<p class="small muted">之後已補及格：{{ term.recovered|map(attribute="name")|join("、") }}</p>{% endif %}
-    </div>
-    {% endfor %}
-    <div class="g2-detail" id="term-future" hidden><h3>還沒到的學期</h3><p>這個學期還沒結束，結束後會依成績自動整理。</p></div>
-    </div>
-    {% if warnings.terms and not flagged %}<p data-warning-all-ok>已結束的 {{ warnings.terms|length }} 個學期都沒有不及格。</p>
-    {% elif warnings.counts.ok %}<p class="g2-small">其他 {{ warnings.counts.ok }} 個學期沒有不及格。</p>{% endif %}
-  </section>
-
-  {# ---- 證照：三個位子 ---- #}
-  <section class="g2-panel" aria-labelledby="cert-heading">
-    <h2 id="cert-heading">專業證照（至少 3 張，累計數字）</h2>
-    <p class="g2-small">採計 {{ cert.counted_count }} 張，還差 {{ cert.missing }} 張。中（英）文輸入證照至多採計 1 張。</p>
-    <ul class="g2-slots">
-      {% for name in cert.counted %}
-      <li class="g2-slot" style="--d: {{ loop.index0 * 0.1 }}s"><small>採計 {{ loop.index }}</small><b>{{ name }}</b><small aria-hidden="true">✓</small></li>
-      {% endfor %}
-      {% for n in range(cert.missing) %}
-      <li class="g2-slot empty" style="--d: {{ (cert.counted|length + loop.index0) * 0.1 }}s"><a href="{{ url_for('student.learning_profile_credentials') }}">＋ 還差 1 張<small>到證照頁確認或補上傳</small></a></li>
-      {% endfor %}
-    </ul>
-    {% if not cert.counted %}<p class="g2-small">目前沒有已確認、可採計的證照。</p>{% endif %}
-    {% for note in cert.notes %}<p class="g2-small">{{ note }}</p>{% endfor %}
-    <p class="g2-small"><a href="{{ url_for('student.learning_profile_credentials') }}">到證照頁確認或補上傳</a></p>
-  </section>
-
-  {# ---- 學分：進度條，原表格收進「看表格」 ---- #}
-  <section class="g2-panel" aria-labelledby="credit-heading">
-    <h2 id="credit-heading">學分（累計數字）</h2>
-    <p class="g2-small">下表只是目前已確認成績的累計數字，「還差」是距離畢業總規定的差距，不等於缺口；是否列為缺口請看下方「各項目判斷結果」。</p>
-    {% if credits.earned is none %}
-    <p>{{ credits.reason }}</p>
-    {% else %}
-    <div class="g2-credits" data-credit-bars>
-      {% for key, name in [("required", "必修"), ("elective", "選修"), ("total", "總學分")] %}
-      {% set have = credits.earned[key] %}{% set need = credits.needed[key] %}
-      {% set pct = ((have / need * 100) if need else 100)|round(1) %}
-      <div class="g2-cr">
-        <span class="g2-cr__lbl">{{ name }}</span>
-        <span class="g2-track" role="img" aria-label="{{ name }} 已修 {{ have }}／{{ need }} 學分"><i style="--w: {{ [pct, 100]|min }}%"></i></span>
-        <span class="g2-cr__num"><b>{{ have }}</b> / {{ need }}，還差 {{ credits.gaps[key] }}</span>
+  {# ---- 總覽：總學分環＋四條量表＋倒數 ---- #}
+  {% set total_meter = board.meters[3] %}
+  <section class="gd-top" aria-labelledby="gd-top-heading" data-gd-top>
+    <h2 id="gd-top-heading" class="gd-sr">整體進度</h2>
+    <div class="gd-ring{% if overall == 'met' %} is-done{% endif %}" data-gd-ring style="--p: {{ total_meter.pct }}">
+      <svg viewBox="0 0 120 120" aria-hidden="true" focusable="false">
+        <circle class="gd-ring__bg" cx="60" cy="60" r="52"></circle>
+        <circle class="gd-ring__fg" cx="60" cy="60" r="52" pathLength="100"></circle>
+      </svg>
+      <div class="gd-ring__txt">
+        {% if total_meter.have is none %}
+        <b>？</b><span>總學分待確認</span>
+        {% else %}
+        <b data-count="{{ total_meter.have }}">{{ total_meter.have }}</b><span>／{{ total_meter.need }} 總學分</span>
+        {% endif %}
       </div>
-      {% endfor %}
     </div>
-    <details class="g2-tbl"><summary>看表格</summary>
-    <table>
-      <thead><tr><th scope="col">項目</th><th scope="col">已修</th><th scope="col">需修</th><th scope="col">還差</th></tr></thead>
-      <tbody>
-        <tr><th scope="row">必修</th><td>{{ credits.earned.required }}</td><td>{{ credits.needed.required }}</td><td>{{ credits.gaps.required }}</td></tr>
-        <tr><th scope="row">選修</th><td>{{ credits.earned.elective }}</td><td>{{ credits.needed.elective }}</td><td>{{ credits.gaps.elective }}</td></tr>
-        <tr><th scope="row">總學分</th><td>{{ credits.earned.total }}</td><td>{{ credits.needed.total }}</td><td>{{ credits.gaps.total }}</td></tr>
-      </tbody>
-    </table>
-    </details>
-    <p class="g2-small">依據：{{ credits.source }}</p>
-    {% if credits.reason %}<p>{{ credits.reason }}</p>{% endif %}
-    {% if credits.duplicates %}<p class="g2-small">這些課在不同的成績單裡重複出現，同一學期只計算一次：{{ credits.duplicates|join("、") }}。</p>{% endif %}
-    {% endif %}
+
+    <div class="gd-top__main">
+      <div class="g2-status">
+        <p class="tag {{ tag }} g2-pill" role="status" data-grad-overall="{{ overall }}">{{ label }}</p>
+        <span class="g2-count">目前階段：{{ stage_text }}{% if not stage.formal %}（專四下以後才會正式列為缺口）{% endif %}</span>
+      </div>
+      <ul class="gd-meters" data-credit-bars>
+        {% for m in board.meters %}
+        {% set data = items[m.item] %}
+        {% set rlabel, rtag = check.RESULT_LABELS[data.result] %}
+        <li>
+          <a class="gd-meter gd-meter--{{ data.result }}" href="#gd-{{ m.item }}" data-open-block="{{ m.item }}">
+            <span class="gd-meter__name">{{ m.name }}</span>
+            <span class="g2-track" role="img" aria-label="{{ m.name }} {% if m.have is none %}待確認{% else %}已有 {{ m.have }}／{{ m.need }} {{ m.unit }}{% endif %}"><i style="--w: {{ m.pct }}%"></i></span>
+            <span class="gd-meter__num">{% if m.have is none %}待確認{% else %}<b>{{ m.have }}</b>／{{ m.need }}{% if m.short %}<em>還差 {{ m.short }}</em>{% else %}<em class="ok">達到</em>{% endif %}{% endif %}</span>
+            <span class="tag {{ rtag }}">{{ rlabel }}</span>
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+      <p class="g2-small">數字是目前已確認資料的累計數字；是否算缺口看各區塊的判斷結果。</p>
+    </div>
+
+    <div class="gd-clock" data-check-countdown-box>
+      {% if countdown and countdown.days is not none and countdown.days >= 0 %}
+      <p class="gd-clock__days"><b data-count="{{ countdown.days }}">{{ countdown.days }}</b><span>天</span></p>
+      {% endif %}
+      {% if countdown %}<p class="notice g2-countdown" data-check-countdown>{{ countdown.text }}</p>
+      {% else %}<p class="g2-small">專四、專五上才有教務處的畢業檢核，到時這裡會倒數。</p>{% endif %}
+      <p class="gd-clock__todo">{% if board.steps %}下一步還有 <b>{{ board.steps|length }}</b> 件{% else %}目前沒有要補的事{% endif %}</p>
+    </div>
   </section>
 
-  {# ---- 各項目判斷結果：小卡 ---- #}
-  <section class="g2-panel" aria-labelledby="assess-heading">
-    <h2 id="assess-heading">各項目判斷結果</h2>
-    <p class="g2-small">目前階段：{% if assessment.stage.grade %}專{{ assessment.stage.grade }}{{ assessment.stage.semester }}{% else %}尚未入學{% endif %}{% if not assessment.stage.formal %}（專四下以後才會正式列為缺口）{% endif %}</p>
-    <div class="g2-items">
-    {% for item, data in assessment["items"].items() %}
-    {% set rlabel, rtag = check.RESULT_LABELS[data.result] %}
-    {% set case = item_cases.get(item) %}
-    <div class="g2-item g2-item--{{ data.result }}" style="--d: {{ loop.index0 * 0.08 }}s">
-      <h3>{{ {"certificates": "專業證照", "required_credits": "必修學分", "elective_credits": "選修學分", "total_credits": "總學分"}[item] }}
-        <span class="tag {{ rtag }}">{{ rlabel }}</span></h3>
-      {% if data.amount is not none and data.result in ("gap", "progress", "transfer_pending") %}<p>還差 {{ data.amount }} {{ data.unit }}。</p>{% endif %}
-      {% if data.detail %}<p>{{ data.detail }}</p>{% endif %}
-      {% if data.failed_required %}<p>不及格的必修：{{ data.failed_required|join("、") }}</p>{% endif %}
-      {% if data.basis %}<p class="g2-basis">依據：{{ data.basis }}</p>{% endif %}
-      {% if data.result == "gap" %}<p class="g2-remedy"><strong>補救方式：</strong>{{ check.REMEDY_TEXT[item] }}</p>{% endif %}
-      {% if case %}<p class="g2-case">案件 <a href="{{ url_for('graduation.case_detail', case_id=case.id) }}">{{ case.number }}</a>（{{ {"pending": "待處理", "in_progress": "處理中", "awaiting_verification": "待確認（舊案件）", "closed": "已結案"}[case.status] }}）</p>{% endif %}
+  <div class="gd-grid">
+    {# ---- 左：四個門檻區塊 ---- #}
+    <div class="gd-blocks" aria-label="各項目判斷結果">
+      <h2 id="assess-heading" class="gd-h">各項目判斷結果</h2>
+      {% for m in board.meters %}
+      {% set item = m.item %}
+      {% set data = items[item] %}
+      {% set rlabel, rtag = check.RESULT_LABELS[data.result] %}
+      {% set case = item_cases.get(item) %}
+      <details class="gd-block g2-item--{{ data.result }}" id="gd-{{ item }}" data-gd-block="{{ item }}" data-result="{{ data.result }}"{% if data.result == "gap" %} open{% endif %}>
+        <summary>
+          <span class="gd-block__mark" aria-hidden="true">{% if data.result == "met" %}<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>{% endif %}</span>
+          <span class="gd-block__title">{{ m.name }}</span>
+          <span class="gd-block__fig">{% if m.have is none %}待確認{% else %}{{ m.have }}／{{ m.need }} {{ m.unit }}{% endif %}</span>
+          <span class="tag {{ rtag }}">{{ rlabel }}</span>
+        </summary>
+        <div class="gd-block__body">
+          {% if data.amount is not none and data.result in ("gap", "progress", "transfer_pending") %}<p class="gd-short">還差 <b>{{ data.amount }}</b> {{ data.unit }}。</p>{% endif %}
+          {% if data.detail and not (item == "certificates" and data.result in ("gap", "progress")) %}<p>{{ data.detail }}</p>{% endif %}
+
+          {% if item == "certificates" %}
+            <p class="g2-small">已採計 {{ cert.counted_count }} 張，至少要 {{ cert.needed }} 張；中（英）文輸入證照至多採計 1 張。</p>
+            <ul class="g2-slots">
+              {% for name in cert.counted %}
+              <li class="g2-slot" style="--d: {{ loop.index0 * 0.1 }}s"><small>採計 {{ loop.index }}</small><b>{{ name }}</b><small aria-hidden="true">✓</small></li>
+              {% endfor %}
+              {% for n in range(cert.missing) %}
+              <li class="g2-slot empty" style="--d: {{ (cert.counted|length + loop.index0) * 0.1 }}s"><a href="{{ url_for('student.learning_profile_upload_page', type='credential') }}">＋ 還差 1 張<small>上傳證照</small></a></li>
+              {% endfor %}
+            </ul>
+            {% if not cert.counted %}<p class="g2-small">目前沒有已確認、可採計的證照。</p>{% endif %}
+            {% for note in cert.notes %}<p class="gd-check">待人工確認：{{ note }}</p>{% endfor %}
+            {% if board.pending.credential %}<p class="gd-check">有 {{ board.pending.credential|length }} 份證照還在辨識或等你確認，確認後才會算進來。</p>{% endif %}
+          {% elif lists %}
+            {% set mine = lists.required if item == "required_credits" else (lists.elective if item == "elective_credits" else lists.required + lists.elective) %}
+            <details class="gd-list" data-gd-list="counted">
+              <summary>已算進去的課 <b>{{ mine|length }}</b> 門，{{ mine|sum(attribute="credits") }} 學分</summary>
+              {% if mine %}
+              <ul class="gd-courses">{% for c in mine %}<li><span>{{ c.name }}</span><small>{{ c.term }}{% if c.term %} · {% endif %}{{ c.credits }} 學分</small></li>{% endfor %}</ul>
+              {% else %}<p class="g2-small">還沒有已確認、及格的課。</p>{% endif %}
+            </details>
+            {% if item == "required_credits" %}
+              {% if lists.failed %}
+              <div class="gd-check gd-check--warn">
+                <p>不及格、還沒補及格：</p>
+                <ul class="gd-courses">{% for c in lists.failed %}<li><span>{{ c.name }}</span><small>{% if c.score is not none %}{{ c.score }} 分{% endif %}</small></li>{% endfor %}</ul>
+              </div>
+              {% endif %}
+              {% if data.failed_required %}<p>不及格的必修：{{ data.failed_required|join("、") }}</p>{% endif %}
+              <details class="gd-list" data-gd-list="not-taken">
+                <summary>科目表上還沒修過的必修 <b>{{ lists.not_taken|length }}</b> 門</summary>
+                <p class="g2-small">依你那一屆的修業科目表列出（不含從清單裡挑的通識）；還沒到的學期本來就還沒修，只供對照。</p>
+                <ul class="gd-courses gd-courses--cols">{% for c in lists.not_taken %}<li><span>{{ c.name }}</span><small>{{ c.category }}</small></li>{% endfor %}</ul>
+              </details>
+            {% endif %}
+            {% if item == "total_credits" and m.short and stage.remaining_terms %}
+              {% set per = ((m.short + stage.remaining_terms - 1) // stage.remaining_terms) %}
+              <p class="gd-pace">還有 {{ stage.remaining_terms }} 個學期，平均每學期至少要拿到 <b>{{ per }}</b> 學分才補得完（專五每學期最多修 {{ check.MAX_CREDITS_PER_TERM_SENIOR }} 學分）。</p>
+            {% endif %}
+            {% if lists.unmatched and item != "elective_credits" %}
+            <div class="gd-check">
+              <p>待人工確認（對不到科目表，學分還沒算進去）：</p>
+              <ul class="gd-courses">{% for c in lists.unmatched %}<li><span>{{ c.name }}</span><small>{{ c.credits }} 學分</small></li>{% endfor %}</ul>
+            </div>
+            {% endif %}
+            {% if board.pending.transcript and item == "total_credits" %}<p class="gd-check">有 {{ board.pending.transcript|length }} 份成績單還在辨識或等你確認，確認後才會算進來。</p>{% endif %}
+          {% else %}
+            <p>{{ credits.reason }}</p>
+          {% endif %}
+
+          {% if item == "total_credits" and credits.earned is not none %}
+          <details class="g2-tbl"><summary>看表格</summary>
+          <table>
+            <thead><tr><th scope="col">項目</th><th scope="col">已修</th><th scope="col">需修</th><th scope="col">還差</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">必修</th><td>{{ credits.earned.required }}</td><td>{{ credits.needed.required }}</td><td>{{ credits.gaps.required }}</td></tr>
+              <tr><th scope="row">選修</th><td>{{ credits.earned.elective }}</td><td>{{ credits.needed.elective }}</td><td>{{ credits.gaps.elective }}</td></tr>
+              <tr><th scope="row">總學分</th><td>{{ credits.earned.total }}</td><td>{{ credits.needed.total }}</td><td>{{ credits.gaps.total }}</td></tr>
+            </tbody>
+          </table>
+          </details>
+          {% if credits.duplicates %}<p class="g2-small">這些課在不同的成績單裡重複出現，同一學期只計算一次：{{ credits.duplicates|join("、") }}。</p>{% endif %}
+          {% endif %}
+
+          {% if data.basis %}<p class="g2-basis">依據：{{ data.basis }}</p>{% endif %}
+          {% if data.result == "gap" %}<p class="g2-remedy"><strong>補救方式：</strong>{{ check.REMEDY_TEXT[item] }}</p>{% endif %}
+          {% if case %}<p class="g2-case">案件 <a href="{{ url_for('graduation.case_detail', case_id=case.id) }}">{{ case.number }}</a>（{{ case_status[case.status] }}）</p>{% endif %}
+
+          {% set mysteps = board.steps|selectattr("item", "equalto", item)|list %}
+          {% if mysteps %}
+          <div class="gd-block__next">{% for s in mysteps %}{{ step_button(s, true) }}{% endfor %}</div>
+          {% elif data.result == "met" %}
+          <p class="gd-yay" data-gd-yay>這一項達成了。</p>
+          {% endif %}
+        </div>
+      </details>
+      {% endfor %}
+      {% if other_cases %}
+      <h3 class="g2-sub">其他案件</h3>
+      <ul class="g2-cases">{% for case in other_cases %}<li><a href="{{ url_for('graduation.case_detail', case_id=case.id) }}">{{ case.number }}</a>（{{ {"data_needed": "資料不足", "inquiry": "詢問"}[case.case_type] }}，{{ case_status[case.status] }}）</li>{% endfor %}</ul>
+      {% endif %}
+      {% if credits.source %}<p class="g2-small">學分依據：{{ credits.source }}</p>{% endif %}
     </div>
-    {% endfor %}
-    </div>
-    {% if other_cases %}
-    <h3 class="g2-sub">其他案件</h3>
-    <ul class="g2-cases">{% for case in other_cases %}<li><a href="{{ url_for('graduation.case_detail', case_id=case.id) }}">{{ case.number }}</a>（{{ {"data_needed": "資料不足", "inquiry": "詢問"}[case.case_type] }}，{{ {"pending": "待處理", "in_progress": "處理中", "awaiting_verification": "待確認（舊案件）", "closed": "已結案"}[case.status] }}）</li>{% endfor %}</ul>
-    {% endif %}
-  </section>
+
+    {# ---- 右：下一步、各學期預警 ---- #}
+    <aside class="gd-side">
+      <section class="g2-panel gd-steps" aria-labelledby="gd-steps-heading" data-gd-steps>
+        <h2 id="gd-steps-heading">下一步</h2>
+        {% if board.steps %}
+        <ol>
+          {% for s in board.steps %}
+          <li><p>{{ s.text }}</p>{{ step_button(s) }}</li>
+          {% endfor %}
+        </ol>
+        {% else %}
+        <p class="gd-yay" data-gd-yay>目前沒有要補的資料或缺口。新的成績、證照確認後，這裡會自動更新。</p>
+        {% endif %}
+      </section>
+
+      {# ---- 各學期預警：十格學期條（舊→新），點格子看細節 ---- #}
+      <section class="g2-panel" aria-labelledby="warning-heading" data-semester-warning>
+        <h2 id="warning-heading">各學期預警</h2>
+        <p class="g2-small">{{ warning_note }}</p>
+        {% if warnings.reason %}<p>{{ warnings.reason }}</p>{% endif %}
+        {% set ended = warnings.terms|reverse|list %}
+        {% set future_n = [10 - ended|length, 0]|max %}
+        {% set flagged = warnings.terms|rejectattr("level", "equalto", "ok")|list %}
+        {% if stage.grade %}
+        <p class="g2-small">一格是一個學期。點有斜線的格子，看哪一科還沒補及格。</p>
+        <div class="g2-terms" data-term-strip>
+          {% for term in ended %}
+          {% set cls = "recovered" if (term.level == "ok" and term.recovered) else ("ok" if term.level == "ok" else ("nodata" if term.level == "no_data" else "warn " ~ term.level)) %}
+          <button type="button" class="g2-term {{ cls }}" style="--i: {{ loop.index0 }}" aria-controls="term-{{ loop.index }}" aria-pressed="false"><i aria-hidden="true"></i><span>{{ term.label }}</span></button>
+          {% endfor %}
+          {% for n in range(future_n) %}
+          <button type="button" class="g2-term future{% if loop.first %} now{% endif %}" style="--i: {{ ended|length + loop.index0 }}" aria-controls="term-future" aria-pressed="false"><i aria-hidden="true"></i><span>{% if loop.first %}現在{% else %}還沒到{% endif %}</span></button>
+          {% endfor %}
+        </div>
+        <div class="g2-legend" aria-hidden="true"><span><b class="ok"></b>沒有不及格</span><span><b class="warn"></b>有不及格</span><span><b class="recovered"></b>之後已補及格</span><span><b class="future"></b>還沒到</span></div>
+        {% endif %}
+        <div class="g2-details">
+        {% for term in ended %}
+        {% set wlabel, wtag = warning_labels[term.level] %}
+        <div class="g2-detail" id="term-{{ loop.index }}"{% if term.level != "ok" %} data-warning-term="{{ term.level }}"{% else %} hidden{% endif %}>
+          <h3>{{ term.label }} <span class="tag {{ wtag }}">{{ wlabel }}</span></h3>
+          <p>{{ term.message }}</p>
+          {% if term.still_failed %}<p class="small">還沒補及格：{% for c in term.still_failed %}{{ c.name }}（{{ c.score }} 分{% if c.required %}，必修{% endif %}）{% if not loop.last %}、{% endif %}{% endfor %}</p>{% endif %}
+          {% if term.recovered %}<p class="small muted">之後已補及格：{{ term.recovered|map(attribute="name")|join("、") }}</p>{% endif %}
+          {% if term.level == "no_data" %}<p class="small"><a href="{{ url_for('student.learning_profile_upload_page', type='transcript') }}">上傳這學期的成績單 →</a></p>{% endif %}
+        </div>
+        {% endfor %}
+        <div class="g2-detail" id="term-future" hidden><h3>還沒到的學期</h3><p>這個學期還沒結束，結束後會依成績自動整理。</p></div>
+        </div>
+        {% if warnings.terms and not flagged %}<p data-warning-all-ok>已結束的 {{ warnings.terms|length }} 個學期都沒有不及格。</p>
+        {% elif warnings.counts.ok %}<p class="g2-small">其他 {{ warnings.counts.ok }} 個學期沒有不及格。</p>{% endif %}
+      </section>
+    </aside>
+  </div>
 
   {# ---- 更正或諮詢（照原本送出到後端） ---- #}
-  <section class="g2-panel" aria-labelledby="inquiry-heading">
+  <section class="g2-panel" id="gd-ask" aria-labelledby="inquiry-heading">
     <h2 id="inquiry-heading">更正或諮詢</h2>
-    <p class="g2-small">資料有誤或想問導師，可在此留言；導師會收到通知。</p>
+    <p class="g2-small">資料有誤或想問導師，可在此留言；導師會收到通知。按上面的「問導師」「請科辦確認」會先幫你填好內容，可以再改。</p>
     <form class="g2-ask" method="post" action="{{ url_for('graduation.create_inquiry') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label class="g2-field"><span>內容</span><textarea name="note" rows="3" maxlength="1000" required placeholder="例如：專一下的統計學我已經重修及格了，成績單還沒更新。"></textarea></label>
