@@ -5,7 +5,7 @@
 - 02_自傳_第N版.docx：最新一版自傳（還沒寫就沒有）。
 - 03_成績單與證照原始檔／：學生上傳、已確認的原始檔。
 - 04_經歷佐證／<經歷標題>／：已確認經歷的佐證檔。
-- 清單.txt：放了哪些、哪些沒放與原因。
+- 清單.txt：放了哪些、哪些沒放與原因；自傳提到學生選擇不放的經歷或證照時，另外提醒（自傳是學生的文字，系統不改）。
 
 只放學生已確認的資料；學生選擇「不放進備審」的不放（簡章規定必備的類別除外，規則見 package_exclusion）。
 原始成績單是整份檔案：裡面只要有一門課被選擇不放（且成績不是必備），整份就不放，免得那一科還是被看到。
@@ -60,11 +60,28 @@ def _kept_documents(student, required, skipped):
     return kept
 
 
+def _excluded_mentions(student, required, content):
+    """自傳裡提到、但學生選擇不放進備審的經歷與證照名稱（B24 2026-11-16 實測）。"""
+    text = "\n".join(paragraph.get("text", "") for paragraph in content.get("paragraphs", []))
+    portfolios = Portfolio.active().filter_by(student_id=student.id, status="confirmed").all()
+    credentials = CredentialRecord.query.filter_by(student_id=student.id, confirmation_status="confirmed").all()
+    names, kept = [], []
+    for record in portfolios:
+        kept_flag = package_exclusion.is_kept(record, package_exclusion.portfolio_keys(record), required)
+        (kept if kept_flag else names).append(record.title)
+    for record in credentials:
+        (kept if package_exclusion.is_kept(record, ("credential",), required) else names).append(record.credential_name)
+    # 有放的資料名稱先拿掉：排除「資料庫應用」時，自傳寫的「資料庫應用乙級」（有放）不算提到
+    for name in sorted({name for name in kept if name}, key=len, reverse=True):
+        text = text.replace(name, "\0")
+    return [name for name in dict.fromkeys(names) if name and name in text]
+
+
 def build_zip(student, program):
-    """回傳 (BytesIO, 清單)。清單是 {"included": [...], "skipped": [...]}。"""
+    """回傳 (BytesIO, 清單)。清單是 {"included": [...], "skipped": [...], "notes": [...]}。"""
     required = package_exclusion.required_keys(program)
     root = root_name(program)
-    included, skipped, used = [], [], set()
+    included, skipped, notes, used = [], [], [], set()
     buffer = io.BytesIO()
 
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
@@ -95,6 +112,9 @@ def build_zip(student, program):
             version = autobiography_service.version_of(draft)
             add(f"02_自傳_第{version}版.docx", autobiography_backup.build_docx(student, program, content, editor),
                 f"自傳第 {version} 版")
+            for name in _excluded_mentions(student, required, content):
+                notes.append(f"自傳第 {version} 版提到「{name}」，但你選擇不把它放進備審；"
+                             "自傳是你自己的文字，系統不會改，請自己決定要不要修改")
         else:
             skipped.append("自傳：還沒有草稿")
 
@@ -102,9 +122,15 @@ def build_zip(student, program):
             add_stored(f"03_成績單與證照原始檔/{_safe(document.display_name)}", document.file_path,
                        f"原始檔：{document.display_name}")
 
-        records = package_exclusion.keep_portfolios(
-            Portfolio.active().filter_by(student_id=student.id, status="confirmed").order_by(Portfolio.id).all(),
-            required)
+        portfolios = (Portfolio.active().filter_by(student_id=student.id, status="confirmed")
+                      .order_by(Portfolio.id).all())
+        records = package_exclusion.keep_portfolios(portfolios, required)
+        for record in portfolios:
+            if record in records:
+                continue
+            for evidence in record.evidence_items:
+                if evidence.file_path and evidence.is_available:
+                    skipped.append(f"佐證：{record.title}／{evidence.display_name}：這筆經歷你選擇不放進備審，佐證沒有放")
         for record in records:
             for evidence in record.evidence_items:
                 if not evidence.file_path or not evidence.is_available:
@@ -118,7 +144,9 @@ def build_zip(student, program):
                  "已放入："] + [f"- {item}" for item in included]
         if skipped:
             lines += ["", "沒有放入："] + [f"- {item}" for item in skipped]
+        if notes:
+            lines += ["", "請注意："] + [f"- {item}" for item in notes]
         archive.writestr(f"{root}/清單.txt", "\r\n".join(lines) + "\r\n")
 
     buffer.seek(0)
-    return buffer, {"included": included, "skipped": skipped}
+    return buffer, {"included": included, "skipped": skipped, "notes": notes}

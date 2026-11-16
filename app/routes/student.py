@@ -1594,6 +1594,7 @@ def target_gap(program_id):
         autobiography=autobiography,
         download_checklist=download_checklist(user, program, gap, review, autobiography),
         mail_recipients=_package_recipients(user),
+        mail_ready=_package_mail_ready(),
         labels=ALL_LABELS,
     )
 
@@ -1626,6 +1627,12 @@ def target_package(program_id):
 def _package_recipients(user):
     from app.services import backup_email
     return backup_email.recipients(user)
+
+
+def _package_mail_ready():
+    """有寄信帳號才會真的寄出；沒有時備審頁先提醒（B24 2026-11-16）。"""
+    from app.services import email_notify
+    return email_notify.smtp_ready()
 
 
 PACKAGE_MAIL_DAILY_LIMIT = 5  # 每位學生每天最多寄幾次備審打包

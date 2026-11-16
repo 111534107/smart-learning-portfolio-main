@@ -186,6 +186,65 @@ def test_zip_leaves_out_what_the_student_excluded(app):
     assert any("成績單.pdf" in line for line in manifest["skipped"])
 
 
+def _checklist(data):
+    archive = zipfile.ZipFile(io.BytesIO(data))
+    return archive.read(next(n for n in archive.namelist() if n.endswith("清單.txt"))).decode("utf-8")
+
+
+def test_checklist_explains_evidence_left_out_by_choice(app):
+    """B24 2026-11-16 實測：選「不放」的經歷，佐證檔沒放，但清單完全沒寫，學生以為檔案漏了。"""
+    with app.app_context():
+        data, manifest = package_zip.build_zip(_stu(), AdmissionProgram.query.filter_by(program_code="Z").one())
+
+    checklist = _checklist(data.getvalue())
+    assert any("不想放的校內比賽" in line and "選擇不放" in line for line in manifest["skipped"])
+    assert "校內比賽獎狀.jpg" in checklist.split("沒有放入：")[1]
+    assert "校內比賽獎狀.jpg" not in checklist.split("沒有放入：")[0]
+
+
+def test_checklist_reminds_when_autobiography_mentions_excluded_record(app):
+    """自傳是學生自己的文字，系統不改；但提到選擇不放的經歷時，清單要提醒學生自己決定要不要改。"""
+    with app.app_context():
+        program = AdmissionProgram.query.filter_by(program_code="Z").one()
+        autobiography_service.generate_draft(_stu(), program, {
+            "focus_credential": "為了確認基礎能力考了軟體應用證照。",
+            "focus_competition": "我參加不想放的校內比賽，也參加校園黑客松。"})
+        data, manifest = package_zip.build_zip(_stu(), program)
+
+    checklist = _checklist(data.getvalue())
+    assert any("不想放的校內比賽" in note for note in manifest["notes"])
+    assert "請注意：" in checklist and "不想放的校內比賽" in checklist.split("請注意：")[1]
+    assert not any("校園黑客松" in note for note in manifest["notes"])  # 有放的經歷不用提醒
+
+
+def test_checklist_does_not_remind_for_a_kept_record_with_a_longer_name(app):
+    """2026-11-16 實測：排除的「資料庫應用」被當成提到，其實自傳寫的是有放的「資料庫應用乙級」。"""
+    with app.app_context():
+        stu = _stu()
+        db.session.add_all([
+            CredentialRecord(student_id=stu.id, credential_name="資料庫應用乙級", confirmation_status="confirmed"),
+            CredentialRecord(student_id=stu.id, credential_name="資料庫應用", confirmation_status="confirmed",
+                             excluded_from_package=True)])
+        db.session.commit()
+        program = AdmissionProgram.query.filter_by(program_code="Z").one()
+        autobiography_service.generate_draft(_stu(), program, {
+            "focus_credential": "我考到資料庫應用乙級。", "focus_competition": "我參加校園黑客松，負責簡報。"})
+        _, manifest = package_zip.build_zip(_stu(), program)
+
+    assert not any("資料庫應用" in note for note in manifest["notes"])
+
+
+def test_checklist_has_no_reminder_when_autobiography_is_clean(app):
+    with app.app_context():
+        program = AdmissionProgram.query.filter_by(program_code="Z").one()
+        autobiography_service.generate_draft(_stu(), program, {
+            "focus_credential": "為了確認基礎能力考了軟體應用證照。", "focus_competition": "我參加校園黑客松，負責簡報。"})
+        data, manifest = package_zip.build_zip(_stu(), program)
+
+    assert manifest["notes"] == []
+    assert "請注意：" not in _checklist(data.getvalue())
+
+
 def test_zip_without_autobiography_still_builds(app):
     with app.app_context():
         data, _ = package_zip.build_zip(_stu(), AdmissionProgram.query.filter_by(program_code="Z").one())
@@ -294,6 +353,33 @@ def test_unverified_backup_address_cannot_receive(app, sent):
 
     assert response.status_code == 400
     assert sent == []
+
+
+def test_gap_page_says_backup_address_is_waiting_for_confirmation(app):
+    """B24 2026-11-16 實測：備用信箱已填、還沒確認時，原本寫「也還沒綁定備用信箱」，學生會以為沒填成功。"""
+    with app.app_context():
+        user = User.query.filter_by(username="other").one()
+        user.backup_email = "wait@personal.example.test"
+        db.session.add(StudentTarget(student_id=user.id, rule_version_id=AdmissionProgram.query.first().id))
+        db.session.commit()
+    text = login(app, "other").get(f"/student/targets/{_pid(app)}").get_data(as_text=True)
+
+    assert "也還沒綁定備用信箱" not in text
+    assert "wait@personal.example.test" in text and "等待確認" in text
+
+
+def test_gap_page_warns_before_mailing_when_there_is_no_mail_account(app):
+    """沒有寄信帳號時，按「打包寄給我」之前就說清楚不會真的寄出（不是按了才知道）。"""
+    text = login(app).get(f"/student/targets/{_pid(app)}").get_data(as_text=True)
+
+    assert "打包寄給我" in text
+    assert "目前還沒有設定寄信帳號" in text
+
+
+def test_gap_page_has_no_mail_warning_when_mail_is_ready(app, sent):
+    text = login(app).get(f"/student/targets/{_pid(app)}").get_data(as_text=True)
+
+    assert "目前還沒有設定寄信帳號" not in text
 
 
 def test_verified_backup_address_receives(app, sent):

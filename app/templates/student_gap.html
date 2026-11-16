@@ -159,6 +159,9 @@
               <select name="to">{% for r in mail_recipients %}<option value="{{ r.key }}">{{ r.label }}（{{ r.address }}）</option>{% endfor %}</select>
             </label>
             <button class="button button--line button--small" type="submit">打包寄給我</button>
+            {% if not mail_ready %}<p class="small mt-1">目前還沒有設定寄信帳號，按了也不會真的寄出；請先用「一鍵打包下載」。</p>{% endif %}
+            {% elif user.backup_email and not user.backup_email_verified_at %}
+            <p class="small">備用信箱 {{ user.backup_email }} 還在等待確認：到信箱點確認連結，或請管理員代為確認後就能寄。</p>
             {% else %}
             <p class="small">帳號還沒有學校信箱，也還沒綁定備用信箱，所以不能寄。</p>
             {% endif %}

@@ -174,6 +174,24 @@ if pid:
         after = s.get(BASE + f"/student/targets/{pid}/package.docx")
         after_text = docx_text(after.content)
         rec("Word 排除後該筆資料消失", key not in after_text, f"key={key}")
+        # B24（2026-11-16）：一鍵打包的「清單.txt」和壓縮檔實際內容一致；中文檔名有標 UTF-8（Windows 解壓不亂碼）
+        import zipfile
+        pack = s.get(BASE + f"/student/targets/{pid}/package.zip")
+        try:
+            archive = zipfile.ZipFile(io.BytesIO(pack.content))
+            entries = archive.infolist()
+            files = [e.filename for e in entries if not e.filename.endswith("清單.txt")]
+            listing = archive.read(next(e.filename for e in entries if e.filename.endswith("清單.txt"))).decode("utf-8")
+            kept_part, _, left_part = listing.partition("沒有放入：")
+            kept_lines = [line for line in kept_part.splitlines() if line.startswith("- ")]
+            left_names = re.findall(r"／([^／：\r\n]+\.\w+)：", left_part) + re.findall(r"^- ([^：／\r\n]+\.\w+)：", left_part, flags=re.M)
+            zip_ok = (pack.ok and len(kept_lines) == len(files) and all(e.flag_bits & 0x800 for e in entries)
+                      and not any(name in "\n".join(files) for name in left_names)
+                      and not any(x in listing for x in ("instance", "uploads", ":\\")))
+            detail = f"{len(files)} 個檔、清單已放入 {len(kept_lines)} 項、沒放 {len(left_names)} 個檔"
+        except (zipfile.BadZipFile, StopIteration) as error:
+            zip_ok, detail = False, f"{pack.status_code} {error!r}"
+        rec("一鍵打包：清單和壓縮檔內容一致、中文檔名標 UTF-8", zip_ok, detail)
         page2 = s.get(BASE + f"/student/package-exclusions?program_id={pid}")
         rr = s.post(BASE + "/student/package-exclusions", data={"csrf_token": csrf(page2.text), "kind": kind, "record_id": rid, "excluded": "0", "program_id": pid})
         back = s.get(BASE + f"/student/targets/{pid}/package.docx")
