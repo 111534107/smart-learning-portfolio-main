@@ -35,9 +35,11 @@
 - 過程中修了兩個問題：下一步按鈕文字被全站連結顏色蓋掉（深色看不見）；證照區塊「還差 2 張」同一句出現三次。
 - 第一次啟動本機站時，`scripts\real_ocr.py` 把 OCR 模型（186 MB）下載到這個 worktree 的 `instance\ocr-models`（已被 `.gitignore` 忽略，不會提交；合併後可以刪掉這個 worktree 一起清掉）。另外在 `D:\democase\.claude\launch.json` 加了一個 `grad-dashboard-5121` 啟動設定。
 
+合併進 `preview/student-v2`（2026-11-16，使用者要求，提交 `f63dd53`）：B24 的 `2ccf356` 先提交了，所以不是快轉；只有開發日誌衝突（兩邊都在最上面加一節），兩節都保留；`app\routes\student.py`、`scripts\acceptance_check.py` 自動合併，B24 與畢業門檻工作台的檢查都在。合併後在 `D:\democase\_worktrees\ai-wt-v2-preview` 跑：完整測試 1726 通過、2 略過、0 失敗（20 分 25 秒）；固定驗收腳本 92 項全部通過（含「畢業門檻工作台」）。
+
 下一步：
-- 使用者早上看畫面後決定要不要合併進 `preview/student-v2`；沒有推送、沒有合併、沒有重啟公開展示站。
-- 和目標校系地圖那個分支都改了 `scripts\acceptance_check.py` 與開發日誌最上面，合併時可能要手動保留兩邊。
+- 沒有推送、沒有重啟公開展示站 5097（展示站還是 `cc15af0`），兩件都要使用者同意。
+- 目標校系地圖那個分支之後合併時，`scripts\acceptance_check.py` 與開發日誌最上面可能要手動保留兩邊。
 
 ## 2026-11-16 B24 有自傳與上傳檔的學生實際走一次備審一鍵打包
 
