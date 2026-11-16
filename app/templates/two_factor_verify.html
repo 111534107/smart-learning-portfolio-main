@@ -9,6 +9,7 @@
 {% block content %}
 <section class="auth">
   <div class="auth__side">
+    {% with bg_panel = true %}{% include "partials/bg_squares.html" %}{% endwith %}
     <div><h1>再一步就好。<br>確認是你本人。</h1></div>
     <div class="auth__years" aria-hidden="true">
       {% for n in range(1, 6) %}<span style="--y: var(--year-{{ n }});"></span>{% endfor %}

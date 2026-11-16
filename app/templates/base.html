@@ -4,6 +4,9 @@
    教職員頁另外載入 staff-v2.css，表格與清單維持精簡、以效率為優先。 #}
 {% set student_v2 = user is defined and user and user.role in ("student", "teacher", "staff", "admin") %}
 {% set staff_v2 = student_v2 and user.role != "student" %}
+{# 背景方塊動畫：2026-11-16 使用者要求全系統每一頁都有；老師、科辦、管理員頁由 bg-squares.css 調得更淡。
+   某一頁不想要時，在該頁 {% set bg_squares = false %} 即可。 #}
+{% set bg_squares = bg_squares is not defined or bg_squares %}
 <html lang="zh-Hant" class="no-js"{% if student_v2 %} data-ui="student-v2"{% endif %}{% if staff_v2 %} data-staff-ui="{{ user.role }}"{% endif %}>
   <head>
     <meta charset="utf-8">
@@ -29,8 +32,10 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/student-v2/ocr.css') }}">
     {% if staff_v2 %}<link rel="stylesheet" href="{{ url_for('static', filename='css/student-v2/staff.css') }}">{% endif %}
     {% endif %}
+    {% if bg_squares %}<link rel="stylesheet" href="{{ url_for('static', filename='css/bg-squares.css') }}">{% endif %}
   </head>
   <body data-page="{{ page_name|default('workspace') }}"{% if page_name|default('workspace') not in ('student-dashboard', 'public-home') %} data-theme="campus"{% endif %}>
+    {% if bg_squares %}{% include "partials/bg_squares.html" %}{% endif %}
     <a class="skip-link" href="#main-content">跳到主要內容</a>
     {% block navigation %}{% endblock %}
     <main id="main-content">

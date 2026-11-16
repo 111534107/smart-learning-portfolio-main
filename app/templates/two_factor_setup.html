@@ -9,6 +9,7 @@
 {% block content %}
 <section class="auth">
   <div class="auth__side">
+    {% with bg_panel = true %}{% include "partials/bg_squares.html" %}{% endwith %}
     <div><h1>第一次登入，<br>先綁定你的手機。</h1>
       <p>系統有成績、證照等個人資料，所以每個人都要開雙重驗證：密碼被別人知道了，沒有你的手機還是登不進來。</p></div>
     <div class="auth__years" aria-hidden="true">

@@ -1,0 +1,84 @@
+/* 版面背景方塊動畫（2026-11-16）
+   參考康寧大學證照系統登入區「方塊往上飄」的效果，自己重寫；配色改用本系統的 --accent，淺色、深色模式自動跟著換。
+   - 結構：partials/bg_squares.html，由 base.html 引用，全系統每一頁都有；老師、科辦、管理員頁更淡。
+   - 位置：固定在視窗、z-index -1，永遠在內容後面；pointer-events: none 不擋點擊；overflow: hidden 不會讓手機左右滑。
+   - 效能：只動 transform（位移＋旋轉），方塊 10 個，手機只留 6 個；不用 JavaScript。
+   - 減少動態效果：系統設定 prefers-reduced-motion 時整層隱藏，完全不動。 */
+
+.bg-squares {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+  /* 方塊顏色：沿用目前頁面的主色，淺色模式較淡 */
+  --sq-fill: color-mix(in srgb, var(--accent, #2f6672) 9%, transparent);
+  --sq-line: color-mix(in srgb, var(--accent, #2f6672) 22%, transparent);
+}
+
+.bg-squares span {
+  position: absolute;
+  left: var(--x);
+  bottom: calc(-1 * var(--s) - 20px);
+  width: var(--s);
+  height: var(--s);
+  border: 1px solid var(--sq-line);
+  border-radius: 3px;
+  background: var(--sq-fill);
+  opacity: var(--a, 1);
+  will-change: transform;
+  animation: bg-square-rise var(--d) linear var(--w) infinite;
+}
+
+/* 往上飄過整個視窗，同時轉一圈半；負的延遲讓一打開頁面就已經散在各處，不會全部從底部同時出發 */
+@keyframes bg-square-rise {
+  from { transform: translate3d(0, 0, 0) rotate(0deg); }
+  to   { transform: translate3d(0, calc(-1 * var(--rise, 100vh) - 100% - 60px), 0) rotate(540deg); }
+}
+
+/* 深色模式：主色本身較亮，比例再降一點，避免搶眼 */
+[data-theme="dark"] .bg-squares {
+  --sq-fill: color-mix(in srgb, var(--accent, #7cb8c4) 7%, transparent);
+  --sq-line: color-mix(in srgb, var(--accent, #7cb8c4) 16%, transparent);
+}
+
+/* 老師、科辦、管理員頁：以效率為優先，方塊再淡一半 */
+[data-staff-ui] .bg-squares:not(.bg-squares--panel) { opacity: .55; }
+
+/* 登入頁左側深色欄：欄內自己一層，方塊用欄的文字色（白），像參考網站的彩色帶裡的白方塊 */
+.auth__side { position: relative; isolation: isolate; overflow: hidden; }
+.auth__side > :not(.bg-squares) { position: relative; z-index: 1; }
+.bg-squares--panel {
+  position: absolute;
+  z-index: 0;
+  --rise: 640px;
+  --sq-fill: color-mix(in srgb, var(--sheet, #fff) 8%, transparent);
+  --sq-line: color-mix(in srgb, var(--sheet, #fff) 20%, transparent);
+}
+[data-theme="dark"] .bg-squares--panel {
+  --sq-fill: color-mix(in srgb, var(--sheet, #fff) 8%, transparent);
+  --sq-line: color-mix(in srgb, var(--sheet, #fff) 20%, transparent);
+}
+/* 登入頁右側原本是和頁面同色的不透明底，改透明才看得到後面的方塊（顏色不變） */
+[data-theme="campus"] .auth__form { background: transparent; }
+/* 管理員登入頁：整頁底色移到 body，登入區改透明，顏色不變 */
+body:has(> main .auth--admin) { background: var(--paper-deep); }
+:root .auth.auth--admin { background: transparent; }
+/* 學生歡迎頁整頁底色和頁面底色相同，同樣改透明 */
+[data-ui="student-v2"] .welcome { background: transparent; }
+
+/* 手機：只留 6 個，大方塊縮小，減少繪製量 */
+@media (max-width: 600px) {
+  .bg-squares span:nth-child(n + 7) { display: none; }
+  .bg-squares span { width: min(var(--s), 72px); height: min(var(--s), 72px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bg-squares { display: none; }
+  .bg-squares span { animation: none; }
+}
+
+@media print {
+  .bg-squares { display: none; }
+}
