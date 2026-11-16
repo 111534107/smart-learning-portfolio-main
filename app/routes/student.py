@@ -1659,8 +1659,7 @@ def target_package_send(program_id):
         body = intro + "壓縮檔在附件，裡面的「清單.txt」列出放了哪些檔案。\n" + outro
         attachments = [(package_zip.download_name(program), payload, "application/zip")]
     else:
-        base = (current_app.config.get("MAIL_SITE_URL") or "").rstrip("/")
-        link = f"{base}{url_for('student.target_package_zip', program_id=program.id)}"
+        link = f"{email_notify.site_url()}{url_for('student.target_package_zip', program_id=program.id)}"
         body = intro + f"檔案太大，沒辦法放在信裡。請登入系統後用這個連結下載：\n{link}\n" + outro
         attachments = []
     status = email_notify.deliver(recipient["address"], PACKAGE_MAIL_SUBJECT, body, attachments, user_id=user.id)

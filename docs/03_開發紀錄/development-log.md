@@ -1,5 +1,31 @@
 # 開發日誌
 
+## 2026-11-16 B30 備用信箱沒有寄信帳號也能確認：管理員代為確認、信裡連結改成完整網址
+
+日期：2026-11-16（台灣時間）
+
+開發者：Claude（分支 `preview/student-v2`，工作資料夾 `D:\democase\_worktrees\ai-wt-v2-preview`）
+
+目標：使用者回報正式站備用信箱無法認證（現況一頁 B30）。原因：沒有寄信帳號（A12）時確認信寄不出，學生點不到確認連結；另外有寄信但沒設 `MAIL_SITE_URL` 時，信裡連結是相對路徑。使用者說「先處理 B30」，沒有指定認證方式，採用「等寄信帳號的同時，由管理員核對後代為確認」，有寄信帳號後原本的收信確認照常。
+
+做了什麼：
+1. **信裡連結改成完整網址**（`app\services\email_notify.py` 新增 `site_url()`）：先用 `MAIL_SITE_URL`；沒設就用這次請求的網址，經過 Cloudflare 通道（`X-Forwarded-Proto: https`）時改回 https。備用信箱確認信（`backup_email.verify_url`）、提醒信（`build_body`）、備審太大改寄下載連結（`student.py`）三處都改用它。
+2. **管理員代為確認**：
+   - `app\services\backup_email.py` 新增 `admin_confirm()`、`pending()`。只確認管理員頁面上看到的那個信箱；學生在這之間換過信箱就不確認。操作紀錄 `user.backup_email_admin_verify` 記是哪位管理員確認，不記信箱。
+   - 管理員「帳號管理」頁最上面新增「等待確認的備用信箱」區塊（`admin_accounts.html`、`admin.py` 的 `confirm_backup_email`），寫明要學生當面或用學校信箱告知、逐字核對；按鈕會再跳確認視窗。沒有等待中的就不顯示。
+   - 學生「修改密碼 → 備用信箱」：沒有寄信帳號的正式站，說明改成「改由管理員核對信箱後幫你確認」，標籤顯示「等管理員核對後確認」；展示站維持直接給確認連結。
+
+修改檔案：`app\services\email_notify.py`、`app\services\backup_email.py`、`app\routes\admin.py`、`app\routes\account_password.py`、`app\routes\student.py`、`app\templates\admin_accounts.html`、`app\templates\account_password.html`、`scripts\acceptance_check.py`、`tests\test_package_send.py`。
+
+新增測試（`tests\test_package_send.py` 5 項）：沒設 `MAIL_SITE_URL` 時連結是完整網址、經過通道時是 https、管理員代為確認（操作紀錄不記信箱）、學生已換信箱時管理員不能確認舊的、學生不能呼叫管理員確認。
+
+驗證：
+- `tests\test_package_send.py`、`tests\test_autobiography_backup.py` 40 項通過；最後一次改學生頁說明後 `test_package_send.py` 25 項重跑通過。
+- 固定驗收腳本 89 項全部通過（新增 2 項：管理員看到等待確認的備用信箱、代為確認後學生看到已確認）。
+- 完整測試：1707 通過、2 略過（15 分 21 秒）。這次跑在補學生頁說明文字之前；那次只改模板與 `account_password.py` 傳一個旗標，已重跑 `test_package_send.py` 25 項通過。
+
+下一步：有寄信帳號（A12）後，寄一封真的確認信，確認連結能點；正式站 `.env` 要設 `MAIL_SITE_URL`。公開展示站 5097 還是舊程式。
+
 ## 2026-11-16 B26 示範課名對上科目表、B27 找得到上傳的檔案、B28 活動推薦本科系優先
 
 日期：2026-11-16（台灣時間）

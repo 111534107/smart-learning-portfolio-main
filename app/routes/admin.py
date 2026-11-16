@@ -26,6 +26,7 @@ from app.models import (
     User,
 )
 from app.services import admission_agent_service as agent
+from app.services import backup_email, email_notify
 from app.services.staff_accounts import STAFF_TITLES
 from app.services.admission_service import import_seed_programs, published_programs, refresh_seed_details
 from app.services.admission_eligibility_service import validate_eligibility_condition
@@ -186,7 +187,26 @@ def accounts():
         staff_titles=STAFF_TITLES,
         staff_domain=_staff_domain(),
         locked_usernames=login_guard.locked_usernames(),
+        backup_pending=backup_email.pending(),
+        backup_result=session.pop("backup_email_result", None),
+        mail_ready=email_notify.smtp_ready(),
     )
+
+
+@admin_bp.post("/admin/accounts/<int:user_id>/backup-email/confirm")
+@role_required("admin")
+def confirm_backup_email(user_id):
+    """B30：沒有寄信帳號時，學生收不到確認信；管理員當面核對學生的備用信箱後代為確認。"""
+    account = db.session.get(User, user_id)
+    if account is None:
+        abort(404)
+    if backup_email.admin_confirm(get_current_user(), account, request.form.get("address")):
+        db.session.commit()
+        session["backup_email_result"] = {"ok": f"已確認 {account.display_name} 的備用信箱。"}
+    else:
+        db.session.rollback()
+        session["backup_email_result"] = {"error": f"{account.display_name} 的備用信箱剛剛換過或已經確認，請重新核對。"}
+    return redirect(url_for("admin.accounts") + "#backup-pending")
 
 
 def _staff_domain():

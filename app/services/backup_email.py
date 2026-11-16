@@ -36,8 +36,7 @@ def verify_path(user):
 
 
 def verify_url(user):
-    base = (current_app.config.get("MAIL_SITE_URL") or "").rstrip("/")
-    return f"{base}{verify_path(user)}"
+    return f"{email_notify.site_url()}{verify_path(user)}"
 
 
 def request_binding(user, address):
@@ -69,6 +68,30 @@ def verify(user, token):
     user.backup_email_verified_at = datetime.now(timezone.utc)
     audit_service.record(user, "user.backup_email_verify", "user", user.id)
     return True
+
+
+def admin_confirm(actor, user, expected_address):
+    """管理員代為確認（B30，2026-11-16）：系統沒有寄信帳號時，學生收不到確認信。
+
+    學生當面或用學校信箱告訴管理員自己的備用信箱，管理員核對一字不差後按確認。
+    expected_address 是管理員頁面上看到的信箱；學生在這之間換過信箱就不確認（回傳 False），
+    沒填或已確認也回傳 False。操作紀錄記是哪位管理員確認的，不記信箱。
+    """
+    if user is None or user.role != "student" or not user.backup_email or user.backup_email_verified_at:
+        return False
+    if (expected_address or "").strip() != user.backup_email:
+        return False
+    user.backup_email_verified_at = datetime.now(timezone.utc)
+    audit_service.record(actor, "user.backup_email_admin_verify", "user", user.id)
+    return True
+
+
+def pending(limit=200):
+    """還沒確認的備用信箱（給管理員帳號管理頁）。"""
+    from app.models import User
+    return (User.query.filter(User.role == "student", User.backup_email.isnot(None),
+                              User.backup_email_verified_at.is_(None))
+            .order_by(User.username.asc()).limit(limit).all())
 
 
 def remove(user):

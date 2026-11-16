@@ -341,6 +341,19 @@ for p in ["/admin/schools", "/admin/dashboard", "/admin/accounts", "/admin/progr
 rr = ad.get(BASE + "/admin/audit-logs")
 rec("操作紀錄有批量獎狀", "batch" in rr.text or "批量" in text_of(rr.text), "")
 
+# B30（2026-11-16）：沒有寄信帳號時，管理員核對後代為確認學生的備用信箱（信箱僅為測試資料）
+bk, _ = login("/login", "113534902")
+page = bk.get(BASE + "/account/password")
+bk.post(BASE + "/account/backup-email", data={"csrf_token": csrf(page.text), "backup_email": "b30-check@example.test"})
+page = ad.get(BASE + "/admin/accounts")
+m = re.search(r'action="(/admin/accounts/\d+/backup-email/confirm)"[^>]*>(?:(?!</form>).)*?value="b30-check@example\.test"',
+              page.text, flags=re.S)
+rec("管理員看到等待確認的備用信箱", bool(m) and "等待確認的備用信箱" in text_of(page.text))
+if m:
+    ad.post(BASE + m.group(1), data={"csrf_token": csrf(page.text), "address": "b30-check@example.test"})
+mine = text_of(bk.get(BASE + "/account/password").text)
+rec("管理員代為確認後學生看到已確認", "b30-check@example.test 已確認" in mine, mine[mine.find("備用信箱"):][:120])
+
 fails = [r for r in results if not r[1]]
 print(f"\n總計 {len(results)} 項，通過 {len(results) - len(fails)}，失敗 {len(fails)}")
 for f in fails:

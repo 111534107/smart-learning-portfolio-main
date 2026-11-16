@@ -372,3 +372,90 @@ def test_real_site_without_smtp_does_not_show_confirm_link(app):
     page = client.get(response.headers["Location"]).get_data(as_text=True)
 
     assert "/account/backup-email/verify/" not in page and "請通知管理員" in page
+
+
+# ---------- B30（2026-11-16）：信裡連結是完整網址、沒有寄信帳號時管理員代為確認 ----------
+
+def _app_without_site_url(tmp_path):
+    app = create_app({"SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:", "TESTING": True,
+                      "UPLOAD_FOLDER": str(tmp_path / "uploads"), "MAIL_RETRY_DELAY": 0, "MAIL_SITE_URL": ""})
+    _seed(app)
+    return app
+
+
+def test_verify_link_is_absolute_without_mail_site_url(tmp_path, sent):
+    app = _app_without_site_url(tmp_path)
+
+    login(app).post("/account/backup-email", data={"backup_email": "me@personal.example.test"})
+
+    assert "http://localhost/account/backup-email/verify/" in sent[0][2]
+
+
+def test_verify_link_uses_https_behind_tunnel(tmp_path, sent):
+    app = _app_without_site_url(tmp_path)
+
+    login(app).post("/account/backup-email", data={"backup_email": "me@personal.example.test"},
+                    headers={"X-Forwarded-Proto": "https"})
+
+    assert "https://localhost/account/backup-email/verify/" in sent[0][2]
+
+
+def _add_admin(app):
+    with app.app_context():
+        admin = User(username="adm", display_name="測試管理員", role="admin")
+        admin.set_password("pw-123456789")
+        db.session.add(admin)
+        db.session.commit()
+
+
+def test_admin_confirms_backup_email_when_no_mail_account(app):
+    _add_admin(app)
+    student = login(app)
+    student.post("/account/backup-email", data={"backup_email": "me@personal.example.test"})
+    assert "等管理員核對後確認" in student.get("/account/password").get_data(as_text=True)
+    admin = login(app, "adm")
+    page = admin.get("/admin/accounts").get_data(as_text=True)
+    assert "等待確認的備用信箱（1）" in page and "me@personal.example.test" in page and "沒有設定寄信帳號" in page
+    with app.app_context():
+        stu_id = _stu().id
+
+    response = admin.post(f"/admin/accounts/{stu_id}/backup-email/confirm",
+                          data={"address": "me@personal.example.test"})
+
+    assert response.status_code == 302
+    with app.app_context():
+        user = _stu()
+        assert user.backup_email_verified_at is not None
+        assert [r["key"] for r in backup_email.recipients(user)] == ["school", "backup"]
+        log = AuditLog.query.filter_by(action="user.backup_email_admin_verify").one()
+        assert log.target_id == stu_id and "personal" not in str(log.detail_json)  # 操作紀錄不記信箱
+    assert "已確認" in admin.get("/admin/accounts").get_data(as_text=True)
+
+
+def test_admin_cannot_confirm_an_address_the_student_already_changed(app):
+    _add_admin(app)
+    student = login(app)
+    student.post("/account/backup-email", data={"backup_email": "old@personal.example.test"})
+    student.post("/account/backup-email", data={"backup_email": "new@personal.example.test"})
+    with app.app_context():
+        stu_id = _stu().id
+
+    login(app, "adm").post(f"/admin/accounts/{stu_id}/backup-email/confirm",
+                           data={"address": "old@personal.example.test"})
+
+    with app.app_context():
+        assert _stu().backup_email_verified_at is None
+
+
+def test_student_cannot_use_admin_confirm(app):
+    student = login(app)
+    student.post("/account/backup-email", data={"backup_email": "me@personal.example.test"})
+    with app.app_context():
+        stu_id = _stu().id
+
+    response = student.post(f"/admin/accounts/{stu_id}/backup-email/confirm",
+                            data={"address": "me@personal.example.test"})
+
+    assert response.status_code in (302, 403)
+    with app.app_context():
+        assert _stu().backup_email_verified_at is None
