@@ -28,13 +28,9 @@
     .title { font-size: clamp(2rem, 5.4vw, 3.25rem); letter-spacing: .55em; margin: .08em 0 0; padding-left: .55em; line-height: 1.2; font-weight: 500; }
     .number { text-align: right; font-size: clamp(.72rem, 1.6vw, 1rem); min-height: 6%; }
     .body { white-space: pre-wrap; text-align: left; font-size: clamp(1rem, 2.7vw, 1.65rem); line-height: 1.9; letter-spacing: .06em; margin: 0; flex: 0 0 auto; padding: 1% 0; }
-    .signatures { min-height: 13%; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: .1em; color: #183f80; font-size: clamp(1.3rem, 4.5vw, 2.75rem); font-weight: 700; letter-spacing: .15em; }
-    .signature { display: flex; align-items: baseline; gap: .6em; }
-    .signature small { font-size: .45em; letter-spacing: .15em; }
-    .signature-image { display: block; width: min(100%, 470px); height: auto; mix-blend-mode: multiply; }
     .seal { position: relative; z-index: 2; align-self: center; width: 34%; margin: 1% auto; }
     .seal svg { display: block; width: 100%; height: auto; transform: rotate(-2deg); }
-    .date { position: relative; z-index: 3; margin: 0 0 2.7%; padding-top: 2%; text-align: center; font-size: clamp(.8rem, 2.2vw, 1.35rem); letter-spacing: .2em; }
+    .date { position: relative; z-index: 3; margin: auto 0 2.7%; padding-top: 2%; text-align: center; font-size: clamp(.8rem, 2.2vw, 1.35rem); letter-spacing: .2em; }
     .verify { position: relative; z-index: 3; border-top: 1px solid #b9ad8b; padding-top: .45rem; display: flex; justify-content: space-between; gap: .4rem; font-family: sans-serif; font-size: clamp(.48rem, .9vw, .65rem); color: #5d5b53; overflow-wrap: anywhere; }
     .verify b { font-family: Consolas, monospace; color: #292821; letter-spacing: .08em; white-space: nowrap; }
     @media screen and (max-width: 640px) { .sheet { aspect-ratio: auto; min-height: 297mm; padding: 4mm; } .frame { min-height: 275mm; } .pattern--left,.pattern--right { width: 10px; } }
@@ -59,9 +55,6 @@
         </header>
         <div class="number">康寧大學資訊管理科</div>
         <p class="body">{{ cert.body }}</p>
-        <div class="signatures" aria-label="核發簽章">
-          <img class="signature-image" src="{{ url_for('static', filename='img/certificate-signatures.png') }}" alt="董事長吳慶堂、校長陳清溪簽名字樣">
-        </div>
         <div class="seal" aria-label="資管科印章">
           <svg viewBox="0 60 1368 1020" role="img" aria-label="康寧大學資管科印章">
             <defs><filter id="seal-ink-{{ loop.index }}" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -3 0 3 0 0"/><feComponentTransfer result="ink-mask"><feFuncA type="linear" slope="1.6" intercept="-0.08"/></feComponentTransfer><feFlood flood-color="#204c82"/><feComposite in2="ink-mask" operator="in"/></filter></defs>
