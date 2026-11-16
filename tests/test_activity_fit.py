@@ -157,3 +157,24 @@ def test_each_record_can_expand_its_school_matches(app):
     assert '<details class="fit-line"' in page
     assert '<summary' in page and '查看適用校系' in page
     assert 'data-fit-pick=' in page and '測試科大' in page
+
+
+def test_recommended_scope_keeps_home_major_ahead_of_unknown_groups(app, monkeypatch):
+    """B28（2026-11-14 假學生實測）：學群待確認的醫護系占比較高，也不能排到資管學生的推薦前面。"""
+    import app.services.activity_fit as fit_module
+    from app.services.gap_service import analyze_gap
+
+    student = make_student()
+    record = add_record(student, "資訊週志工", "service")
+    im = make_program("101", "甲科大", [("服務學習", 10, ["service"])], department="資訊管理系")
+    unknown_im = make_program("102", "乙科大", [("服務學習", 15, ["service"])], department="資訊工程系")
+    nursing = make_program("103", "丙科大", [("服務學習", 40, ["service"])], department="護理系")
+    rows = [{"program": p, "status": "eligible", "related": related, "gap": analyze_gap(student, p)}
+            for p, related in ((im, True), (nursing, None), (unknown_im, None))]
+    monkeypatch.setattr(fit_module, "rank_programs", lambda *args, **kwargs: rows)
+
+    fit = build_activity_fit(student, [record])
+
+    assert fit["scope"] == "recommended"
+    assert [p.department_name for p in fit["programs"]] == ["資訊管理系", "資訊工程系"]  # 待確認的護理系不進範圍
+    assert [row["program"].department_name for row in fit["summary"]] == ["資訊工程系", "資訊管理系"]

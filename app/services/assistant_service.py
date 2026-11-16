@@ -175,8 +175,13 @@ def ask(user, message, history=None, page="", chat=None):
         task.status = "succeeded" if answer else "failed"
     except gemini_client.AIUnavailable as exc:
         task.status = "failed"
-        # AI 沒開或額度用完：仍從科上文件找段落給學生看（原文節錄＋可點的來源），不只回一句「沒有開啟」
-        answer, offline_sources = offline_answer(message, str(exc))
+        from app.services.assistant_agent_service import FILE_ANSWER, is_file_question
+        if is_file_question(message):
+            # 找檔案的問題不是科上規定，直接指路（B27）
+            answer, offline_sources = f"{exc}\n\n{FILE_ANSWER}", []
+        else:
+            # AI 沒開或額度用完：仍從科上文件找段落給學生看（原文節錄＋可點的來源），不只回一句「沒有開啟」
+            answer, offline_sources = offline_answer(message, str(exc))
         if offline_sources:
             steps = steps or ["查科上規定"]
             for source in offline_sources:

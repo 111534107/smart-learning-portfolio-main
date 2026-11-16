@@ -184,3 +184,8 @@
   [data-ui="student-v2"] .pf-card:hover { transform: none; transition: none; opacity: 1; }
   [data-ui="student-v2"] .pf-cat { transition: none; }
 }
+
+/* B27：拖曳佐證上傳後回到活動頁，剛加入佐證的卡片閃一下，學生知道傳到哪一張 */
+[data-ui="student-v2"] .pf-card.is-just-added { animation: pf-just-added 1.8s ease 2; outline: 3px solid var(--ok); outline-offset: 3px; border-radius: var(--radius); scroll-margin-top: 6rem; }
+@keyframes pf-just-added { 0%, 100% { box-shadow: 0 0 0 0 rgb(31 138 122 / 0%); } 40% { box-shadow: 0 0 0 10px rgb(31 138 122 / 28%); } }
+@media (prefers-reduced-motion: reduce) { [data-ui="student-v2"] .pf-card.is-just-added { animation: none; } }

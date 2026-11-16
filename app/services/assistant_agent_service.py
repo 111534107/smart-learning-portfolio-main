@@ -24,6 +24,7 @@ SAFE_PATHS = {
     "autobiography": "/student/autobiography",
     "schedule": "/student/schedule",
     "graduation": "/student/graduation-check",
+    "files": "/student/files",
 }
 
 CATEGORY_PATHS = {
@@ -37,12 +38,28 @@ def _link(label, path_name):
     return {"label": label, "url": SAFE_PATHS[path_name]}
 
 
+FILE_WORDS = ("檔案", "上傳的", "傳上去", "原檔", "佐證")
+WHERE_WORDS = ("在哪", "哪裡", "放哪", "去哪", "找不到", "不見")
+
+
+def is_file_question(message):
+    """「我剛剛上傳的成績單在哪裡？」這類找檔案的問題（B27，2026-11-14 假學生實測：沒開 AI 時回了重補修段落）。"""
+    text = message or ""
+    return "我的檔案" in text or (any(w in text for w in FILE_WORDS + ("上傳",)) and any(w in text for w in WHERE_WORDS))
+
+
+FILE_ANSWER = ("你上傳過的檔案都在「我的資料 → 我的檔案」：成績單、證照的原始檔，還有每一筆活動與經歷的佐證，"
+               "每一筆都寫了存在哪、會不會放進備審。按下面的按鈕就能過去。")
+
+
 def navigation_links(user, message):
     """依學生的問題回傳最多兩個安全的站內導引連結。"""
     if user.role != "student":
         return []
     text = (message or "").lower()
     links = []
+    if is_file_question(message):
+        links.append(_link("前往我的檔案", "files"))
     if any(word in text for word in ("畢業", "門檻", "學分")):
         links.append(_link("查看畢業門檻提醒", "graduation"))
     if any(word in text for word in ("ocr", "辨識", "核對", "成績單", "成績", "上傳")):

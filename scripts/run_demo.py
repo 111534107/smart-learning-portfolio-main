@@ -76,8 +76,9 @@ def seed():
     db.session.add(StudentProfile(user_id=student.id, student_no="113534901", class_name="資管科三甲", admission_year=113))
 
     courses = [
-        (1, "上", "計算機概論", 3, 88), (1, "下", "程式設計（一）", 3, 91), (1, "下", "國文", 2, 82),
-        (2, "上", "資料庫管理實務(SQL)", 3, 85), (2, "下", "網頁設計", 3, 93), (3, "上", "系統分析與設計", 3, 79),
+        # 前四門和假成績單（scripts/make_fake_transcript.py）同名、同年級學期、同分數，上傳後認得是同一門課（B26）
+        (1, "上", "資訊科技", 3, 86), (1, "下", "程式設計", 3, 88), (1, "下", "國文", 2, 83),
+        (1, "下", "網頁設計", 3, 93), (2, "上", "資料庫管理實務(SQL)", 3, 85), (3, "上", "系統分析與設計", 3, 79),
     ]
     for year, semester, name, credits, score in courses:
         db.session.add(LearningCourseRecord(
@@ -118,9 +119,9 @@ def seed():
     db.session.add(classmate)
     db.session.flush()
     db.session.add(StudentProfile(user_id=classmate.id, student_no="113534902", class_name="資管科三甲", admission_year=113))
-    db.session.add(LearningCourseRecord(student_id=classmate.id, school_year=1, semester="上", course_name="計算機概論",
-                                        normalized_course_name="計算機概論", credits=3, score=90))
-    # 113 學年度課綱的資訊類專業科目各一門，學群才判斷得出來（只有計算機概論時對不到課綱，推薦排序會亂）
+    db.session.add(LearningCourseRecord(student_id=classmate.id, school_year=1, semester="上", course_name="資訊科技",
+                                        normalized_course_name="資訊科技", credits=3, score=90))
+    # 113 學年度課綱的資訊類專業科目各一門，學群才判斷得出來（課名都要在科目表裡，B26）
     for year, semester, name, score in ((1, "下", "程式設計", 88), (2, "上", "網頁設計", 85), (2, "下", "管理資訊系統", 82)):
         db.session.add(LearningCourseRecord(student_id=classmate.id, school_year=year, semester=semester, course_name=name,
                                             normalized_course_name=name, credits=3, score=score))
@@ -156,8 +157,8 @@ def _seed_senior(teacher, program):
     db.session.add(StudentProfile(user_id=senior.id, student_no="113534903", class_name="資管科五甲", admission_year=111))
     db.session.add(ClassAdvisor(teacher_id=teacher.id, class_name="資管科五甲", school_year=115))
     courses = [
-        (1, "上", "計算機概論", 92), (1, "下", "程式設計", 90), (2, "上", "網頁設計", 88), (2, "下", "管理資訊系統", 85),
-        (3, "上", "資料庫管理實務(SQL)", 91), (3, "下", "系統分析與設計", 87), (4, "上", "資料結構", 84), (4, "下", "專題製作", 95),
+        (1, "上", "資訊科技", 92), (1, "下", "程式設計", 90), (2, "上", "網頁設計", 88), (2, "下", "管理資訊系統", 85),
+        (3, "上", "資料庫管理實務(SQL)", 91), (3, "下", "系統分析與設計", 87), (4, "上", "資料結構", 84), (4, "下", "實務專題", 95),
     ]
     for year, semester, name, score in courses:
         db.session.add(LearningCourseRecord(student_id=senior.id, school_year=year, semester=semester, course_name=name,

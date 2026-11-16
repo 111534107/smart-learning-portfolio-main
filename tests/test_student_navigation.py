@@ -73,7 +73,8 @@ def test_evidence_upload_returns_to_edit_page(tmp_path):
     }, content_type="multipart/form-data")
 
     assert response.status_code == 302
-    assert response.headers["Location"].endswith(f"/student/portfolio/{record_id}/edit")
+    # B27：回到編輯頁並捲到佐證區
+    assert response.headers["Location"].endswith(f"/student/portfolio/{record_id}/edit#evidence-title")
     edit_html = client.get(f"/student/portfolio/{record_id}/edit").get_data(as_text=True)
     assert "photo.png" in edit_html
 

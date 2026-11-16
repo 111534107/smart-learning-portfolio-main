@@ -83,7 +83,7 @@
       {% for key, record in ns.rows %}
       {% set fits = fit.by_record.get(record.id, []) %}
       {% set g = record.school_year if record.school_year and record.school_year <= 5 else 0 %}
-      <div class="record-card-slot pf-card{{ ' is-draft' if record.status != 'confirmed' else '' }}" data-fit-programs="{% for entry in fits %}{{ entry.program.id }} {% endfor %}" data-pf-grade="{{ g }}" data-pf-cat="{{ key }}" style="--slot: {{ slot_colors[key] }}; --d: {{ (loop.index0 * 0.04)|round(2) }}s; --r: {{ ((loop.index0 * 37) % 9 - 4) * 0.35 }}deg;">
+      <div class="record-card-slot pf-card{{ ' is-draft' if record.status != 'confirmed' else '' }}{{ ' is-just-added' if request.args.get('added') == record.id|string else '' }}" id="record-{{ record.id }}" data-fit-programs="{% for entry in fits %}{{ entry.program.id }} {% endfor %}" data-pf-grade="{{ g }}" data-pf-cat="{{ key }}" style="--slot: {{ slot_colors[key] }}; --d: {{ (loop.index0 * 0.04)|round(2) }}s; --r: {{ ((loop.index0 * 37) % 9 - 4) * 0.35 }}deg;">
       <a class="record-card record-card--link pf-card__body" href="{{ url_for('student.portfolio_edit', portfolio_id=record.id) }}">
         <div class="pf-card__top"><span class="pf-card__kind">{{ category_labels[key] }}</span>{{ status_chip(record_state(record)) }}</div>
         {% set photo = record.evidence_items|selectattr("preview_kind", "equalto", "image")|first %}
@@ -116,9 +116,10 @@
       {% else %}
       <p class="fit-line fit-line--empty">{{ fit.empty_note }}。</p>
       {% endif %}
-      {# 佐證拖到這張卡片上：用原本的上傳表單與路由（student.evidence_upload），送出後回到編輯頁 #}
+      {# 佐證拖到這張卡片上：用原本的上傳表單與路由（student.evidence_upload），送出後留在這頁、這張卡片閃一下（B27） #}
       <form class="pf-drop" method="post" action="{{ url_for('student.evidence_upload', portfolio_id=record.id) }}" enctype="multipart/form-data" data-pf-drop hidden>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="return_to" value="list">
         <input type="file" name="file" accept="image/png,image/jpeg,.pdf,.doc,.docx,.odt,.txt" tabindex="-1" aria-hidden="true">
       </form>
       {% if record.status != "confirmed" %}

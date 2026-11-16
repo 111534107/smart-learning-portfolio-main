@@ -99,6 +99,7 @@
   ("成績單", url_for("student.learning_profile")),
   ("證照", url_for("student.learning_profile_credentials")),
   ("活動與經歷", url_for("student.portfolio_list")),
+  ("我的檔案", url_for("student.my_files")),
 ] %}
 {% if has_transfer_record %}{% set data_tabs = data_tabs + [("抵免進度", url_for("transfer_credit.student_transfer_credit"))] %}{% endif %}
 {% set in_data = active in data_tabs|map("first")|list %}

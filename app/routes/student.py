@@ -1011,7 +1011,7 @@ def evidence_upload(portfolio_id):
         db.session.flush()
         audit_service.record(get_current_user(), "evidence.upload", "portfolio_evidence", link.id)
         db.session.commit()
-        return redirect(url_for("student.portfolio_edit", portfolio_id=portfolio.id))
+        return _after_evidence_upload(portfolio, link_name)
     uploaded = request.files.get("file")
     if not uploaded or not uploaded.filename:
         return "file is required", 400
@@ -1025,7 +1025,37 @@ def evidence_upload(portfolio_id):
     db.session.flush()
     audit_service.record(get_current_user(), "evidence.upload", "portfolio_evidence", evidence.id)
     db.session.commit()
-    return redirect(url_for("student.portfolio_edit", portfolio_id=portfolio.id))
+    return _after_evidence_upload(portfolio, safe_name)
+
+
+@student_bp.get("/student/files")
+@role_required("student")
+def my_files():
+    """我的檔案（B27）：一頁列出自己上傳過的所有原檔——成績單、證照、經歷佐證，寫清楚存在哪、會不會放進備審。"""
+    user = get_current_user()
+    documents = (SourceDocument.query.filter_by(owner_id=user.id)
+                 .order_by(SourceDocument.created_at.desc()).all())
+    portfolios = Portfolio.query.filter_by(student_id=user.id).all()
+    evidence = sorted((item for p in portfolios for item in p.evidence_items),
+                      key=lambda item: item.created_at or datetime.min, reverse=True)
+    return render_template(
+        "student_files.html",
+        user=user,
+        documents=documents,
+        evidence=evidence,
+        record_state=learning_profile_state,
+        where=lambda path: ("學校的 Google 雲端硬碟（你的學生資料夾）" if path and path.startswith(storage_service.DRIVE_PREFIX)
+                            else "本系統的伺服器" if path else "外部連結"),
+    )
+
+
+def _after_evidence_upload(portfolio, name):
+    """上傳佐證後說清楚放到哪裡（B27，2026-11-14 假學生實測：拖完跳到編輯頁沒有提示，以為沒傳成功）。
+    從活動頁卡片拖曳上傳的留在活動頁，捲到那張卡片並閃一下；在編輯頁上傳的捲到佐證區。"""
+    flash(f"已把「{name}」加到「{portfolio.title}」的佐證。所有上傳過的檔案都在「我的資料 → 我的檔案」。")
+    if request.form.get("return_to") == "list":
+        return redirect(url_for("student.portfolio_list", added=portfolio.id, _anchor=f"record-{portfolio.id}"))
+    return redirect(url_for("student.portfolio_edit", portfolio_id=portfolio.id, _anchor="evidence-title"))
 
 
 def _owned_evidence_or_404(evidence_id):
