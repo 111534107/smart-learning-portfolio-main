@@ -114,6 +114,7 @@
         {% if review and review.status == "needs_revision" %}<blockquote><b>{{ review.teacher.display_name if review.teacher else "導師" }}：</b>{{ review.comment }}</blockquote>{% endif %}
         {% if review and review.status == "confirmed" %}<p class="small">{{ review.teacher.display_name if review.teacher else "導師" }} 已確認內容合理，可以產出備審資料。</p>{% endif %}
         {% if request.args.get("sent") %}<p class="notice mb-1" role="status">已送出。導師看到的是現在這一份內容，之後再改要重新送出。</p>{% endif %}
+        {% if request.args.get("no_teacher") %}<p class="alert mb-1" role="alert">目前沒有找到你班級的導師，尚未送出導師通知。請聯絡系統管理員確認班級與導師設定。</p>{% endif %}
         {% if review and review.snapshot_json and review.snapshot_json.autobiography %}<p class="small muted mb-1">送出的自傳是第 {{ review.snapshot_json.autobiography.version }} 版。</p>{% endif %}
         {% if not review or review.status != "pending" %}
         <form method="post" action="{{ url_for('student.target_request_review', program_id=program.id) }}">

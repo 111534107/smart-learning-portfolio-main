@@ -15,9 +15,20 @@
     <div>
       <p class="small"><a href="{{ url_for('main.teacher_dashboard') }}">← 本班學生</a> · {{ student.student_profile.student_no }} · {{ student.student_profile.class_name }}</p>
       <h1>{{ student.display_name }}</h1>
-      <p>以下是學生已確認的資料。請確認內容是否合理，有需要修改的地方請具體寫下來。</p>
+      <p>五年資料與佐證包含草稿和學生已確認的資料，請依每筆標示查看；備審送審以當次送出的資料為準。</p>
     </div>
   </header>
+
+  <nav class="work-panel" aria-label="學生資料快速導覽">
+    <div class="work-panel__head"><div><h2>快速查看</h2><p>點選項目，直接前往學生資料。</p></div></div>
+    <div class="record-card__actions">
+      <a class="button button--small button--line" href="#teacher-records">資料狀態與五年資料</a>
+      <a class="button button--small button--line" href="#teacher-graduation">畢業門檻</a>
+      <a class="button button--small button--line" href="#teacher-targets">目標校系與備審／自傳</a>
+      <a class="button button--small button--line" href="#teacher-evidence">佐證照片</a>
+    </div>
+    <p class="small mt-1">五年資料：<a href="{{ url_for('teacher.student_detail', student_id=student.id, record_status='draft', _anchor='teacher-records') }}">草稿 {{ record_counts.draft }} 筆</a> · <a href="{{ url_for('teacher.student_detail', student_id=student.id, record_status='confirmed', _anchor='teacher-records') }}">學生已確認 {{ record_counts.confirmed }} 筆</a>{% if record_counts.other %} · <a href="{{ url_for('teacher.student_detail', student_id=student.id, record_status='other', _anchor='teacher-records') }}">狀態待確認 {{ record_counts.other }} 筆</a>{% endif %}</p>
+  </nav>
 
   <section class="teacher-journey-map" aria-labelledby="teacher-journey-title" data-teacher-journey-map data-tour="先看學生五年留下多少資料。" data-tour-order="1">
     <div class="teacher-journey-map__head">
@@ -25,13 +36,13 @@
         <p class="small">五年簡圖</p>
         <h2 id="teacher-journey-title">這位學生五年留下的資料</h2>
       </div>
-      <p class="small muted">點有資料的年級，可直接查看下方內容。</p>
+      <p class="small muted">筆數包含草稿與學生已確認資料。點有資料的年級，可查看下方內容。</p>
     </div>
     <ol class="teacher-journey-map__route" aria-label="專一到專五的資料筆數">
       {% for stop in journey_stops %}
       <li class="teacher-journey-map__stop teacher-journey-map__stop--{{ stop.state }}"
           data-teacher-journey-stop data-grade="{{ stop.grade }}" data-records="{{ stop.count }}" data-state="{{ stop.state }}"{% if stop.state == "now" %} aria-current="step"{% endif %}>
-        {% if stop.count %}<a href="#teacher-year-{{ stop.grade }}">{% else %}<span>{% endif %}
+        {% if stop.count %}<a href="{% if record_status != 'all' %}{{ url_for('teacher.student_detail', student_id=student.id, _anchor='teacher-year-' ~ stop.grade) }}{% else %}#teacher-year-{{ stop.grade }}{% endif %}">{% else %}<span>{% endif %}
           <span class="teacher-journey-map__dot" aria-hidden="true">{{ stop.count }}</span>
           <b>{{ stop.label }}</b>
           <small>{{ stop.count }} 筆{% if stop.state == "now" %} · 今年{% elif stop.state == "future" %} · 尚未到{% endif %}</small>
@@ -60,7 +71,7 @@
     {% endif %}
   </section>
   {% endif %}
-  <section class="work-panel" data-grad-student>
+  <section class="work-panel" id="teacher-graduation" data-grad-student>
     <div class="work-panel__head"><div><h2>畢業門檻提醒</h2><p>下一次檢核：{{ grad_next_check }}。</p>{% if grad_countdown %}<p class="small" data-check-countdown>{{ grad_countdown.text }}</p>{% endif %}</div></div>
     {% set flagged = semester_warnings.terms|rejectattr("level", "equalto", "ok")|list %}
     <div data-semester-warning>
@@ -100,9 +111,10 @@
     {% endfor %}
   </div>
 
+  <div id="teacher-targets">
   {% for target in targets %}
   {% set gap = target.gap %}
-  <section class="work-panel">
+  <section class="work-panel" id="teacher-target-{{ target.program.id }}">
     <div class="work-panel__head">
       <div><h2>{{ target.program.school_name }} {{ target.program.department_name }}</h2>
         <p>{% if target.program.program_code.isdigit() %}志願代碼 {{ target.program.program_code }} · {% endif %}{{ target.program.admission_year }} 學年度 · {{ target.program.admission_category or "" }} · 準備度 {{ gap.readiness if gap.readiness is not none else "—" }}%</p></div>
@@ -182,6 +194,7 @@
   {% else %}
   <section class="work-panel"><p class="work-empty"><strong>學生還沒有選擇目標校系。</strong><span>選好後，這裡會顯示該校系的缺件比對。</span></p></section>
   {% endfor %}
+  </div>
 
   {# 學生上傳的成績單、證照原始檔（學生已確認的） #}
   <section class="work-panel">
@@ -194,27 +207,32 @@
   </section>
 
   {# 學生上傳的佐證照片：導師確認時可以直接看，不用下載 #}
-  <section class="work-panel">
-    <div class="work-panel__head"><div><h2>佐證照片</h2><p>點照片可以放大。</p></div></div>
+  <section class="work-panel" id="teacher-evidence">
+    <div class="work-panel__head"><div><h2>佐證照片</h2><p>包含草稿與已確認經歷的佐證；點照片可以放大。</p></div></div>
     {% for record in records_with_evidence %}
-    <h3 class="mt-1">{{ record.title }} <span class="muted small">{{ category_labels.get(record.category, record.category) }}</span></h3>
+    <h3 class="mt-1">{{ record.title }} <span class="muted small">{{ category_labels.get(record.category, record.category) }}</span> <span class="tag {{ 'tag--ok' if record.status == 'confirmed' else 'tag--warn' }}">{{ '學生已確認' if record.status == 'confirmed' else ('草稿' if record.status == 'draft' else '狀態待確認') }}</span></h3>
     {{ evidence_grid(record.evidence_items, "teacher.evidence_view") }}
     {% else %}
     <p class="muted">學生還沒有上傳佐證。</p>
     {% endfor %}
   </section>
 
-  <section class="work-panel">
+  <section class="work-panel" id="teacher-records">
     <div class="work-panel__head"><div><h2>五年資料</h2></div></div>
-    {% for year in journey.years if year.count %}
-    <section class="teacher-year-data" id="teacher-year-{{ year.grade }}">
+    <div class="record-card__actions" aria-label="篩選五年資料狀態">
+      {% for value, label in [('all', '全部'), ('draft', '草稿'), ('confirmed', '學生已確認'), ('other', '狀態待確認')] %}
+      <a class="button button--small {{ 'button--line' if record_status != value else '' }}" href="{{ url_for('teacher.student_detail', student_id=student.id, record_status=value, _anchor='teacher-records') }}"{% if record_status == value %} aria-current="true"{% endif %}>{{ label }}</a>
+      {% endfor %}
+    </div>
+    {% for year in teacher_years %}
+    <section class="teacher-year-data" id="{{ 'teacher-year-' ~ year.grade if year.grade else 'teacher-year-unsorted' }}">
       <h3 class="mt-1">{{ year.label }} <span class="mono muted small">{{ year.count }} 筆</span></h3>
       <ul class="rule-item-list">
-        {% for key in category_keys %}{% for item in year.categories[key] %}<li><strong>{{ item.title }}</strong><span>{{ category_labels[key] }}{% if item.detail %} · {{ item.detail }}{% endif %}{% if item.source %} <span class="tag tag--source">{{ item.source }}</span>{% endif %}</span></li>{% endfor %}{% endfor %}
+        {% for key in category_keys %}{% for item in year.categories[key] %}<li><strong>{{ item.title }}</strong><span>{{ category_labels[key] }}{% if item.detail %} · {{ item.detail }}{% endif %} <span class="tag {{ 'tag--ok' if item.confirmation_status == 'confirmed' else 'tag--warn' }}">{{ '學生已確認' if item.confirmation_status == 'confirmed' else ('草稿' if item.confirmation_status == 'draft' else '狀態待確認') }}</span>{% if item.source %} <span class="tag tag--source">{{ item.source }}</span>{% endif %}</span></li>{% endfor %}{% endfor %}
       </ul>
     </section>
     {% else %}
-    <p class="muted">學生還沒有已確認的資料。</p>
+    <p class="muted">這個狀態目前沒有資料。</p>
     {% endfor %}
   </section>
 </section>

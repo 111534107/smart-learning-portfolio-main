@@ -67,6 +67,7 @@ def build_journey(student, today=None):
         place(grade_for(course.year_for_placement, admission_year), "grades", {
             "id": f"course-{course.id}",  # 來源＋資料庫編號：改標題也不會變（首頁拼圖桌的片靠它固定位置）
             "title": course.course_name,
+            "confirmation_status": course.confirmation_status,
             "detail": " · ".join(part for part in (
                 f"{course.credits} 學分" if course.credits is not None else "",
                 f"{course.score} 分" if course.score is not None else (course.status_mark or ""),
@@ -79,6 +80,7 @@ def build_journey(student, today=None):
         place(grade_for(year, admission_year), "credential", {
             "id": f"credential-{credential.id}",
             "title": credential.credential_name,
+            "confirmation_status": credential.confirmation_status,
             "detail": credential.level or "",
         })
 
@@ -91,6 +93,7 @@ def build_journey(student, today=None):
         place(grade_for(record.school_year, admission_year), record.category, {
             "id": f"portfolio-{record.id}",
             "title": record.title,
+            "confirmation_status": record.status,
             "detail": record.description or "",
             "source": "" if record.source == "student" else record.source_label,
         })

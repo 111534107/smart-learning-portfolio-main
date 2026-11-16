@@ -21,6 +21,7 @@ from app.models import (
     LearningCourseRecord,
     LearningProfileOutput,
     MatchFilterOption,
+    PackageReview,
     Portfolio,
     PortfolioEvidence,
     SourceDocument,
@@ -1595,7 +1596,21 @@ def target_request_review(program_id):
     if reason:
         return _blocked(user, reason)
     review_snapshot_service.request_review(user, program)
-    return redirect(url_for("student.target_gap", program_id=program.id, sent=1))
+    return redirect(url_for("student.target_gap", program_id=program.id, sent=1,
+                            no_teacher=1 if not review_snapshot_service.review_teachers(user) else None))
+
+
+@student_bp.get("/student/package-reviews/<int:review_id>/result")
+@role_required("student")
+def package_review_result(review_id):
+    """已取消目標時仍可看自己收到的導師結果。"""
+    user = get_current_user()
+    review = db.session.get(PackageReview, review_id)
+    if not review or review.student_id != user.id:
+        abort(404)
+    if StudentTarget.query.filter_by(student_id=user.id, rule_version_id=review.rule_version_id).first():
+        return redirect(url_for("student.target_gap", program_id=review.rule_version_id, _anchor="review"))
+    return render_template("student_review_result.html", user=user, review=review)
 
 
 @student_bp.get("/student/targets/<int:program_id>/package.docx")

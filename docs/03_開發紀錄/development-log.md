@@ -1,5 +1,26 @@
 # 開發日誌
 
+## 2026-11-16 備審送審站內通知
+
+- 開發者：Codex。目標：學生送審後通知導師；導師確認或建議修改後通知學生。
+- 修改：`app/services/review_snapshot_service.py`、`app/routes/student.py`、`app/templates/student_gap.html`、`app/templates/student_review_result.html`、`app/templates/teacher_student.html`、`app/templates/notifications.html`、`tests/test_package_review_notifications.py`。沿用站內通知表，不需要新增資料庫欄位；同班多位啟用中的導師各收到通知，重複的班級指派不會在同次送審重複通知同一位導師；沒有指派導師時提醒學生。學生取消目標後仍可查看當次結果。
+- 驗證：備審通知、導師頁、自傳送審與審核流程相關測試共 23 項通過，包含通知接收者、連結、已讀、權限、未指派導師與重複操作。完整測試 16 項通過後，在先前已出現的 OCR 管理頁文字斷言失敗並中止。
+- 下一步：展示版實際操作確認；尚未推送。導師接收範圍沿用現行班級指派規則，學年度篩選待確認。
+
+## 2026-11-16 導師學生頁快速導覽
+
+- 開發者：Codex。目標：減少導師在學生頁上下捲動，方便查找草稿與已確認資料。
+- 修改：`app/routes/teacher.py`、`app/templates/teacher_student.html`、`tests/test_teacher_journey_map.py`。加入快速導覽、五年資料狀態摘要與篩選，並顯示尚未歸入年級的可分類資料。
+- 驗證：導師五年資料、五年資料服務及導師回饋相關測試共 12 項通過。完整測試先前在 OCR 管理頁文字斷言失敗，未確認全數通過。
+- 下一步：使用展示帳號查看版面；尚未推送。
+
+## 2026-11-16 導師頁標示學生資料確認狀態
+
+- 開發者：Codex。目標：讓導師區分草稿與學生已確認的資料。
+- 修改：`app/services/journey_service.py`、`app/templates/teacher_student.html`、`app/templates/dashboard.html`，以及 `tests/test_teacher_journey_map.py`。保留既有顯示範圍，對課程、證照、經歷及其佐證顯示確認狀態，首頁說明筆數包含草稿。
+- 驗證：導師五年資料、學生五年資料與導師回饋相關測試共 11 項通過。完整測試以專案內暫存目錄執行，16 項通過後在 `tests/test_admin_ocr_device.py::test_admin_page_shows_current_device_and_gpu_availability` 失敗（OCR 管理頁文字斷言），因此未完成全部測試。
+- 下一步：使用展示帳號確認實際版面；尚未推送。
+
 ## 2026-11-16 B26 示範課名對上科目表、B27 找得到上傳的檔案、B28 活動推薦本科系優先
 
 日期：2026-11-16（台灣時間）
