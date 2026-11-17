@@ -16,10 +16,11 @@ CATEGORY_LABELS = {
     "competition": "競賽",
     "service": "服務學習",
     "leadership": "幹部經歷",
+    "project": "專題與作品集",
 }
 
-# 由學生自行新增的四類經歷（成績與證照來自上傳的文件）
-EXPERIENCE_CATEGORIES = ["activity", "competition", "service", "leadership"]
+# 由學生自行新增的經歷與作品（成績與證照來自上傳的文件）
+EXPERIENCE_CATEGORIES = ["activity", "competition", "service", "leadership", "project"]
 
 GRADE_LABELS = {1: "專一", 2: "專二", 3: "專三", 4: "專四", 5: "專五"}
 
@@ -90,11 +91,11 @@ def build_journey(student, today=None):
         if record.category not in EXPERIENCE_CATEGORIES:
             unsorted_count += 1
             continue
-        place(grade_for(record.school_year, admission_year), record.category, {
+        place(grade_for(record.school_year, admission_year), "activity" if record.category == "project" else record.category, {
             "id": f"portfolio-{record.id}",
             "title": record.title,
             "confirmation_status": record.status,
-            "detail": record.description or "",
+            "detail": ("專題與作品集 · " if record.category == "project" else "") + (record.description or ""),
             "source": "" if record.source == "student" else record.source_label,
         })
 

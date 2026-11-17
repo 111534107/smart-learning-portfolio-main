@@ -98,6 +98,8 @@ def docx_text(content):
 # ---------- 學生 113534902（有目標校系 208003） ----------
 s, r = login("/login", "113534902")
 rec("學生登入 113534902", r.ok and "/login" not in r.url, r.url)
+project_page = s.get(BASE + "/student/portfolio/new?category=project")
+rec("學生可新增專題與作品集", project_page.ok and "專題與作品集" in project_page.text and 'value="project"' in project_page.text)
 
 r = s.get(BASE + "/student/targets")
 ids = sorted(set(re.findall(r"/student/targets/(\d+)\"", r.text)))

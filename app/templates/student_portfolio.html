@@ -2,7 +2,7 @@
 {% from "partials/nav.html" import masthead, footer, page_band with context %}
 {% from "partials/status.html" import status_chip %}
 {% set page_name = "student-portfolio" %}
-{% set slot_colors = {"activity": "var(--year-3)", "competition": "var(--year-4)", "service": "var(--year-2)", "leadership": "var(--year-5)"} %}
+{% set slot_colors = {"activity": "var(--year-3)", "competition": "var(--year-4)", "service": "var(--year-2)", "leadership": "var(--year-5)", "project": "var(--year-1)"} %}
 {% set semester_labels = {1: "上學期", 2: "下學期"} %}
 
 {% block title %}活動與經歷｜資管科智慧學習歷程系統{% endblock %}
@@ -16,6 +16,7 @@
   <div class="list-head">
     <p class="muted">填上年級的資料會放進「我的五年」。</p>
     <div class="record-card__actions">
+      <a class="button button--line" href="{{ url_for('student.portfolio_new', category='project') }}">＋ 新增專題與作品集</a>
       <a class="button button--line" href="{{ url_for('award.award_upload_page') }}" data-tour="學校的獎懲記錄可以直接匯入。" data-tour-order="2">從學校獎懲記錄匯入</a>
       <a class="button" href="{{ url_for('student.portfolio_new') }}" data-tour="活動、競賽、服務、幹部從這裡新增。" data-tour-order="1">＋ 新增一筆</a>
     </div>
@@ -157,7 +158,7 @@
 (function () {
   var cabinet = document.querySelector("[data-pf-cabinet]");
   if (!cabinet) return;
-  var grade = "all", cat = null;
+  var grade = "all", cat = new URLSearchParams(window.location.search).get("category") === "project" ? "project" : null;
   var cards = [].slice.call(cabinet.querySelectorAll(".pf-card"));
   var add = cabinet.querySelector("[data-pf-add]");
   var empty = cabinet.querySelector("[data-pf-empty]");
@@ -185,7 +186,7 @@
     var pill = event.target.closest(".pf-cat");
     if (pill) { cat = cat === pill.dataset.pfCat ? null : pill.dataset.pfCat; apply(); }
   });
-  cabinet.classList.add("is-dealt");
+  if (cat) apply(); else cabinet.classList.add("is-dealt");
 
   /* 拖檔案：放在哪張卡片上，就當那一筆的佐證送出（原本的表單與路由） */
   var page = document.querySelector("[data-pf-page]");

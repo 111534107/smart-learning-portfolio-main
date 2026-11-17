@@ -133,6 +133,9 @@ def build_zip(student, program):
                     skipped.append(f"佐證：{record.title}／{evidence.display_name}：這筆經歷你選擇不放進備審，佐證沒有放")
         for record in records:
             for evidence in record.evidence_items:
+                if evidence.external_url and evidence.is_available:
+                    included.append(f"作品連結：{record.title}／{evidence.display_name}：{evidence.external_url}")
+                    continue
                 if not evidence.file_path or not evidence.is_available:
                     continue
                 add_stored(f"04_經歷佐證/{_safe(record.title)}/{_safe(evidence.display_name)}", evidence.file_path,

@@ -545,3 +545,23 @@ def test_student_cannot_use_admin_confirm(app):
     assert response.status_code in (302, 403)
     with app.app_context():
         assert _stu().backup_email_verified_at is None
+
+
+def test_zip_lists_confirmed_project_links_without_draft_or_excluded(app):
+    with app.app_context():
+        student = _stu()
+        for status, hidden, url in (("confirmed", False, "https://github.com/example/kept"),
+                                    ("draft", False, "https://github.com/example/draft"),
+                                    ("confirmed", True, "https://github.com/example/hidden")):
+            project = Portfolio(student_id=student.id, title="連結作品", category="project", status=status,
+                                excluded_from_package=hidden)
+            db.session.add(project); db.session.flush()
+            db.session.add(PortfolioEvidence(portfolio_id=project.id, evidence_type="link", display_name="作品網址", external_url=url))
+        db.session.commit()
+        data, manifest = package_zip.build_zip(student, AdmissionProgram.query.filter_by(program_code="Z").one())
+        with zipfile.ZipFile(data) as archive:
+            name = next(name for name in archive.namelist() if name.endswith("清單.txt"))
+            text = archive.read(name).decode("utf-8")
+        assert "https://github.com/example/kept" in text
+        assert "https://github.com/example/draft" not in text
+        assert "https://github.com/example/hidden" not in text
