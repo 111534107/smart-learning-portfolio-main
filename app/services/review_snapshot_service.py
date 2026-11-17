@@ -9,7 +9,7 @@
 from datetime import datetime, timezone
 
 from app.extensions import db
-from app.models import AuditLog, PackageReview
+from app.models import AuditLog, ClassAdvisor, Notification, PackageReview, User
 from app.services import audit_service, autobiography_service
 from app.services.gap_service import analyze_gap
 from app.services.package_service import latest_review
@@ -29,6 +29,15 @@ def build_snapshot(student, program):
     }
 
 
+def review_teachers(student):
+    """沿用現行班級權限規則，取得所有啟用中的導師；同一老師不重複。"""
+    profile = student.student_profile
+    if not profile or not profile.class_name:
+        return []
+    teacher_ids = {row.teacher_id for row in ClassAdvisor.query.filter_by(class_name=profile.class_name).all()}
+    return User.query.filter(User.id.in_(teacher_ids), User.role == "teacher", User.is_active.is_(True)).all()
+
+
 def request_review(student, program):
     """學生送審；回傳這次的 PackageReview。"""
     snapshot = build_snapshot(student, program)
@@ -42,6 +51,12 @@ def request_review(student, program):
     db.session.flush()
     audit_service.record(student, "package_review.request", "package_review", review.id,
                          detail={"program_id": program.id})
+    for teacher in review_teachers(student):
+        db.session.add(Notification(
+            recipient_id=teacher.id,
+            message=f"{student.display_name} 已送出 {program.school_name} {program.department_name} 的備審資料，請確認。"[:255],
+            link=f"/teacher/students/{student.id}#teacher-target-{program.id}",
+        ))
     db.session.commit()
     return review
 
@@ -137,6 +152,12 @@ def decide(review, teacher, decision, comment, seen_taken_at=None):
     review.teacher_id = teacher.id
     review.reviewed_at = datetime.now(timezone.utc)
     _log(teacher, "package_review.confirm" if decision == "confirmed" else "package_review.needs_revision", review)
+    result = "已確認" if decision == "confirmed" else "建議修改"
+    db.session.add(Notification(
+        recipient_id=review.student_id,
+        message=f"導師{result}你送審的 {review.program.school_name} {review.program.department_name} 備審資料。"[:255],
+        link=f"/student/package-reviews/{review.id}/result",
+    ))
     db.session.commit()
 
 

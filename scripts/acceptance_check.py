@@ -379,6 +379,7 @@ students = sorted(set(re.findall(r"/teacher/students/(\d+)", te.get(BASE + "/tea
 for sid in students[:3]:
     rr = te.get(BASE + f"/teacher/students/{sid}")
     rec(f"導師看學生 {sid}", rr.status_code == 200 and "Traceback" not in rr.text, title(rr.text))
+    rec(f"導師學生資料導覽與狀態 {sid}", rr.status_code == 200 and "快速查看" in rr.text and "學生已確認" in rr.text and "teacher-records" in rr.text, title(rr.text))
 
 # ---------- 管理員 ----------
 ad, r = login("/admin/login", "admin")

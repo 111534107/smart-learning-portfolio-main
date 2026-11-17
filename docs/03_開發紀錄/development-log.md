@@ -1,5 +1,19 @@
 # 開發日誌
 
+## 2026-11-17 組員老師端功能整合
+
+日期：2026-11-17（臺灣時間）
+
+開發者：GPT；工作資料夾 `D:\democase\_worktrees\ai-wt-teacher-integration`，以新版 `f34242b` 為基礎，參考組員提交 `cddbfbba`。
+
+目標：將學生資料狀態、快速導覽與備審送審通知接入新版，保留現有備審快照及教師權限。
+
+修改：`app/routes/student.py`、`app/routes/teacher.py`、`app/services/journey_service.py`、`app/services/review_snapshot_service.py`、相關模板、`tests/test_teacher_journey_map.py`、`tests/test_package_review_notifications.py` 與 `scripts/acceptance_check.py`。五年資料依課程與證照的 `confirmation_status`、經歷的 `status` 顯示及篩選，列出已辨識類別但尚未歸年級資料；送審通知同班啟用中導師，導師決定後通知學生，沒有導師時提醒學生。
+
+驗證：相關測試 8 項通過；完整測試 1744 通過、2 略過、0 失敗，另有 3 則測試設定與字串警告；獨立 5099 固定驗收 97 項通過、0 失敗。第一次完整測試因暫存資料夾上層不存在而中止，建立獨立目錄後重跑通過；第一次固定驗收因沙箱限制本機連線而中止，改允許本機連線後通過。
+
+後續：導師權限、指派及同名班級的學年度對應仍待使用者向老師確認；目前沿用依班名查詢的既有規則。沒有重啟公開展示站或推送。
+
 ## 2026-11-16 畢業門檻工作台：學生端畢業門檻頁改成儀表板／工作台
 
 日期：2026-11-16（台灣時間，晚上）

@@ -40,6 +40,24 @@ def student_detail(student_id):
     if not student or not can_view_student(teacher, student):
         abort(403)
     journey = build_journey(student)
+    record_status = request.args.get("record_status", "all")
+    if record_status not in {"all", "draft", "confirmed", "other"}:
+        record_status = "all"
+    record_counts = {"draft": 0, "confirmed": 0, "other": 0}
+    teacher_years = []
+    for year in [*journey["years"], {"grade": None, "label": "尚未歸入年級", "categories": journey["unsorted"]}]:
+        categories = {}
+        for key in CATEGORY_KEYS:
+            categories[key] = []
+            for item in year["categories"][key]:
+                status = item.get("confirmation_status")
+                group = status if status in {"draft", "confirmed"} else "other"
+                record_counts[group] += 1
+                if record_status in {"all", group}:
+                    categories[key].append(item)
+        count = sum(len(items) for items in categories.values())
+        if count:
+            teacher_years.append({"grade": year["grade"], "label": year["label"], "categories": categories, "count": count})
     current_grade = journey["current_grade"] or 1
     journey_stops = [
         {
@@ -95,6 +113,9 @@ def student_detail(student_id):
         user=teacher,
         student=student,
         journey=journey,
+        teacher_years=teacher_years,
+        record_status=record_status,
+        record_counts=record_counts,
         journey_stops=journey_stops,
         targets=targets,
         transfer_credit=TransferCreditRecord.query.filter_by(student_id=student.id).first(),

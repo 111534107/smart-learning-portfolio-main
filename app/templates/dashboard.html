@@ -64,7 +64,7 @@
     <article class="work-metric"><span>已選目標校系</span><strong>{{ class_rows|selectattr("targets")|list|length }}</strong><small>人</small></article>
   </div>
   <section class="work-panel" id="class-roster" data-class-roster data-tour="只會列出分派給你的班級學生；點任一列查看。" data-tour-order="4">
-    <div class="work-panel__head"><div><h2>本班學生</h2><p>數字是各類資料筆數，空格代表還沒有資料。標「待確認」的學生有備審資料等你確認。</p></div></div>
+    <div class="work-panel__head"><div><h2>本班學生</h2><p>各類資料筆數包含草稿與學生已確認資料；空格代表還沒有資料。標「待確認」的學生有備審資料等你確認。</p></div></div>
     {% if class_rows %}
     <div class="table-wrap">
       <table class="data-table data-table--rowlink">
