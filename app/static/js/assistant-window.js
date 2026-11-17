@@ -6,7 +6,7 @@ document.querySelectorAll('[data-assistant]').forEach((root) => {
   if (!launcher || !panel || !overlay) return;
   const key = `assistant-position:${root.dataset.user || ''}`;
   let position = { side: 'right', y: 1 }, drag = null, suppressClick = false;
-  let inertBefore = [], previousFocus = null;
+  let inertBefore = [], shown = false;
   try {
     const saved = JSON.parse(localStorage.getItem(key) || 'null');
     if (saved && ['left', 'right'].includes(saved.side) && Number.isFinite(saved.y)) {
@@ -82,10 +82,12 @@ document.querySelectorAll('[data-assistant]').forEach((root) => {
     if (event.target === overlay) root.dispatchEvent(new CustomEvent('assistant-set-open', { detail: false }));
   });
   root.addEventListener('assistant-visibility', (event) => {
-    const open = event.detail;
+    const open = Boolean(event.detail);
+    // 已開啟時再收到開啟（例如點建議問題）不可重記背景狀態，否則關閉後整頁會一直無法操作。
+    if (open === shown) return;
+    shown = open;
     overlay.hidden = !open;
     if (open) {
-      previousFocus = document.activeElement;
       inertBefore = [...document.body.children].filter(e => e !== root && !e.contains(root) && !['SCRIPT', 'STYLE', 'LINK'].includes(e.tagName)).map(e => [e, e.inert]);
       inertBefore.forEach(([e]) => { e.inert = true; });
       viewport();
@@ -93,7 +95,9 @@ document.querySelectorAll('[data-assistant]').forEach((root) => {
     } else {
       inertBefore.forEach(([e, value]) => { e.inert = value; }); inertBefore = [];
       place();
-      if (previousFocus && previousFocus.isConnected && previousFocus !== document.body) launcher.focus({ preventScroll: true });
+      // Safari 點按鈕不會給焦點；只要焦點留在視窗內或掉到頁面本體，就交回入口。
+      const active = document.activeElement;
+      if (!active || active === document.body || root.contains(active)) launcher.focus({ preventScroll: true });
     }
   });
   panel.addEventListener('keydown', (event) => {
