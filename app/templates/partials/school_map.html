@@ -5,6 +5,9 @@
 {% if map_points %}
 {# B22：地圖的連結也保留篩選選單的條件（招生管道、日間或進修部等） #}
 {% set base_args = dict(filter_values or {}, track=track, major=major_filter) %}
+{% set own_filter = (filter_values or {}).get("ownership", "") %}
+{% set own_args = dict(base_args) %}{% set _ = own_args.pop("ownership", None) %}
+{% set own_kinds = ownership_kinds if ownership_kinds is defined else [] %}
 <section class="school-map" aria-labelledby="school-map-title" data-school-map data-schedule-url="{{ url_for('student.schedule') }}">
   <div class="school-map__figure" data-map-figure>
     {# 2026-11-16 使用者要求：地圖可放大縮小、拖曳、完整檢視。沒有 JavaScript 時工具列不顯示，地圖照舊用連結操作。 #}
@@ -32,8 +35,8 @@
       </g>
       {% for point in map_points %}
       <a href="{{ url_for('student.target_list', school=point.school.name, region=point.region, **base_args) }}#school-card"
-         class="school-map__pin{% if point.school.name == school_filter %} is-on{% endif %}{% if region_filter and point.region != region_filter %} is-dim{% endif %}"
-         data-school="{{ point.school.name }}" data-region="{{ point.region }}"
+         class="school-map__pin{% if point.school.name == school_filter %} is-on{% endif %}{% if (region_filter and point.region != region_filter) or (own_filter and ownership_of(point.school.name) != own_filter) %} is-dim{% endif %}"
+         data-school="{{ point.school.name }}" data-region="{{ point.region }}" data-own="{{ ownership_of(point.school.name) if ownership_of is defined else "" }}"
          aria-label="{{ point.school.name }}（{{ point.region }}，{{ point.programs|length }} 個校系）">
         <circle class="school-map__pulse" cx="{{ point.x }}" cy="{{ point.y }}" r="{{ (9 / map_zoom)|round(2) }}" data-base-r="9"></circle>
         <circle class="school-map__dot" cx="{{ point.x }}" cy="{{ point.y }}" r="{{ (6 / map_zoom)|round(2) }}" data-base-r="6"></circle>
@@ -57,6 +60,17 @@
          href="{{ url_for('student.target_list', region=region, **base_args) }}#target-explorer-title" aria-pressed="{{ 'true' if region_filter == region else 'false' }}">{{ region }}（{{ region_counts[region] }} 所）</a>
       {% endfor %}
     </div>
+    {% if own_kinds|length > 1 %}
+    {# 2026-11-18 使用者要求：地圖旁也能直接切國立、私立（和下面篩選選單的「國立或私立」同一個網址參數） #}
+    <div class="school-map__regions" role="group" aria-label="國立或私立" data-own-group>
+      <a class="button button--small {{ 'button--line' if own_filter else '' }}" data-own-button=""
+         href="{{ url_for('student.target_list', region=region_filter or None, **own_args) }}#target-explorer-title" aria-pressed="{{ 'false' if own_filter else 'true' }}">國立私立都看</a>
+      {% for kind in own_kinds|sort %}
+      <a class="button button--small {{ '' if own_filter == kind else 'button--line' }}" data-own-button="{{ kind }}"
+         href="{{ url_for('student.target_list', region=region_filter or None, ownership=kind, **own_args) }}#target-explorer-title" aria-pressed="{{ 'true' if own_filter == kind else 'false' }}">{{ kind }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
     <form method="get" action="{{ url_for('student.target_list') }}" class="school-map__pick" data-school-pick>
       <input type="hidden" name="track" value="{{ track }}"><input type="hidden" name="major" value="{{ major_filter }}">
       <input type="hidden" name="region" value="{{ region_filter }}" data-region-input>
@@ -65,7 +79,7 @@
         <select name="school" data-school-select>
           <option value="" data-all-label>{{ region_filter or "全部地區" }}的所有學校</option>
           {% for point in map_points %}
-          <option value="{{ point.school.name }}" data-region="{{ point.region }}"{% if point.school.name == school_filter %} selected{% endif %}{% if region_filter and point.region != region_filter %} hidden{% endif %}>{{ point.school.name }}（{{ point.school.city }}，{{ point.programs|length }} 個校系）</option>
+          <option value="{{ point.school.name }}" data-region="{{ point.region }}" data-own="{{ ownership_of(point.school.name) if ownership_of is defined else "" }}"{% if point.school.name == school_filter %} selected{% endif %}{% if (region_filter and point.region != region_filter) or (own_filter and ownership_of(point.school.name) != own_filter) %} hidden{% endif %}>{{ point.school.name }}（{{ point.school.city }}，{{ point.programs|length }} 個校系）</option>
           {% endfor %}
         </select>
       </label>
@@ -106,7 +120,7 @@
       <h3 id="school-list-title"><span data-list-region>{{ region_filter or "全部地區" }}</span>的{{ "插大" if track == "transfer" else "二技" }}學校（<span data-list-count>{{ map_points|selectattr("region", "equalto", region_filter)|list|length if region_filter else map_points|length }}</span> 所）</h3>
       <ul class="school-list__items">
         {% for point in map_points %}
-        <li class="school-list__item" data-region="{{ point.region }}"{% if region_filter and point.region != region_filter %} hidden{% endif %}>
+        <li class="school-list__item" data-region="{{ point.region }}" data-own="{{ ownership_of(point.school.name) if ownership_of is defined else "" }}"{% if (region_filter and point.region != region_filter) or (own_filter and ownership_of(point.school.name) != own_filter) %} hidden{% endif %}>
           <div class="school-list__head">
             <a class="school-list__name" data-school-link="{{ point.school.name }}" href="{{ url_for('student.target_list', school=point.school.name, region=point.region, **base_args) }}#school-card">{{ point.school.name }}</a>
             <span class="muted small">{{ point.region }} · {{ point.school.city }} · {{ point.programs|length }} 個校系</span>
@@ -152,7 +166,18 @@
   var counties = root.querySelector(".school-map__counties");
   var circles = Array.prototype.slice.call(svg.querySelectorAll("circle[data-base-r]"));
   var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var state = { region: counties.getAttribute("data-active-region") || "", school: "" };
+  var ownGroup = root.querySelector("[data-own-group]");
+  var ownOn = ownGroup && ownGroup.querySelector("[data-own-button][aria-pressed=\"true\"]");
+  var state = { region: counties.getAttribute("data-active-region") || "", school: "", own: ownOn ? ownOn.getAttribute("data-own-button") : "" };
+  // 下面篩選選單改了「國立或私立」，地圖這邊跟著切
+  document.addEventListener("target-filter:refresh", function () {
+    var menuOwn = document.querySelector('select[data-filter-key="ownership"]');
+    if (menuOwn && menuOwn.value !== state.own) { apply({ region: state.region, school: state.school, own: menuOwn.value }, false); }
+  });
+  function fits(el) {  // 地區與國立／私立都符合才顯示
+    return (!state.region || el.getAttribute("data-region") === state.region) &&
+           (!state.own || el.getAttribute("data-own") === state.own);
+  }
   var current = svg.getAttribute("viewBox").split(" ").map(Number);
   var frame = null;
   var selected = root.querySelector(".school-map__pin.is-on");
@@ -227,17 +252,23 @@
 
   function apply(next, push) {
     var regionChanged = next.region !== state.region;
+    if (next.own === undefined) { next.own = state.own; }
     state = next;
     // 地圖：放大、變暗非本區縣市與圓點、標出選中的學校
     counties.setAttribute("data-active-region", state.region);
     counties.classList.toggle("has-filter", !!state.region);
     root.querySelectorAll(".school-map__pin").forEach(function (pin) {
-      pin.classList.toggle("is-dim", !!state.region && pin.getAttribute("data-region") !== state.region);
+      pin.classList.toggle("is-dim", !fits(pin));
       pin.classList.toggle("is-on", pin.getAttribute("data-school") === state.school);
     });
     if (regionChanged || push === "init") { zoomTo(state.region); }
     show(root.querySelector("[data-map-reset]"), !!state.region);
     // 右邊：地區按鈕、學校選單、清單或卡片
+    root.querySelectorAll("[data-own-button]").forEach(function (b) {
+      var on = b.getAttribute("data-own-button") === state.own;
+      b.classList.toggle("button--line", !on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
     root.querySelectorAll("[data-region-button]").forEach(function (b) {
       var on = b.getAttribute("data-region-button") === state.region;
       b.classList.toggle("button--line", !on);
@@ -245,7 +276,7 @@
     });
     var select = root.querySelector("[data-school-select]");
     Array.prototype.forEach.call(select.options, function (o) {
-      if (o.value) { o.hidden = !!state.region && o.getAttribute("data-region") !== state.region; }
+      if (o.value) { o.hidden = !fits(o); }
     });
     select.value = state.school;
     root.querySelector("[data-all-label]").textContent = (state.region || "全部地區") + "的所有學校";
@@ -253,7 +284,7 @@
     var list = root.querySelector("[data-school-list]"), slot = root.querySelector("[data-school-card-slot]");
     var count = 0;
     list.querySelectorAll(".school-list__item").forEach(function (li) {
-      var on = !state.region || li.getAttribute("data-region") === state.region;
+      var on = fits(li);
       li.hidden = !on; if (on) { count += 1; }
     });
     list.querySelector("[data-list-region]").textContent = state.region || "全部地區";
@@ -271,6 +302,7 @@
       url.searchParams.delete("program_id");
       state.region ? url.searchParams.set("region", state.region) : url.searchParams.delete("region");
       state.school ? url.searchParams.set("school", state.school) : url.searchParams.delete("school");
+      state.own ? url.searchParams.set("ownership", state.own) : url.searchParams.delete("ownership");
       url.hash = "";
       history.pushState({ region: state.region, school: state.school }, "", url);
     }
@@ -286,6 +318,16 @@
     var back = target.closest("[data-back-to-list]");
     var openProgram = target.closest("[data-open-program]");
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.button === 1) { return; }  // 另開分頁照原本連結
+    var own = target.closest("[data-own-button]");
+    if (own) {
+      event.preventDefault();
+      var ownValue = own.getAttribute("data-own-button");
+      // 先改下面篩選選單的「國立或私立」（校系清單一起篩），再更新地圖；順序反過來，選單重新整理時會把地圖切回去
+      var menuOwn = document.querySelector('select[data-filter-key="ownership"]');
+      if (menuOwn && menuOwn.value !== ownValue) { menuOwn.value = ownValue; menuOwn.dispatchEvent(new Event("change", { bubbles: true })); }
+      apply({ region: state.region, school: "", own: ownValue }, true);
+      return;
+    }
     if (region) { event.preventDefault(); apply({ region: region.getAttribute("data-region-button"), school: "" }, true); }
     else if (county) {
       // 2026-11-16：點縣市放大到那個縣市本身（使用者要求，不是整個地區），再跳出視窗列出那裡的學校

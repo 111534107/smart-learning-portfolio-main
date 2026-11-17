@@ -152,3 +152,19 @@ def test_ownership_filter_splits_national_and_private(app):
     assert shown and all(not school.startswith("國立") and 'data-f-ownership="私立"' in attrs for school, attrs in shown)
     hidden = [school for _, school, attrs, _ in ROW.findall(page) if attrs.endswith(" hidden")]
     assert any(school.startswith("國立") for school in hidden)
+
+
+
+def test_map_side_has_national_private_toggle(app):
+    """2026-11-18 使用者要求：地圖旁的「依地區找學校」也能切國立、私立，和篩選選單同一個參數。"""
+    html = page_of(app)
+    group = html.split("data-own-group", 1)[1].split("</div>", 1)[0]
+    assert "國立私立都看" in group and ">國立<" in group and ">私立<" in group
+    assert 'data-own="國立"' in html and 'data-own="私立"' in html
+    only_national = page_of(app, "?ownership=國立")
+    items = re.findall(r'<li class="school-list__item"[^>]*>', only_national)
+    assert items
+    for item in items:
+        assert ('data-own="國立"' in item) != (" hidden" in item)
+    pressed = only_national.split("data-own-group", 1)[1].split("</div>", 1)[0]
+    assert re.search(r'data-own-button="國立"[^>]*aria-pressed="true"', pressed)

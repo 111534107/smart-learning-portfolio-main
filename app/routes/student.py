@@ -1318,6 +1318,8 @@ def target_list():
         links={p.id: admission_links(p, school_links) for p in program_options},
         school_links={p.id: school_directory.school_links(p, schools) for p in program_options},
         map_points=map_points,
+        ownership_of=target_filters.ownership_of,  # 地圖旁的國立／私立切換（2026-11-18）
+        ownership_kinds=sorted({target_filters.ownership_of(point["school"].name) for point in map_points}),
         program_region=program_region,
         hidden_program_ids=hidden_program_ids,
         map_hidden_ids=map_hidden_ids,
