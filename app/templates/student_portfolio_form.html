@@ -75,11 +75,31 @@
   </section>
   {% endif %}
 
+  {% if portfolio and portfolio.category == "project" %}
+  <section class="sheet mt-1" aria-labelledby="project-links-title">
+    <h2 id="project-links-title">作品連結</h2>
+    <p>可逐一加入 GitHub、Canva 或其他作品網址；不會上傳作品檔案。</p>
+    <ul data-project-links>{% for item in portfolio.evidence_items if item.external_url and item.is_available %}<li><a href="{{ item.external_url }}" target="_blank" rel="noopener noreferrer">{{ item.display_name }}</a>：{{ item.external_url }}
+      <form method="post" action="{{ url_for('student.evidence_delete', evidence_id=item.id) }}" data-confirm="確定要移除「{{ item.display_name }}」這個連結嗎？" style="display:inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="button button--small button--line" type="submit">移除連結</button>
+      </form></li>{% else %}<li>尚未加入連結。</li>{% endfor %}</ul>
+    <form method="post" action="{{ url_for('student.evidence_upload', portfolio_id=portfolio.id) }}" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="field">連結名稱<input name="link_name" maxlength="150"></label>
+      <label class="field">作品網址<input type="url" name="external_url" maxlength="500" required></label>
+      <button class="button button--small" type="submit">新增連結</button>
+    </form>
+    <p class="small muted">新增連結後請重新確認作品內容。</p>
+    <a class="button button--line" href="{{ url_for('student.project_analyze', portfolio_id=portfolio.id) }}">請小助手分析</a>
+  </section>
+  {% endif %}
   {% if portfolio %}
   <section class="sheet mt-1" aria-labelledby="evidence-title">
     <div class="sheet__head"><h2 id="evidence-title">佐證（照片、證明）</h2></div>
-    {% if portfolio.evidence_items %}
-    <div class="mb-1">{{ evidence_grid(portfolio.evidence_items, "student.evidence_view", download_endpoint="student.evidence_download", delete_endpoint="student.evidence_delete") }}</div>
+    {% set shown_evidence = portfolio.evidence_items|selectattr("file_path")|list if portfolio.category == "project" else portfolio.evidence_items %}
+    {% if shown_evidence %}
+    <div class="mb-1">{{ evidence_grid(shown_evidence, "student.evidence_view", download_endpoint="student.evidence_download", delete_endpoint="student.evidence_delete") }}</div>
     {% endif %}
     <form method="post" action="{{ url_for('student.evidence_upload', portfolio_id=portfolio.id) }}" enctype="multipart/form-data" class="form-stack">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

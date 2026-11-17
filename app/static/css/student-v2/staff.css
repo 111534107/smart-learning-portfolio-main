@@ -50,6 +50,24 @@ html[data-staff-ui] .check-row input[type="checkbox"] {
   html[data-staff-ui] .masthead--app .brand { order: 1; }
   html[data-staff-ui] .masthead--app .masthead__tools { order: 2; margin-left: auto; }
   html[data-staff-ui] .masthead--app .snav-toggle { order: 3; white-space: nowrap; margin-left: 4px; }
+  /* 和此處 720px 的版型切換同步，避免 701～720px 選單展開卻沒有收合按鈕。 */
+  html.js[data-staff-ui] .masthead--app .snav-toggle {
+    display: inline-flex; justify-content: center; width: 44px; height: 44px;
+    padding: 0; border: 0; border-radius: 50%; background: transparent; font-size: 0;
+  }
+  html.js[data-staff-ui] .masthead--app .snav-toggle:hover { background: var(--accent-soft); }
+  html[data-staff-ui][data-ui="student-v2"] .masthead--app .snav-bell {
+    position: relative; justify-content: center; width: 44px; height: 44px; padding: 0; font-size: 0;
+  }
+  html[data-staff-ui] .masthead--app .snav-bell::before {
+    content: ""; display: block; width: 21px; height: 21px; background: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4'/%3E%3C/svg%3E") center / contain no-repeat;
+  }
+  html[data-staff-ui] .masthead--app .snav-bell .mainnav__count {
+    position: absolute; top: 1px; right: 0; margin: 0;
+  }
+  html.js[data-staff-ui] .masthead--app .snav-toggle[aria-expanded="false"] + .mainnav { display: none; }
   html[data-staff-ui][data-ui="student-v2"] .masthead--app .mainnav {
     order: 4;
     flex-basis: 100%;

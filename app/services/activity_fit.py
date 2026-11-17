@@ -52,7 +52,7 @@ def _uses_by_category(scoped):
     for program, gap in scoped:
         best = {}
         for item in gap["items"]:
-            for key in item["have"] + item["missing"]:
+            for key in item["have"] + item["missing"] + [key for key in item.get("documents", []) if key == "project"]:
                 if key not in best or item["weight"] > best[key]["weight"]:
                     best[key] = {"program": program, "name": f"{program.school_name} {program.department_name}",
                                  "channel": channel_label(program), "item": item["name"], "weight": item["weight"],
