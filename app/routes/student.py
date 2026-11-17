@@ -1777,6 +1777,8 @@ def _autobiography_program(user, program_id):
 def _render_autobiography(user, program, targets, error=None, answers=None, status=503, stale=None):
     """stale：用舊頁面存檔被擋下時，顯示最新版，並把沒存到的文字列出來（不讓學生白打）。"""
     draft = autobiography_service.latest_draft(user, program) if program else None
+    from app.models import AutobiographyComment
+    comments = AutobiographyComment.query.filter_by(student_id=user.id, program_id=program.id).order_by(AutobiographyComment.id).all() if draft else []
     asking = program and (not draft or request.args.get("redo") or error) and not stale
     paragraph_reviews = []
     if draft:
@@ -1790,6 +1792,7 @@ def _render_autobiography(user, program, targets, error=None, answers=None, stat
         program=program,
         targets=targets,
         draft=draft,
+        paragraph_comments=comments,
         asking=asking,
         questions=autobiography_service.guided_questions(program),
         valued_label=autobiography_service.VALUED_LABEL,

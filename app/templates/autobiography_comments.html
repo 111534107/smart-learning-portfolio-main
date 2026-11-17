@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% block title %}自傳段落註解{% endblock %}
+{% block navigation %}{{ masthead(user, "工作台") }}{% endblock %}
+{% block content %}
+<section class="work-shell">
+  <h1>自傳段落註解</h1>
+  <p><a href="{% if user.role == 'student' %}{{ url_for('student.autobiography', program_id=output.content_json.program_id) }}{% else %}{{ url_for('teacher.autobiography_edit', student_id=student.id, output_id=output.id) }}{% endif %}">返回自傳</a></p>
+  <p class="notice">這裡依自傳段落整理意見。{% if user.role == 'teacher' %}在段落下方輸入建議並按「送出註解」，學生可以回覆。{% else %}展開老師的註解可以回覆；完成修改後可標記「已處理」。{% endif %}</p>
+  {% for paragraph in output.content_json.paragraphs %}
+  {% set paragraph_index = loop.index0 %}
+  <section class="work-panel"><h2>{{ paragraph.title }}</h2><p class="small muted">學生目前的自傳內容</p><blockquote class="comment-original">{{ paragraph.text }}</blockquote>
+    <h3>這一段的註解</h3>
+    {% for comment in comments if comment.paragraph == paragraph_index and not comment.parent_id %}
+    <details class="comment-thread" {% if not comment.resolved_at %}open{% endif %}><summary><strong>{{ comment.author.display_name }} 老師</strong> · <b>{{ '已處理' if comment.resolved_at else '待處理' }}</b><br><span class="small muted">{{ comment.created_at|taipei_time('%Y-%m-%d %H:%M') }} · 寫於自傳第 {{ comment.output.content_json.version }} 版{% if comment.resolved_at %} · {{ comment.resolved_by.display_name }}於 {{ comment.resolved_at|taipei_time('%Y-%m-%d %H:%M') }} 標記{% endif %}</span></summary>
+      <div class="comment-body"><p class="small muted">老師的建議</p><p class="comment-text">{{ comment.text }}</p>
+      {% for reply in comments if reply.parent_id == comment.id %}<div class="comment-reply"><p class="small muted"><b>{{ reply.author.display_name }}（{{ '老師' if reply.author.role == 'teacher' else '學生' }}）</b> · {{ reply.created_at|taipei_time('%Y-%m-%d %H:%M') }}</p><p class="comment-text">{{ reply.text }}</p></div>{% endfor %}
+      <form class="comment-form" method="post" action="{{ url_for('teacher.comment_action', comment_id=comment.id, action='reply') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label for="reply-{{ comment.id }}">回覆這則註解</label><textarea id="reply-{{ comment.id }}" name="text" required maxlength="2000" placeholder="輸入你的回覆"></textarea><button class="button button--small" type="submit">送出回覆</button></form>
+      <form class="comment-action" method="post" action="{{ url_for('teacher.comment_action', comment_id=comment.id, action='reopen' if comment.resolved_at else 'resolve') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--line button--small" type="submit">{{ '改回待處理' if comment.resolved_at else '標記已處理' }}</button></form></div>
+    </details>
+    {% else %}<p class="small muted">這一段目前沒有註解。</p>{% endfor %}
+    {% if user.role == 'teacher' %}<div class="comment-new"><h3>給這一段新增建議</h3><p class="small muted">每次送出都會保留一則獨立的註解，學生會收到通知。</p><form class="comment-form" method="post" action="{{ url_for('teacher.autobiography_comments', student_id=student.id, output_id=output.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="paragraph" value="{{ paragraph_index }}"><label for="new-{{ paragraph_index }}">老師的建議</label><textarea id="new-{{ paragraph_index }}" name="text" required maxlength="2000" placeholder="例如：可以補充你在專題中負責的工作。"></textarea><button class="button button--small" type="submit">送出註解</button></form></div>{% endif %}
+  </section>
+  {% endfor %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.comment-original { background:#f1f4f6; border-left:4px solid #718697; padding:1rem; margin:.5rem 0 1.2rem; white-space:pre-wrap; }
+.comment-thread { border:1px solid #cbd5df; background:#fff; margin:1rem 0; }
+.comment-thread summary { cursor:pointer; background:#f1f5f8; padding:.8rem 1rem; line-height:1.6; }
+.comment-body { padding:1rem; }
+.comment-text { white-space:pre-wrap; overflow-wrap:anywhere; }
+.comment-reply { border-left:3px solid #b9c8d4; padding-left:.8rem; margin:1rem 0; }
+.comment-form { display:grid; gap:.5rem; margin-top:1rem; }
+.comment-form textarea { width:100%; min-height:5rem; box-sizing:border-box; }
+.comment-form button { justify-self:start; }
+.comment-action { margin-top:.8rem; }
+.comment-new { border-top:1px solid #d8dee5; margin-top:1.25rem; padding-top:1rem; }
+</style>
+{% endblock %}

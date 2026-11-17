@@ -156,6 +156,11 @@
       <p class="review-label">主張</p>
       <textarea name="paragraph_{{ loop.index0 }}" rows="6" data-autosize data-char aria-label="{{ paragraph.title }}">{{ paragraph.text }}</textarea>
       {% if paragraph.teacher_comment %}<blockquote class="teacher-comment"><b>導師意見：</b>{{ paragraph.teacher_comment }}</blockquote>{% endif %}
+      {% set paragraph_index = loop.index0 %}
+      {% for comment in paragraph_comments if comment.paragraph == paragraph_index and not comment.parent_id %}
+      <blockquote class="teacher-comment"><b>{{ comment.author.display_name }}：</b>{{ comment.text }}{% if comment.resolved_at %}（已處理）{% endif %}</blockquote>
+      {% endfor %}
+      <p><a href="{{ url_for('teacher.autobiography_comments', student_id=user.id, output_id=draft.id) }}">查看註解及回覆</a></p>
       <div class="paragraph-review">
         <section class="paragraph-review__evidence" aria-label="證據"{% if loop.first %} data-tour="每段都看得到依據、疑點和建議。" data-tour-order="2"{% endif %}>
           <h3>證據</h3>

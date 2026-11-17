@@ -1,4 +1,5 @@
 from app.models.agent_task import AgentTask
+from app.models.autobiography_comment import AutobiographyComment
 from app.models.ai_usage import AiDailyUsage
 from app.models.audit_log import AuditLog
 from app.models.portfolio import Portfolio, PortfolioDomainTag, PortfolioEvidence

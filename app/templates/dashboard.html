@@ -64,19 +64,26 @@
     {% endif %}
     <article class="work-metric"><span>已選目標校系</span><strong>{{ class_rows|selectattr("targets")|list|length }}</strong><small>人</small></article>
   </div>
+  <section class="work-panel" data-target-statistics>
+    <div class="work-panel__head"><div><h2>本班目標學校統計</h2><p>依本班學生目前選擇的目標校系統計，代表有意願，並非已報名。每人在同一所學校或科系只計一次；一人可選多所，合計可能超過班級人數。</p></div></div>
+    {% if target_statistics %}<div class="table-wrap"><table class="data-table"><thead><tr><th>學校</th><th>選擇人數</th><th>科系及人數</th></tr></thead><tbody>
+      {% for school in target_statistics %}<tr><td>{{ school.school }}</td><td>{{ school.count }} 人</td><td>{% for department in school.departments %}{{ department.name }}：{{ department.count }} 人{% if not loop.last %}<br>{% endif %}{% endfor %}</td></tr>{% endfor %}
+    </tbody></table></div>{% else %}<p class="muted">本班學生目前還沒有選擇目標校系。</p>{% endif %}
+  </section>
   <section class="work-panel" id="class-roster" data-class-roster data-tour="只會列出分派給你的班級學生；點任一列查看。" data-tour-order="4">
-    <div class="work-panel__head"><div><h2>本班學生</h2><p>各類資料筆數包含草稿與學生已確認資料；空格代表還沒有資料。標「待確認」的學生有備審資料等你確認。</p></div></div>
+    <div class="work-panel__head"><div><h2>本班學生</h2><p>各類資料筆數包含草稿與學生已確認資料；空格代表還沒有資料。標「待確認」的學生有備審資料等你確認。</p><p>各目標校系的準備度依已確認資料及簡章配分估算，待補強包含尚未備齊的類別；數字不是錄取機率，請以簡章與人工確認為準。</p></div></div>
     {% if class_rows %}
     <div class="table-wrap">
       <table class="data-table data-table--rowlink">
-        <thead><tr><th>學號</th><th>姓名</th>{% for key in category_keys %}<th>{{ category_labels[key] }}</th>{% endfor %}<th>目標校系</th><th>待確認</th><th><span class="visually-hidden">操作</span></th></tr></thead>
+        <thead><tr><th>學號</th><th>姓名</th>{% for key in category_keys %}<th>{{ category_labels[key] }}</th>{% endfor %}<th>資料類別概況</th><th>目標校系</th><th>待確認</th><th><span class="visually-hidden">操作</span></th></tr></thead>
         <tbody>
           {% for row in class_rows %}
           <tr class="row-link{% if row.pending %} row-link--pending{% endif %}">
             <td class="mono">{{ row.student.student_profile.student_no }}</td>
             <td><b>{{ row.student.display_name }}</b></td>
             {% for key in category_keys %}<td>{% if row.totals[key] %}{{ row.totals[key] }}{% else %}<span class="muted">—</span>{% endif %}</td>{% endfor %}
-            <td class="small">{% for program in row.targets %}{{ program.school_name|replace("國立", "") }}{{ program.department_name }}{% if not loop.last %}<br>{% endif %}{% else %}<span class="muted">未選</span>{% endfor %}</td>
+            <td class="small">{{ category_keys|length - row.missing }} / {{ category_keys|length }} 類有資料{% if row.missing %}<br>尚無：{% for key in category_keys if not row.totals[key] %}{{ category_labels[key] }}{% if not loop.last %}、{% endif %}{% endfor %}{% endif %}</td>
+            <td class="small">{% for target in row.target_progress %}<div class="mb-1"><b>{{ target.program.school_name }} {{ target.program.department_name }}</b><br>{% if target.readiness is not none %}準備度 {{ target.readiness }}%{% else %}尚無法計算{% endif %}{% if target.pending_mapping %}（簡章項目待對應）{% endif %}<br>{% if target.needs %}待補強：{{ target.needs|join('、') }}{% elif target.pending_mapping %}缺件尚待確認{% else %}目前沒有待補強類別{% endif %}<br><a href="{{ url_for('teacher.student_detail', student_id=row.student.id, _anchor='teacher-target-' ~ target.program.id) }}">查看校系明細</a></div>{% else %}<span class="muted">未選</span>{% endfor %}</td>
             <td>{% if row.pending %}<span class="tag tag--warn">{{ row.pending }} 份</span>{% else %}<span class="muted">—</span>{% endif %}</td>
             <td class="row-link__action"><a class="button button--small row-link__target" href="{{ url_for('teacher.student_detail', student_id=row.student.id) }}" aria-label="查看 {{ row.student.display_name }} 的資料">{% if row.pending %}確認{% else %}查看{% endif %}</a></td>
           </tr>

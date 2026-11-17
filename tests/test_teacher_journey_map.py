@@ -53,6 +53,58 @@ def teacher_journey_app():
     return app, student_id
 
 
+def test_teacher_dashboard_shows_class_data_coverage_and_missing_categories():
+    app, _ = teacher_journey_app()
+    client = app.test_client()
+    client.post("/login", data={"username": "journey-teacher", "password": "pw"})
+    html = client.get("/teacher/dashboard").get_data(as_text=True)
+    assert "資料類別概況" in html
+    assert "3 / 6 類有資料" in html
+    assert "成績與學分" in html and "幹部經歷" in html
+
+
+def test_teacher_dashboard_compares_each_target_and_shows_unknown_mapping():
+    from app.models import AdmissionProgram, AdmissionRequirementItem, StudentTarget
+    app, student_id = teacher_journey_app()
+    with app.app_context():
+        first = AdmissionProgram(program_code="T001", admission_year=115, school_name="測試甲大學", department_name="資管", status="published")
+        second = AdmissionProgram(program_code="T002", admission_year=115, school_name="測試乙大學", department_name="資工", status="published")
+        first.items.append(AdmissionRequirementItem(source_item_name="證照", weight_percent=100, mapped_categories="credential", mapping_status="confirmed"))
+        second.items.append(AdmissionRequirementItem(source_item_name="未對應", weight_percent=100, mapped_categories="", mapping_status="pending"))
+        db.session.add_all([first, second]); db.session.flush()
+        db.session.add_all([StudentTarget(student_id=student_id, rule_version_id=first.id), StudentTarget(student_id=student_id, rule_version_id=second.id)])
+        db.session.commit()
+    client = app.test_client()
+    client.post("/login", data={"username": "journey-teacher", "password": "pw"})
+    html = client.get("/teacher/dashboard").get_data(as_text=True)
+    assert "測試甲大學" in html and "測試乙大學" in html
+    assert "準備度 0%" in html and "證照" in html
+    assert "尚無法計算" in html and "待對應" in html
+
+
+def test_class_target_statistics_count_distinct_students_and_exclude_other_classes():
+    from app.models import AdmissionProgram, StudentTarget
+    app, student_id = teacher_journey_app()
+    with app.app_context():
+        other = User(username="other-class-student", display_name="別班測試", role="student")
+        other.set_password("pw")
+        db.session.add(other); db.session.flush()
+        db.session.add(StudentProfile(user_id=other.id, student_no="OTHER", class_name="別班"))
+        programs = [AdmissionProgram(program_code=f"S{i}", admission_year=115, school_name="測試學校", department_name=department, status="published")
+                    for i, department in enumerate(("資管系", "資工系", "資管系"))]
+        db.session.add_all(programs); db.session.flush()
+        db.session.add_all([StudentTarget(student_id=student_id, rule_version_id=program.id) for program in programs])
+        db.session.add(StudentTarget(student_id=other.id, rule_version_id=programs[0].id))
+        db.session.commit()
+    client = app.test_client()
+    client.post("/login", data={"username": "journey-teacher", "password": "pw"})
+    html = client.get("/teacher/dashboard").get_data(as_text=True)
+    summary = html.split('data-target-statistics', 1)[1].split('</section>', 1)[0]
+    assert "測試學校" in summary and "資管系" in summary and "資工系" in summary
+    assert summary.count("1 人") == 3
+    assert "別班測試" not in summary
+
+
 def test_teacher_student_page_shows_static_five_year_overview_with_correct_counts():
     app, student_id = teacher_journey_app()
     client = app.test_client()

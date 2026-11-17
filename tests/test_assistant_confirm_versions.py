@@ -615,6 +615,72 @@ def test_teacher_edits_text_and_leaves_comments(app):
     assert "這段可以多寫你負責的部分" in cancelled.get_data(as_text=True)
 
 
+def test_teacher_cannot_confirm_after_autobiography_changes_until_resubmitted(app):
+    set_admission_year(app, GRADE3_ADMISSION_YEAR - 2)
+    student = login(app)
+    pid = write_autobiography(app, student)
+    first = autobiography_rows(app)[0]
+    student.post(f"/student/targets/{pid}/review")
+    review_id = latest_review_row(app)["id"]
+    teacher = login(app, "teacher")
+    seen = teacher_form(app, review_id)
+    save(student, first["id"], ["更新後的自傳"] * len(first["content"]["paragraphs"]))
+    page = teacher.get(f"/teacher/students/{user_id(app, 'stu')}").get_data(as_text=True)
+    assert "送審時的自傳第 1 版" in page
+    response = teacher.post(f"/teacher/package-reviews/{review_id}", data={"decision": "confirmed", "taken_at": seen}, follow_redirects=True)
+    assert "請學生重新送審" in response.get_data(as_text=True)
+    assert latest_review_row(app)["status"] == "pending"
+    student.post(f"/student/targets/{pid}/review")
+    teacher.post(f"/teacher/package-reviews/{review_id}", data={"decision": "confirmed", "taken_at": teacher_form(app, review_id)})
+    assert latest_review_row(app)["status"] == "confirmed"
+
+
+def test_paragraph_comments_allow_thread_and_resolution_only_for_class(app):
+    set_admission_year(app, GRADE3_ADMISSION_YEAR - 2)
+    student = login(app)
+    pid = write_autobiography(app, student)
+    output = autobiography_rows(app)[0]
+    teacher = login(app, "teacher")
+    url = f"/teacher/students/{user_id(app, 'stu')}/autobiography/{output['id']}/comments"
+    assert login(app, "stranger").post(url, data={"paragraph": 0, "text": "越權"}).status_code == 403
+    assert teacher.post(url, data={"paragraph": 0, "text": "請補充例子"}).status_code == 302
+    assert teacher.post(url, data={"paragraph": 0, "text": "說明你的貢獻"}).status_code == 302
+    page = student.get(f"/student/autobiography?program_id={pid}").get_data(as_text=True)
+    assert "請補充例子" in page and "說明你的貢獻" in page and "teacher" in page
+    from app.models import AutobiographyComment
+    with app.app_context():
+        comment_id = AutobiographyComment.query.filter_by(text="請補充例子").one().id
+    assert login(app, "other").post(f"/autobiography/comments/{comment_id}/reply", data={"text": "越權"}).status_code == 403
+    assert student.post(f"/autobiography/comments/{comment_id}/reply", data={"text": "我已補上"}).status_code == 302
+    assert student.post(f"/autobiography/comments/{comment_id}/resolve").status_code == 302
+    page = teacher.get(url).get_data(as_text=True)
+    assert "我已補上" in page and "已處理" in page
+    assert teacher.post(f"/autobiography/comments/{comment_id}/reopen").status_code == 302
+    with app.app_context():
+        assert db.session.get(AutobiographyComment, comment_id).resolved_at is None
+        assert AutobiographyComment.query.filter_by(parent_id=comment_id).count() == 1
+
+
+def test_teacher_edits_and_uses_comments_in_same_page(app):
+    set_admission_year(app, GRADE3_ADMISSION_YEAR - 2)
+    student = login(app)
+    write_autobiography(app, student)
+    first = autobiography_rows(app)[0]
+    teacher = login(app, "teacher")
+    edit_url = f"/teacher/students/{user_id(app, 'stu')}/autobiography/{first['id']}/edit"
+    comments_url = f"/teacher/students/{user_id(app, 'stu')}/autobiography/{first['id']}/comments"
+    response = teacher.post(comments_url, data={"paragraph": "0", "text": "請寫出你的貢獻", "return_to": "edit"}, follow_redirects=True)
+    html = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert "段落註解與回覆" in html and "請寫出你的貢獻" in html
+    assert "給學生的意見（選填）" not in html
+    assert 'form="autobiography-edit"' in html
+    save(teacher, None, [p["text"] for p in first["content"]["paragraphs"]], url=edit_url)
+    latest = autobiography_rows(app)[-1]
+    html = teacher.get(f"/teacher/students/{user_id(app, 'stu')}/autobiography/{latest['id']}/edit").get_data(as_text=True)
+    assert "請寫出你的貢獻" in html
+
+
 def test_other_class_teacher_cannot_edit_autobiography(app):
     set_admission_year(app, GRADE3_ADMISSION_YEAR - 2)  # 專五：自傳到專五才開放生成
     write_autobiography(app, login(app))

@@ -8,7 +8,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.extensions import db
 from app.models import AuditLog, AwardCertificate, PortfolioSubmission, SourceDocument, StudentTarget, User
-from app.services.gap_service import analyze_gap
+from app.services.gap_service import ALL_LABELS, analyze_gap, student_evidence
 from app.services.guide_service import CARD_IDS, guide_cards
 from app.services.journey_home import journey_home
 from app.services import graduation_case_service, graduation_check_service, photo_service, student_rules
@@ -451,13 +451,33 @@ def teacher_dashboard():
         journey = build_journey(student)
         targets = StudentTarget.query.filter_by(student_id=student.id).all()
         reviews = [latest_review(student, target.program) for target in targets]
+        evidence = student_evidence(student, journey) if targets else None
+        target_progress = []
+        for target in targets:
+            gap = analyze_gap(student, target.program, journey, evidence)
+            needs = list(dict.fromkeys(ALL_LABELS.get(key, key) for item in gap["items"]
+                                       for key, level in item["levels"].items() if level < 1))
+            target_progress.append({"program": target.program, "readiness": gap["readiness"],
+                                    "needs": needs,
+                                    "pending_mapping": any(item["mapping_pending"] or item["fraction"] is None for item in gap["items"])})
         rows.append({
             "student": student,
             "totals": journey["totals"],
             "missing": len(journey["missing_categories"]),
             "targets": [target.program for target in targets],
+            "target_progress": target_progress,
             "pending": sum(1 for review in reviews if review and review.status == "pending"),
         })
+    schools = {}
+    for row in rows:
+        for program in row["targets"]:
+            school = schools.setdefault(program.school_name, {"students": set(), "departments": {}})
+            school["students"].add(row["student"].id)
+            school["departments"].setdefault(program.department_name, set()).add(row["student"].id)
+    target_statistics = [{"school": name, "count": len(data["students"]),
+                          "departments": [{"name": department, "count": len(ids)}
+                                          for department, ids in sorted(data["departments"].items())]}
+                         for name, data in sorted(schools.items())]
     pending_rows = [row for row in rows if row["pending"]]
     if len(pending_rows) == 1:
         pending_href = url_for("teacher.student_detail", student_id=pending_rows[0]["student"].id)
@@ -471,6 +491,7 @@ def teacher_dashboard():
         user=user,
         classes=advised_classes(user),
         class_rows=rows,
+        target_statistics=target_statistics,
         pending_href=pending_href,
         grad=graduation_case_service.class_overview(students),
         grad_disclaimer=graduation_check_service.DISCLAIMER,

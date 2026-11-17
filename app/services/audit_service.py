@@ -11,6 +11,7 @@ from app.models import AuditLog
 
 # 管理者「操作紀錄」頁顯示的中文名稱；新動作記得補一筆
 ACTION_LABELS = {
+    "target.teacher_reminder": "導師提醒學生準備備審",
     "class_advisor.assign": "新增導師班級指派",
     "class_advisor.remove": "移除導師班級指派",
     "transfer_plan.add": "新增插大目標",

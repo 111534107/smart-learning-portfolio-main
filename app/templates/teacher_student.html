@@ -123,6 +123,13 @@
         {% if target.review %}{% set label, cls = review_text[target.review.status] %}<span class="tag {{ cls }}">{{ label }}</span>{% else %}<span class="tag">學生尚未送出</span>{% endif %}
       </div>
     </div>
+    {% if not target.cancelled %}
+    {% if request.args.get('reminded', '0')|int == target.program.id %}<p class="notice" role="status">提醒已送出，學生可從站內通知查看。</p>{% endif %}
+    <details class="mt-1"><summary>提醒學生準備</summary>
+      <p class="small muted">請先確認並修改提醒內容，再送出站內通知。學生可點通知查看這個校系。</p>
+      <form class="form-stack" method="post" action="{{ url_for('teacher.remind_target', student_id=student.id, program_id=target.program.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label class="field">提醒內容<textarea name="message" maxlength="180" required>{{ target.reminder_suggestion }}</textarea></label><div><button class="button button--small" type="submit">送出提醒</button></div></form>
+    </details>
+    {% endif %}
     {% set snap = target.review.snapshot_json if target.review else none %}
     {% if snap %}
     <div class="snapshot-box mt-1">
@@ -138,6 +145,11 @@
       <details class="source-doc mt-1"><summary>送審當下的資料（{{ snap.facts|length }} 筆）</summary>
         <ul class="rule-item-list">{% for fact in snap.facts %}<li><span>{{ fact.text }}</span></li>{% else %}<li>沒有已確認的資料。</li>{% endfor %}</ul>
       </details>
+      {% if target.submitted_autobiography %}
+      <details class="source-doc mt-1"><summary>送審時的自傳第 {{ snap.autobiography.version }} 版</summary>
+        {% for paragraph in target.submitted_autobiography.content_json.paragraphs %}<h3 class="h3 mt-1">{{ paragraph.title }}</h3><p>{{ paragraph.text }}</p>{% endfor %}
+      </details>
+      {% endif %}
     </div>
     {% endif %}
     <div class="table-wrap">

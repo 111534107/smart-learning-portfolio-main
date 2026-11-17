@@ -43,6 +43,29 @@ def login(client, username, staff=False):
     return client.post("/staff/login" if staff else "/login", data={"username": username, "password": "pw"})
 
 
+def test_teacher_can_send_custom_target_reminder_only_to_own_student(review_setup):
+    app, ids = review_setup
+    teacher = app.test_client()
+    login(teacher, "teacher1", staff=True)
+    path = f"/teacher/students/{ids['student']}/targets/{ids['program']}/remind"
+    html = teacher.get(f"/teacher/students/{ids['student']}").get_data(as_text=True)
+    assert "提醒學生準備" in html
+    assert teacher.post(path, data={"message": "  "}).status_code == 400
+    stranger = app.test_client()
+    login(stranger, "other", staff=True)
+    assert stranger.post(path, data={"message": "越權"}).status_code == 403
+    response = teacher.post(path, data={"message": "請補充專題作品"}, follow_redirects=True)
+    assert "提醒已送出" in response.get_data(as_text=True)
+    with app.app_context():
+        note = Notification.query.filter_by(recipient_id=ids["student"]).one()
+        assert "請補充專題作品" in note.message
+        assert note.link == f"/student/targets/{ids['program']}"
+        note_id = note.id
+    student = app.test_client()
+    login(student, "student")
+    assert student.get(f"/notifications/{note_id}/open").location.endswith(f"/student/targets/{ids['program']}")
+
+
 def test_submission_notifies_each_active_class_teacher_and_links_to_review(review_setup):
     app, ids = review_setup
     student_client = app.test_client()

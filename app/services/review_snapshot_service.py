@@ -124,6 +124,7 @@ NOTICES = {
     "done": "這份送審已經處理過了，請重新整理頁面。",
     "newer": "學生已經送出新的送審，這一筆不能再變更，請處理最新的那一筆。",
     "changed": "學生剛更新了送審內容，請先看新的內容再確認。",
+    "autobiography_changed": "自傳已有新版本，請學生重新送審後再確認。",
 }
 
 
@@ -144,6 +145,10 @@ def decide(review, teacher, decision, comment, seen_taken_at=None):
     _check_latest(review)
     if (review.snapshot_json or {}).get("taken_at", "") != (seen_taken_at or ""):
         raise ReviewChanged("changed", NOTICES["changed"])
+    submitted = (review.snapshot_json or {}).get("autobiography") or {}
+    latest = autobiography_service.latest_draft(review.student, review.program)
+    if decision == "confirmed" and submitted.get("output_id") != (latest.id if latest else None):
+        raise ReviewChanged("autobiography_changed", NOTICES["autobiography_changed"])
     review.status = decision
     review.comment = comment or None
     review.teacher_id = teacher.id

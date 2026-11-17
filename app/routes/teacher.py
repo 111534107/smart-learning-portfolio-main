@@ -15,6 +15,7 @@ from app.models import (
     TransferCreditRecord,
     TransferPlan,
     User,
+    AutobiographyComment,
 )
 from app.routes.main import get_current_user, role_required
 from app.services.gap_service import ALL_LABELS, analyze_gap
@@ -31,6 +32,75 @@ from app.services import check_dates, semester_warning
 from app.models import GraduationCase, GraduationCaseEvent
 
 teacher_bp = Blueprint("teacher", __name__)
+
+
+def _comment_output(student_id, output_id):
+    actor = get_current_user()
+    student = db.session.get(User, student_id)
+    if not student or not (actor.role == "student" and actor.id == student_id or
+                           actor.role == "teacher" and can_view_student(actor, student)):
+        abort(403)
+    output = db.session.get(LearningProfileOutput, output_id)
+    if not output or output.student_id != student_id or output.output_type != autobiography_service.OUTPUT_TYPE:
+        abort(404)
+    return actor, student, output
+
+
+@teacher_bp.route("/teacher/students/<int:student_id>/autobiography/<int:output_id>/comments", methods=["GET", "POST"])
+@role_required("teacher", "student")
+def autobiography_comments(student_id, output_id):
+    actor, student, output = _comment_output(student_id, output_id)
+    program_id = output.content_json.get("program_id")
+    if request.method == "POST":
+        if actor.role != "teacher":
+            abort(403)
+        index = request.form.get("paragraph", type=int)
+        text = (request.form.get("text") or "").strip()
+        if index is None or not 0 <= index < len(output.content_json.get("paragraphs", [])) or not text or len(text) > 2000:
+            abort(400)
+        comment = AutobiographyComment(student_id=student_id, program_id=program_id, output_id=output_id,
+                                       paragraph=index, author_id=actor.id, text=text)
+        db.session.add(comment)
+        db.session.flush()
+        db.session.add(Notification(recipient_id=student_id, message=f"{actor.display_name}老師在自傳留下段落註解。"[:255],
+                                    link=url_for("student.autobiography", program_id=program_id)))
+        audit_service.record(actor, "autobiography.comment", "autobiography_comment", comment.id, commit=True)
+        if request.form.get("return_to") == "edit":
+            return redirect(url_for("teacher.autobiography_edit", student_id=student_id, output_id=output_id, _anchor=f"paragraph-{index}"))
+        return redirect(url_for("teacher.autobiography_comments", student_id=student_id, output_id=output_id))
+    comments = AutobiographyComment.query.filter_by(student_id=student_id, program_id=program_id).order_by(AutobiographyComment.id).all()
+    return render_template("autobiography_comments.html", user=actor, student=student, output=output, comments=comments)
+
+
+@teacher_bp.post("/autobiography/comments/<int:comment_id>/<action>")
+@role_required("teacher", "student")
+def comment_action(comment_id, action):
+    from datetime import datetime, timezone
+    comment = db.session.get(AutobiographyComment, comment_id)
+    if not comment or comment.parent_id:
+        abort(404)
+    actor, student, output = _comment_output(comment.student_id, comment.output_id)
+    current_id = request.form.get("return_output_id", type=int)
+    if actor.role == "teacher" and current_id:
+        _, _, current_output = _comment_output(student.id, current_id)
+        if current_output.content_json.get("program_id") != comment.program_id:
+            abort(400)
+    if action == "reply":
+        text = (request.form.get("text") or "").strip()
+        if not text or len(text) > 2000:
+            abort(400)
+        reply = AutobiographyComment(student_id=student.id, program_id=comment.program_id, output_id=comment.output_id,
+                                     paragraph=comment.paragraph, author_id=actor.id, parent_id=comment.id, text=text)
+        db.session.add(reply)
+    elif action in ("resolve", "reopen"):
+        comment.resolved_at = datetime.now(timezone.utc) if action == "resolve" else None
+        comment.resolved_by_id = actor.id if action == "resolve" else None
+    else:
+        abort(404)
+    audit_service.record(actor, "autobiography.comment_" + action, "autobiography_comment", comment.id, commit=True)
+    if actor.role == "teacher" and current_id:
+        return redirect(url_for("teacher.autobiography_edit", student_id=student.id, output_id=current_id, _anchor=f"paragraph-{comment.paragraph}"))
+    return redirect(url_for("teacher.autobiography_comments", student_id=student.id, output_id=output.id))
 
 
 @teacher_bp.get("/teacher/students/<int:student_id>")
@@ -83,15 +153,24 @@ def student_detail(student_id):
         review = latest_review(student, program)
         previous = review_snapshot_service.previous_confirmed(review) if review else None
         draft = latest_draft(student, program)
+        snapshot_auto = (review.snapshot_json or {}).get("autobiography") if review else None
+        submitted_auto = db.session.get(LearningProfileOutput, snapshot_auto.get("output_id")) if snapshot_auto else None
+        if submitted_auto and (submitted_auto.student_id != student.id or submitted_auto.output_type != autobiography_service.OUTPUT_TYPE):
+            submitted_auto = None
+        gap = analyze_gap(student, program, journey)
+        needs = list(dict.fromkeys(ALL_LABELS.get(key, key) for item in gap["items"]
+                                   for key, level in item["levels"].items() if level < 1))
         targets.append({
             "program": program,
             "cancelled": program.id not in chosen,
-            "gap": analyze_gap(student, program, journey),
+            "gap": gap,
+            "reminder_suggestion": ("請查看這個校系的備審資料，建議優先準備：" + "、".join(needs) + "。")[:180] if needs else "請查看這個校系的備審要求，確認資料是否準備完整。",
             "review": review,
             "previous": previous,
             "diff": (review_snapshot_service.snapshot_diff(review.snapshot_json, previous.snapshot_json)
                      if review and previous and review.id != previous.id else None),
             "autobiography": draft,
+            "submitted_autobiography": submitted_auto,
             "current_version": version_of(draft) if draft else None,
         })
     assessment = graduation_check_service.assess(student)
@@ -132,6 +211,27 @@ def student_detail(student_id):
         labels=ALL_LABELS,
         error=request.args.get("error"),
     )
+
+
+@teacher_bp.post("/teacher/students/<int:student_id>/targets/<int:program_id>/remind")
+@role_required("teacher")
+def remind_target(student_id, program_id):
+    teacher = get_current_user()
+    student = db.session.get(User, student_id)
+    if not student or not can_view_student(teacher, student):
+        abort(403)
+    if not StudentTarget.query.filter_by(student_id=student_id, rule_version_id=program_id).first():
+        abort(404)
+    message = (request.form.get("message") or "").strip()
+    if not message or len(message) > 180:
+        abort(400, description="請輸入 1 至 180 字的提醒內容")
+    note = Notification(recipient_id=student_id, message=f"{teacher.display_name[:40]}老師提醒：{message}",
+                        link=url_for("student.target_gap", program_id=program_id))
+    db.session.add(note)
+    db.session.flush()
+    audit_service.record(teacher, "target.teacher_reminder", "notification", note.id,
+                         detail={"student_id": student_id, "program_id": program_id}, commit=True)
+    return redirect(url_for("teacher.student_detail", student_id=student_id, reminded=program_id, _anchor=f"teacher-target-{program_id}"))
 
 
 @teacher_bp.get("/teacher/evidence/<int:evidence_id>/view")
@@ -229,7 +329,8 @@ def autobiography_edit(student_id, output_id):
     if request.method == "POST":
         count = len(output.content_json.get("paragraphs", []))
         texts = [request.form.get(f"paragraph_{i}", "") for i in range(count)]
-        comments = [request.form.get(f"comment_{i}", "") for i in range(count)]
+        comments = ([request.form.get(f"comment_{i}", "") for i in range(count)]
+                    if any(f"comment_{i}" in request.form for i in range(count)) else None)
         try:
             saved = autobiography_service.save_edits(output, texts, teacher, comments=comments)
             db.session.add(Notification(
@@ -243,12 +344,13 @@ def autobiography_edit(student_id, output_id):
             latest = latest_draft(student, program)
             return render_template(
                 "teacher_autobiography_edit.html", user=teacher, student=student, program=program, output=latest,
-                version=version_of(latest), stale={"message": str(exc), "texts": texts, "comments": comments,
+                version=version_of(latest), comments=AutobiographyComment.query.filter_by(student_id=student.id, program_id=program.id).order_by(AutobiographyComment.id).all(), stale={"message": str(exc), "texts": texts, "comments": comments or [""] * count,
                                                    "paragraphs": output.content_json["paragraphs"]},
             ), 409
         return redirect(url_for("teacher.student_detail", student_id=student.id, saved=1))
     return render_template("teacher_autobiography_edit.html", user=teacher, student=student, program=program,
-                           output=output, version=autobiography_service.version_of(output))
+                           output=output, version=autobiography_service.version_of(output),
+                           comments=AutobiographyComment.query.filter_by(student_id=student.id, program_id=program.id).order_by(AutobiographyComment.id).all())
 
 
 @teacher_bp.post("/teacher/students/<int:student_id>/transfer-plans/<int:plan_id>")

@@ -12,7 +12,7 @@
     <div>
       <p class="small"><a href="{{ url_for('teacher.student_detail', student_id=student.id) }}">← {{ student.display_name }}</a>{% if program %} · {{ program.school_name }} {{ program.department_name }}{% endif %}</p>
       <h1>修改自傳（目前第 {{ version }} 版）</h1>
-      <p>你可以直接改文字，也可以在每段下面留意見。儲存後會變成新的一版，學生看得到你改了哪裡；原本的版本會保留。</p>
+      <p>你可以直接改文字，也可以在每段下方新增註解或回覆。修改文字請按「儲存成新的一版」；註解會個別送出。</p>
     </div>
   </header>
   {% if stale %}
@@ -23,19 +23,47 @@
     </details>
   </section>
   {% endif %}
-  <form method="post" class="work-panel draft" action="{{ url_for('teacher.autobiography_edit', student_id=student.id, output_id=output.id) }}">
+  <form id="autobiography-edit" method="post" action="{{ url_for('teacher.autobiography_edit', student_id=student.id, output_id=output.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  </form>
+  <div class="work-panel draft">
     {% for paragraph in output.content_json.paragraphs %}
-    <section class="draft__paragraph">
+    {% set paragraph_index = loop.index0 %}
+    <section class="draft__paragraph" id="paragraph-{{ paragraph_index }}">
       <h2 class="h3">{{ paragraph.title }}</h2>
-      <textarea name="paragraph_{{ loop.index0 }}" rows="6" data-autosize aria-label="{{ paragraph.title }}">{{ paragraph.text }}</textarea>
-      <label class="field small">給學生的意見（選填）<textarea name="comment_{{ loop.index0 }}" rows="2">{{ paragraph.teacher_comment or "" }}</textarea></label>
+      <textarea form="autobiography-edit" name="paragraph_{{ paragraph_index }}" rows="6" data-autosize aria-label="{{ paragraph.title }}">{{ paragraph.text }}</textarea>
+      {% if paragraph.teacher_comment %}<blockquote class="teacher-comment"><b>先前留下的意見：</b>{{ paragraph.teacher_comment }}</blockquote>{% endif %}
+      <div class="paragraph-comments">
+        <h3>段落註解與回覆</h3>
+        <form class="form-stack comment-action" method="post" action="{{ url_for('teacher.autobiography_comments', student_id=student.id, output_id=output.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="paragraph" value="{{ paragraph_index }}"><input type="hidden" name="return_to" value="edit"><label class="field">新增段落註解<textarea name="text" rows="2" maxlength="2000" required placeholder="例如：建議補充你負責的工作。"></textarea></label><div><button class="button button--small" type="submit">送出註解</button></div></form>
+        {% for comment in comments if comment.paragraph == paragraph_index and not comment.parent_id %}
+        <details class="paragraph-comment" {% if not comment.resolved_at %}open{% endif %}>
+          <summary><b>{{ comment.author.display_name }} 老師</b> · {{ '已處理' if comment.resolved_at else '待處理' }} <span class="small muted">· 第 {{ comment.output.content_json.version }} 版 · {{ comment.created_at|taipei_time('%Y-%m-%d %H:%M') }}</span></summary>
+          <p>{{ comment.text }}</p>
+          {% for reply in comments if reply.parent_id == comment.id %}<blockquote class="teacher-comment"><b>{{ reply.author.display_name }}（{{ '老師' if reply.author.role == 'teacher' else '學生' }}）</b> · {{ reply.created_at|taipei_time('%Y-%m-%d %H:%M') }}<br>{{ reply.text }}</blockquote>{% endfor %}
+          <form class="form-stack comment-action" method="post" action="{{ url_for('teacher.comment_action', comment_id=comment.id, action='reply') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="return_output_id" value="{{ output.id }}"><label class="field">回覆這則註解<textarea name="text" rows="2" required maxlength="2000"></textarea></label><div><button class="button button--small" type="submit">送出回覆</button></div></form>
+          <form class="comment-action" method="post" action="{{ url_for('teacher.comment_action', comment_id=comment.id, action='reopen' if comment.resolved_at else 'resolve') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="return_output_id" value="{{ output.id }}"><button class="button button--small button--line" type="submit">{{ '改回待處理' if comment.resolved_at else '標記已處理' }}</button></form>
+        </details>
+        {% else %}<p class="small muted">這一段目前沒有註解。</p>{% endfor %}
+      </div>
     </section>
     {% endfor %}
     <div class="record-card__actions">
-      <button class="button" type="submit">儲存成新的一版</button>
+      <button class="button" type="submit" form="autobiography-edit">儲存成新的一版</button>
       <a class="button button--line" href="{{ url_for('teacher.student_detail', student_id=student.id) }}">取消</a>
     </div>
-  </form>
+  </div>
 </section>
+{% endblock %}
+
+{% block scripts %}
+<style>.paragraph-comments { margin-top:1rem; padding:1rem; background:#f3f6f8; border-left:4px solid #78909c; } .paragraph-comment { background:#fff; border:1px solid #ccd6dd; padding:.8rem; margin:.8rem 0; } .paragraph-comment summary { cursor:pointer; } .comment-action { margin-top:.8rem; }</style>
+<script>
+document.querySelectorAll('.comment-action').forEach(function (form) {
+  form.addEventListener('submit', function (event) {
+    var changed = Array.from(document.querySelectorAll('textarea[form="autobiography-edit"]')).some(function (field) { return field.value !== field.defaultValue; });
+    if (changed && !window.confirm('自傳文字尚未儲存。送出註解會離開此頁並失去未儲存的修改；請先取消並儲存自傳。仍要繼續嗎？')) event.preventDefault();
+  });
+});
+</script>
 {% endblock %}
