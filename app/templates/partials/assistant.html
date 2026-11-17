@@ -7,8 +7,8 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/agent-hub.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/student-v2/assistant.css') }}">
 <div class="assistant as-v2" data-assistant data-endpoint="{{ url_for('assistant.assistant_ask') }}" data-user="{{ user.id }}">
-  <button class="assistant__toggle" type="button" data-assistant-toggle aria-expanded="false" aria-controls="assistant-panel">
-    <svg class="as-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 10h.01M12 10h.01M16 10h.01"/></svg><span class="as-label">資管科小助手</span>
+  <button class="assistant__toggle" type="button" data-assistant-toggle aria-label="開啟資管科小助手" title="資管科小助手" aria-expanded="false" aria-controls="assistant-panel">
+    <svg class="as-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 10h.01M12 10h.01M16 10h.01"/></svg>
   </button>
   <div class="assistant__overlay" data-assistant-overlay hidden>
   <section class="assistant__panel" id="assistant-panel" hidden role="dialog" aria-modal="true" aria-labelledby="assistant-title" tabindex="-1">

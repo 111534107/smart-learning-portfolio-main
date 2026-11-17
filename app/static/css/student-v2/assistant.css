@@ -174,5 +174,7 @@ html.as-open { overflow: hidden; scrollbar-gutter: stable; }
   .assistant.as-v2 .assistant__history-button { padding: 6px; font-size: .75rem; }
 }
 
-.assistant.as-v2 > .assistant__toggle { width: max-content; white-space: nowrap; }
-@media (max-width: 720px) { .assistant.as-v2 > .assistant__toggle { width: 3.25rem; } }
+.assistant.as-v2 > .assistant__toggle {
+  width: 3.25rem; height: 3.25rem; min-height: 3.25rem; padding: 0;
+  justify-content: center; border-radius: 50%;
+}
