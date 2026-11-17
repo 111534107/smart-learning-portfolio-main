@@ -133,6 +133,20 @@ def test_project_readiness_counts_only_confirmed(tmp_path):
         assert evidence["totals"]["activity"] == 0
 
 
+def test_one_confirmed_project_counts_as_complete(tmp_path):
+    from tests.test_student_portfolio import portfolio_app
+    from app.extensions import db
+    from app.models import User
+    from app.services.gap_service import _key_level, student_evidence
+    app = portfolio_app(tmp_path)
+    with app.app_context():
+        student = User.query.filter_by(username="student").one()
+        assert _key_level("project", "專題作品", student_evidence(student), student, None) == 0.0
+        db.session.add(Portfolio(student_id=student.id, title="學習系統", category="project", status="confirmed"))
+        db.session.commit()
+        assert _key_level("project", "專題作品", student_evidence(student), student, None) == 1.0
+
+
 def test_reader_refuses_redirects_and_oversized_pages(monkeypatch):
     import socket
     import pytest
