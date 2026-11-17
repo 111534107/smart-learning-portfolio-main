@@ -6,7 +6,8 @@
   - 證照、競賽、活動、服務、幹部：1 筆＝0.5、2 筆以上＝1。
     外語類項目只採計語言檢定（規則在 app/content/readiness_rules.csv）。
   - 自傳與讀書計畫：有草稿＝0.5、學生自己改過（第 2 版以上）＝1。
-  - 專題作品：作品類別或舊資料標題含「專題」「作品」的經歷，筆數算法同上。
+  - 專題作品：作品類別或舊資料標題含「專題」「作品」的已確認經歷，1 件以上＝1
+    （2026-11-17 使用者決定：專題通常只有一件，有一件就算完成）。
 - 項目完成比例 = 各類完成度的平均。
 - 整體準備度 = Σ（項目加權 × 完成比例）÷ Σ（項目加權）。文件項目也列入，所以文件沒寫不會顯示 100%。
 - 每個項目的「補滿可加」= 項目加權 ×（1 − 完成比例）÷ 總加權，給學校引導頁排先後。
@@ -118,7 +119,7 @@ def _key_level(key, item_name, evidence, student, program, required=()):
     if key == "autobiography":
         return _autobiography_level(student, program)
     if key == "project":
-        return _count_level(evidence["project_count"])
+        return 1.0 if evidence["project_count"] else 0.0
     return _count_level(totals.get(key, 0))
 
 

@@ -293,7 +293,7 @@ def test_unconfirmed_learning_data_not_used_in_readiness_or_facts(app, kind):
     else:
         record.status = "confirmed"
     db.session.flush()
-    expected = 100 if kind == "grades" else 50
+    expected = 100 if kind in ("grades", "project") else 50  # 專題作品 1 件就算完成（2026-11-17 使用者決定）
     assert analyze_gap(student, program)["readiness"] == expected
     assert rank_programs(student, [program])[0]["fit"] == expected
     assert len(build_facts(student, program)["items"]) == 1
