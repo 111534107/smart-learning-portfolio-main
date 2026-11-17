@@ -299,7 +299,14 @@ def _records_body(document, student, codes, required=None):
                 paragraph.paragraph_format.left_indent = Cm(0.8)
                 _font(paragraph.add_run(f"{label}："), bold=True)
                 _font(paragraph.add_run(value))
-        images += [(_image_path(e.file_path, e.display_name), record.title) for e in record.evidence_items]
+        for link in record.evidence_items:
+            if link.external_url and link.is_available:
+                paragraph = document.add_paragraph()
+                paragraph.paragraph_format.left_indent = Cm(0.8)
+                _font(paragraph.add_run("作品連結："), bold=True)
+                _font(paragraph.add_run(f"{link.display_name}　{link.external_url}"
+                                        if link.display_name != link.external_url else link.external_url))
+        images +=[(_image_path(e.file_path, e.display_name), record.title) for e in record.evidence_items]
     if not records:
         document.add_paragraph("（尚未提供已確認的資料）")
     _image_grid(document, images)

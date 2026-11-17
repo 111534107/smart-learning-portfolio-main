@@ -31,7 +31,10 @@
   {% for evidence in items %}
   {% set view_url = url_for(view_endpoint, **{id_arg: evidence.id}) %}
   <li class="evidence-tile">
-    {% if evidence.preview_kind == "image" %}
+    {% if evidence.external_url %}
+    {# 作品連結不是檔案：直接開原網址 #}
+    <a class="evidence-tile__thumb evidence-tile__file" href="{{ evidence.external_url }}" target="_blank" rel="noopener noreferrer">連結<small>開啟網址</small></a>
+    {% elif evidence.preview_kind == "image" %}
     <button type="button" class="evidence-tile__thumb" data-lightbox="{{ view_url }}" aria-label="放大 {{ evidence.display_name }}">
       <img src="{{ view_url }}" alt="{{ evidence.display_name }}" loading="lazy">
     </button>
