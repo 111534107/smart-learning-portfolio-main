@@ -46,11 +46,49 @@ def test_create_project_add_links_and_require_reconfirmation(tmp_path):
         assert PortfolioEvidence.query.filter_by(portfolio_id=record_id).count() == 2
     edit_page = client.get(f"/student/portfolio/{record_id}/edit").get_data(as_text=True)
     assert "https://github.com/example/example" in edit_page
-    assert "/student/evidence/" not in edit_page
+    with app.app_context():
+        link_ids = [item.id for item in PortfolioEvidence.query.filter_by(portfolio_id=record_id).order_by(PortfolioEvidence.id)]
+    # 連結不放進檔案格子（沒有檢視、下載），只在作品連結區給「移除連結」
+    for link_id in link_ids:
+        assert f"/student/evidence/{link_id}/delete" in edit_page
+        assert f"/student/evidence/{link_id}/view" not in edit_page
+        assert f'/student/evidence/{link_id}"' not in edit_page  # 下載網址
     assert client.get(f"/student/portfolio/{record_id}/analyze").status_code == 200
     assert client.post(f"/student/portfolio/{record_id}/confirm").status_code == 302
     with app.app_context():
         assert db.session.get(Portfolio, record_id).status == "confirmed"
+
+
+def test_student_can_remove_wrong_project_link(tmp_path):
+    from tests.test_student_portfolio import portfolio_app, login
+    from app.extensions import db
+    from app.models import AuditLog, PortfolioEvidence
+    app = portfolio_app(tmp_path)
+    client = app.test_client()
+    login(client)
+    client.post("/student/portfolio", data={"category": "project", "title": "貼錯網址的作品", "school_year": "3", "confirm": "1"})
+    with app.app_context():
+        record_id = Portfolio.query.filter_by(title="貼錯網址的作品").one().id
+    client.post(f"/student/portfolio/{record_id}/evidence", data={"external_url": "https://github.com/wrong/repo", "link_name": "貼錯的"})
+    client.post(f"/student/portfolio/{record_id}/evidence", data={"external_url": "https://github.com/right/repo", "link_name": "正確的"})
+    client.post(f"/student/portfolio/{record_id}/confirm")
+    with app.app_context():
+        wrong = PortfolioEvidence.query.filter_by(portfolio_id=record_id, external_url="https://github.com/wrong/repo").one()
+        wrong_id = wrong.id
+        assert db.session.get(Portfolio, record_id).status == "confirmed"
+
+    response = client.post(f"/student/evidence/{wrong_id}/delete")
+    assert response.status_code == 302
+    assert "project-links-title" in response.headers["Location"]
+    with app.app_context():
+        assert db.session.get(PortfolioEvidence, wrong_id).deleted_at is not None  # 只標記，資料列保留
+        assert db.session.get(Portfolio, record_id).status == "draft"
+        assert AuditLog.query.filter_by(action="evidence.delete", target_id=wrong_id).count() == 1
+    page = client.get(f"/student/portfolio/{record_id}/edit").get_data(as_text=True)
+    assert "https://github.com/wrong/repo" not in page
+    assert "https://github.com/right/repo" in page
+    analyze = client.get(f"/student/portfolio/{record_id}/analyze").get_data(as_text=True)
+    assert "https://github.com/wrong/repo" not in analyze
 
 
 def test_project_analysis_requires_owner_and_redacts_before_ai(tmp_path, monkeypatch):

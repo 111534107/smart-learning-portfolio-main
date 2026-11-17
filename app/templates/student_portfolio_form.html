@@ -79,7 +79,11 @@
   <section class="sheet mt-1" aria-labelledby="project-links-title">
     <h2 id="project-links-title">作品連結</h2>
     <p>可逐一加入 GitHub、Canva 或其他作品網址；不會上傳作品檔案。</p>
-    <ul>{% for item in portfolio.evidence_items if item.external_url and item.is_available %}<li><a href="{{ item.external_url }}" target="_blank" rel="noopener noreferrer">{{ item.display_name }}</a>：{{ item.external_url }}</li>{% else %}<li>尚未加入連結。</li>{% endfor %}</ul>
+    <ul data-project-links>{% for item in portfolio.evidence_items if item.external_url and item.is_available %}<li><a href="{{ item.external_url }}" target="_blank" rel="noopener noreferrer">{{ item.display_name }}</a>：{{ item.external_url }}
+      <form method="post" action="{{ url_for('student.evidence_delete', evidence_id=item.id) }}" data-confirm="確定要移除「{{ item.display_name }}」這個連結嗎？" style="display:inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="button button--small button--line" type="submit">移除連結</button>
+      </form></li>{% else %}<li>尚未加入連結。</li>{% endfor %}</ul>
     <form method="post" action="{{ url_for('student.evidence_upload', portfolio_id=portfolio.id) }}" class="form-stack">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label class="field">連結名稱<input name="link_name" maxlength="150"></label>

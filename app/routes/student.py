@@ -1147,10 +1147,16 @@ def evidence_delete(evidence_id):
         audit_service.record(user, "evidence.delete_blocked", "portfolio_evidence", evidence.id, commit=True)
         return redirect(url_for("student.portfolio_edit", portfolio_id=portfolio.id, locked=1))
     evidence.deleted_at = datetime.now(timezone.utc)  # 只標記，資料列保留（規格 M10）
+    project_link = portfolio.category == "project" and bool(evidence.external_url)
+    if project_link:
+        portfolio.status = "draft"  # 和新增連結一樣：作品內容變了，要學生重新確認
     audit_service.record(user, "evidence.delete", "portfolio_evidence", evidence.id)
     db.session.commit()
     if evidence.file_path:
         storage_service.mark_deleted(evidence.file_path, reason="student_deleted_evidence")
+    if project_link:
+        flash(f"已移除「{evidence.display_name}」連結；請確認作品內容後再按確認。")
+        return redirect(url_for("student.portfolio_edit", portfolio_id=portfolio.id, _anchor="project-links-title"))
     return redirect(url_for("student.portfolio_edit", portfolio_id=portfolio.id))
 
 
