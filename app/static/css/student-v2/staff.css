@@ -50,6 +50,9 @@ html[data-staff-ui] .check-row input[type="checkbox"] {
   html[data-staff-ui] .masthead--app .brand { order: 1; }
   html[data-staff-ui] .masthead--app .masthead__tools { order: 2; margin-left: auto; }
   html[data-staff-ui] .masthead--app .snav-toggle { order: 3; white-space: nowrap; margin-left: 4px; }
+  /* 和此處 720px 的版型切換同步，避免 701～720px 選單展開卻沒有收合按鈕。 */
+  html.js[data-staff-ui] .masthead--app .snav-toggle { display: inline-flex; }
+  html.js[data-staff-ui] .masthead--app .snav-toggle[aria-expanded="false"] + .mainnav { display: none; }
   html[data-staff-ui][data-ui="student-v2"] .masthead--app .mainnav {
     order: 4;
     flex-basis: 100%;
