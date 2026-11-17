@@ -9,7 +9,7 @@
 from datetime import datetime, timezone
 
 from app.extensions import db
-from app.models import AuditLog, ClassAdvisor, Notification, PackageReview, User
+from app.models import AuditLog, Notification, PackageReview
 from app.services import audit_service, autobiography_service
 from app.services.gap_service import analyze_gap
 from app.services.package_service import latest_review
@@ -31,11 +31,8 @@ def build_snapshot(student, program):
 
 def review_teachers(student):
     """沿用現行班級權限規則，取得所有啟用中的導師；同一老師不重複。"""
-    profile = student.student_profile
-    if not profile or not profile.class_name:
-        return []
-    teacher_ids = {row.teacher_id for row in ClassAdvisor.query.filter_by(class_name=profile.class_name).all()}
-    return User.query.filter(User.id.in_(teacher_ids), User.role == "teacher", User.is_active.is_(True)).all()
+    from app.services.teacher_scope import teachers_for_student
+    return teachers_for_student(student)
 
 
 def request_review(student, program):

@@ -774,21 +774,26 @@ def curriculum_decide(version_id, decision):
 
 @admin_bp.get("/admin/classes")
 @admin_bp.post("/admin/classes")
-@role_required("admin")
+@role_required("staff", "admin")
 def classes():
     error = None
     if request.method == "POST":
         teacher = db.session.get(User, request.form.get("teacher_id", type=int) or 0)
         class_name = request.form.get("class_name", "").strip()
         school_year = request.form.get("school_year", type=int)
-        if not teacher or teacher.role != "teacher":
-            error = "請選擇導師帳號"
-        elif not class_name or not school_year:
-            error = "請填寫班級與學年度"
+        if not teacher or teacher.role != "teacher" or not teacher.is_active:
+            error = "請選擇啟用中的導師帳號"
+        elif not class_name or len(class_name) > 50 or not school_year or not 100 <= school_year <= 200:
+            error = "請填寫有效的班級名稱與學年度（100 至 200）"
         elif ClassAdvisor.query.filter_by(teacher_id=teacher.id, class_name=class_name, school_year=school_year).first():
             error = "這位導師已經負責這個班級"
         else:
-            db.session.add(ClassAdvisor(teacher_id=teacher.id, class_name=class_name, school_year=school_year))
+            from app.services import audit_service
+            assignment = ClassAdvisor(teacher_id=teacher.id, class_name=class_name, school_year=school_year)
+            db.session.add(assignment)
+            db.session.flush()
+            audit_service.record(get_current_user(), "class_advisor.assign", "class_advisor", assignment.id,
+                                 detail={"teacher_id": teacher.id, "school_year": school_year})
             db.session.commit()
             return redirect(url_for("admin.classes"))
     class_names = sorted({p.class_name for p in StudentProfile.query.all() if p.class_name})
@@ -803,10 +808,13 @@ def classes():
 
 
 @admin_bp.post("/admin/classes/<int:advisor_id>/delete")
-@role_required("admin")
+@role_required("staff", "admin")
 def class_delete(advisor_id):
     advisor = db.session.get(ClassAdvisor, advisor_id)
     if advisor:
+        from app.services import audit_service
+        audit_service.record(get_current_user(), "class_advisor.remove", "class_advisor", advisor.id,
+                             detail={"teacher_id": advisor.teacher_id, "school_year": advisor.school_year})
         db.session.delete(advisor)
         db.session.commit()
     return redirect(url_for("admin.classes"))

@@ -5,6 +5,7 @@ GET 一律不建立案件、不改狀態、不寫事件、不發通知；
 """
 
 from datetime import datetime, timezone
+import re
 
 from flask import Blueprint, abort, current_app, redirect, render_template, request, url_for
 
@@ -14,8 +15,31 @@ from app.routes.main import get_current_user, role_required
 from app.services import graduation_case_actions as actions
 from app.services import graduation_case_service as case_service
 from app.services import graduation_check_service as check
+from app.services.teacher_scope import students_for_teacher
 
 graduation_bp = Blueprint("graduation", __name__)
+
+
+def _teacher_visible_notification(note, student_ids):
+    """歷史通知保留，但不向已失去查看權限的導師顯示學生資料。"""
+    if note.case_id:
+        case = db.session.get(GraduationCase, note.case_id)
+        return bool(case and case.student_id in student_ids)
+    match = re.match(r"^/teacher/students/(\d+)(?:[/?#]|$)", note.link or "")
+    return not match or int(match.group(1)) in student_ids
+
+
+def _visible_notifications(user, query, limit=None):
+    if user.role != "teacher":
+        return query.limit(limit).all() if limit else query.all()
+    student_ids = {student.id for student in students_for_teacher(user)}
+    rows = []
+    for note in query:
+        if _teacher_visible_notification(note, student_ids):
+            rows.append(note)
+            if limit and len(rows) >= limit:
+                break
+    return rows
 
 STATUS_LABELS = {
     "pending": "待處理", "in_progress": "處理中",
@@ -39,7 +63,8 @@ def inject_unread_notifications():
     user = get_current_user()
     if user is None or user.role not in ("student", "teacher", "staff"):
         return {}
-    count = Notification.query.filter_by(recipient_id=user.id, read_at=None).count()
+    query = Notification.query.filter_by(recipient_id=user.id, read_at=None)
+    count = len(_visible_notifications(user, query)) if user.role == "teacher" else query.count()
     return {"unread_notification_count": count}
 
 
@@ -118,8 +143,8 @@ def create_inquiry():
 @role_required("student", "teacher", "staff")
 def notifications():
     user = get_current_user()
-    rows = (Notification.query.filter_by(recipient_id=user.id)
-            .order_by(Notification.id.desc()).limit(100).all())
+    query = Notification.query.filter_by(recipient_id=user.id).order_by(Notification.id.desc())
+    rows = _visible_notifications(user, query, limit=100)
     return render_template("notifications.html", user=user, rows=rows)
 
 
@@ -130,6 +155,10 @@ def notification_open(notification_id):
     user = get_current_user()
     note = db.session.get(Notification, notification_id)
     if note is None or note.recipient_id != user.id:
+        abort(404)
+    if user.role == "teacher" and not _teacher_visible_notification(
+        note, {student.id for student in students_for_teacher(user)}
+    ):
         abort(404)
     if note.read_at is None:
         note.read_at = datetime.now(timezone.utc)

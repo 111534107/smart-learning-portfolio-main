@@ -7,9 +7,9 @@
 {% block navigation %}{{ masthead(user, "導師班級") }}{% endblock %}
 
 {% block content %}
-<section class="work-shell" data-work-role="admin">
+<section class="work-shell" data-work-role="{{ user.role }}">
   <header class="work-heading">
-    <div><h1>導師班級</h1><p>導師只看得到這裡設定的班級學生。班級名稱要和學生資料上的班級完全相同。</p></div>
+    <div><h1>導師班級</h1><p>導師只能查看目前學年度指派班級的啟用中學生。系統每年 8 月 1 日切換學年度；請在新學年重新確認導師指派與學生班級。班級名稱要和學生資料上的班級完全相同。</p></div>
   </header>
   <section class="work-panel">
     <div class="work-panel__head"><div><h2>新增</h2></div></div>

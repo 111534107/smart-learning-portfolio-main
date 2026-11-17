@@ -30,15 +30,9 @@ logger = logging.getLogger(__name__)
 
 
 def advisors_for(student):
-    """學生班級的所有導師（啟用中）。"""
-    profile = student.student_profile
-    if profile is None or not profile.class_name:
-        return []
-    ids = {row.teacher_id for row in ClassAdvisor.query.filter_by(class_name=profile.class_name).all()}
-    if not ids:
-        return []
-    return (User.query.filter(User.id.in_(ids), User.is_active.is_(True))
-            .order_by(User.id).all())
+    """學生目前學年度班級的啟用中導師。"""
+    from app.services.teacher_scope import teachers_for_student
+    return teachers_for_student(student)
 
 
 def record_event(case, event_type, actor=None, *, to_status=None, amount_after=None, note="",

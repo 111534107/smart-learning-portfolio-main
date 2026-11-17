@@ -23,7 +23,7 @@ class FakeOcr:
 
 def make_app(**config):
     app = create_app({"SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:", "TESTING": True,
-                      "WTF_CSRF_ENABLED": False, **config})
+                      "WTF_CSRF_ENABLED": False, "DOCUMENT_OCR_ENGINE": "", **config})
     with app.app_context():
         db.create_all()
         admin = User(username="admin", display_name="合成管理員", role="admin")

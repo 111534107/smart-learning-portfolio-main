@@ -10,6 +10,7 @@ from app.models import (
     ClassAdvisor,
     CredentialRecord,
     LearningCourseRecord,
+    Notification,
     Portfolio,
     StudentProfile,
     User,
@@ -590,11 +591,28 @@ def test_teacher_edits_text_and_leaves_comments(app):
     assert latest["paragraphs"][0]["text"] == "老師改過的第一段"
     assert latest["paragraphs"][0]["teacher_comment"] == "這段可以多寫你負責的部分"
 
+    with app.app_context():
+        notes = Notification.query.filter_by(recipient_id=user_id(app, "stu")).all()
+        note = next(n for n in notes if "自傳或段落意見" in n.message)
+        note_id, link = note.id, note.link
+        assert "teacher" in note.message
+        assert f"program_id={program_id(app)}" in link
+        assert f"v={autobiography_rows(app)[-1]['id']}" in link
+
+    opened = student.get(f"/notifications/{note_id}/open", follow_redirects=True)
+    assert opened.status_code == 200
+    assert "這段可以多寫你負責的部分" in opened.get_data(as_text=True)
+    assert login(app, "other").get(f"/notifications/{note_id}/open").status_code == 404
+
     versions_html = student.get(f"/student/autobiography/versions?program_id={program_id(app)}").get_data(as_text=True)
     assert "導師" in versions_html and "teacher" in versions_html
     assert "<ins>" in versions_html
     autobiography_html = student.get(f"/student/autobiography?program_id={program_id(app)}").get_data(as_text=True)
     assert "這段可以多寫你負責的部分" in autobiography_html
+    student.post(f"/student/targets/{program_id(app)}/remove")
+    cancelled = student.get(f"/notifications/{note_id}/open", follow_redirects=True)
+    assert cancelled.status_code == 200
+    assert "這段可以多寫你負責的部分" in cancelled.get_data(as_text=True)
 
 
 def test_other_class_teacher_cannot_edit_autobiography(app):
@@ -620,6 +638,26 @@ def test_teacher_page_shows_reviewed_and_current_version(app):
 
     assert "自傳依據第 1 版" in html
     assert "目前第 2 版" in html
+
+
+def test_teacher_can_compare_student_autobiography_versions_only_for_own_class(app):
+    set_admission_year(app, GRADE3_ADMISSION_YEAR - 2)
+    student = login(app)
+    pid = write_autobiography(app, student)
+    first = autobiography_rows(app)[0]
+    save(student, first["id"], ["學生修改後的新內容"] * len(first["content"]["paragraphs"]))
+    teacher = login(app, "teacher")
+    sid = user_id(app, "stu")
+    detail = teacher.get(f"/teacher/students/{sid}").get_data(as_text=True)
+    assert "查看自傳版本與修改內容" in detail
+    url = f"/teacher/students/{sid}/autobiography/versions/{pid}"
+    response = teacher.get(url)
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "學生修改" in html and "學生修改後的新內容" in html
+    assert "<ins>" in html and "<del>" in html
+    assert login(app, "stranger").get(url).status_code == 403
+    assert student.get(url).status_code == 403
 
 
 # ---------- Task 5：學校金鑰每人每天 5 次 ----------

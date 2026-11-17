@@ -162,6 +162,7 @@
       <summary>自傳第 {{ target.current_version }} 版（{{ editor_text.get(auto.editor_role) or ("學生已修改儲存" if auto.edited else "AI 草稿，學生尚未修改") }}{{ "，示範草稿" if auto.provider == "demo" else "" }}）</summary>
       {% for paragraph in auto.paragraphs %}<h3 class="h3 mt-1">{{ paragraph.title }}</h3><p>{{ paragraph.text }}</p>{% if paragraph.teacher_comment %}<blockquote class="teacher-comment"><b>你的意見：</b>{{ paragraph.teacher_comment }}</blockquote>{% endif %}{% endfor %}
       <p class="mt-1"><a class="button button--small button--line" href="{{ url_for('teacher.autobiography_edit', student_id=student.id, output_id=target.autobiography.id) }}">直接修改文字、留意見</a></p>
+      <p class="mt-1"><a class="button button--small button--line" href="{{ url_for('teacher.autobiography_versions', student_id=student.id, program_id=target.program.id) }}">查看自傳版本與修改內容</a></p>
     </details>
     {% else %}
     <p class="small muted mt-1">學生還沒有寫自傳。</p>

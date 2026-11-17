@@ -10,7 +10,7 @@ from app.services import ocr_settings
 @pytest.fixture()
 def app(tmp_path):
     app = create_app({"SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:", "TESTING": True,
-                      "UPLOAD_FOLDER": str(tmp_path)})
+                      "UPLOAD_FOLDER": str(tmp_path), "OCR_MODEL_TIER": "server", "OCR_DEVICE": "cpu"})
     with app.app_context():
         db.create_all()
         for username, role in (("admin_syn", "admin"), ("student_syn", "student")):
@@ -23,7 +23,10 @@ def app(tmp_path):
 
 def login(app, username):
     client = app.test_client()
-    client.post("/login", data={"username": username, "password": "pw"})
+    with app.app_context():
+        user_id = User.query.filter_by(username=username).one().id
+    with client.session_transaction() as session:
+        session["user_id"] = user_id
     return client
 
 
@@ -97,6 +100,7 @@ def test_ocr_settings_fall_back_to_config_when_table_is_missing(tmp_path):
     from app.services.ocr_engines import configured_rapidocr_settings
 
     app = create_app({"SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:", "TESTING": True,
-                      "UPLOAD_FOLDER": str(tmp_path), "OCR_DEVICE": "dml", "OCR_DML_DEVICE_ID": 1})
+                      "UPLOAD_FOLDER": str(tmp_path), "OCR_MODEL_TIER": "server",
+                      "OCR_DEVICE": "dml", "OCR_DML_DEVICE_ID": 1})
     with app.app_context():
         assert configured_rapidocr_settings() == ("server", "dml", 1)

@@ -44,7 +44,11 @@ def classes_without_advisor():
     names = {name for (name,) in db.session.query(StudentProfile.class_name)
              .join(User, StudentProfile.user_id == User.id)
              .filter(User.is_active.is_(True), StudentProfile.class_name.isnot(None), StudentProfile.class_name != "")}
-    covered = {name for (name,) in db.session.query(ClassAdvisor.class_name).distinct()}
+    from app.services.teacher_scope import current_school_year
+    covered = {name for (name,) in db.session.query(ClassAdvisor.class_name)
+               .join(User, ClassAdvisor.teacher_id == User.id)
+               .filter(ClassAdvisor.school_year == current_school_year(), User.role == "teacher",
+                       User.is_active.is_(True)).distinct()}
     return sorted(names - covered)
 
 

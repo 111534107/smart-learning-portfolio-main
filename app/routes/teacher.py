@@ -6,6 +6,7 @@ from app.extensions import db
 from app.models import (
     AdmissionProgram,
     LearningProfileOutput,
+    Notification,
     PackageReview,
     Portfolio,
     PortfolioEvidence,
@@ -196,6 +197,22 @@ def withdraw_review(review_id):
     return redirect(url_for("teacher.student_detail", student_id=review.student_id))
 
 
+@teacher_bp.get("/teacher/students/<int:student_id>/autobiography/versions/<int:program_id>")
+@role_required("teacher")
+def autobiography_versions(student_id, program_id):
+    from app.routes.student import _version_view
+    teacher = get_current_user()
+    student = db.session.get(User, student_id)
+    if not student or not can_view_student(teacher, student):
+        abort(403)
+    program = db.session.get(AdmissionProgram, program_id)
+    if not program or not autobiography_service.versions(student, program):
+        abort(404)
+    return render_template("autobiography_versions.html", user=teacher, student=student, program=program,
+                           teacher_view=True, cancelled=False,
+                           **_version_view(student, program, request.args.get("v", type=int)))
+
+
 @teacher_bp.get("/teacher/students/<int:student_id>/autobiography/<int:output_id>/edit")
 @teacher_bp.post("/teacher/students/<int:student_id>/autobiography/<int:output_id>/edit")
 @role_required("teacher")
@@ -215,6 +232,11 @@ def autobiography_edit(student_id, output_id):
         comments = [request.form.get(f"comment_{i}", "") for i in range(count)]
         try:
             saved = autobiography_service.save_edits(output, texts, teacher, comments=comments)
+            db.session.add(Notification(
+                recipient_id=student.id,
+                message=f"{teacher.display_name}老師更新了你的自傳或段落意見，請查看。"[:255],
+                link=url_for("student.autobiography_versions", program_id=program.id, v=saved.id),
+            ))
             audit_service.record(teacher, "autobiography.teacher_edit", "learning_profile_output", saved.id,
                                  detail={"student_id": student.id}, commit=True)
         except autobiography_service.StaleVersion as exc:

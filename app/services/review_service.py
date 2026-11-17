@@ -13,7 +13,9 @@ def assign_submission(submission, teacher):
 
 
 def can_teacher_review(submission, teacher):
-    return any(item.teacher_id == teacher.id for item in submission.assignments)
+    from app.services.teacher_scope import can_view_student
+    return (can_view_student(teacher, submission.portfolio.student)
+            and any(item.teacher_id == teacher.id for item in submission.assignments))
 
 
 def record_teacher_feedback(submission, teacher, comment):
