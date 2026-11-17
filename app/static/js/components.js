@@ -383,28 +383,10 @@ document.querySelectorAll("[data-assistant]").forEach((root) => {
     root.classList.toggle("is-open", open);
     document.documentElement.classList.toggle("as-open", open);
     panel.style.transform = "";
+    root.dispatchEvent(new CustomEvent("assistant-visibility", { detail: open }));
     if (open) { log.scrollTop = log.scrollHeight; input.focus({ preventScroll: true }); }
   };
-  // 手機：往下拉把手關閉
-  const grab = root.querySelector("[data-assistant-grab]");
-  if (grab) {
-    let startY = null;
-    grab.addEventListener("pointerdown", (event) => { startY = event.clientY; grab.setPointerCapture(event.pointerId); panel.classList.add("is-dragging"); });
-    grab.addEventListener("pointermove", (event) => {
-      if (startY === null) return;
-      panel.style.transform = `translateY(${Math.max(0, event.clientY - startY)}px)`;
-    });
-    const release = (event) => {
-      if (startY === null) return;
-      const moved = event.clientY - startY;
-      startY = null;
-      panel.classList.remove("is-dragging");
-      panel.style.transform = "";
-      if (moved > 80) setOpen(false);
-    };
-    grab.addEventListener("pointerup", release);
-    grab.addEventListener("pointercancel", release);
-  }
+  root.addEventListener("assistant-set-open", (event) => setOpen(Boolean(event.detail)));
   // 輸入框隨內容長高（最多 120px）
   input.addEventListener("input", () => { input.style.height = "auto"; input.style.height = `${Math.min(input.scrollHeight, 120)}px`; });
   toggles.forEach((button) => button.addEventListener("click", () => setOpen(panel.hidden)));

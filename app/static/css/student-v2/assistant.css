@@ -135,3 +135,44 @@
   .as-v2 .assistant__panel, .as-v2.is-open .assistant__panel { animation: none; transition: none; }
   .as-v2 .as-typing i { animation: none; opacity: .6; }
 }
+/* 置中對話視窗；手機與電腦使用同一種操作。 */
+html.as-open { overflow: hidden; scrollbar-gutter: stable; }
+.assistant.as-v2.is-open { position: relative; z-index: 1200; }
+.assistant.as-v2 .assistant__overlay {
+  position: fixed; z-index: 1200; left: var(--as-left, 0px); top: var(--as-top, 0px);
+  width: var(--as-vw, 100vw); height: var(--as-vh, 100dvh);
+  display: grid; place-items: center; box-sizing: border-box;
+  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  background: rgb(15 20 25 / .32);
+}
+.assistant.as-v2 .assistant__overlay[hidden] { display: none; }
+.assistant.as-v2 .assistant__panel {
+  position: relative; inset: auto; width: min(640px, 100%); height: min(680px, 100%);
+  max-width: 100%; max-height: 100%; min-height: 0; box-sizing: border-box;
+  margin: 0; padding-bottom: 0; border: 1px solid var(--line, #d6ccbe); border-radius: 24px;
+  transform: none; animation: none; transition: none;
+}
+.assistant.as-v2.is-enlarged .assistant__panel { width: 100%; height: 100%; }
+.assistant.as-v2 .as-grab { display: none; }
+.assistant.as-v2 .assistant__head { flex: 0 0 auto; padding: 12px; }
+.assistant.as-v2 .assistant__head > div { min-width: 0; }
+.assistant.as-v2 .assistant__head small { font-size: .75rem; }
+.assistant.as-v2 .assistant__log { min-height: 0; overflow-y: auto; overflow-wrap: anywhere; }
+.assistant.as-v2 .assistant__form, .assistant.as-v2 .assistant__note { flex: 0 0 auto; }
+.assistant.as-v2 .assistant__window-action {
+  flex: 0 0 36px; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%;
+  color: var(--ink, #2b2622); background: var(--accent-soft, #eee); font: inherit; font-size: 1.25rem; cursor: pointer;
+}
+.assistant.as-v2 :is(.assistant__window-action, .assistant__close):focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.assistant.as-v2 > .assistant__toggle { user-select: none; -webkit-user-select: none; cursor: grab; }
+.assistant.as-v2 > .assistant__toggle:active { cursor: grabbing; }
+@media (max-width: 720px) {
+  .assistant.as-v2 .assistant__expand { display: none; }
+  .assistant.as-v2 .assistant__panel { height: min(680px, 100%); border-radius: 20px; }
+  .assistant.as-v2 .assistant__head { gap: 6px; }
+  .assistant.as-v2 .assistant__head small { display: none; }
+  .assistant.as-v2 .assistant__history-button { padding: 6px; font-size: .75rem; }
+}
+
+.assistant.as-v2 > .assistant__toggle { width: max-content; white-space: nowrap; }
+@media (max-width: 720px) { .assistant.as-v2 > .assistant__toggle { width: 3.25rem; } }

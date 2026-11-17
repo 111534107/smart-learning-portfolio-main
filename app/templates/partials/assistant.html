@@ -10,11 +10,14 @@
   <button class="assistant__toggle" type="button" data-assistant-toggle aria-expanded="false" aria-controls="assistant-panel">
     <svg class="as-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 10h.01M12 10h.01M16 10h.01"/></svg><span class="as-label">資管科小助手</span>
   </button>
-  <section class="assistant__panel" id="assistant-panel" hidden aria-label="資管科小助手">
+  <div class="assistant__overlay" data-assistant-overlay hidden>
+  <section class="assistant__panel" id="assistant-panel" hidden role="dialog" aria-modal="true" aria-labelledby="assistant-title" tabindex="-1">
     <div class="as-grab" data-assistant-grab aria-hidden="true"></div>
     <header class="assistant__head">
-      <div><b>資管科小助手</b><small>問操作、規定、進度；規劃前會先問你</small></div>
+      <div><b id="assistant-title">資管科小助手</b><small>問操作、規定、進度；規劃前會先問你</small></div>
       {% if user.role == "student" %}<a class="assistant__history-button" href="{{ url_for('agent_plan.issues') }}">我的待辦</a>{% endif %}
+      <button class="assistant__window-action" type="button" data-assistant-reset title="恢復入口預設位置" aria-label="恢復入口預設位置">↺</button>
+      <button class="assistant__window-action assistant__expand" type="button" data-assistant-expand aria-label="放大視窗" aria-pressed="false" title="放大視窗">⛶</button>
       <button class="assistant__close" type="button" data-assistant-toggle aria-label="關閉">×</button>
     </header>
     <div class="assistant__log" data-assistant-log aria-live="polite">
@@ -33,4 +36,6 @@
     </form>
     <p class="assistant__note">AI 回答僅供參考，以科辦公告為準。</p>
   </section>
+  </div>
 </div>
+<script src="{{ url_for('static', filename='js/assistant-window.js') }}" defer></script>

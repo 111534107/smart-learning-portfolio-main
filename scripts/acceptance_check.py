@@ -100,6 +100,10 @@ s, r = login("/login", "113534902")
 rec("學生登入 113534902", r.ok and "/login" not in r.url, r.url)
 project_page = s.get(BASE + "/student/portfolio/new?category=project")
 rec("學生可新增專題與作品集", project_page.ok and "專題與作品集" in project_page.text and 'value="project"' in project_page.text)
+home_check = s.get(BASE + "/student/dashboard")
+rec("小助手共用置中視窗控制", home_check.ok and all(marker in home_check.text for marker in (
+    'role="dialog" aria-modal="true"', 'data-assistant-overlay', 'data-assistant-reset',
+    'data-assistant-expand', 'js/assistant-window.js')))
 
 r = s.get(BASE + "/student/targets")
 ids = sorted(set(re.findall(r"/student/targets/(\d+)\"", r.text)))
