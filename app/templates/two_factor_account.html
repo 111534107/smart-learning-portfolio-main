@@ -33,7 +33,7 @@
   </section>
   {% else %}
   <section class="work-panel">
-    <p><span class="tag tag--warn">還沒開啟</span>{% if required %}　系統規定每個人都要開，下次登入時也會要求設定。{% endif %}</p>
+    <p><span class="tag tag--warn">還沒開啟</span>{% if required %}　學校信箱帳號規定要開，下次登入時也會要求設定。{% endif %}</p>
     {% include "partials/two_factor_setup_steps.html" %}
     <form method="post" action="{{ url_for('two_factor.account_enable') }}" class="form-stack">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

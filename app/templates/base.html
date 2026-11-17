@@ -48,7 +48,7 @@
     {# 學生頁左下角快捷鈕（招生時程／小助手寫自傳／回到頂端）：2026-11-04 使用者決定拿掉（會蓋到內文、看不出用途）。
        檔案 partials/quick_dock.html 與樣式保留未刪，要恢復只要把 include 加回來。 #}
     {% block footer %}{% endblock %}
-    {% if user is defined and user and user.role in ("student", "teacher") %}{% include "partials/assistant.html" %}{% endif %}
+    {% if user is defined and user and user.role in ("student", "teacher") and session.get("user_id") %}{% include "partials/assistant.html" %}{% endif %}{# 登入、雙重驗證頁不放小助手（2026-11-18） #}
     <script src="{{ url_for('static', filename='js/motion.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/components.js') }}" defer></script>
     {% if student_v2 %}<script src="{{ url_for('static', filename='js/student-v2.js') }}" defer></script>{% endif %}

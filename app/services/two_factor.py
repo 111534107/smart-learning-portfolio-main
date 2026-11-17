@@ -53,6 +53,21 @@ def required():
     return bool(current_app.config.get("TWO_FACTOR_REQUIRED"))
 
 
+SCHOOL_DOMAIN = "@stu.ukn.edu.tw"
+
+
+def demo_site():
+    """示範站（合成帳號）：任何帳號都不要求雙重驗證（2026-11-18 使用者決定，現場報告不能卡在掃 QR code）。"""
+    return bool(current_app.config.get("LOCAL_DEMO_MODE"))
+
+
+def required_for(user):
+    """這個帳號是不是一定要雙重驗證：只有學校信箱 @stu.ukn.edu.tw 的帳號（2026-11-18 使用者決定）。"""
+    if demo_site():
+        return False
+    return required() and (user.email or "").strip().lower().endswith(SCHOOL_DOMAIN)
+
+
 def new_secret():
     return pyotp.random_base32()
 

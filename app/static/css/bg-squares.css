@@ -43,7 +43,10 @@
 [data-staff-ui] .bg-squares:not(.bg-squares--panel) { opacity: .55; }
 
 /* 登入頁左側深色欄：欄內自己一層，方塊用欄的文字色（白），像參考網站的彩色帶裡的白方塊 */
-.auth__side { position: relative; isolation: isolate; overflow: hidden; }
+.auth__side { position: relative; isolation: isolate; overflow: hidden; background: #1c2230; color: #fffdf8; }
+/* 2026-11-18：文字顏色寫死，不跟主題變數走；之前在某些主題下欄是米白、字是淺灰，看不見 */
+.auth__side h1, .auth__side h2 { color: #fffdf8; }
+.auth__side p, .auth__side .kicker, .auth__side li { color: #d5dbe6; }
 .auth__side > :not(.bg-squares) { position: relative; z-index: 1; }
 .bg-squares--panel {
   position: absolute;

@@ -185,7 +185,10 @@ def save_email_notify():
 def _finish_login(user, next_path=None):
     """帳號密碼或學校 Google 驗證成功後：要雙重驗證的人先到第二步（app/routes/two_factor.py），還不算登入。"""
     from app.routes import two_factor as second_step
-    admin_must = user.role == "admin" and current_app.config.get("ADMIN_TWO_FACTOR_REQUIRED", True)
+    from app.services import two_factor as two_factor_rules
+    # 正式站管理員仍一定要驗證碼（11-10 決定）；示範站一律不要（11-18 決定）
+    admin_must = (user.role == "admin" and current_app.config.get("ADMIN_TWO_FACTOR_REQUIRED", True)
+                  and not two_factor_rules.demo_site())
     if user.role in ("student", "teacher", "staff", "admin") and (admin_must or second_step.needs_second_step(user)):
         return second_step.start(user, next_path)
     return _complete_login(user, next_path)
