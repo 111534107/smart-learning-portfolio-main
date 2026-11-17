@@ -5,7 +5,9 @@ from flask import Blueprint, abort, redirect, render_template, request, url_for
 from app.extensions import db
 from app.models import (
     AdmissionProgram,
+    AutobiographyComment,
     LearningProfileOutput,
+    Notification,
     PackageReview,
     Portfolio,
     PortfolioEvidence,
@@ -20,6 +22,7 @@ from app.services.gap_service import ALL_LABELS, analyze_gap
 from app.services.journey_service import CATEGORY_KEYS, CATEGORY_LABELS, build_journey
 from app.services.package_service import latest_review
 from app.services import audit_service, autobiography_service, review_snapshot_service
+from app.services import autobiography_comment_service as comment_service
 from app.services import transfer_plan as transfer_plan_service
 from app.services.autobiography_service import latest_draft, version_of
 from app.services.file_preview import inline_file
@@ -82,10 +85,17 @@ def student_detail(student_id):
         review = latest_review(student, program)
         previous = review_snapshot_service.previous_confirmed(review) if review else None
         draft = latest_draft(student, program)
+        gap = analyze_gap(student, program, journey)
         targets.append({
             "program": program,
             "cancelled": program.id not in chosen,
-            "gap": analyze_gap(student, program, journey),
+            "gap": gap,
+            "reminder_suggestion": reminder_suggestion(gap),
+            "submitted_autobiography": _submitted_autobiography(review, student),
+            # 送審後自傳又存了新版：導師不能確認舊的那份，要請學生重新送審（組員 46531f2）
+            "autobiography_changed": bool(review and review.status == "pending"
+                                          and review_snapshot_service.autobiography_changed(review)),
+            "open_comments": comment_service.open_count(student, program) if draft else 0,
             "review": review,
             "previous": previous,
             "diff": (review_snapshot_service.snapshot_diff(review.snapshot_json, previous.snapshot_json)
@@ -130,7 +140,53 @@ def student_detail(student_id):
         category_labels=CATEGORY_LABELS,
         labels=ALL_LABELS,
         error=request.args.get("error"),
+        reminded=request.args.get("reminded", type=int),
     )
+
+
+def _submitted_autobiography(review, student):
+    """送審快照記的那一版自傳（導師要看的是送審時的內容，不是學生之後改的）。"""
+    info = (review.snapshot_json or {}).get("autobiography") if review else None
+    output = db.session.get(LearningProfileOutput, info.get("output_id")) if info else None
+    if not output or output.student_id != student.id or output.output_type != autobiography_service.OUTPUT_TYPE:
+        return None
+    return output
+
+
+def gap_needs(gap):
+    """缺件分析裡還沒備齊的資料類別（中文名稱，不重複）。"""
+    return list(dict.fromkeys(ALL_LABELS.get(key, key) for item in gap["items"]
+                              for key, level in item["levels"].items() if level < 1))
+
+
+def reminder_suggestion(gap):
+    """提醒內容的預設文字：列出還沒備齊的類別；導師送出前可以改。"""
+    needs = gap_needs(gap)
+    if needs:
+        return ("請查看這個校系的備審資料，建議優先準備：" + "、".join(needs) + "。")[:180]
+    return "請查看這個校系的備審要求，確認資料是否準備完整。"
+
+
+@teacher_bp.post("/teacher/students/<int:student_id>/targets/<int:program_id>/remind")
+@role_required("teacher")
+def remind_target(student_id, program_id):
+    """導師看完校系明細後，改好提醒文字送站內通知；學生點通知直接到該校系的備審頁。"""
+    teacher = get_current_user()
+    student = _student_or_403(teacher, student_id)
+    if not StudentTarget.query.filter_by(student_id=student.id, rule_version_id=program_id).first():
+        abort(404)
+    message = (request.form.get("message") or "").strip()
+    if not message or len(message) > 180:
+        abort(400, description="提醒內容請寫 1 到 180 字。")
+    note = Notification(recipient_id=student.id, message=f"{teacher.display_name[:40]}老師提醒：{message}"[:255],
+                        link=url_for("student.target_gap", program_id=program_id))
+    db.session.add(note)
+    db.session.flush()
+    audit_service.record(teacher, "target.teacher_reminder", "notification", note.id,
+                         detail={"student_id": student.id, "program_id": program_id})
+    db.session.commit()
+    return redirect(url_for("teacher.student_detail", student_id=student.id, reminded=program_id,
+                            _anchor=f"teacher-target-{program_id}"))
 
 
 @teacher_bp.get("/teacher/evidence/<int:evidence_id>/view")
@@ -212,21 +268,107 @@ def autobiography_edit(student_id, output_id):
     if request.method == "POST":
         count = len(output.content_json.get("paragraphs", []))
         texts = [request.form.get(f"paragraph_{i}", "") for i in range(count)]
-        comments = [request.form.get(f"comment_{i}", "") for i in range(count)]
+        # 11-18 起段落意見改用下方的段落註解；舊表單（有 comment_ 欄位）仍照舊存進段落意見
+        comments = ([request.form.get(f"comment_{i}", "") for i in range(count)]
+                    if any(f"comment_{i}" in request.form for i in range(count)) else None)
         try:
             saved = autobiography_service.save_edits(output, texts, teacher, comments=comments)
+            db.session.add(Notification(
+                recipient_id=student.id,
+                message=f"{teacher.display_name}老師修改了你的自傳，請查看改了哪裡。"[:255],
+                link=url_for("student.autobiography_versions", program_id=program.id, v=saved.id),
+            ))
             audit_service.record(teacher, "autobiography.teacher_edit", "learning_profile_output", saved.id,
                                  detail={"student_id": student.id}, commit=True)
         except autobiography_service.StaleVersion as exc:
             latest = latest_draft(student, program)
-            return render_template(
-                "teacher_autobiography_edit.html", user=teacher, student=student, program=program, output=latest,
-                version=version_of(latest), stale={"message": str(exc), "texts": texts, "comments": comments,
-                                                   "paragraphs": output.content_json["paragraphs"]},
-            ), 409
+            return _render_edit(teacher, student, program, latest,
+                                stale={"message": str(exc), "texts": texts, "comments": comments or [""] * count,
+                                       "paragraphs": output.content_json["paragraphs"]}), 409
         return redirect(url_for("teacher.student_detail", student_id=student.id, saved=1))
+    return _render_edit(teacher, student, program, output)
+
+
+def _render_edit(teacher, student, program, output, stale=None, comment_error=None):
+    by_paragraph, orphans = comment_service.threads(student, program, output.content_json.get("paragraphs", []))
+    latest = latest_draft(student, program)
     return render_template("teacher_autobiography_edit.html", user=teacher, student=student, program=program,
-                           output=output, version=autobiography_service.version_of(output))
+                           output=output, version=version_of(output), stale=stale,
+                           threads=by_paragraph, orphan_threads=orphans, comment_error=comment_error,
+                           is_latest=bool(latest and latest.id == output.id))
+
+
+def _student_or_403(teacher, student_id):
+    student = db.session.get(User, student_id)
+    if not student or not can_view_student(teacher, student):
+        abort(403)
+    return student
+
+
+@teacher_bp.get("/teacher/students/<int:student_id>/autobiography/program/<int:program_id>")
+@role_required("teacher")
+def autobiography_latest(student_id, program_id):
+    """通知連結用：一律打開這個校系最新一版的自傳（通知寄出後學生可能又存了新版）。"""
+    student = _student_or_403(get_current_user(), student_id)
+    program = db.session.get(AdmissionProgram, program_id)
+    draft = latest_draft(student, program) if program else None
+    if not draft:
+        abort(404)
+    return redirect(url_for("teacher.autobiography_edit", student_id=student.id, output_id=draft.id))
+
+
+@teacher_bp.get("/teacher/students/<int:student_id>/autobiography/versions/<int:program_id>")
+@role_required("teacher")
+def autobiography_versions(student_id, program_id):
+    """導師看學生自傳的所有版本與差異（組員 0837903）；只限自己班的學生。"""
+    from app.routes.student import _version_view
+    teacher = get_current_user()
+    student = _student_or_403(teacher, student_id)
+    program = db.session.get(AdmissionProgram, program_id)
+    if not program or not autobiography_service.versions(student, program):
+        abort(404)
+    return render_template("autobiography_versions.html", user=teacher, student=student, program=program,
+                           teacher_view=True, cancelled=False,
+                           **_version_view(student, program, request.args.get("v", type=int)))
+
+
+@teacher_bp.post("/teacher/students/<int:student_id>/autobiography/<int:output_id>/comments")
+@role_required("teacher")
+def autobiography_comment(student_id, output_id):
+    """導師在某一段新增註解；同一段可以有很多則。"""
+    teacher = get_current_user()
+    student = _student_or_403(teacher, student_id)
+    output = db.session.get(LearningProfileOutput, output_id)
+    if not output or output.output_type != autobiography_service.OUTPUT_TYPE or output.student_id != student.id:
+        abort(404)
+    paragraph = request.form.get("paragraph", type=int)
+    try:
+        comment_service.add_comment(teacher, student, output, paragraph, request.form.get("text"))
+    except comment_service.CommentError as exc:
+        program = db.session.get(AdmissionProgram, output.content_json.get("program_id"))
+        return _render_edit(teacher, student, program, output, comment_error=str(exc)), 400
+    return redirect(url_for("teacher.autobiography_latest", student_id=student.id,
+                            program_id=output.content_json.get("program_id"), _anchor=f"paragraph-{paragraph}"))
+
+
+@teacher_bp.post("/teacher/autobiography-comments/<int:comment_id>/<action>")
+@role_required("teacher")
+def autobiography_comment_action(comment_id, action):
+    """導師回覆、標記已處理或改回待處理。"""
+    teacher = get_current_user()
+    comment = db.session.get(AutobiographyComment, comment_id)
+    if not comment or comment.parent_id or action not in {"reply", "resolve", "reopen"}:
+        abort(404)
+    student = _student_or_403(teacher, comment.student_id)
+    try:
+        if action == "reply":
+            comment_service.reply(teacher, comment, request.form.get("text"))
+        else:
+            comment_service.set_resolved(teacher, comment, action == "resolve")
+    except comment_service.CommentError as exc:
+        abort(400, description=str(exc))
+    return redirect(url_for("teacher.autobiography_latest", student_id=student.id, program_id=comment.program_id,
+                            _anchor=f"paragraph-{comment.paragraph}"))
 
 
 @teacher_bp.post("/teacher/students/<int:student_id>/transfer-plans/<int:plan_id>")

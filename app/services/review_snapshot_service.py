@@ -4,6 +4,7 @@
   還在等導師時再按一次，會更新同一筆的快照；導師確認過或請學生修改後再送，會新增一筆。
 - 導師確認的是那一份快照；學生之後再改資料，快照不變（舊的確認紀錄保留）。
 - 確認、請學生修改、撤回確認都寫進 audit_logs，撤回要填原因；紀錄裡不放學生原文。
+- 送審後自傳又存了新版：不能確認（要請學生重新送審），仍可「需要修改」（2026-11-18 併入組員 46531f2）。
 """
 
 from datetime import datetime, timezone
@@ -127,7 +128,15 @@ NOTICES = {
     "done": "這份送審已經處理過了，請重新整理頁面。",
     "newer": "學生已經送出新的送審，這一筆不能再變更，請處理最新的那一筆。",
     "changed": "學生剛更新了送審內容，請先看新的內容再確認。",
+    "autobiography_changed": "學生送審後自傳又存了新版本，不能確認舊的那份；請選「需要修改」請學生重新送審。",
 }
+
+
+def autobiography_changed(review):
+    """送審後自傳有沒有存出新版（組員 46531f2）：快照記的版本不是目前最新版就算。"""
+    submitted = ((review.snapshot_json or {}).get("autobiography") or {}).get("output_id")
+    latest = autobiography_service.latest_draft(review.student, review.program)
+    return submitted != (latest.id if latest else None)
 
 
 def _check_latest(review):
@@ -147,6 +156,8 @@ def decide(review, teacher, decision, comment, seen_taken_at=None):
     _check_latest(review)
     if (review.snapshot_json or {}).get("taken_at", "") != (seen_taken_at or ""):
         raise ReviewChanged("changed", NOTICES["changed"])
+    if decision == "confirmed" and autobiography_changed(review):
+        raise ReviewChanged("autobiography_changed", NOTICES["autobiography_changed"])
     review.status = decision
     review.comment = comment or None
     review.teacher_id = teacher.id

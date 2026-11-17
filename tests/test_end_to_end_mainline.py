@@ -278,14 +278,27 @@ def test_one_student_walks_the_whole_main_line(app, fake_ai):
         assert frozen["version"] == 2
         assert frozen["paragraphs"][3]["text"] == ANSWERS["future"]
 
-    # 10. 導師在本班看到這位學生與待確認 1 份，選「內容合理，確認」；學生端看到已確認
+    # 10. 導師在本班看到這位學生與待確認 1 份；送審後自傳又改了（第 3 版），不能確認舊的那份
+    #     （2026-11-18 併入組員 46531f2）；學生重新送審第 3 版後，導師選「內容合理，確認」
     teacher, _ = login(app, "e2e_teacher")
     dashboard = text(teacher.get("/teacher/dashboard"))
     assert "SYN9001" in dashboard and "SYN9002" not in dashboard
     assert '<span class="tag tag--warn">1 份</span>' in dashboard
     detail = text(teacher.get(f"/teacher/students/{stu_id}"))
     assert "自傳依據第 2 版（目前第 3 版）" in detail
-    assert "內容合理，確認" in detail
+    assert "送審後自傳又存了新版本" in detail
+    response = teacher.post(f"/teacher/package-reviews/{review_id}",
+                            data={"decision": "confirmed", "comment": "", "taken_at": snapshot["taken_at"]})
+    assert "notice=autobiography_changed" in response.headers["Location"]
+    with app.app_context():
+        assert db.session.get(PackageReview, review_id).status == "pending"
+    assert stu.post(f"/student/targets/{pid}/review").status_code == 302
+    with app.app_context():
+        review = db.session.get(PackageReview, review_id)  # 還在等待確認：更新同一筆的快照
+        snapshot = review.snapshot_json
+        assert snapshot["autobiography"]["version"] == 3
+    detail = text(teacher.get(f"/teacher/students/{stu_id}"))
+    assert "內容合理，確認" in detail and "送審後自傳又存了新版本" not in detail
     assert f'name="taken_at" value="{snapshot["taken_at"]}"' in detail
     response = teacher.post(f"/teacher/package-reviews/{review_id}",
                             data={"decision": "confirmed", "comment": "", "taken_at": snapshot["taken_at"]})

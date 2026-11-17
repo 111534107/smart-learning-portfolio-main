@@ -5,10 +5,14 @@
 
 {% block title %}自傳版本紀錄｜資管科智慧學習歷程系統{% endblock %}
 
-{% block navigation %}{{ masthead(user, "備審資料") }}{% endblock %}
+{% block navigation %}{{ masthead(user, "工作台" if teacher_view else "備審資料") }}{% endblock %}
 
 {% block content %}
+{% if teacher_view %}
+{{ page_band("自傳版本紀錄", [("返回學生資料", url_for('teacher.student_detail', student_id=student.id, _anchor='teacher-target-' ~ program.id))], note=student.display_name ~ "・" ~ program.school_name ~ " " ~ program.department_name) }}
+{% else %}
 {{ page_band("自傳版本紀錄", [("小助手寫自傳", url_for('student.autobiography', program_id=program.id))], note=program.school_name ~ " " ~ program.department_name) }}
+{% endif %}
 <div class="page page--banded">
   {% if cancelled %}<p class="notice notice--warn mb-1">這是已取消的目標校系。自傳紀錄都還保留著，可以看，但不能再修改；要繼續寫請重新加入目標。</p>{% endif %}
   {% if not versions %}
@@ -36,7 +40,7 @@
         {% for version in versions %}
         {% set c = version.content_json %}
         <li{% if version.id == selected.id %} aria-current="true"{% endif %}>
-          <a href="{{ url_for('student.autobiography_versions', program_id=program.id, v=version.id) }}">第 {{ version_of(version) }} 版</a>
+          <a href="{{ url_for('teacher.autobiography_versions', student_id=student.id, program_id=program.id, v=version.id) if teacher_view else url_for('student.autobiography_versions', program_id=program.id, v=version.id) }}">第 {{ version_of(version) }} 版</a>
           <span class="small muted">{{ "示範草稿（沒有接上 AI）" if c.provider == "demo" and c.editor_role == "ai" else role_text.get(c.editor_role, "修改") }}{% if editors.get(c.editor_id) %} · {{ editors[c.editor_id].display_name }}{% endif %} · {{ version.created_at|taipei_time("%m-%d %H:%M") }}{% if backup_label(version) %} · {{ backup_label(version) }}{% endif %}</span>
         </li>
         {% endfor %}

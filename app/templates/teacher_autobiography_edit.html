@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "partials/nav.html" import masthead with context %}
+{% import "partials/autobiography_comments.html" as cm with context %}
 {% set page_name = "teacher-autobiography-edit" %}
 
 {% block title %}修改自傳｜導師工作台{% endblock %}
@@ -10,11 +11,13 @@
 <section class="work-shell" data-work-role="teacher">
   <header class="work-heading">
     <div>
-      <p class="small"><a href="{{ url_for('teacher.student_detail', student_id=student.id) }}">← {{ student.display_name }}</a>{% if program %} · {{ program.school_name }} {{ program.department_name }}{% endif %}</p>
+      <p class="small"><a href="{{ url_for('teacher.student_detail', student_id=student.id) }}">← {{ student.display_name }}</a>{% if program %} · {{ program.school_name }} {{ program.department_name }} · <a href="{{ url_for('teacher.autobiography_versions', student_id=student.id, program_id=program.id) }}">版本紀錄</a>{% endif %}</p>
       <h1>修改自傳（目前第 {{ version }} 版）</h1>
-      <p>你可以直接改文字，也可以在每段下面留意見。儲存後會變成新的一版，學生看得到你改了哪裡；原本的版本會保留。</p>
+      <p>改文字請按最下面的「儲存成新的一版」，原本的版本會保留，學生看得到你改了哪裡。每段下方可以新增註解或回覆，註解會個別送出、學生會收到通知；自傳文字還沒儲存就送註解，系統會先提醒你。</p>
     </div>
   </header>
+  {% if not is_latest %}<p class="alert mb-1" role="alert">這不是最新的一版；要修改請先回到學生資料頁打開最新版。</p>{% endif %}
+  {% if comment_error %}<p class="alert mb-1" role="alert">{{ comment_error }}</p>{% endif %}
   {% if stale %}
   <section class="work-panel">
     <p class="alert mb-1" role="alert">{{ stale.message }}</p>
@@ -23,19 +26,24 @@
     </details>
   </section>
   {% endif %}
-  <form method="post" class="work-panel draft" action="{{ url_for('teacher.autobiography_edit', student_id=student.id, output_id=output.id) }}">
+  <form method="post" class="work-panel draft" data-draft-form action="{{ url_for('teacher.autobiography_edit', student_id=student.id, output_id=output.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     {% for paragraph in output.content_json.paragraphs %}
-    <section class="draft__paragraph">
+    <section class="draft__paragraph" id="paragraph-{{ loop.index0 }}">
       <h2 class="h3">{{ paragraph.title }}</h2>
       <textarea name="paragraph_{{ loop.index0 }}" rows="6" data-autosize aria-label="{{ paragraph.title }}">{{ paragraph.text }}</textarea>
-      <label class="field small">給學生的意見（選填）<textarea name="comment_{{ loop.index0 }}" rows="2">{{ paragraph.teacher_comment or "" }}</textarea></label>
+      {% if paragraph.teacher_comment %}<blockquote class="teacher-comment"><b>先前留下的意見：</b>{{ paragraph.teacher_comment }}</blockquote>{% endif %}
+      {{ cm.paragraph_block(threads[loop.index0], "teacher", loop.index0) }}
     </section>
     {% endfor %}
+    {{ cm.orphan_block(orphan_threads, "teacher") }}
     <div class="record-card__actions">
       <button class="button" type="submit">儲存成新的一版</button>
       <a class="button button--line" href="{{ url_for('teacher.student_detail', student_id=student.id) }}">取消</a>
     </div>
   </form>
+  {{ cm.forms(threads + [orphan_threads], "teacher", url_for('teacher.autobiography_comment', student_id=student.id, output_id=output.id), output.content_json.paragraphs|length) }}
 </section>
 {% endblock %}
+
+{% block scripts %}<script src="{{ url_for('static', filename='js/autobiography-comments.js') }}" defer></script>{% endblock %}

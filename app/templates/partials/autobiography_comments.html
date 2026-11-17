@@ -1,0 +1,58 @@
+{# 自傳段落註解（2026-11-18 改寫併入組員 46531f2）。
+   段落下方的輸入框用 form="..." 指到頁面最下面的獨立表單，避免和「儲存自傳」的表單巢狀。
+   role：目前看頁面的人（teacher 或 student）。 #}
+
+{% macro thread(t, role) %}
+{% set c = t.comment %}
+<details class="para-comment{% if c.resolved_at %} para-comment--done{% endif %}" id="comment-{{ c.id }}" data-comment-thread{% if not c.resolved_at %} open{% endif %}>
+  <summary>
+    <b>{{ c.author.display_name }} 老師</b>
+    <span class="tag {{ 'tag--ok' if c.resolved_at else 'tag--warn' }}">{{ '已處理' if c.resolved_at else '待處理' }}</span>
+    <span class="small muted">寫於第 {{ t.version }} 版 · {{ c.created_at|taipei_time("%Y-%m-%d %H:%M") }}</span>
+  </summary>
+  {% if t.original %}<p class="small muted mt-1">留註解時這一段是：</p><blockquote class="para-comment__original">{{ t.original }}</blockquote>{% endif %}
+  <p class="para-comment__text">{{ c.text }}</p>
+  {% if c.resolved_at %}<p class="small muted">{{ c.resolved_by.display_name if c.resolved_by else "" }} 於 {{ c.resolved_at|taipei_time("%Y-%m-%d %H:%M") }} 標記已處理</p>{% endif %}
+  {% for r in t.replies %}
+  <div class="para-comment__reply"><p class="small"><b>{{ r.author.display_name }}（{{ '老師' if r.author.role == 'teacher' else '學生' }}）</b> <span class="muted">{{ r.created_at|taipei_time("%Y-%m-%d %H:%M") }}</span></p><p class="para-comment__text">{{ r.text }}</p></div>
+  {% endfor %}
+  <label class="field small mt-1">回覆這則註解<textarea name="text" form="cform-{{ c.id }}-reply" rows="2" maxlength="2000" required data-comment-input></textarea></label>
+  <div class="record-card__actions">
+    <button class="button button--small" type="submit" form="cform-{{ c.id }}-reply">送出回覆</button>
+    <button class="button button--small button--line" type="submit" form="cform-{{ c.id }}-toggle">{{ '改回待處理' if c.resolved_at else '標記已處理' }}</button>
+  </div>
+</details>
+{% endmacro %}
+
+{% macro paragraph_block(threads, role, index) %}
+<div class="para-comments" data-para-comments>
+  <p class="para-comments__title">段落註解{% set waiting = threads|rejectattr("comment.resolved_at")|list|length %}{% if threads %}（{{ threads|length }} 則{% if waiting %}，{{ waiting }} 則待處理{% endif %}）{% endif %}</p>
+  {% for t in threads %}{{ thread(t, role) }}{% else %}<p class="small muted">這一段目前沒有註解。</p>{% endfor %}
+  {% if role == "teacher" %}
+  <label class="field small mt-1">給這一段新增註解（每次送出都是獨立一則，學生會收到通知）<textarea name="text" form="cform-new-{{ index }}" rows="2" maxlength="2000" required data-comment-input placeholder="例如：建議補充你在專題中負責的工作。"></textarea></label>
+  <div><button class="button button--small" type="submit" form="cform-new-{{ index }}">送出註解</button></div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% macro orphan_block(threads, role) %}
+{% if threads %}
+<section class="para-comments para-comments--orphan" data-orphan-comments>
+  <p class="para-comments__title">舊版段落的註解（目前的自傳已經沒有這一段，註解仍保留）</p>
+  {% for t in threads %}{% if t.paragraph_title %}<p class="small muted mt-1">原本的段落：{{ t.paragraph_title }}</p>{% endif %}{{ thread(t, role) }}{% endfor %}
+</section>
+{% endif %}
+{% endmacro %}
+
+{% macro forms(all_threads, role, new_action=None, paragraph_count=0) %}
+<div hidden>
+  {% for group in all_threads %}{% for t in group %}{% set c = t.comment %}
+  {% set act = 'teacher.autobiography_comment_action' if role == 'teacher' else 'student.autobiography_comment_action' %}
+  <form id="cform-{{ c.id }}-reply" method="post" action="{{ url_for(act, comment_id=c.id, action='reply') }}" data-comment-form><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"></form>
+  <form id="cform-{{ c.id }}-toggle" method="post" action="{{ url_for(act, comment_id=c.id, action='reopen' if c.resolved_at else 'resolve') }}" data-comment-form><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"></form>
+  {% endfor %}{% endfor %}
+  {% if new_action %}{% for index in range(paragraph_count) %}
+  <form id="cform-new-{{ index }}" method="post" action="{{ new_action }}" data-comment-form><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="paragraph" value="{{ index }}"></form>
+  {% endfor %}{% endif %}
+</div>
+{% endmacro %}

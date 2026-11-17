@@ -449,13 +449,14 @@ def teacher_dashboard():
     rows = []
     for student in students:
         journey = build_journey(student)
-        targets = StudentTarget.query.filter_by(student_id=student.id).all()
+        targets = StudentTarget.query.filter_by(student_id=student.id).order_by(StudentTarget.selected_at).all()
         reviews = [latest_review(student, target.program) for target in targets]
         rows.append({
             "student": student,
             "totals": journey["totals"],
             "missing": len(journey["missing_categories"]),
             "targets": [target.program for target in targets],
+            "target_progress": _target_progress(student, journey, targets),
             "pending": sum(1 for review in reviews if review and review.status == "pending"),
         })
     pending_rows = [row for row in rows if row["pending"]]
@@ -471,11 +472,49 @@ def teacher_dashboard():
         user=user,
         classes=advised_classes(user),
         class_rows=rows,
+        target_statistics=_target_statistics(rows),
         pending_href=pending_href,
         grad=graduation_case_service.class_overview(students),
         grad_disclaimer=graduation_check_service.DISCLAIMER,
         category_keys=CATEGORY_KEYS,
         category_labels=CATEGORY_LABELS,
+    )
+
+
+def _target_progress(student, journey, targets):
+    """導師工作台：每個目標校系的準備度與待補類別（組員 46531f2）。準備度不是錄取機率。"""
+    from app.routes.teacher import gap_needs
+    from app.services.gap_service import student_evidence
+    if not targets:
+        return []
+    evidence = student_evidence(student, journey)
+    rows = []
+    for target in targets:
+        gap = analyze_gap(student, target.program, journey, evidence)
+        rows.append({
+            "program": target.program,
+            "readiness": gap["readiness"],
+            "needs": gap_needs(gap),
+            "pending_mapping": any(item["mapping_pending"] or item["fraction"] is None for item in gap["items"]),
+        })
+    return rows
+
+
+def _target_statistics(rows):
+    """本班選各學校、科系的人數：同一人選同校多個科系，學校只算一次（組員 46531f2）。
+    選目標只代表有意願，不等於報名。"""
+    schools = {}
+    for row in rows:
+        for program in row["targets"]:
+            school = schools.setdefault(program.school_name, {"students": set(), "departments": {}})
+            school["students"].add(row["student"].id)
+            school["departments"].setdefault(program.department_name, set()).add(row["student"].id)
+    return sorted(
+        ({"school": name, "count": len(data["students"]),
+          "departments": [{"name": dept, "count": len(ids)}
+                          for dept, ids in sorted(data["departments"].items(), key=lambda kv: (-len(kv[1]), kv[0]))]}
+         for name, data in schools.items()),
+        key=lambda item: (-item["count"], item["school"]),
     )
 
 

@@ -394,6 +394,66 @@ for sid in students[:3]:
     rec(f"導師看學生 {sid}", rr.status_code == 200 and "Traceback" not in rr.text, title(rr.text))
     rec(f"導師學生資料導覽與狀態 {sid}", rr.status_code == 200 and "快速查看" in rr.text and "學生已確認" in rr.text and "teacher-records" in rr.text, title(rr.text))
 
+# 組員 46531f2 併入（2026-11-18）：班級目標統計、備審準備提醒、送審時的自傳、自傳段落註解（測試資料）
+dash = te.get(BASE + "/teacher/dashboard").text
+rec("導師工作台有各目標準備度與待補", "data-target-progress" in dash and "不是錄取機率" in text_of(dash))
+rec("導師工作台有本班目標學校統計", "data-target-statistics" in dash and "不等於報名" in text_of(dash))
+row = re.search(r"113534902</td>.*?/teacher/students/(\d+)", dash, flags=re.S)
+sid902 = row.group(1) if row else None
+rec("導師班上有學生 113534902", bool(sid902))
+if sid902 and pid:
+    detail = te.get(BASE + f"/teacher/students/{sid902}").text
+    remind = re.search(rf'action="(/teacher/students/{sid902}/targets/{pid}/remind)"', detail)
+    rec("導師可提醒學生準備校系（預填缺件）", bool(remind) and "提醒學生準備這個校系" in detail)
+    if remind:
+        rr = te.post(BASE + remind.group(1), data={"csrf_token": csrf(detail), "message": "請補齊備審資料（驗收測試）"})
+        rec("提醒送出後導師頁顯示已送出", rr.ok and "提醒已送出" in rr.text)
+        rec("學生收到導師提醒並連到校系頁", "老師提醒：請補齊備審資料（驗收測試）" in text_of(s.get(BASE + "/notifications").text)
+            and f'/student/targets/{pid}' in s.get(BASE + "/notifications").text)
+# 自傳段落註解與送審版本：要專五才能產生自傳，用 113534903（張小華，資管科五甲，也由 teacher01 帶）
+s5, _ = login("/login", "113534903")
+row = re.search(r"113534903</td>.*?/teacher/students/(\d+)", dash, flags=re.S)
+sid903 = row.group(1) if row else None
+pid5 = (sorted(set(re.findall(r"/student/targets/(\d+)\"", s5.get(BASE + "/student/targets").text))) or [None])[0]
+rec("導師班上有專五學生 113534903 且有目標校系", bool(sid903 and pid5))
+if sid903 and pid5:
+    s, pid, sid902 = s5, pid5, sid903  # 下面沿用變數名稱
+    # 自傳：沒有就先用示範模式產生一份（展示站沒有 AI 金鑰）
+    page = s.get(BASE + f"/student/autobiography?program_id={pid}").text
+    if "/save\"" not in page and "autobiography/generate" in page:
+        form = {"csrf_token": csrf(page), "program_id": pid}
+        for name in set(re.findall(r'<textarea[^>]*name="((?:focus_|q_)?[a-z_]+)"', page)):
+            form[name] = "我在專題負責資料庫設計與測試，學到團隊分工（驗收測試資料）。"
+        s.post(BASE + "/student/autobiography/generate", data=form)
+        page = s.get(BASE + f"/student/autobiography?program_id={pid}").text
+    out = re.search(r"/student/autobiography/(\d+)/save", page)
+    rec("學生有自傳可送審", bool(out), title(page))
+    if out:
+        gp = s.get(BASE + f"/student/targets/{pid}").text
+        s.post(BASE + f"/student/targets/{pid}/review", data={"csrf_token": csrf(gp)})
+        detail = te.get(BASE + f"/teacher/students/{sid902}").text
+        rec("導師看得到送審時的自傳", "data-submitted-autobiography" in detail)
+        edit_url = f"/teacher/students/{sid902}/autobiography/{out.group(1)}/edit"
+        ep = te.get(BASE + edit_url)
+        rec("導師編輯頁：註解在段落下方、沒有舊意見欄", ep.ok and 'form="cform-new-0"' in ep.text
+            and 'name="comment_0"' not in ep.text and "autobiography-comments.js" in ep.text)
+        rr = te.post(BASE + f"/teacher/students/{sid902}/autobiography/{out.group(1)}/comments",
+                     data={"csrf_token": csrf(ep.text), "paragraph": 0, "text": "請補充你負責的部分（驗收測試）"})
+        rec("導師送出段落註解", rr.ok and "請補充你負責的部分（驗收測試）" in rr.text)
+        page = s.get(BASE + f"/student/autobiography?program_id={pid}").text
+        cid = re.search(r'action="/student/autobiography-comments/(\d+)/reply"', page)
+        rec("學生在自傳段落下看到註解並可回覆", bool(cid) and "請補充你負責的部分（驗收測試）" in page)
+        if cid:
+            s.post(BASE + f"/student/autobiography-comments/{cid.group(1)}/reply",
+                   data={"csrf_token": csrf(page), "text": "好的，我會補上（驗收測試）"})
+            rec("導師收到學生回覆通知", "回覆了你在自傳留下的註解" in text_of(te.get(BASE + "/notifications").text))
+        # 送審後自傳又存新版：導師頁要提醒請學生重新送審
+        texts = re.findall(r'<textarea name="(paragraph_\d+)"[^>]*>([^<]*)</textarea>', page)
+        s.post(BASE + f"/student/autobiography/{out.group(1)}/save",
+               data={"csrf_token": csrf(page), **{n: html.unescape(t) + "（驗收修改）" for n, t in texts}})
+        detail = te.get(BASE + f"/teacher/students/{sid902}").text
+        rec("送審後自傳有新版，導師頁要求重新送審", "data-autobiography-changed" in detail)
+
 # ---------- 管理員 ----------
 ad, r = login("/admin/login", "admin")
 rec("管理員登入（不需雙重驗證）", "/admin/dashboard" in r.url, r.url)

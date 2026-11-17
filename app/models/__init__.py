@@ -1,4 +1,5 @@
 from app.models.agent_task import AgentTask
+from app.models.autobiography_comment import AutobiographyComment
 from app.models.ai_usage import AiDailyUsage
 from app.models.audit_log import AuditLog
 from app.models.portfolio import Portfolio, PortfolioDomainTag, PortfolioEvidence
@@ -55,6 +56,7 @@ from app.models.form_library import FormCategory, FormItem, FormItemVersion
 from app.models.curriculum import CurriculumCourse, CurriculumVersion
 
 __all__ = [
+    "AutobiographyComment",
     "AiDailyUsage",
     "AwardCertificate",
     "SchoolAwardRecord",
