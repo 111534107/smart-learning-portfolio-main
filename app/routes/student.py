@@ -54,6 +54,7 @@ from app.services.journey_service import CATEGORY_LABELS, EXPERIENCE_CATEGORIES,
 from app.services.package_service import build_package_docx, latest_review
 from app.services.file_preview import inline_file
 from app.services.record_status import learning_profile_state, portfolio_state
+from app.services import autobiography_comment_service
 from app.services import ai_quota_service, audit_service, autobiography_backup, autobiography_review, autobiography_service, ocr_queue, package_exclusion, review_snapshot_service, storage_service, student_rules
 from app.services.gemini_client import AIUnavailable, ai_ready
 from app.services.course_review_presentation import (
@@ -1855,11 +1856,14 @@ def _render_autobiography(user, program, targets, error=None, answers=None, stat
     draft = autobiography_service.latest_draft(user, program) if program else None
     asking = program and (not draft or request.args.get("redo") or error) and not stale
     paragraph_reviews = []
+    comment_threads, orphan_threads = [], []
     if draft:
         content = draft.content_json
         paragraph_reviews = autobiography_review.review_paragraphs(
             content.get("paragraphs", []), content.get("facts", []), content.get("answers", {}),
         )
+        comment_threads, orphan_threads = autobiography_comment_service.threads(
+            user, program, content.get("paragraphs", []))
     return render_template(
         "student_autobiography.html",
         user=user,
@@ -1874,6 +1878,8 @@ def _render_autobiography(user, program, targets, error=None, answers=None, stat
         version=autobiography_service.version_of(draft) if draft else None,
         backup_label=autobiography_backup.status_label(draft) if draft else None,
         paragraph_reviews=paragraph_reviews,
+        comment_threads=comment_threads,
+        orphan_threads=orphan_threads,
         pieces=autobiography_service.bio_pieces(user, program, draft) if program else {"facts": [], "own": []},
         strength_inventory=autobiography_service.strength_inventory(user, program),
         school_turns=ai_quota_service.remaining(user) if ai_ready() and not autobiography_service.ollama_ready() else None,
@@ -1952,6 +1958,33 @@ def autobiography_save(output_id):
                                                                     "paragraphs": output.content_json["paragraphs"]})
     audit_service.record(user, "autobiography.save", "learning_profile_output", saved.id, commit=True)
     return redirect(url_for("student.autobiography", program_id=output.content_json["program_id"], saved=1))
+
+
+@student_bp.post("/student/autobiography-comments/<int:comment_id>/<action>")
+@role_required("student")
+def autobiography_comment_action(comment_id, action):
+    """學生回覆導師的段落註解，或標記已處理／改回待處理（組員 46531f2 改寫）。"""
+    from app.models import AutobiographyComment
+    from app.services.teacher_scope import can_view_student
+    user = get_current_user()
+    comment = db.session.get(AutobiographyComment, comment_id)
+    if not comment or comment.parent_id or action not in {"reply", "resolve", "reopen"}:
+        abort(404)
+    if comment.student_id != user.id:
+        abort(403)
+    try:
+        if action == "reply":
+            author = comment.author
+            notify = author if author and author.is_active and can_view_student(author, user) else None
+            autobiography_comment_service.reply(user, comment, request.form.get("text"), notify_teacher=notify)
+        else:
+            autobiography_comment_service.set_resolved(user, comment, action == "resolve")
+    except autobiography_comment_service.CommentError as exc:
+        abort(400, description=str(exc))
+    if StudentTarget.query.filter_by(student_id=user.id, rule_version_id=comment.program_id).first():
+        return redirect(url_for("student.autobiography", program_id=comment.program_id,
+                                _anchor=f"paragraph-{comment.paragraph}"))
+    return redirect(url_for("student.autobiography_versions", program_id=comment.program_id))
 
 
 @student_bp.post("/student/autobiography/<int:output_id>/backup-retry")

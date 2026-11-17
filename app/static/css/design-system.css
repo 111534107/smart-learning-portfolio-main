@@ -859,6 +859,17 @@ fieldset.field legend { padding: 0; margin-bottom: .35rem; }
 .version-list li[aria-current] a { font-weight: 700; }
 .version-list li span { display: block; }
 .teacher-comment { margin: .4rem 0 0; padding: .5rem .8rem; border-left: 4px solid var(--warn); background: var(--warn-soft); font-size: var(--fs-sm); }
+/* 自傳段落註解（2026-11-18 併入組員 46531f2） */
+.para-comments { margin-top: .8rem; padding: .7rem .9rem; border-left: 4px solid var(--warn); background: var(--paper-deep); }
+.para-comments__title { font-weight: 700; font-size: var(--fs-sm); margin: 0 0 .4rem; }
+.para-comment { margin: .5rem 0; padding: .5rem .8rem; background: var(--sheet); border: 1px solid var(--line); }
+.para-comment summary { cursor: pointer; line-height: 1.7; }
+.para-comment--done { opacity: .78; }
+.para-comment__text { white-space: pre-wrap; overflow-wrap: anywhere; margin: .4rem 0; }
+.para-comment__original { margin: .2rem 0 .4rem; padding: .4rem .7rem; border-left: 3px solid var(--line); background: var(--paper); white-space: pre-wrap; font-size: var(--fs-sm); }
+.para-comment__reply { margin: .5rem 0 .5rem .6rem; padding-left: .7rem; border-left: 3px solid var(--line); }
+.para-comments textarea { width: 100%; min-height: 3.2rem; }
+.target-progress + .target-progress { margin-top: .45rem; padding-top: .45rem; border-top: 1px dashed var(--line); }
 
 
 /* ---------- 第一次登入的歡迎流程：一次一個畫面，像開機設定 ---------- */

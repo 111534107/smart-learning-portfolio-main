@@ -1,5 +1,27 @@
 # 開發日誌
 
+## 2026-11-18 併入組員 11-17 教師端 5 項功能（註解、送審版本、提醒、班級統計）
+
+開發者：Claude。來源：組員（學號 111534107）repo `111534107/smart-learning-portfolio-main` 分支 `codex/full-project-sync` 提交 `46531f2`（尚未合進組員 main），對照我們上次併入的 `cddbfbba`；中間的 `0837903` 只取「導師看自傳版本」與「導師改自傳通知學生」，學年度權限、科辦指派、通知依權限隱藏不併（另案）。缺曠紀錄不做。分支 `feat/teammate-1117`（起點 `preview/student-v2` 的 `369acef`），工作目錄 `D:\democase\_worktrees\ai-wt-teammate-1117`。照新版架構逐段改寫，沒有整份覆蓋檔案。
+
+目標與做法：
+1. 送審版本確認：`review_snapshot_service.autobiography_changed()`；送審後自傳存了新版，`decide()` 擋下「確認」（新提示代碼 `autobiography_changed`），「需要修改」與撤回照舊。導師頁顯示「送審時的自傳（第 N 版）」全文；有新版時紅字提醒、確認選項停用並預設「需要修改」與建議文字。學生校系頁在等待確認時提示要重新送審。
+2. 自傳段落註解：新資料表 `autobiography_comments`（模型 `app/models/autobiography_comment.py`、遷移 `c20261118a01`，接在 `b20261114s01` 後，有表就跳過、從零建立時跳過，SQLite 升降級測試通過；寫法 MySQL 相容）。服務 `app/services/autobiography_comment_service.py`：同段多則、學生與導師回覆、已處理／改回待處理（留誰、何時）；註解綁學生＋校系並記住版本，學生改出新版後舊註解照樣顯示「寫於第 N 版」與當時那段原文；段落變少時列在「舊版段落的註解」。不提供刪除；新增、回覆、標記都寫操作紀錄（不放原文）。通知：導師新增或回覆→學生（連到該段）；學生回覆→留註解的導師（仍有班級權限才通知，連到最新版編輯頁）。
+3. 教師編輯頁：拿掉「給學生的意見」欄，註解與回覆放在各段下方；輸入框用 `form=` 指到頁尾的獨立表單，避免表單巢狀；`app/static/js/autobiography-comments.js` 在自傳文字未儲存時先提醒。舊的段落意見保留顯示為「先前留下的意見」，儲存時沿用（相容舊表單 `comment_` 欄位）。導師儲存修改後通知學生看版本差異；新增導師版本紀錄頁 `/teacher/students/<id>/autobiography/versions/<校系>`（只限自己班）。
+4. 備審準備提醒：導師學生頁每個目標校系有「提醒學生準備這個校系」，依缺件預填（1–180 字可改），送站內通知，學生點通知到該校系備審頁；不是學生目標就 404；寫操作紀錄。
+5. 班級進度與目標統計：工作台「目標校系與準備度」欄列各目標的準備度與待補類別（簡章未對應另註明），說明準備度不是錄取機率；新增「本班目標學校統計」，同一學生選同校多科系學校只算一次，說明選目標不等於報名。
+
+修改檔案：`app/models/__init__.py`、`app/models/autobiography_comment.py`、`app/routes/main.py`、`app/routes/student.py`、`app/routes/teacher.py`、`app/services/audit_service.py`、`app/services/autobiography_comment_service.py`、`app/services/review_snapshot_service.py`、`app/static/css/design-system.css`、`app/static/js/autobiography-comments.js`、`app/templates/autobiography_versions.html`、`app/templates/dashboard.html`、`app/templates/partials/autobiography_comments.html`、`app/templates/student_autobiography.html`、`app/templates/student_gap.html`、`app/templates/teacher_autobiography_edit.html`、`app/templates/teacher_student.html`、`migrations/versions/c20261118_autobiography_comments.py`、`scripts/acceptance_check.py`、`tests/test_teacher_comments_reminders.py`。
+
+驗證：
+- 新測試 `tests/test_teacher_comments_reminders.py` 10 項通過；相關既有測試（自傳版本、送審通知、教師頁、遷移）通過。
+- 完整測試（第一次）：1778 通過、2 略過、2 失敗。失敗一：`tests/test_end_to_end_mainline.py` 第 10 步，送審後自傳又存新版時導師確認會被擋（正是第 1 項的新規則），已把該步改成先被擋、學生重送第 3 版後再確認。失敗二：`tests/test_school_directory.py::test_map_fits_canvas_and_region_zoom_has_reset_and_school_list`，在未改動的基準 `369acef` 上也失敗（既有問題，與本次無關，未修）。改後主線與新測試 11 項通過。
+- 固定驗收（5099）：114 項通過、0 失敗（新增導師端 14 項）。
+- 內建瀏覽器（5183，`teammate-1117-5183`，測試資料）：學生 113534903 產生自傳並送審→導師工作台看到準備度與學校統計→導師送出提醒（學生點通知到校系頁）→導師在第一段送兩則註解，自傳文字未儲存時送註解會跳提醒並取消→學生看到兩則通知、回覆並標記已處理→導師收到回覆通知並開到最新版編輯頁→學生改自傳存第 2 版，舊註解顯示原文、校系頁提示重新送審→導師頁「確認」停用並預設「需要修改」→學生重新送審第 2 版→導師確認成功；導師版本紀錄頁看得到差異。113534902 不是專五不能產生自傳，所以自傳流程用 113534903。
+
+下一步：使用者看過後由主對話合併進 `preview/student-v2`；正式 MySQL 要跑資料庫遷移（`autobiography_comments`）。未合併、未推送、未重啟公開展示站。
+
+
 ## 2026-11-18 地圖旁加「國立／私立」切換
 
 開發者：Claude。使用者要求「依地區找學校」也能選國立、私立（原本只有下方篩選選單有）。修改：

@@ -2,6 +2,7 @@
 {% from "partials/nav.html" import masthead, footer, page_band with context %}
 {% set page_name = "student-autobiography" %}
 {% from "partials/bio_pieces.html" import bio_pieces %}
+{% import "partials/autobiography_comments.html" as cm with context %}
 
 {% block title %}小助手寫自傳｜資管科智慧學習歷程系統{% endblock %}
 
@@ -138,7 +139,7 @@
   </section>
 
   <div class="draft-layout">
-  <form method="post" action="{{ url_for('student.autobiography_save', output_id=draft.id) }}" class="draft">
+  <form method="post" action="{{ url_for('student.autobiography_save', output_id=draft.id) }}" class="draft" data-draft-form>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="list-head">
       <p class="muted">第 {{ version }} 版。AI 草稿只是起點，請改成你自己的話；每次儲存都會留下一版。<span class="mono" data-char-total></span></p>
@@ -151,11 +152,12 @@
     </div>
     {% for paragraph in content.paragraphs %}
     {% set review = paragraph_reviews[loop.index0] %}
-    <section class="draft__paragraph">
+    <section class="draft__paragraph" id="paragraph-{{ loop.index0 }}">
       <h2 class="h3">{{ paragraph.title }}</h2>
       <p class="review-label">主張</p>
       <textarea name="paragraph_{{ loop.index0 }}" rows="6" data-autosize data-char aria-label="{{ paragraph.title }}">{{ paragraph.text }}</textarea>
       {% if paragraph.teacher_comment %}<blockquote class="teacher-comment"><b>導師意見：</b>{{ paragraph.teacher_comment }}</blockquote>{% endif %}
+      {% if comment_threads[loop.index0] %}{{ cm.paragraph_block(comment_threads[loop.index0], "student", loop.index0) }}{% endif %}
       <div class="paragraph-review">
         <section class="paragraph-review__evidence" aria-label="證據"{% if loop.first %} data-tour="每段都看得到依據、疑點和建議。" data-tour-order="2"{% endif %}>
           <h3>證據</h3>
@@ -182,8 +184,10 @@
       </div>
     </section>
     {% endfor %}
+    {{ cm.orphan_block(orphan_threads, "student") }}
     <div><button class="button" type="submit">儲存</button></div>
   </form>
+  {{ cm.forms(comment_threads + [orphan_threads], "student") }}
   {{ bio_pieces([
        ("你自己寫的文字", "AI 不會改這些字。覺得草稿寫得不像你，就把原文放回去。", pieces.own),
        ("已確認的資料", "", pieces.facts),
@@ -196,4 +200,4 @@
 
 {% block footer %}{{ footer() }}{% endblock %}
 
-{% block scripts %}{% if program %}<script src="{{ url_for('static', filename='js/bio-pieces.js') }}" defer></script>{% endif %}{% endblock %}
+{% block scripts %}{% if program %}<script src="{{ url_for('static', filename='js/bio-pieces.js') }}" defer></script><script src="{{ url_for('static', filename='js/autobiography-comments.js') }}" defer></script>{% endif %}{% endblock %}
