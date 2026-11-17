@@ -3,7 +3,7 @@
    - 結構：partials/bg_squares.html，由 base.html 引用，全系統每一頁都有；老師、科辦、管理員頁更淡。
    - 位置：固定在視窗、z-index -1，永遠在內容後面；pointer-events: none 不擋點擊；overflow: hidden 不會讓手機左右滑。
    - 效能：只動 transform（位移＋旋轉），方塊 10 個，手機只留 6 個；不用 JavaScript。
-   - 減少動態效果：系統設定 prefers-reduced-motion 時整層隱藏，完全不動。 */
+   - 減少動態效果：系統設定 prefers-reduced-motion 時方塊停在原地不動。 */
 
 .bg-squares {
   position: fixed;
@@ -11,9 +11,10 @@
   z-index: -1;
   overflow: hidden;
   pointer-events: none;
-  contain: strict;
-  /* 方塊顏色：沿用目前頁面的主色；2026-11-17 使用者要求加濃、去掉邊框 */
-  --sq-fill: color-mix(in srgb, var(--accent, #2f6672) 18%, transparent);
+  /* 方塊顏色沿用目前頁面的主色，濃淡用 --sq-strength 控制（2026-11-17 使用者要求加濃、去掉邊框）。
+     不用 color-mix，舊一點的手機瀏覽器也看得到 */
+  --sq-color: var(--accent, #2f6672);
+  --sq-strength: .18;
 }
 
 .bg-squares span {
@@ -23,8 +24,8 @@
   width: var(--s);
   height: var(--s);
   border-radius: 3px;
-  background: var(--sq-fill);
-  opacity: var(--a, 1);
+  background: var(--sq-color);
+  opacity: calc(var(--sq-strength) * var(--a, 1));
   will-change: transform;
   animation: bg-square-rise var(--d) linear var(--w) infinite;
 }
@@ -36,9 +37,7 @@
 }
 
 /* 深色模式：主色本身較亮，比例略低於淺色 */
-[data-theme="dark"] .bg-squares {
-  --sq-fill: color-mix(in srgb, var(--accent, #7cb8c4) 15%, transparent);
-}
+[data-theme="dark"] .bg-squares { --sq-strength: .15; }
 
 /* 老師、科辦、管理員頁：以效率為優先，方塊再淡一半 */
 [data-staff-ui] .bg-squares:not(.bg-squares--panel) { opacity: .55; }
@@ -50,11 +49,10 @@
   position: absolute;
   z-index: 0;
   --rise: 640px;
-  --sq-fill: color-mix(in srgb, var(--sheet, #fff) 16%, transparent);
+  --sq-color: var(--sheet, #fff);
+  --sq-strength: .16;
 }
-[data-theme="dark"] .bg-squares--panel {
-  --sq-fill: color-mix(in srgb, var(--sheet, #fff) 16%, transparent);
-}
+[data-theme="dark"] .bg-squares--panel { --sq-strength: .16; }
 /* 登入頁右側原本是和頁面同色的不透明底，改透明才看得到後面的方塊（顏色不變） */
 [data-theme="campus"] .auth__form { background: transparent; }
 /* 管理員登入頁：整頁底色移到 body，登入區改透明，顏色不變 */
@@ -69,9 +67,10 @@ body:has(> main .auth--admin) { background: var(--paper-deep); }
   .bg-squares span { width: min(var(--s), 72px); height: min(var(--s), 72px); }
 }
 
+/* 減少動態效果：方塊停在原地不動（負的延遲讓它們散在畫面各處），不再整層隱藏。
+   2026-11-17：使用者手機上完全看不到方塊，很多手機預設開啟減少動態效果，改成「看得到但不動」 */
 @media (prefers-reduced-motion: reduce) {
-  .bg-squares { display: none; }
-  .bg-squares span { animation: none; }
+  .bg-squares span { animation-play-state: paused; }
 }
 
 @media print {

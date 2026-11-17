@@ -2,7 +2,7 @@
 
 參考康寧大學證照系統登入區的方塊往上飄效果，自己重寫成共用元件 partials/bg_squares.html＋css/bg-squares.css。
 全系統每一頁都有（使用者 2026-11-16 要求）；老師、科辦、管理員頁調得更淡。
-系統設定「減少動態效果」時整層隱藏；只用 transform 做動畫、不擋點擊、在內容後面。
+系統設定「減少動態效果」時方塊停住不動；只用 transform 做動畫、不擋點擊、在內容後面。
 """
 import re
 from pathlib import Path
@@ -85,6 +85,14 @@ def test_animation_only_moves_transform():
 
 
 def test_reduced_motion_stops_the_animation():
+    """減少動態效果時方塊停住不動，但仍看得到（2026-11-17：使用者手機上完全看不到，改成停在原地）。"""
     block = re.search(r"@media \(prefers-reduced-motion: reduce\) \{(.*?)\n\}", CSS, re.S).group(1)
-    assert re.search(r"\.bg-squares \{ display: none; \}", block)
-    assert "animation: none" in block
+    assert "animation-play-state: paused" in block
+    assert "display: none" not in block
+
+
+def test_declining_the_tour_once_hides_it_everywhere():
+    """導覽提示按一次「不用」，之後每一頁都不再出現（2026-11-17 使用者要求）。"""
+    js = (ROOT / "app" / "static" / "js" / "components.js").read_text(encoding="utf-8")
+    assert 'localStorage.setItem("tour-declined", "1")' in js
+    assert "invite || declined()" in js
