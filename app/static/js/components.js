@@ -927,8 +927,10 @@ document.querySelectorAll("[data-photo-form]").forEach((form) => {
   // 第一次進這一頁：不直接蓋住畫面，上方出現一條小提示，要看才播
   let invite = null;
   function removeInvite() { if (invite) { invite.remove(); invite = null; } }
+  // 按過一次「不用」就整個系統都不再問（2026-11-17 使用者要求；原本每一頁各問一次）。要看導覽仍可按上方「導覽」或說明頁「重看導覽」
+  const declined = () => { try { return localStorage.getItem("tour-declined") === "1"; } catch (e) { return true; } };
   const offer = () => {
-    if (!steps().length || layer || invite) return;
+    if (!steps().length || layer || invite || declined()) return;
     loadStyle();
     invite = document.createElement("div");
     invite.className = "tour-invite";
@@ -938,7 +940,11 @@ document.querySelectorAll("[data-photo-form]").forEach((form) => {
       + '<button type="button" class="tour-invite__no" data-tour-invite-no>不用</button>';
     document.body.appendChild(invite);
     invite.querySelector("[data-tour-invite-go]").addEventListener("click", start);
-    invite.querySelector("[data-tour-invite-no]").addEventListener("click", () => { removeInvite(); markSeen(); });
+    invite.querySelector("[data-tour-invite-no]").addEventListener("click", () => {
+      removeInvite();
+      markSeen();
+      try { localStorage.setItem("tour-declined", "1"); } catch (e) { /* 存不了也沒關係 */ }
+    });
   };
   if (startButton) startButton.addEventListener("click", start);
   document.querySelectorAll("[data-tour-replay]").forEach((button) => button.addEventListener("click", () => {

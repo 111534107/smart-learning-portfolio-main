@@ -38,6 +38,7 @@ from app.models import (  # noqa: E402
     CredentialRecord,
     StudentTarget,
     LearningCourseRecord,
+    Notification,
     Portfolio,
     StudentProfile,
     User,
@@ -146,6 +147,30 @@ def seed():
     # 示範學生用假學號（113 學年入學＝專三），不綁學校信箱：真的學生用學校 Google 登入時會建立自己的帳號
     db.session.commit()
     review_snapshot_service.request_review(classmate, program)  # 送審時存快照
+    _seed_notifications(student, classmate, teacher, (staff, chief))
+
+
+def _seed_notifications(student, classmate, teacher, staff_users):
+    """示範通知（2026-11-17 使用者要求）：展示站一啟動，學生、導師、科辦點「通知」就有內容可看。
+
+    內容都對應上面已經建好的示範資料；用 notify_key 標成 demo:，和系統自己產生的通知分開。僅為測試資料。
+    """
+    senior = User.query.filter_by(username="113534903").one()
+    rows = [
+        (student, "welcome", "歡迎使用學習歷程系統：先看看想去的學校，備審要準備什麼。", "/student/targets"),
+        (student, "graduation", "畢業門檻工作台已整理好你的學分與證照進度，請查看。", "/student/graduation-check"),
+        (classmate, "certificate", "你申請的電子獎狀已送出，等科辦核准。", "/student/dashboard"),
+        (classmate, "review", "你的目標校系資料已送導師確認。", "/student/targets"),
+        (senior, "graduation", "畢業門檻工作台已整理好你的學分與證照進度，請查看。", "/student/graduation-check"),
+        (senior, "autobiography", "五年資料已經齊全，可以開始準備自傳與備審資料。", "/student/targets"),
+        (teacher, "review", f"{classmate.display_name} 已送出目標校系資料，請確認。", f"/teacher/students/{classmate.id}"),
+        (teacher, "senior", f"{senior.display_name} 專五，請留意畢業門檻進度。", f"/teacher/students/{senior.id}"),
+    ]
+    for staff in staff_users:
+        rows.append((staff, "certificate", "有 1 張電子獎狀申請等待處理。", "/staff/certificates"))
+    for user, key, message, link in rows:
+        db.session.add(Notification(recipient_id=user.id, notify_key=f"demo:{key}", message=message, link=link))
+    db.session.commit()
 
 
 def _seed_senior(teacher, program):

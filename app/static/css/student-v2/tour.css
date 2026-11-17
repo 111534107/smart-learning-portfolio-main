@@ -63,7 +63,8 @@
 .tour-invite {
   position: fixed;
   z-index: 880;
-  top: 84px;
+  /* 2026-11-17：原本在頂端列下方（top: 84px），會蓋住管理員、教職員的下拉選單；改放畫面底部中間 */
+  bottom: 24px;
   left: 50%;
   display: flex;
   align-items: center;
@@ -94,9 +95,9 @@
   color: var(--on, #fff);
 }
 .tour-invite__no { padding: 8px 10px; border: 0; background: none; color: var(--soft, #574e45); }
-@keyframes tour-invite-in { from { opacity: 0; transform: translate(-50%, -10px) scale(.96); } }
+@keyframes tour-invite-in { from { opacity: 0; transform: translate(-50%, 10px) scale(.96); } }
 @media (max-width: 720px) {
-  .tour-invite { top: auto; bottom: calc(max(12px, env(safe-area-inset-bottom)) + 88px); font-size: .875rem; }
+  .tour-invite { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 88px); font-size: .875rem; }
 }
 @media (prefers-reduced-motion: reduce) {
   .tour .tour__spot, .tour .tour__card { transition: none; }

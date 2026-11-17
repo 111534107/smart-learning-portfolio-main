@@ -147,6 +147,13 @@ rec("目標校系篩選選單：國立或私立",
     and f"data-filter-shown>{len(own_shown)}<" in rr.text,
     f"私立 {len(own_shown)} / {len(own_rows)} 列")
 
+# 版面背景方塊動畫（2026-11-16）：學生頁與登入頁有背景層，樣式檔在減少動態效果時停止
+css = requests.get(BASE + "/static/css/bg-squares.css")
+rec("版面背景方塊動畫：學生頁、登入頁、管理員登入頁都有背景層，減少動態效果時停止",
+    '<div class="bg-squares"' in rr.text and "bg-squares--panel" in requests.get(BASE + "/login").text
+    and '<div class="bg-squares"' in requests.get(BASE + "/admin/login").text
+    and css.ok and "prefers-reduced-motion: reduce" in css.text and "pointer-events: none" in css.text)
+
 # 推薦排序頁
 for major in ("all", "home", "other"):
     rr = s.get(BASE + f"/student/matching?major={major}")
