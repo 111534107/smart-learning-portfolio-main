@@ -12,9 +12,8 @@
   overflow: hidden;
   pointer-events: none;
   contain: strict;
-  /* 方塊顏色：沿用目前頁面的主色，淺色模式較淡 */
-  --sq-fill: color-mix(in srgb, var(--accent, #2f6672) 9%, transparent);
-  --sq-line: color-mix(in srgb, var(--accent, #2f6672) 22%, transparent);
+  /* 方塊顏色：沿用目前頁面的主色；2026-11-17 使用者要求加濃、去掉邊框 */
+  --sq-fill: color-mix(in srgb, var(--accent, #2f6672) 18%, transparent);
 }
 
 .bg-squares span {
@@ -23,7 +22,6 @@
   bottom: calc(-1 * var(--s) - 20px);
   width: var(--s);
   height: var(--s);
-  border: 1px solid var(--sq-line);
   border-radius: 3px;
   background: var(--sq-fill);
   opacity: var(--a, 1);
@@ -37,10 +35,9 @@
   to   { transform: translate3d(0, calc(-1 * var(--rise, 100vh) - 100% - 60px), 0) rotate(540deg); }
 }
 
-/* 深色模式：主色本身較亮，比例再降一點，避免搶眼 */
+/* 深色模式：主色本身較亮，比例略低於淺色 */
 [data-theme="dark"] .bg-squares {
-  --sq-fill: color-mix(in srgb, var(--accent, #7cb8c4) 7%, transparent);
-  --sq-line: color-mix(in srgb, var(--accent, #7cb8c4) 16%, transparent);
+  --sq-fill: color-mix(in srgb, var(--accent, #7cb8c4) 15%, transparent);
 }
 
 /* 老師、科辦、管理員頁：以效率為優先，方塊再淡一半 */
@@ -53,12 +50,10 @@
   position: absolute;
   z-index: 0;
   --rise: 640px;
-  --sq-fill: color-mix(in srgb, var(--sheet, #fff) 8%, transparent);
-  --sq-line: color-mix(in srgb, var(--sheet, #fff) 20%, transparent);
+  --sq-fill: color-mix(in srgb, var(--sheet, #fff) 16%, transparent);
 }
 [data-theme="dark"] .bg-squares--panel {
-  --sq-fill: color-mix(in srgb, var(--sheet, #fff) 8%, transparent);
-  --sq-line: color-mix(in srgb, var(--sheet, #fff) 20%, transparent);
+  --sq-fill: color-mix(in srgb, var(--sheet, #fff) 16%, transparent);
 }
 /* 登入頁右側原本是和頁面同色的不透明底，改透明才看得到後面的方塊（顏色不變） */
 [data-theme="campus"] .auth__form { background: transparent; }
