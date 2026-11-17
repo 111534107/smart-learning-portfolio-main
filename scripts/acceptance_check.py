@@ -128,6 +128,22 @@ rec("目標校系篩選選單：日間或進修部＋地區",
     and bool(night_shown) and all(region == "南部" and 'data-f-session="進修部"' in a for region, a in night_shown)
     and f"data-filter-shown>{len(night_shown)}<" in rr.text,
     f"顯示 {len(night_shown)} / {len(night_rows)} 列")
+# 地圖放大縮小與彈出視窗（2026-11-16）：縮放工具、完整檢視、點縣市跳出的視窗，排行每一列帶準備度與還缺什麼給視窗用
+rr = s.get(BASE + "/student/targets?region=北部")
+map_rows = re.findall(r'<li data-region="[^"]*" data-school="[^"]+"([^>]*)>', rr.text)
+rec("目標校系地圖可縮放、完整檢視、點縣市跳出可捲動的視窗",
+    rr.ok and all(x in rr.text for x in ('data-map-zoom="in"', 'data-map-zoom="out"', "data-map-full", '<dialog class="map-sheet"',
+                                         "data-sheet-body", 'aria-label="關閉視窗"', "target-filter:refresh"))
+    and bool(map_rows) and all("data-readiness=" in a and "data-missing=" in a for a in map_rows),
+    f"{len(map_rows)} 列")
+# 國立、私立篩選（2026-11-16 使用者要求）：選「私立」後沒隱藏的列都是私立學校
+rr = s.get(BASE + "/student/targets?ownership=私立")
+own_rows = re.findall(r'<li data-region="[^"]*" data-school="([^"]+)"([^>]*)>', rr.text)
+own_shown = [school for school, a in own_rows if not a.endswith(" hidden")]
+rec("目標校系篩選選單：國立或私立",
+    rr.ok and 'name="ownership"' in rr.text and bool(own_shown) and not any(x.startswith("國立") for x in own_shown)
+    and f"data-filter-shown>{len(own_shown)}<" in rr.text,
+    f"私立 {len(own_shown)} / {len(own_rows)} 列")
 
 # 推薦排序頁
 for major in ("all", "home", "other"):

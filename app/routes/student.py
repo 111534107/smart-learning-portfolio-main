@@ -1271,6 +1271,8 @@ def target_list():
         map_hidden_ids=map_hidden_ids,
         filter_hidden_ids=filter_hidden_ids,
         program_facets=program_facets,
+        # 地圖彈出視窗：每個校系還缺什麼、先補哪一項（2026-11-16）
+        gap_hints={p.id: target_filters.gap_hint(gaps[p.id]) for p in programs},
         filter_options=filter_options,
         filter_values=filter_values,
         map_data=school_directory.map_client_data(map_points, channels, track),

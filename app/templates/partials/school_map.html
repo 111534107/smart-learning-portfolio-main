@@ -6,10 +6,26 @@
 {# B22：地圖的連結也保留篩選選單的條件（招生管道、日間或進修部等） #}
 {% set base_args = dict(filter_values or {}, track=track, major=major_filter) %}
 <section class="school-map" aria-labelledby="school-map-title" data-school-map data-schedule-url="{{ url_for('student.schedule') }}">
-  <div class="school-map__figure">
-    {# 放大後回到全台灣（2026-11-13 使用者要求）：保留已選的分頁與科系類別，只拿掉地區與學校 #}
-    <a class="button button--small school-map__reset" data-map-reset href="{{ url_for('student.target_list', **base_args) }}#target-explorer-title"{% if not region_filter %} hidden{% endif %}>↺ 回到全台灣</a>
-    <svg class="school-map__svg" viewBox="{{ map_view_box }}" role="img" aria-labelledby="school-map-svg-title">
+  <div class="school-map__figure" data-map-figure>
+    {# 2026-11-16 使用者要求：地圖可放大縮小、拖曳、完整檢視。沒有 JavaScript 時工具列不顯示，地圖照舊用連結操作。 #}
+    <div class="school-map__fullhead" data-map-fullhead hidden>
+      <p class="school-map__fulltitle" id="school-map-full-title">台灣地圖・完整檢視</p>
+      <p class="small muted">滾輪或雙指縮放、拖曳移動，點縣市看那裡的學校。顏色越深，符合篩選的校系越多。</p>
+    </div>
+    {# 地圖上方一列：左邊「回到全台灣」，右邊縮放工具（2026-11-16 改成同一列，不再疊在地圖上互相蓋住） #}
+    <div class="school-map__bar">
+      {# 放大後回到全台灣（2026-11-13 使用者要求）：保留已選的分頁與科系類別，只拿掉地區與學校 #}
+      <a class="button button--small school-map__reset" data-map-reset href="{{ url_for('student.target_list', **base_args) }}#target-explorer-title"{% if not region_filter %} hidden{% endif %}>↺ 回到全台灣</a>
+      <div class="school-map__tools" role="toolbar" aria-label="地圖縮放" data-map-tools hidden>
+        <button type="button" class="school-map__tool" data-map-zoom="in" aria-label="放大地圖" title="放大（+）">＋</button>
+        <button type="button" class="school-map__tool" data-map-zoom="out" aria-label="縮小地圖" title="縮小（-）">－</button>
+        <span class="school-map__level" data-map-level aria-live="polite">1.0 倍</span>
+        <button type="button" class="school-map__tool school-map__tool--wide" data-map-full aria-pressed="false">
+          <span aria-hidden="true" data-map-full-icon>⤢</span> <span data-map-full-label>完整檢視</span>
+        </button>
+      </div>
+    </div>
+    <svg class="school-map__svg" viewBox="{{ map_view_box }}" role="img" aria-labelledby="school-map-svg-title" data-map-svg>
       <title id="school-map-svg-title">台灣地圖：點地區看那一區的學校，點圓點看學校資料</title>
       <g class="school-map__counties{% if region_filter %} has-filter{% endif %}" data-active-region="{{ region_filter }}">
         {% include "partials/taiwan_map_paths.html" %}
@@ -25,6 +41,8 @@
       </a>
       {% endfor %}
     </svg>
+    <p class="school-map__hint" data-map-hint role="status" hidden>按住 Ctrl 再滾動滑鼠可以縮放，或按「完整檢視」。</p>
+    <p class="school-map__legend small muted" data-map-legend hidden><span class="school-map__legend-bar" aria-hidden="true"></span> 顏色越深，這個縣市符合目前篩選的校系越多；點縣市會跳出那裡的學校。</p>
     <p class="small muted">地圖標示學校本部，實際上課校區以簡章為準；金門、連江目前沒有收錄校系，地圖上不畫。</p>
   </div>
 
@@ -105,6 +123,20 @@
     </section>
   </div>
 </section>
+{# 點縣市或圓點跳出的視窗（2026-11-16 使用者要求）：內容由下方腳本依目前的篩選條件產生，可以捲動、每一筆可以展開。
+   手機寬度時變成從下往上滑出的面板。用原生 dialog：Esc 關閉、焦點留在視窗裡、關閉後回到原本的位置。 #}
+<dialog class="map-sheet" data-map-sheet aria-labelledby="map-sheet-title">
+  <div class="map-sheet__grip" data-sheet-grip aria-hidden="true"><span></span></div>
+  <header class="map-sheet__head">
+    <div class="map-sheet__heading">
+      <p class="map-sheet__where small" data-sheet-where></p>
+      <h2 id="map-sheet-title" data-sheet-title>學校</h2>
+      <p class="map-sheet__summary small" data-sheet-summary aria-live="polite"></p>
+    </div>
+    <button type="button" class="map-sheet__close" data-sheet-close aria-label="關閉視窗">✕</button>
+  </header>
+  <div class="map-sheet__body" data-sheet-body></div>
+</dialog>
 <script type="application/json" id="school-map-data">{{ map_data|safe }}</script>
 <script>
 /* 地圖不換頁切換（2026-11-13）：點地區、點學校、回到全台灣都在這裡處理，網址同步更新，上一頁也能用。 */
@@ -131,9 +163,12 @@
     svg.setAttribute("viewBox", box.map(function (v) { return v.toFixed(1); }).join(" "));
     var scale = box[3] / data.height;  // 放大時圓點跟著縮小，畫面上看起來一樣大
     circles.forEach(function (c) { c.setAttribute("r", (c.getAttribute("data-base-r") * scale).toFixed(2)); });
+    updateLevel(box);
   }
   function zoomTo(region) {
-    var target = (data.boxes[region] || data.full).split(" ").map(Number);
+    animateTo((data.boxes[region] || data.full).split(" ").map(Number));
+  }
+  function animateTo(target) {
     if (frame) { cancelAnimationFrame(frame); }
     if (reduce) { setView(target); return; }
     var from = current.slice(), start = null;
@@ -252,14 +287,28 @@
     var openProgram = target.closest("[data-open-program]");
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.button === 1) { return; }  // 另開分頁照原本連結
     if (region) { event.preventDefault(); apply({ region: region.getAttribute("data-region-button"), school: "" }, true); }
-    else if (county) { apply({ region: county.getAttribute("data-region"), school: "" }, true); }
+    else if (county) {
+      // 2026-11-16：點縣市放大到那個縣市本身（使用者要求，不是整個地區），再跳出視窗列出那裡的學校
+      apply({ region: county.getAttribute("data-region"), school: "" }, true);
+      animateTo(countyBox(county));
+      openSheet({ region: county.getAttribute("data-region"), county: countyName(county), school: "" });
+    }
     else if (pin || schoolLink) {
       event.preventDefault();
       var name = (pin || schoolLink).getAttribute(pin ? "data-school" : "data-school-link");
       var s = schoolsByName[name];
-      if (s) { apply({ region: s.region, school: name }, true); root.querySelector("[data-school-card-slot]").scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "nearest" }); }
+      if (s) {
+        apply({ region: s.region, school: name }, true);
+        // 點地圖上的圓點也放大到那所學校所在的縣市（使用者 11-16 晚上要求）；右邊清單的學校連結照舊放大到地區
+        var home = pin && countyNodes.filter(function (path) { return countyName(path) === s.city; })[0];
+        if (home) { animateTo(countyBox(home)); }
+        // 點地圖上的圓點：跳出視窗並展開這所學校；右邊清單的學校連結照舊顯示學校卡片
+        if (!(pin && openSheet({ region: s.region, county: s.city, school: name }))) {
+          root.querySelector("[data-school-card-slot]").scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "nearest" });
+        }
+      }
     }
-    else if (reset) { event.preventDefault(); apply({ region: "", school: "" }, true); }
+    else if (reset) { event.preventDefault(); apply({ region: "", school: "" }, true); svg.focus({ preventScroll: true }); }
     else if (back) { event.preventDefault(); apply({ region: state.region, school: "" }, true); }
     else if (openProgram) {
       // 看準備度：打開下方排行裡那一列並捲過去，不換頁
@@ -282,6 +331,405 @@
     var region = url.searchParams.get("region") || "";
     apply({ region: data.boxes[region] ? region : "", school: schoolsByName[school] ? school : "" }, false);
   });
+
+  /* ===== 2026-11-16 使用者要求：地圖放大縮小、拖曳、完整檢視 =====
+     做法和原本「點地區放大」一樣是改 SVG 的 viewBox，所以圓點、縣市、東海岸與澎湖都不會被裁掉。 */
+  var figure = root.querySelector("[data-map-figure]");
+  var tools = root.querySelector("[data-map-tools]");
+  var levelNode = root.querySelector("[data-map-level]");
+  var hintNode = root.querySelector("[data-map-hint]");
+  var fullBtn = root.querySelector("[data-map-full]");
+  var fullHead = root.querySelector("[data-map-fullhead]");
+  var fullBox = data.full.split(" ").map(Number);
+  var MIN_W = fullBox[2] / 12;  // 最多放大約 12 倍
+  var isFull = false, hintTimer = null;
+  tools.hidden = false;
+  root.querySelector("[data-map-legend]").hidden = false;
+  svg.setAttribute("role", "group");  // 裡面的縣市與圓點要能用鍵盤操作，外層不能是 img
+  svg.setAttribute("tabindex", "0");
+  svg.setAttribute("aria-description", "可用加號、減號縮放，方向鍵移動地圖");
+
+  function updateLevel(box) {
+    if (!levelNode) { return; }
+    var level = Math.min(fullBox[2] / box[2], fullBox[3] / box[3]);
+    levelNode.textContent = (level < 1.05 ? 1 : level).toFixed(1) + " 倍";
+  }
+  function clampBox(box) {
+    // 中心點不能跑出台灣本島範圍，避免拖到一片空白
+    var cx = Math.min(Math.max(box[0] + box[2] / 2, fullBox[0]), fullBox[0] + fullBox[2]);
+    var cy = Math.min(Math.max(box[1] + box[3] / 2, fullBox[1]), fullBox[1] + fullBox[3]);
+    return [cx - box[2] / 2, cy - box[3] / 2, box[2], box[3]];
+  }
+  function zoomBox(box, k, px, py) {
+    // k > 1 縮小、k < 1 放大；(px, py) 是放大的中心（SVG 座標）；縮到底就是整張台灣
+    var maxK = Math.max(fullBox[2] / box[2], fullBox[3] / box[3]);
+    if (k >= maxK) { return fullBox.slice(); }
+    k = Math.max(k, MIN_W / box[2]);
+    return clampBox([px - (px - box[0]) * k, py - (py - box[1]) * k, box[2] * k, box[3] * k]);
+  }
+  function centerZoom(k) {
+    animateTo(zoomBox(current, k, current[0] + current[2] / 2, current[1] + current[3] / 2));
+  }
+  function toSvg(clientX, clientY) {
+    var pt = svg.createSVGPoint();
+    pt.x = clientX; pt.y = clientY;
+    return pt.matrixTransform(svg.getScreenCTM().inverse());
+  }
+  function showHint() {
+    hintNode.hidden = false;
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(function () { hintNode.hidden = true; }, 1800);
+  }
+
+  root.querySelectorAll("[data-map-zoom]").forEach(function (b) {
+    b.addEventListener("click", function () { centerZoom(b.getAttribute("data-map-zoom") === "in" ? 1 / 1.6 : 1.6); });
+  });
+  // 滾輪：完整檢視時直接縮放；頁面上的小地圖要按住 Ctrl（觸控板雙指縮放也是 Ctrl＋滾輪），不然會擋住頁面捲動
+  svg.addEventListener("wheel", function (event) {
+    if (!isFull && !event.ctrlKey) { showHint(); return; }
+    event.preventDefault();
+    if (frame) { cancelAnimationFrame(frame); frame = null; }
+    var p = toSvg(event.clientX, event.clientY);
+    var delta = Math.max(-120, Math.min(120, event.deltaY * (event.deltaMode === 1 ? 33 : 1)));
+    setView(zoomBox(current, Math.exp(delta * 0.003), p.x, p.y));
+  }, { passive: false });
+
+  // 拖曳移動與雙指縮放（滑鼠任何時候都能拖；手指只在完整檢視時，頁面上的小地圖讓手指正常捲動頁面）
+  var pointers = {}, drag = null, pinch = null, suppressClick = false;
+  function pointerList() { return Object.keys(pointers).map(function (k) { return pointers[k]; }); }
+  function startPinch() {
+    var ps = pointerList(), mid = { x: (ps[0].x + ps[1].x) / 2, y: (ps[0].y + ps[1].y) / 2 };
+    return { d: Math.hypot(ps[0].x - ps[1].x, ps[0].y - ps[1].y) || 1, mid: mid, p: toSvg(mid.x, mid.y),
+             unit: 1 / svg.getScreenCTM().a, box: current.slice() };
+  }
+  svg.addEventListener("pointerdown", function (event) {
+    if (event.pointerType === "mouse" && event.button !== 0) { return; }
+    if (event.pointerType === "touch" && !isFull) { return; }
+    suppressClick = false;
+    pointers[event.pointerId] = { x: event.clientX, y: event.clientY };
+    var n = Object.keys(pointers).length;
+    if (n === 1) { drag = { x: event.clientX, y: event.clientY, box: current.slice(), unit: 1 / svg.getScreenCTM().a, moved: false }; }
+    else if (n === 2) { drag = null; pinch = startPinch(); }
+  });
+  svg.addEventListener("pointermove", function (event) {
+    if (!pointers[event.pointerId]) { return; }
+    pointers[event.pointerId] = { x: event.clientX, y: event.clientY };
+    if (pinch && Object.keys(pointers).length >= 2) {
+      var ps = pointerList(), d = Math.hypot(ps[0].x - ps[1].x, ps[0].y - ps[1].y) || 1;
+      var mid = { x: (ps[0].x + ps[1].x) / 2, y: (ps[0].y + ps[1].y) / 2 };
+      var box = zoomBox(pinch.box, pinch.d / d, pinch.p.x, pinch.p.y);
+      var scale = box[2] / pinch.box[2];
+      setView(clampBox([box[0] - (mid.x - pinch.mid.x) * pinch.unit * scale, box[1] - (mid.y - pinch.mid.y) * pinch.unit * scale, box[2], box[3]]));
+      suppressClick = true;
+      return;
+    }
+    if (!drag) { return; }
+    var dx = event.clientX - drag.x, dy = event.clientY - drag.y;
+    if (!drag.moved) {
+      if (Math.abs(dx) + Math.abs(dy) < 6) { return; }
+      drag.moved = true;
+      if (frame) { cancelAnimationFrame(frame); frame = null; }
+      try { svg.setPointerCapture(event.pointerId); } catch (e) { /* 舊瀏覽器沒有也沒關係 */ }
+      figure.classList.add("is-dragging");
+    }
+    setView(clampBox([drag.box[0] - dx * drag.unit, drag.box[1] - dy * drag.unit, drag.box[2], drag.box[3]]));
+  });
+  function endPointer(event) {
+    if (!pointers[event.pointerId]) { return; }
+    delete pointers[event.pointerId];
+    if (drag && drag.moved) { suppressClick = true; }
+    if (!Object.keys(pointers).length) { drag = null; pinch = null; figure.classList.remove("is-dragging"); }
+    else if (pinch) { pinch = null; drag = null; }
+  }
+  svg.addEventListener("pointerup", endPointer);
+  svg.addEventListener("pointercancel", endPointer);
+  // 拖完放開時瀏覽器會補一個點擊，不能讓它被當成點縣市
+  svg.addEventListener("click", function (event) {
+    if (suppressClick) { suppressClick = false; event.preventDefault(); event.stopPropagation(); }
+  }, true);
+
+  // 縣市可以用鍵盤選（Tab 移到縣市，Enter 或空白鍵跳出視窗）
+  var countyNodes = Array.prototype.slice.call(counties.querySelectorAll(".tw-county"));
+  function countyBox(path) {
+    // 縣市的範圍（SVG 座標）四周各留約 70% 空白、最多放大約 4 倍，看得到旁邊的縣市才認得出位置；
+    // 再補成和地圖一樣的長寬比，放大後不會只看到一小條
+    var b = path.getBBox(), aspect = fullBox[2] / fullBox[3];
+    var w = Math.max(b.width * 2.4, MIN_W * 3), h = Math.max(b.height * 2.4, MIN_W * 3 / aspect);
+    if (w / h > aspect) { h = w / aspect; } else { w = h * aspect; }
+    if (w >= fullBox[2] || h >= fullBox[3]) { return fullBox.slice(); }
+    return clampBox([b.x + b.width / 2 - w / 2, b.y + b.height / 2 - h / 2, w, h]);
+  }
+  function countyName(path) {
+    var name = path.getAttribute("data-county") || "";
+    return name === "桃園縣" ? "桃園市" : name;  // 地圖資料是改制前的名稱
+  }
+  countyNodes.forEach(function (path) {
+    path.setAttribute("tabindex", "0");
+    path.setAttribute("role", "button");
+    path.appendChild(document.createElementNS("http://www.w3.org/2000/svg", "title"));
+  });
+  figure.addEventListener("keydown", function (event) {
+    var key = event.key;
+    if (event.target.closest(".tw-county") && (key === "Enter" || key === " ")) {
+      event.preventDefault();
+      event.target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      return;
+    }
+    if (event.altKey || event.ctrlKey || event.metaKey) { return; }
+    if (key === "+" || key === "=") { event.preventDefault(); centerZoom(1 / 1.6); }
+    else if (key === "-" || key === "_") { event.preventDefault(); centerZoom(1.6); }
+    else if (event.target === svg && /^Arrow/.test(key)) {
+      event.preventDefault();
+      var step = 0.15, dx = key === "ArrowLeft" ? -1 : key === "ArrowRight" ? 1 : 0, dy = key === "ArrowUp" ? -1 : key === "ArrowDown" ? 1 : 0;
+      animateTo(clampBox([current[0] + dx * current[2] * step, current[1] + dy * current[3] * step, current[2], current[3]]));
+    }
+    else if (isFull && key === "Tab") {
+      // 完整檢視時焦點留在地圖裡
+      var items = Array.prototype.filter.call(figure.querySelectorAll("button, a[href], [tabindex='0']"), function (el) {
+        return !el.closest("[hidden]") && el.getClientRects().length;
+      });
+      if (!items.length) { return; }
+      var first = items[0], last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    }
+  });
+
+  // 完整檢視：地圖鋪滿整個視窗；Esc、再按一次按鈕都可以回來
+  function setFull(on) {
+    isFull = on;
+    figure.classList.toggle("is-full", on);
+    document.documentElement.classList.toggle("map-locked", on);
+    fullHead.hidden = !on;
+    fullBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    root.querySelector("[data-map-full-label]").textContent = on ? "結束完整檢視" : "完整檢視";
+    root.querySelector("[data-map-full-icon]").textContent = on ? "✕" : "⤢";
+    if (on) {
+      figure.setAttribute("role", "dialog");
+      figure.setAttribute("aria-modal", "true");
+      figure.setAttribute("aria-labelledby", "school-map-full-title");
+    } else {
+      figure.removeAttribute("role"); figure.removeAttribute("aria-modal"); figure.removeAttribute("aria-labelledby");
+    }
+    fullBtn.focus({ preventScroll: true });
+    if (!on) { figure.scrollIntoView({ block: "nearest" }); }
+  }
+  fullBtn.addEventListener("click", function () { setFull(!isFull); });
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape" && isFull && !(sheet && sheet.open)) { event.preventDefault(); setFull(false); }
+  });
+
+  /* ===== 縣市深淺：符合目前篩選的校系越多，顏色越深（篩選一改就重新上色） ===== */
+  var programById = {};
+  data.schools.forEach(function (s) { s.programs.forEach(function (p) { programById[p.id] = p; }); });
+  function liveRows() {
+    return Array.prototype.slice.call(document.querySelectorAll("[data-ranking-list] > li[data-region]")).map(function (li) {
+      var details = li.querySelector("details.target-program");
+      var r = li.getAttribute("data-readiness");
+      return { li: li, id: details ? details.id.replace("target-program-", "") : "", school: li.getAttribute("data-school"),
+               region: li.getAttribute("data-region"), off: li.hasAttribute("data-filter-off"),
+               readiness: r === "" || r === null ? null : Number(r), missing: li.getAttribute("data-missing") || "",
+               next: li.getAttribute("data-next") || "", gain: Number(li.getAttribute("data-gain") || 0) };
+    });
+  }
+  function updateHeat() {
+    var programs = {}, schools = {}, max = 1;
+    liveRows().forEach(function (row) {
+      var s = schoolsByName[row.school];
+      if (!s || row.off) { return; }
+      programs[s.city] = (programs[s.city] || 0) + 1;
+      (schools[s.city] = schools[s.city] || {})[s.name] = true;
+      max = Math.max(max, programs[s.city]);
+    });
+    countyNodes.forEach(function (path) {
+      var name = countyName(path), n = programs[name] || 0, m = n ? Object.keys(schools[name]).length : 0;
+      path.style.setProperty("--heat", n ? (0.22 + 0.78 * n / max).toFixed(3) : "0");
+      path.classList.toggle("is-empty", !n);
+      var label = name + "（" + path.getAttribute("data-region") + "）：" + (n ? m + " 所學校、" + n + " 個校系符合" : "沒有符合的校系");
+      path.setAttribute("aria-label", label);
+      path.querySelector("title").textContent = label;
+    });
+    counties.classList.add("is-heat");
+  }
+
+  /* ===== 點縣市或圓點跳出的視窗 ===== */
+  var sheet = document.querySelector("[data-map-sheet]");
+  var sheetBody = sheet && sheet.querySelector("[data-sheet-body]");
+  var sheetState = null, sheetReturn = null;
+  function pct(v) { return v === null ? "無法計算" : v + "%"; }
+  function meter(v) { return '<span class="map-meter" aria-hidden="true"><span style="--w:' + (v || 0) + '%"></span></span>'; }
+  function byReadiness(a, b) { return (b.readiness === null ? -1 : b.readiness) - (a.readiness === null ? -1 : a.readiness); }
+  function programHtml(row) {
+    var p = programById[row.id] || { dept: row.school, channel: "" };
+    var gap = row.readiness === null ? "這個校系的採計項目還沒列出，請看招生簡章。"
+      : row.missing ? "還缺：" + escapeHtml(row.missing) : "採計的資料類別你都有了，接下來把內容補充完整。";
+    var next = row.next && row.gain ? '<p class="map-program__next">先補「' + escapeHtml(row.next) + '」，補滿最多可以加 ' + row.gain + ' 個百分點。</p>' : "";
+    return '<li><details class="map-program" data-program-id="' + escapeHtml(row.id) + '">' +
+      '<summary><span class="map-program__name">' + escapeHtml(p.dept) + ' <span class="small muted">' + escapeHtml(p.channel) + '</span></span>' +
+      '<strong class="map-program__value">' + pct(row.readiness) + '</strong>' + meter(row.readiness) + '</summary>' +
+      '<div class="map-program__body"><p class="map-program__gap">' + gap + '</p>' + next +
+      (p.url ? '<p class="small"><a href="' + escapeHtml(p.url) + '" target="_blank" rel="noopener">科系網站 ↗</a></p>' : '') +
+      '<div class="map-program__detail" data-clone-from="' + escapeHtml(row.id) + '"></div>' +
+      '<p class="small"><a href="#target-program-' + escapeHtml(row.id) + '" data-sheet-goto="' + escapeHtml(row.id) + '">在準備度排行裡看這一列 →</a></p>' +
+      '</div></details></li>';
+  }
+  function schoolHtml(entry, index, open) {
+    var s = entry.school, best = entry.rows[0].readiness;
+    var link = function (url, label) { return url ? '<li><a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">' + label + ' ↗</a></li>' : ""; };
+    return '<details class="map-school" data-sheet-school="' + escapeHtml(s.name) + '" style="--i:' + Math.min(index, 12) + '"' + (open ? " open" : "") + '>' +
+      '<summary><span class="map-school__name">' + escapeHtml(s.name) + '</span>' +
+      '<span class="map-school__meta small muted">' + escapeHtml(s.city) + ' · ' + entry.rows.length + ' 個校系</span>' +
+      '<span class="map-school__best">' + meter(best) + '<span class="small">最高 ' + pct(best) + '</span></span></summary>' +
+      '<div class="map-school__body"><ul class="map-school__links">' + link(s.website, "學校官網") + link(s.admission, "招生網站") +
+      '<li><a href="' + escapeHtml(root.getAttribute("data-schedule-url") || "/student/schedule") + '">招生時程 →</a></li>' + link(s.maps, "Google 地圖") + '</ul>' +
+      '<ol class="map-school__programs">' + entry.rows.map(programHtml).join("") + '</ol></div></details>';
+  }
+  function renderSheet() {
+    var st = sheetState, hidden = 0, groups = {};
+    var openSchools = {}, openPrograms = {};
+    sheetBody.querySelectorAll("details.map-school[open]").forEach(function (d) { openSchools[d.getAttribute("data-sheet-school")] = true; });
+    sheetBody.querySelectorAll("details.map-program[open]").forEach(function (d) { openPrograms[d.getAttribute("data-program-id")] = true; });
+    if (st.school) { openSchools[st.school] = true; }
+    liveRows().forEach(function (row) {
+      if (row.region !== st.region || !schoolsByName[row.school]) { return; }
+      if (row.off) { hidden += 1; return; }
+      (groups[row.school] = groups[row.school] || { school: schoolsByName[row.school], rows: [] }).rows.push(row);
+    });
+    var entries = Object.keys(groups).map(function (k) { groups[k].rows.sort(byReadiness); return groups[k]; });
+    entries.sort(function (a, b) { return byReadiness(a.rows[0], b.rows[0]) || (a.school.name < b.school.name ? -1 : 1); });
+    var here = entries.filter(function (e) { return e.school.city === st.county; });
+    var rest = entries.filter(function (e) { return e.school.city !== st.county; });
+    var total = entries.reduce(function (n, e) { return n + e.rows.length; }, 0);
+    sheet.querySelector("[data-sheet-where]").textContent = st.region + (st.county ? " · 你點的是" + st.county : "");
+    sheet.querySelector("[data-sheet-title]").textContent = (here.length ? st.county : st.region) + "的學校";
+    var summary = entries.length ? entries.length + " 所學校、" + total + " 個校系符合目前的篩選" : "這一區在目前的篩選條件下沒有校系";
+    var top = entries.length && entries[0].rows[0].readiness !== null ? entries[0] : null;
+    sheet.querySelector("[data-sheet-summary]").innerHTML = escapeHtml(summary) +
+      (hidden ? '；另有 ' + hidden + ' 個被篩選條件藏起來 <button type="button" class="map-sheet__link" data-sheet-clear>清除篩選</button>' : "") +
+      (top ? '<span class="map-sheet__top">這一區你最接近準備好的是 <strong>' + escapeHtml(top.school.name + " " + ((programById[top.rows[0].id] || {}).dept || "")) + '</strong>（' + top.rows[0].readiness + '%）</span>' : "");
+    var html = "", i = 0;
+    if (st.county) {
+      html += '<h3 class="map-sheet__group">' + escapeHtml(st.county) + (here.length ? "（" + here.length + " 所）" : "") + '</h3>';
+      html += here.length ? '<div class="map-sheet__list">' + here.map(function (e) { return schoolHtml(e, i++, openSchools[e.school.name]); }).join("") + '</div>'
+        : '<p class="small muted">' + escapeHtml(st.county) + '目前沒有符合的學校' + (rest.length ? '，下面是' + escapeHtml(st.region) + '其他縣市的學校' : '') + '。</p>';
+      if (rest.length) { html += '<h3 class="map-sheet__group">' + escapeHtml(st.region) + '其他縣市（' + rest.length + ' 所）</h3>'; }
+    }
+    if (rest.length) { html += '<div class="map-sheet__list">' + rest.map(function (e) { return schoolHtml(e, i++, openSchools[e.school.name]); }).join("") + '</div>'; }
+    if (!entries.length) {
+      html += '<p class="map-sheet__empty">放寬一個篩選條件試試' + (hidden ? '，或 <button type="button" class="map-sheet__link" data-sheet-clear>清除篩選</button>' : "") + '。</p>';
+    }
+    sheetBody.innerHTML = html;
+    sheetBody.querySelectorAll("details.map-program").forEach(function (d) {
+      if (openPrograms[d.getAttribute("data-program-id")]) { d.open = true; fillDetail(d); }
+    });
+  }
+  function fillDetail(details) {
+    // 採計項目與「設為目標校系」等按鈕直接複製排行裡同一列的內容，資料只有一份
+    var slot = details.querySelector("[data-clone-from]");
+    if (!slot || slot.childNodes.length) { return; }
+    var source = document.querySelector("#target-program-" + slot.getAttribute("data-clone-from") + " .target-program__detail");
+    if (source) {
+      var copy = source.cloneNode(true);
+      copy.querySelectorAll("[id]").forEach(function (el) { el.removeAttribute("id"); });
+      slot.appendChild(copy);
+    }
+  }
+  function openSheet(st) {
+    if (!sheet || typeof sheet.showModal !== "function") { return false; }
+    var wasOpen = sheet.open;
+    sheetState = st;
+    if (!wasOpen) { sheetReturn = document.activeElement; sheetBody.innerHTML = ""; }
+    renderSheet();
+    sheet.classList.remove("is-closing");
+    if (!wasOpen) {
+      sheet.classList.remove("is-tall");
+      // 手機：面板只蓋下面 60%，先把地圖捲到畫面上方，放大後的縣市才看得到
+      if (!isFull && window.matchMedia && matchMedia("(max-width: 640px)").matches) {
+        window.scrollTo(0, Math.max(0, svg.getBoundingClientRect().top + window.pageYOffset - 70));
+      }
+      sheet.showModal();
+    }
+    document.documentElement.classList.add("map-sheet-open");
+    sheetBody.scrollTop = 0;
+    var target = st.school && sheetBody.querySelector('details.map-school[open] > summary');
+    if (target) {
+      target.focus({ preventScroll: true });
+      // 只捲視窗裡面，不用 scrollIntoView（它會連後面的頁面一起捲）
+      sheetBody.scrollTop = target.getBoundingClientRect().top - sheetBody.getBoundingClientRect().top - 8;
+    } else {
+      sheet.querySelector("[data-sheet-close]").focus();
+    }
+    return true;
+  }
+  function afterClose() {
+    // 收尾直接呼叫，不只靠 close 事件：實測收起動畫進行中關閉時，瀏覽器有時不送 close 事件，頁面會一直鎖住不能捲
+    if (!sheetState) { return; }
+    sheet.classList.remove("is-closing");
+    sheet.style.transform = "";
+    document.documentElement.classList.remove("map-sheet-open");
+    sheetState = null;
+    if (sheetReturn && document.contains(sheetReturn) && sheetReturn.focus) { sheetReturn.focus({ preventScroll: true }); }
+    sheetReturn = null;
+  }
+  function closeSheet() {
+    if (!sheet || !sheet.open) { return; }
+    if (reduce) { sheet.close(); afterClose(); return; }
+    sheet.classList.add("is-closing");
+    setTimeout(function () { if (sheet.classList.contains("is-closing")) { sheet.close(); afterClose(); } }, 180);
+  }
+  if (sheet) {
+    // 延遲送到的 close 事件（視窗已經重新打開）不能把新的狀態清掉
+    sheet.addEventListener("close", function () { if (!sheet.open) { afterClose(); } });
+    sheet.addEventListener("cancel", function (event) { event.preventDefault(); closeSheet(); });  // Esc：一樣有收起動畫
+    sheet.addEventListener("toggle", function (event) {
+      if (event.target.classList && event.target.classList.contains("map-program") && event.target.open) { fillDetail(event.target); }
+    }, true);
+    sheet.addEventListener("click", function (event) {
+      if (event.target === sheet) { closeSheet(); return; }  // 點視窗外面（背景）
+      if (event.target.closest("[data-sheet-close]")) { closeSheet(); return; }
+      if (event.target.closest("[data-sheet-clear]")) {
+        var clear = document.querySelector("[data-target-filter] [data-filter-clear]");
+        if (clear) { clear.click(); }
+        return;
+      }
+      var go = event.target.closest("[data-sheet-goto]");
+      if (go) {
+        var row = document.getElementById("target-program-" + go.getAttribute("data-sheet-goto"));
+        if (row) {
+          event.preventDefault();
+          sheetReturn = null;
+          sheet.close();
+          afterClose();
+          if (isFull) { setFull(false); }
+          row.closest("li").hidden = false; row.open = true;
+          row.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+          row.querySelector("summary").focus({ preventScroll: true });
+        }
+      }
+    });
+    // 手機面板：按住上方的把手往下拉就收起來
+    var grip = sheet.querySelector("[data-sheet-grip]"), pull = null;
+    grip.addEventListener("pointerdown", function (event) { pull = { y: event.clientY }; try { grip.setPointerCapture(event.pointerId); } catch (e) { /* 沒有也沒關係 */ } });
+    grip.addEventListener("pointermove", function (event) {
+      if (pull) { sheet.style.transform = "translateY(" + Math.max(0, event.clientY - pull.y) + "px)"; }
+    });
+    grip.addEventListener("pointerup", function (event) {
+      if (!pull) { return; }
+      var dy = event.clientY - pull.y;
+      pull = null;
+      sheet.style.transform = "";
+      if (dy > 80) { if (sheet.classList.contains("is-tall")) { sheet.classList.remove("is-tall"); } else { closeSheet(); } }
+      else if (dy < -40) { sheet.classList.add("is-tall"); }  // 往上拉：展開到 88% 高
+      else if (Math.abs(dy) < 6) { sheet.classList.toggle("is-tall"); }  // 點一下把手：展開或收回
+    });
+    grip.addEventListener("pointercancel", function () { pull = null; sheet.style.transform = ""; });
+  }
+  document.addEventListener("target-filter:refresh", function () {
+    updateHeat();
+    if (sheet && sheet.open && sheetState) { renderSheet(); }
+  });
+  if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", updateHeat); } else { updateHeat(); }
+
   // 一進頁面就有選地區時，從全台灣放大過去（減少動態時直接顯示）
   if (state.region && !reduce) { setView(data.full.split(" ").map(Number)); zoomTo(state.region); }
 })();

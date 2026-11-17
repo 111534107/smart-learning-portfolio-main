@@ -119,6 +119,8 @@
       form.querySelector("[data-filter-clear]").hidden = !any;
       var empty = document.querySelector("[data-filter-empty]");
       if (empty) { empty.hidden = n > 0; }
+      // 地圖的縣市深淺與彈出視窗跟著篩選結果更新（2026-11-16）
+      document.dispatchEvent(new CustomEvent("target-filter:refresh"));
     }
     function push(clearMap) {
       var url = new URL(window.location.href);
@@ -187,7 +189,9 @@
       {% if not is_hidden %}{% set shown.n = shown.n + 1 %}{% endif %}
       {# data-region、data-school：地圖不換頁切換時用來篩選（2026-11-13）；hidden 讓沒有 JavaScript 時也篩得對 #}
       {# B22：data-f-* 是篩選選單用的值；data-map-off、data-filter-off 記錄是被地圖還是選單篩掉 #}
-      <li data-region="{{ program_region.get(program.id, '') }}" data-school="{{ program.school_name }}"{% for name, value in program_facets[program.id].items() %} data-f-{{ name }}="{{ value }}"{% endfor %}{% if program.id in map_hidden_ids %} data-map-off{% endif %}{% if program.id in filter_hidden_ids %} data-filter-off{% endif %}{% if is_hidden %} hidden{% endif %}>
+      {# 地圖彈出視窗用（2026-11-16）：data-readiness 準備度、data-missing 還缺什麼、data-next／data-gain 先補哪一項 #}
+      {% set hint = (gap_hints or {}).get(program.id, {}) %}
+      <li data-region="{{ program_region.get(program.id, '') }}" data-school="{{ program.school_name }}" data-readiness="{{ gap.readiness if gap.readiness is not none else '' }}" data-missing="{{ hint.missing }}" data-next="{{ hint.next }}" data-gain="{{ hint.gain }}"{% for name, value in program_facets[program.id].items() %} data-f-{{ name }}="{{ value }}"{% endfor %}{% if program.id in map_hidden_ids %} data-map-off{% endif %}{% if program.id in filter_hidden_ids %} data-filter-off{% endif %}{% if is_hidden %} hidden{% endif %}>
         <details class="target-program" id="target-program-{{ program.id }}"{% if program_filter == program.id|string %} open{% endif %}>
           <summary class="target-ranking__row target-program__summary">
             <span class="target-ranking__name"><span class="target-ranking__number">{{ shown.n if not is_hidden else loop.index }}.</span> {{ program.school_name }} {{ program.department_name }} <span class="target-ranking__channel">{{ channels[program.id] }}{% if program.admission_category and program.admission_category != channels[program.id] %} · {{ program.admission_category }}{% endif %}{% if entry_grades[program.id] %} · {{ entry_grades[program.id] }}{% endif %}</span>{% if program.id in home_program_ids %} <span class="tag">本科</span>{% endif %}{% if chosen %} <span class="tag tag--info">已選</span>{% endif %}</span>
