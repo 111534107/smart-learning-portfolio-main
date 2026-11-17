@@ -565,3 +565,22 @@ def test_zip_lists_confirmed_project_links_without_draft_or_excluded(app):
         assert "https://github.com/example/kept" in text
         assert "https://github.com/example/draft" not in text
         assert "https://github.com/example/hidden" not in text
+
+
+def test_word_lists_project_links_under_project_item(app):
+    import docx as docx_lib
+    from app.services.package_service import build_package_docx
+    with app.app_context():
+        student = _stu()
+        program = AdmissionProgram.query.filter_by(program_code="Z").one()
+        program.items.append(AdmissionRequirementItem(source_item_name="專題作品", weight_percent=20,
+                                                      mapped_categories="project", mapping_status="confirmed",
+                                                      sort_order=9))
+        project = Portfolio(student_id=student.id, title="校園導覽網站", category="project", status="confirmed")
+        db.session.add(project); db.session.flush()
+        db.session.add(PortfolioEvidence(portfolio_id=project.id, evidence_type="link", display_name="程式碼",
+                                         external_url="https://github.com/example/campus"))
+        db.session.commit()
+        text = "\n".join(p.text for p in docx_lib.Document(build_package_docx(student, program)).paragraphs)
+    assert "校園導覽網站" in text
+    assert "作品連結：程式碼　https://github.com/example/campus" in text

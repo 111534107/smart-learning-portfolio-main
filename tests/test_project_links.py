@@ -195,3 +195,22 @@ def test_project_fit_includes_project_requirement(monkeypatch):
     program = SimpleNamespace(school_name="測試學校", department_name="資訊管理系", admission_category="二技")
     gap = {"items": [{"have": [], "missing": [], "documents": ["project"], "weight": 30, "name": "專業成果"}]}
     assert _uses_by_category([(program, gap)])["project"][0]["weight"] == 30
+
+
+def test_teacher_sees_project_link_as_link_not_unpreviewable_file():
+    from tests.test_teacher_journey_map import teacher_journey_app
+    from app.extensions import db
+    from app.models import PortfolioEvidence
+    app, student_id = teacher_journey_app()
+    with app.app_context():
+        record = Portfolio(student_id=student_id, title="學習系統", category="project", school_year=3, status="confirmed")
+        db.session.add(record); db.session.flush()
+        db.session.add(PortfolioEvidence(portfolio_id=record.id, evidence_type="link", display_name="程式碼",
+                                         external_url="https://github.com/example/learning"))
+        db.session.commit()
+    client = app.test_client()
+    client.post("/login", data={"username": "journey-teacher", "password": "pw"})
+    html = client.get(f"/teacher/students/{student_id}").get_data(as_text=True)
+    evidence_part = html.split('id="teacher-evidence"', 1)[1].split("</section>", 1)[0]
+    assert 'href="https://github.com/example/learning"' in evidence_part
+    assert "無法預覽" not in evidence_part
