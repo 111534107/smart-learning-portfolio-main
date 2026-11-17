@@ -50,6 +50,15 @@ def _unique_on_user_id(bind):
     return None
 
 
+def _drop_column_foreign_keys(bind, table, column):
+    """InnoDB requires dropping a column's foreign key before its backing index."""
+    if bind.dialect.name not in ("mysql", "mariadb"):
+        return  # SQLite batch recreation removes the obsolete column constraint.
+    for foreign_key in sa.inspect(bind).get_foreign_keys(table):
+        if column in foreign_key["constrained_columns"] and foreign_key.get("name"):
+            op.drop_constraint(foreign_key["name"], table, type_="foreignkey")
+
+
 def upgrade():
     # 舊的遷移鏈沒有建 users、portfolios（由 init_db 建），每一步都先確認表和欄位在不在
     bind = op.get_bind()
@@ -87,10 +96,12 @@ def upgrade():
         with op.batch_alter_table("portfolios") as batch:
             batch.drop_column("domain_tags")
     if _has(bind, "award_certificates", "student_id") and _has(bind, "users"):  # 重建表要反射到 users 的外鍵
+        _drop_column_foreign_keys(bind, "award_certificates", "student_id")
         with op.batch_alter_table("award_certificates") as batch:
             batch.drop_index("ix_award_certificates_student_id")
             batch.drop_column("student_id")
     if _has(bind, "notifications", "case_id") and _has(bind, "users"):  # 重建表要反射到 users 的外鍵
+        _drop_column_foreign_keys(bind, "notifications", "case_id")
         with op.batch_alter_table("notifications") as batch:
             batch.drop_index("ix_notifications_case_id")
             batch.drop_column("case_id")

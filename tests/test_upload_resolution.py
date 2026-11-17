@@ -79,5 +79,5 @@ def test_low_resolution_transcript_is_read_with_a_warning(client, app):
     assert response.status_code == 302
     with app.app_context():
         result = DocumentExtraction.query.one().result_json
-    assert any("解析度偏低" in warning and "2400" in warning for warning in result["warnings"])
+    assert any("文字可能不夠清楚" in warning and "對照原圖" in warning for warning in result["warnings"])
     assert {"step": "resolution_checked", "long_side": 2400, "level": "low"} in result["processing_steps"]

@@ -134,10 +134,10 @@
 {%- endfor -%}
 {{- 'true' if flag.on else 'false' -}}
 {%- endmacro %}
-{% set attention = namespace(count=0, failed=0) %}
+{% set attention = namespace(count=0, failed=0, retake=0) %}
 {% if document.document_type == "transcript" and review_groups is defined %}
 {% for group in review_groups %}{% for semester in group.semesters %}
-{% for kind, entries in [('passed', semester.passed), ('failed', semester.failed), ('pending', semester.pending)] %}{% for entry in entries %}{% if attention_flag(entry.course, kind) == 'true' %}{% set attention.count = attention.count + 1 %}{% endif %}{% if kind == 'failed' %}{% set attention.failed = attention.failed + 1 %}{% endif %}{% endfor %}{% endfor %}
+{% for kind, entries in [('passed', semester.passed), ('failed', semester.failed), ('resolved', semester.resolved), ('pending', semester.pending)] %}{% for entry in entries %}{% if attention_flag(entry.course, kind) == 'true' %}{% set attention.count = attention.count + 1 %}{% endif %}{% if kind == 'failed' %}{% set attention.failed = attention.failed + 1 %}{% endif %}{% if entry.course.get('retake') or entry.course.get('retake_of') or entry.course.get('makeup_season') or entry.course.get('retake_ambiguous') %}{% set attention.retake = attention.retake + 1 %}{% endif %}{% endfor %}{% endfor %}
 {% endfor %}{% endfor %}
 {% endif %}
 {% if document.document_type == "transcript" %}
@@ -390,7 +390,8 @@
 <div class="review-filter-bar" role="region" aria-label="課程篩選與成績鎖定">
   <div class="review-views" role="group" aria-label="要看哪些課">
     <button type="button" class="review-view" data-review-view="review" aria-pressed="{{ 'true' if start_view == 'review' else 'false' }}">要核對的 <strong>{{ attention.count }}</strong></button>
-    <button type="button" class="review-view" data-review-view="failed" aria-pressed="false">不及格 <strong>{{ attention.failed }}</strong></button>
+    <button type="button" class="review-view" data-review-view="failed" aria-pressed="false">尚未補過 <strong>{{ attention.failed }}</strong></button>
+    <button type="button" class="review-view" data-review-view="retake" aria-pressed="false">重補修 <strong>{{ attention.retake }}</strong></button>
     <button type="button" class="review-view" data-review-view="all" aria-pressed="{{ 'true' if start_view == 'all' else 'false' }}">全部 <strong>{{ courses|length }}</strong></button>
   </div>
   <label class="review-grade-select" for="review-grade-filter"><span class="visually-hidden">查看年級</span>
@@ -415,7 +416,7 @@
       {% set index = entry.index %}
       {% set course = entry.course %}
       {% set confidence = course.get('field_confidence') or {} %}
-      <tr data-course-index="{{ index }}" data-review-grade="{{ group.key }}" data-review-semester="{{ semester.label }}" data-review-kind="{{ kind }}" data-needs-review="{{ 'true' if course.get('needs_review') else 'false' }}" data-makeup-season="{{ course.get('makeup_season') or '' }}" data-school-year="{{ course.get('school_year') or '' }}" data-attention="{{ attention_flag(course, kind) }}" class="{{ 'needs-review' if course.get('needs_review') else '' }}">
+      <tr data-course-index="{{ index }}" data-review-retake="{{ 'true' if course.get('retake') or course.get('retake_of') or course.get('makeup_season') or course.get('retake_ambiguous') else 'false' }}" data-review-grade="{{ group.key }}" data-review-semester="{{ semester.label }}" data-review-kind="{{ kind }}" data-needs-review="{{ 'true' if course.get('needs_review') else 'false' }}" data-makeup-season="{{ course.get('makeup_season') or '' }}" data-school-year="{{ course.get('school_year') or '' }}" data-attention="{{ attention_flag(course, kind) }}" class="{{ 'needs-review' if course.get('needs_review') else '' }}">
         {% for field, label in [('course_name', '科目'), ('credits', '學分'), ('score', '成績'), ('semester', '第幾學期'), ('grade_level', '年級')] %}
           {% set value = course.get(field) %}
           {% set certainty = confidence.get(field) %}
@@ -430,16 +431,19 @@
         {% endfor %}
         <td class="course-notes-cell">
           <div class="course-notes">
+          {% if course.get('retake_ambiguous') %}<small class="review-warning note-chip note-chip--warn">同名科目有多筆未及格，重補修對應待人工確認，仍保留提醒。</small>{% endif %}
+          {% if kind == 'resolved' %}<small class="retake-done note-chip note-chip--ok">已有及格重補修（原始分數保留）</small>{% endif %}
           {% if kind == 'failed' %}<small class="failed note-chip note-chip--failed">不及格／待確認</small>{% endif %}
           {% if course.get('retake') %}<small class="retake-done note-chip note-chip--ok">✓ 已重補修：{{ course.retake.label }}（及格）</small>{% endif %}
           {% if course.get('retake_of') %}<small class="retake-of note-chip">重補修：補 {{ course.retake_of.label }}</small>{% endif %}
+          {% if course.get('makeup_season') and kind == 'failed' %}<small class="failed note-chip note-chip--failed">這次重補修仍未及格</small>{% endif %}
           {% if course.get('makeup_season') %}<small class="note-chip note-chip--info">{{ '暑期' if course.makeup_season == 'summer' else '寒期' }}重補修</small>{% endif %}
           {% if course.get('status_mark') %}<small class="note-chip">課程狀態：{{ course.status_mark }}</small>{% endif %}
           {# 「學期依表格位置推定」是整份成績單共通的提醒，已在課程清單上方說明一次，不在每門課重複 #}
           {% set row_reasons = (course.get('review_reasons') or [])|reject('equalto', '學期依表格位置推定，請核對表頭。')|list %}
           {% if course.get('needs_confirmation') and row_reasons %}<small class="review-warning note-chip note-chip--warn">需要人工確認</small>{% endif %}
           {% for reason in row_reasons %}<small class="review-warning note-text">{{ reason }}</small>{% endfor %}
-          <small class="note-source">{% if course.get('source_page') %}第 {{ course.source_page }} 頁{% if course.get('source_line') %}・第 {{ course.source_line }} 列{% endif %}{% if course.get('source_region') %}・區域 {{ course.source_region }}{% endif %}・{% endif %}{% if course.get('source_bbox') %}<a href="{{ url_for('student.learning_profile_course_source', document_id=document.id, course_index=index, revision=result.get('draft_revision')) }}" target="_blank" rel="noopener">查看原圖區域</a>{% else %}無定位資訊，請下載原始檔核對。{% endif %}</small>
+          <small class="note-source">{% if course.get('source_page') %}第 {{ course.source_page }} 頁{% if course.get('source_line') %}・第 {{ course.source_line }} 列{% endif %}・{% endif %}{% if course.get('source_bbox') %}<a href="{{ url_for('student.learning_profile_course_source', document_id=document.id, course_index=index, revision=result.get('draft_revision')) }}" target="_blank" rel="noopener">查看原圖區域</a>{% else %}無定位資訊，請下載原始檔核對。{% endif %}</small>
           </div>
         </td>
         {# 學生端 v2（11-11）：原圖這一列直接放在卡片最上面，一眼對照 OCR 讀到的字；放最後一格，CSS 用 order 排到最上面，不影響原本以 td:first-child 為科目的樣式與腳本 #}
@@ -451,6 +455,7 @@
   </div>
 </section>
 {% endmacro %}
+<p class="empty">重補修篩選會一起顯示原始成績與配對的重補修。只有課名、學分與修課先後可對應，且及格成績不需再核對時，才移出「尚未補過」；原始分數保留。修改後請先儲存，再查看配對結果；學分採認仍以學校審查為準。</p>
 <div id="review-grade-groups" class="score-groups">
   {% for group in review_groups %}
   <details class="score-group course-year-group" data-review-grade="{{ group.key }}" data-review-empty="{{ 'true' if group.empty else 'false' }}" open>
@@ -459,8 +464,9 @@
       <p class="empty course-year-group__empty" hidden>沒有符合目前篩選條件的課程。</p>
       {% for semester in group.semesters %}
       <details class="course-review-semester" data-semester="{{ semester.label }}" open>
-        <summary><span data-heading="{{ semester.label }}">{{ semester.label }}（{{ semester.passed|length + semester.failed|length + semester.pending|length }} 門）</span></summary>
+        <summary><span data-heading="{{ semester.label }}">{{ semester.label }}（{{ semester.passed|length + semester.failed|length + semester.resolved|length + semester.pending|length }} 門）</span></summary>
         {% if semester.passed %}{{ course_table(semester.passed, group, semester, 'passed', '及格課程', document, result) }}{% endif %}
+        {% if semester.resolved %}{{ course_table(semester.resolved, group, semester, 'resolved', '已有及格重補修的原始紀錄', document, result) }}{% endif %}
         {% if semester.failed %}{{ course_table(semester.failed, group, semester, 'failed', '不及格課程', document, result) }}{% endif %}
         {% if semester.pending %}{{ course_table(semester.pending, group, semester, 'pending', '成績待確認', document, result) }}{% endif %}
       </details>
@@ -470,6 +476,7 @@
   </details>
   {% endfor %}
 </div>
+<p id="review-filter-empty" class="empty" role="status" hidden></p>
 {% if attention.count and courses|length > attention.count %}
 <p class="review-rest" id="review-rest">另外 {{ courses|length - attention.count }} 門沒有標出問題，仍建議對照原圖看一遍。
   <button type="button" class="button button--small button--line" data-review-show-all>查看全部 {{ courses|length }} 門</button></p>
@@ -487,7 +494,7 @@
   <p><strong>{{ '需要人工確認' if analysis.get('needs_review') else '已辨識欄位，仍須人工確認' }}</strong>。此結果只供欄位核對，不代表證照真偽。</p>
   {% if analysis.get('classification_reason') %}<p class="review-warning">{{ analysis.classification_reason }}</p>{% endif %}
   <ol>{% for step in analysis.get('steps', []) %}<li>{{ step }}</li>{% endfor %}</ol>
-  <p>請對照 <a href="{{ url_for('student.learning_profile_document_source', document_id=document.id) }}">原始證照圖片</a> 核對每個欄位；OCR 信心分數不是正確率（<a href="{{ url_for('main.ocr_acceptance') }}">看實測結果</a>）。</p>
+  <p>請對照 <a href="{{ url_for('student.learning_profile_document_source', document_id=document.id) }}">原始證照圖片</a> 核對每個欄位；系統對辨識文字的把握程度不是正確率（<a href="{{ url_for('main.ocr_acceptance') }}">看實測結果</a>）。</p>
   {% if analysis.get('document_kind') in ('taiwan_technician_certificate', 'possible_taiwan_technician_certificate') %}
   {% set field_names = [('occupation', '職類（項）名稱'), ('level', '級別'), ('certificate_number', '技術士證總編號'), ('effective_date', '生效日期'), ('issue_date', '製發日期'), ('issuer', '發證單位')] %}
   <dl class="credential-evidence">
@@ -544,7 +551,7 @@
 </section>
 {% endif %}
   <details>
-    <summary>進階：修改原始確認資料</summary>
+    <summary>其他資訊：手動編輯資料</summary>
     {% if document.document_type == 'transcript' %}<label><input type="radio" name="course_input_mode" value="fields" checked> 用上面表格的修改儲存（一般都選這個）</label>
     <label><input type="radio" name="course_input_mode" value="json"> 改用下方 JSON 儲存課程（忽略表格修改，可增刪列或修改抵／免／補）</label>{% endif %}
     {% if document.document_type == 'credential' %}<label><input type="radio" name="credential_input_mode" value="json"> 改用下方 JSON 儲存全部證照（忽略上方證照欄位，可增刪筆數）</label>{% endif %}
@@ -586,6 +593,7 @@
     const unlockInput = document.getElementById('scores-unlocked');
     const lockStatus = document.getElementById('score-lock-status');
     const changedCount = document.getElementById('review-changed-count');
+    const filterEmpty = document.getElementById('review-filter-empty');
     const scoreInputs = Array.from(document.querySelectorAll('#review-grade-groups input[name$="_score"]:not(.value-pending)'));  // 空白成績不受鎖定影響
     const courseInputs = Array.from(document.querySelectorAll('#review-grade-groups input[name^="course_"]'));
     if (!filter) return;
@@ -624,11 +632,13 @@
     };
     const viewMatches = (row) => view === 'all' ||
       (view === 'failed' && row.dataset.reviewKind === 'failed') ||
+      (view === 'retake' && row.dataset.reviewRetake === 'true') ||
       (view === 'review' && (row.dataset.attention === 'true' || creditsPending(row)));
 
     const update = () => {
       for (const button of viewButtons) button.setAttribute('aria-pressed', button.dataset.reviewView === view ? 'true' : 'false');
       if (rest) rest.hidden = view !== 'review';
+      let totalVisible = 0;
       for (const group of groups) {
         const rows = group.querySelectorAll('tr[data-course-index]');
         let visibleCount = 0;
@@ -650,6 +660,7 @@
             }
           }
         }
+        totalVisible += visibleCount;
         for (const section of group.querySelectorAll('.course-review-section')) {
           const visibleRows = Array.from(section.querySelectorAll('tr[data-course-index]')).filter((row) => !row.hidden);
           section.hidden = visibleRows.length === 0;
@@ -683,6 +694,12 @@
         group.hidden = filter.value === 'all'
           ? (group.dataset.reviewEmpty === 'true' || visibleCount === 0)
           : group.dataset.reviewGrade !== filter.value;
+      }
+      if (filterEmpty) {
+        filterEmpty.hidden = totalVisible > 0;
+        filterEmpty.textContent = view === 'failed'
+          ? '目前範圍沒有尚未補過的課程；已有及格重補修的原始紀錄可切到「重補修」查看。'
+          : '目前範圍沒有符合篩選條件的課程。';
       }
     };
 
