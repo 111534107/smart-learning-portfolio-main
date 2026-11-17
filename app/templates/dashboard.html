@@ -101,8 +101,8 @@
     <a class="work-metric work-metric--link" href="#staff-certificates"><span>待核准電子獎狀</span><strong>{{ staff_pending_certificates }}</strong><small>服務證明、TA 證明</small></a>
   </div>
 
-  <section class="work-panel" id="staff-certificates" data-tour="對照獎懲記錄，修改內文後核准或退回。" data-tour-order="3">
-    <div class="work-panel__head"><div><h2>待核准電子獎狀</h2><p>學生從學校獎懲記錄申請的科上派服務。按「審核」對照紀錄、修改內文，再核准或退回。</p></div>
+  <section class="work-panel" id="staff-certificates" data-tour="對照獎懲記錄、修改內文；主任或副主任才能核准或退回。" data-tour-order="3">
+    <div class="work-panel__head"><div><h2>待核准電子獎狀</h2><p>學生從學校獎懲記錄申請的科上派服務。按「審核」對照紀錄、修改內文；核准或退回由主任或副主任按。</p></div>
       <a class="button button--line button--small" href="{{ url_for('certificate.staff_list') }}">全部申請與處理紀錄</a></div>
     <ul class="work-list staff-list">
       {% for cert in staff_certificate_rows %}

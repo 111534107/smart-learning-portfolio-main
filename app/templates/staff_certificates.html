@@ -12,7 +12,7 @@
 <div class="page">
   <h1 class="visually-hidden">電子獎狀</h1>
   <section class="work-panel">
-    <div class="work-panel__head"><div><h2>待核准的電子獎狀</h2><p>學生從學校獎懲記錄匯入的服務、TA 紀錄。點「審核」對照獎懲記錄，修改內文後核准或退回。科上要主動開證明時，按「開立電子獎狀」；辦活動要一次開很多張，按「批量開立」匯入名單。</p></div><div class="check-row"><a class="button" href="{{ url_for('certificate.staff_issue') }}">開立電子獎狀</a><a class="button button--line" href="{{ url_for('certificate.staff_batch') }}">批量開立</a></div></div>
+    <div class="work-panel__head"><div><h2>待核准的電子獎狀</h2><p>學生從學校獎懲記錄匯入的服務、TA 紀錄。點「審核」對照獎懲記錄、修改內文；核准或退回由主任或副主任按。科上要主動開證明時，按「開立電子獎狀」；辦活動要一次開很多張，按「批量開立」匯入名單。</p></div><div class="check-row"><a class="button" href="{{ url_for('certificate.staff_issue') }}">開立電子獎狀</a><a class="button button--line" href="{{ url_for('certificate.staff_batch') }}">批量開立</a></div></div>
     {% if can_approve %}<p class="notice mb-1">你是{{ user.job_title }}，可以核准。科助建立的獎狀可以勾選後一次核准。</p>
     {% else %}<p class="notice notice--warn mb-1">核准電子獎狀要由主任或副主任按。你可以審核內容、修改內文、退回，或建立獎狀等核准。</p>{% endif %}
     {% if pending %}
