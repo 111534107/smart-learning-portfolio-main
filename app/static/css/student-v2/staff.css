@@ -94,9 +94,9 @@ html[data-theme="dark"] .admin-nav-group__links a { color:#f5eee5; }
    只在桌機寬度生效；窄螢幕沿用上面的「選單」按鈕與頂端列。 */
 @media (min-width: 961px) {
   html[data-staff-ui="admin"] body { background: var(--surface); }
-  html[data-staff-ui="admin"] main#main-content { margin-left: 15.5rem; max-width: none; }
+  html[data-staff-ui="admin"] main#main-content { margin-left: var(--admin-side, 15.5rem); max-width: none; }
   html[data-staff-ui="admin"] .masthead--admin {
-    position: fixed; inset: 0 auto 0 0; width: 15.5rem; padding: 0; z-index: 40;
+    position: fixed; inset: 0 auto 0 0; width: var(--admin-side, 15.5rem); padding: 0; z-index: 40;
   }
   html[data-staff-ui="admin"][data-ui="student-v2"] .masthead--admin .masthead__inner {
     flex-direction: column; align-items: stretch; flex-wrap: nowrap; justify-content: flex-start;
@@ -132,4 +132,11 @@ html[data-theme="dark"] .admin-nav-group__links a { color:#f5eee5; }
   html[data-staff-ui="admin"] .masthead--admin .account-menu { width: 100%; position: relative; }
   html[data-staff-ui="admin"] .masthead--admin .account-menu__button { width: 100%; justify-content: flex-start; gap: .5rem; }
   html[data-staff-ui="admin"] .masthead--admin .account-menu__panel { top: auto; bottom: 100%; left: 0; right: auto; width: 100%; margin-bottom: .4rem; }
+}
+
+@media (min-width: 721px) and (max-width: 960px) { html[data-staff-ui="admin"] { --admin-side: 12.5rem; } }
+/* 窄螢幕（手機選單）：分類標題小字、連結直排，不要用大標題字級 */
+@media (max-width: 720px) {
+  html[data-staff-ui="admin"] .masthead--admin .admin-nav-group__title { margin: .5rem 0 .15rem; padding: 0 .75rem; font-size: .75rem; letter-spacing: .06em; }
+  html[data-staff-ui="admin"] .masthead--admin .admin-nav-group__links { position: static; display: flex; flex-direction: column; min-width: 0; box-shadow: none; border: 0; background: transparent; padding: 0; }
 }
