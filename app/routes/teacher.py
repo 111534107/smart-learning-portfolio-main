@@ -235,7 +235,8 @@ def decide_review(review_id):
     if decision == "needs_revision" and not comment:
         abort(400, description="需要修改時，請寫下給學生的建議")
     try:
-        review_snapshot_service.decide(review, teacher, decision, comment, request.form.get("taken_at", ""))
+        review_snapshot_service.decide(review, teacher, decision, comment, request.form.get("taken_at", ""),
+                                      autobiography_viewed=request.form.get("autobiography_viewed") == "1")
     except review_snapshot_service.ReviewChanged as exc:
         return redirect(url_for("teacher.student_detail", student_id=review.student_id, notice=exc.code))
     return redirect(url_for("teacher.student_detail", student_id=review.student_id))

@@ -25,6 +25,7 @@ from app.models import (
     StudentProfile,
     User,
 )
+from app.services import class_assignment_service
 from app.services import admission_agent_service as agent
 from app.services import backup_email, email_notify
 from app.services.staff_accounts import STAFF_TITLES
@@ -791,37 +792,26 @@ def curriculum_decide(version_id, decision):
 def classes():
     error = None
     if request.method == "POST":
-        teacher = db.session.get(User, request.form.get("teacher_id", type=int) or 0)
-        class_name = request.form.get("class_name", "").strip()
-        school_year = request.form.get("school_year", type=int)
-        if not teacher or teacher.role != "teacher":
-            error = "請選擇導師帳號"
-        elif not class_name or not school_year:
-            error = "請填寫班級與學年度"
-        elif ClassAdvisor.query.filter_by(teacher_id=teacher.id, class_name=class_name, school_year=school_year).first():
-            error = "這位導師已經負責這個班級"
-        else:
-            db.session.add(ClassAdvisor(teacher_id=teacher.id, class_name=class_name, school_year=school_year))
-            db.session.commit()
+        try:
+            class_assignment_service.add(get_current_user(), request.form.get("teacher_id", type=int),
+                                         request.form.get("class_name"), request.form.get("school_year", type=int))
             return redirect(url_for("admin.classes"))
-    class_names = sorted({p.class_name for p in StudentProfile.query.all() if p.class_name})
+        except class_assignment_service.AssignmentError as exc:
+            error = str(exc)
     return render_template(
         "admin_classes.html",
         user=get_current_user(),
-        advisors=ClassAdvisor.query.order_by(ClassAdvisor.school_year.desc(), ClassAdvisor.class_name).all(),
-        teachers=User.query.filter_by(role="teacher", is_active=True).order_by(User.display_name).all(),
-        class_names=class_names,
         error=error,
+        form_action=url_for("admin.classes"),
+        delete_endpoint="admin.class_delete",
+        **class_assignment_service.page_data(),
     ), (400 if error else 200)
 
 
 @admin_bp.post("/admin/classes/<int:advisor_id>/delete")
 @role_required("admin")
 def class_delete(advisor_id):
-    advisor = db.session.get(ClassAdvisor, advisor_id)
-    if advisor:
-        db.session.delete(advisor)
-        db.session.commit()
+    class_assignment_service.remove(get_current_user(), advisor_id)
     return redirect(url_for("admin.classes"))
 
 

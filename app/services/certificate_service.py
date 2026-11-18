@@ -113,7 +113,8 @@ APPROVER_TITLES = ("主任", "副主任")
 
 
 def can_approve(user):
-    return bool(user) and user.role == "staff" and (user.job_title or "") in APPROVER_TITLES
+    from app.services import staff_roles
+    return staff_roles.is_chief(user)
 
 
 def approval_fields(staff):

@@ -7,7 +7,7 @@
   <header class="work-heading"><div><h1>導師確認結果</h1><p>{{ review.program.school_name }} {{ review.program.department_name }}</p></div></header>
   <section class="work-panel">
     <p>這個目標校系已取消，以下保留當次送審結果。</p>
-    <p>狀態：{{ {"pending": "等待導師確認", "confirmed": "導師已確認", "needs_revision": "導師建議修改"}.get(review.status, "狀態待確認") }}</p>
+    <p>狀態：{{ {"pending": "等待導師確認", "confirmed": ("導師已確認（已檢視自傳）" if review.autobiography_viewed else "導師已確認（未檢視自傳）") if review.autobiography_viewed is not none else "導師已確認", "needs_revision": "導師建議修改"}.get(review.status, "狀態待確認") }}</p>
     {% if review.comment %}<p><strong>導師建議：</strong>{{ review.comment }}</p>{% endif %}
     <a class="button button--line" href="{{ url_for('student.target_list') }}">返回目標校系</a>
   </section>

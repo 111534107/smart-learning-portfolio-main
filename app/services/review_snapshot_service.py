@@ -145,7 +145,7 @@ def _check_latest(review):
         raise ReviewChanged("newer", NOTICES["newer"])
 
 
-def decide(review, teacher, decision, comment, seen_taken_at=None):
+def decide(review, teacher, decision, comment, seen_taken_at=None, autobiography_viewed=None):
     """導師確認（confirmed）或請學生修改（needs_revision）。
 
     seen_taken_at：導師頁面上看到的快照時間。學生在導師開頁後又更新送審時會不一樣，就擋下來，
@@ -160,9 +160,12 @@ def decide(review, teacher, decision, comment, seen_taken_at=None):
         raise ReviewChanged("autobiography_changed", NOTICES["autobiography_changed"])
     review.status = decision
     review.comment = comment or None
+    # 導師自己選有沒有看自傳；只記是／否，不存自傳內容。沒有勾選就是「未檢視」，不擋任何流程
+    review.autobiography_viewed = bool(autobiography_viewed)
     review.teacher_id = teacher.id
     review.reviewed_at = datetime.now(timezone.utc)
-    _log(teacher, "package_review.confirm" if decision == "confirmed" else "package_review.needs_revision", review)
+    _log(teacher, "package_review.confirm" if decision == "confirmed" else "package_review.needs_revision", review,
+         autobiography_viewed=review.autobiography_viewed)
     result = "已確認" if decision == "confirmed" else "建議修改"
     db.session.add(Notification(
         recipient_id=review.student_id,
@@ -184,3 +187,12 @@ def withdraw(review, teacher, reason):
     review.reviewed_at = datetime.now(timezone.utc)
     _log(teacher, "package_review.withdraw", review, reason=reason[:500])
     db.session.commit()
+
+
+def confirmed_label(review):
+    """學生端看到的確認狀態文字：導師有沒有看自傳。舊資料（沒記錄）只寫「導師已確認」。"""
+    if review is None or review.status != "confirmed":
+        return None
+    if review.autobiography_viewed is None:
+        return "導師已確認"
+    return "導師已確認（已檢視自傳）" if review.autobiography_viewed else "導師已確認（未檢視自傳）"

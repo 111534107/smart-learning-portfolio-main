@@ -152,7 +152,7 @@
         <ul class="rule-item-list">{% for fact in snap.facts %}<li><span>{{ fact.text }}</span></li>{% else %}<li>沒有已確認的資料。</li>{% endfor %}</ul>
       </details>
       {% if target.submitted_autobiography %}
-      <details class="source-doc mt-1" data-submitted-autobiography><summary>送審時的自傳（第 {{ snap.autobiography.version }} 版）</summary>
+      <details class="source-doc mt-1" data-submitted-autobiography data-autobiography-optional><summary>查看自傳（送審時第 {{ snap.autobiography.version }} 版，選擇性查看）</summary>
         {% for paragraph in target.submitted_autobiography.content_json.paragraphs %}<h3 class="h3 mt-1">{{ paragraph.title }}</h3><p class="version-text">{{ paragraph.text }}</p>{% endfor %}
       </details>
       {% endif %}
@@ -191,6 +191,8 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       {# 記住導師看到的是哪個時間點的送審內容；學生之後又更新，按確認會被擋下 #}
       <input type="hidden" name="taken_at" value="{{ (target.review.snapshot_json or {}).get('taken_at', '') }}">
+      {% if target.submitted_autobiography %}<p class="small muted" data-autobiography-hint>自傳預設收合，要不要看由你決定；不看也能確認。</p>{% endif %}
+      <label class="choice"><input type="checkbox" name="autobiography_viewed" value="1" data-autobiography-viewed><span><b>我已查看自傳</b><small>沒勾選就記錄為「未檢視自傳」，學生會看到這個差別；不影響其他流程。</small></span></label>
       <div class="choice-group">
         <label class="choice"><input type="radio" name="decision" value="confirmed" required{% if target.autobiography_changed %} disabled{% endif %}><span><b>內容合理，確認</b><small>{% if target.autobiography_changed %}自傳有新版，要等學生重新送審{% else %}學生可以產出正式備審資料{% endif %}</small></span></label>
         <label class="choice"><input type="radio" name="decision" value="needs_revision"{% if target.autobiography_changed %} checked{% endif %}><span><b>需要修改</b><small>請在下方寫下建議</small></span></label>
