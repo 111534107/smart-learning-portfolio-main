@@ -15,9 +15,21 @@ branch_labels = None
 depends_on = None
 
 
+TABLE = "package_reviews"
+
+
+def _columns():
+    inspector = sa.inspect(op.get_bind())
+    return {c["name"] for c in inspector.get_columns(TABLE)} if inspector.has_table(TABLE) else None
+
+
 def upgrade():
-    op.add_column("package_reviews", sa.Column("autobiography_viewed", sa.Boolean(), nullable=True))
+    existing = _columns()
+    if existing is not None and "autobiography_viewed" not in existing:
+        op.add_column(TABLE, sa.Column("autobiography_viewed", sa.Boolean(), nullable=True))
 
 
 def downgrade():
-    op.drop_column("package_reviews", "autobiography_viewed")
+    existing = _columns()
+    if existing is not None and "autobiography_viewed" in existing:
+        op.drop_column(TABLE, "autobiography_viewed")

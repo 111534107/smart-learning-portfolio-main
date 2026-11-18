@@ -113,7 +113,7 @@ def test_teacher_sees_submitted_autobiography_and_cannot_confirm_after_new_versi
     student_saves(app, ids, student, ["送審後才改的第一段（測試資料）", PARAGRAPHS[1]["text"]])
 
     html = teacher.get(f"/teacher/students/{ids['stu']}").get_data(as_text=True)
-    assert "送審時的自傳（第 1 版）" in html and PARAGRAPHS[0]["text"] in html
+    assert "查看自傳（送審時第 1 版" in html and PARAGRAPHS[0]["text"] in html
     assert "data-autobiography-changed" in html and "目前第 2 版" in html
     gap_html = student.get(f"/student/targets/{ids['im']}").get_data(as_text=True)
     assert "data-resend-hint" in gap_html

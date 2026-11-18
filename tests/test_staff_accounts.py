@@ -60,7 +60,7 @@ def test_new_staff_can_log_in_and_menu_shows_title():
     client = app.test_client()
     assert client.post("/login", data={"username": "office1", "password": PASSWORD}).status_code == 302
     page = client.get("/staff/dashboard", follow_redirects=True).get_data(as_text=True)
-    assert "科辦 · 副主任" in page
+    assert "科主任（副主任）" in page
 
 
 def test_create_validates_input():
