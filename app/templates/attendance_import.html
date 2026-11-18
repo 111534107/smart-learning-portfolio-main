@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% block title %}缺曠記錄查詢｜資管科智慧學習歷程系統{% endblock %}
+{% block navigation %}{{ masthead(user, "工作台" if student else "活動與經歷") }}{% endblock %}
+
+{% macro number_field(field, label, value, min=0, max=99999, required=false) %}
+<input type="number" name="{{ field }}" value="{{ value }}" min="{{ min }}" max="{{ max }}"
+       aria-label="{{ label }}" inputmode="numeric"{% if required %} required{% endif %}>
+{% endmacro %}
+
+{% macro summary_table(title, values, prefix='', editing=false) %}
+<div class="attendance-table" tabindex="0" role="region" aria-label="{{ title }}">
+  <table>
+    <caption><span>{{ title }}</span></caption>
+    <thead>
+      <tr><th scope="col">項目</th>{% for label in absence_labels %}<th scope="col">{{ label }}</th>{% endfor %}</tr>
+    </thead>
+    <tbody>
+      <tr>
+        <th scope="row">合計</th>
+        {% for label in absence_labels %}
+        <td>
+          {% if editing %}
+            {{ number_field(prefix ~ label, title ~ ' ' ~ label, values.get(prefix ~ label, '')) }}
+          {% else %}
+            {{ values.get(label, '—') }}
+          {% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+    </tbody>
+  </table>
+</div>
+{% endmacro %}
+
+{% macro daily_grid(daily) %}
+{% if daily %}
+<div class="attendance-table attendance-table--daily" tabindex="0" role="region" aria-label="逐日缺曠明細">
+  <table>
+    <caption><span>逐日缺曠明細</span></caption>
+    <thead><tr><th scope="col">日期</th>{% for period in daily.columns %}<th scope="col">{{ period }}</th>{% endfor %}</tr></thead>
+    <tbody>
+      {% for date, periods in daily.rows %}
+      <tr><th scope="row">{{ date }}</th>{% for period in daily.columns %}<td>{{ periods.get(period, '') }}</td>{% endfor %}</tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endmacro %}
+
+{% macro school_summary(row, editing=false, daily=none) %}
+<div class="attendance-hours">
+  {% for label in hours_labels %}
+  <div>
+    <span class="attendance-hours__label">{{ label }}</span>
+    <span class="attendance-hours__value">
+      {% if editing %}{{ number_field(label, label, row.get(label, '')) }}
+      {% else %}<strong>{{ row.get(label, '—') }}</strong>{% endif %}<small>節</small>
+    </span>
+  </div>
+  {% endfor %}
+</div>
+<p class="attendance-policy">PS：一學期內，若請假超過全學期上課總時數三分之一者，予以勒令休學辦理。</p>
+{{ daily_grid(daily) }}
+{{ summary_table('一般缺曠合計', row, editing=editing) }}
+{{ summary_table('實習、調補課及其他請假', row if editing else row.get('exception_totals', {}), 'exception_', editing) }}
+{% endmacro %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/attendance.css') }}">
+<div class="page page--banded attendance-page">
+  {% if not student %}
+  {% if request.args.get('saved') %}<p class="notice" role="status">已儲存缺曠合計。</p>{% endif %}
+  {% if from_award and not rows %}
+  <p class="notice" role="status">這份資料是學校缺曠記錄，已切換到缺曠匯入。<a href="{{ url_for('attendance.records') }}">開啟缺曠匯入</a></p>
+  {% endif %}
+  {% if error %}<p class="notice notice--warn" role="alert">{{ error }}</p>{% endif %}
+  {% if rows %}
+  <section class="attendance-register" aria-labelledby="attendance-register-title">
+    <header class="attendance-register__head">
+      <div>
+        <h1 id="attendance-register-title">缺曠記錄查詢</h1>
+        <p>核對學期合計{% if from_award %} · 已辨識為缺曠記錄{% endif %}</p>
+      </div>
+      <a href="{{ url_for('student.portfolio_list') }}">← 活動與經歷</a>
+    </header>
+    {% if preview_only %}
+    <div class="attendance-register__body">
+      {% if source_range %}<p class="attendance-term"><strong>學年期</strong>{{ source_range[0] }} 至 {{ source_range[1] }}</p>{% endif %}
+      <p class="notice">這份明細可核對。若要儲存，請在學校選擇單一學期，並複製含兩張合計表的內容。</p>
+      {{ school_summary(rows[0], daily=daily) }}
+      <p><a class="button button--line" href="{{ url_for('attendance.records') }}">返回匯入</a></p>
+    </div>
+    {% else %}
+    <form method="post" action="{{ url_for('attendance.confirm') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% for row in rows %}
+      <fieldset class="attendance-review">
+        <legend class="visually-hidden">學年期{% if rows|length > 1 %} · 第 {{ loop.index }} 筆{% endif %}</legend>
+        <div class="attendance-term">
+          <strong aria-hidden="true">學年期{% if rows|length > 1 %} · {{ loop.index }}{% endif %}</strong>
+          <label>{{ number_field('school_year', '民國學年度', row.get('school_year', ''), 1, 999, true) }} <span>學年度</span></label>
+          <label>
+            <select name="semester" aria-label="學期" required>
+              <option value="">請選擇</option>
+              {% for number in (1, 2) %}
+              <option value="{{ number }}"{% if row.get('semester')|string == number|string %} selected{% endif %}>第 {{ number }} 學期</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+        {% if not row.get('school_year') or not row.get('semester') %}
+        <p class="attendance-term__hint">請填寫校方查詢的單一學期。</p>
+        {% endif %}
+        {{ school_summary(row, true, daily if loop.first else none) }}
+      </fieldset>
+      {% endfor %}
+      <div class="attendance-register__foot">
+        <p>缺欄可留空。校方明列 0 時請填 0。</p>
+        <div class="record-card__actions">
+          <a class="button button--line" href="{{ url_for('attendance.records') }}">取消</a>
+          <button class="button" type="submit">確認並儲存合計</button>
+        </div>
+      </div>
+    </form>
+    {% endif %}
+  </section>
+  {% else %}
+  <section class="attendance-register" aria-labelledby="attendance-import-title">
+    <header class="attendance-register__head">
+      <div><h1 id="attendance-import-title">缺曠記錄查詢</h1><p>匯入學期合計</p></div>
+      <a href="{{ url_for('student.portfolio_list') }}">← 活動與經歷</a>
+    </header>
+    <div class="attendance-register__body">
+    <p>請在校方系統將起訖「學年期」選成同一學期，再複製明細與合計表，或用「整頁模式」列印成 PDF。</p>
+    <p class="muted">逐日明細僅供這次核對。系統只儲存你確認的學期合計。</p>
+    <div class="attendance-sources">
+      <form method="post" action="{{ url_for('attendance.records') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label for="attendance-paste">貼上合計表</label>
+        <textarea id="attendance-paste" name="pasted_table" rows="5" maxlength="100000" required></textarea>
+        <button class="button" type="submit">預覽貼上的合計</button>
+      </form>
+      <form method="post" action="{{ url_for('attendance.records') }}" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label for="attendance-pdf">上傳 PDF（最多 5 MB）</label>
+        <input id="attendance-pdf" name="file" type="file" accept="application/pdf,.pdf" required>
+        <button class="button button--line" type="submit">讀取 PDF 合計</button>
+      </form>
+    </div>
+    </div>
+  </section>
+  {% endif %}
+  {% endif %}
+  <section class="attendance-register" id="saved-attendance" aria-labelledby="saved-attendance-title">
+    <header class="attendance-register__head attendance-register__head--sub">
+      {% if student %}
+      <div><h1 id="saved-attendance-title">缺曠記錄查詢</h1><p>{{ student.display_name }} · 已儲存的學期合計</p></div>
+      <a href="{{ url_for('teacher.student_detail', student_id=student.id) }}">← 學生資料</a>
+      {% else %}
+      <h2 id="saved-attendance-title">已儲存的學期合計</h2>
+      {% endif %}
+    </header>
+    <div class="attendance-register__body">
+    {% if term_choices or range_error %}
+    {% set query_url = url_for('attendance.advisor_records', student_id=student.id, _anchor='saved-attendance') if student else url_for('attendance.records', _anchor='saved-attendance') %}
+    <form class="attendance-term attendance-range" method="get" action="{{ query_url }}">
+      {% for name, label, selected in [('from_term', '起始學年期', from_term), ('to_term', '結束學年期', to_term)] %}
+      <label>{{ label }}
+        <select name="{{ name }}">
+          <option value="">不限</option>
+          {% for term, year, semester in term_choices %}
+          <option value="{{ term }}"{% if term == selected %} selected{% endif %}>{{ year }} 學年度第 {{ semester }} 學期</option>
+          {% endfor %}
+        </select>
+      </label>
+      {% endfor %}
+      <button class="button button--line" type="submit">查詢</button>
+      {% if from_term or to_term or range_error %}<a href="{{ query_url }}">清除篩選</a>{% endif %}
+    </form>
+    {% endif %}
+    {% if range_error %}<p class="notice notice--warn" role="alert">{{ range_error }}</p>{% endif %}
+    {% for record in records %}
+    <details{% if records|length == 1 and (from_term or to_term) %} open{% endif %}>
+      <summary>{{ record.school_year }} 學年度・第 {{ record.semester }} 學期</summary>
+      {{ school_summary(record.totals or {}) }}
+    </details>
+    {% else %}
+    {% if not range_error %}
+    <p class="muted">{{ "這段學年期沒有已儲存的合計。" if from_term or to_term else "還沒有已確認的缺曠合計。" }}</p>
+    {% endif %}
+    {% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}

@@ -458,3 +458,67 @@ html.map-locked, html.map-sheet-open { overflow: hidden; }
 }
 @keyframes map-sheet-up { from { transform: translateY(100%); } }
 @keyframes map-sheet-down { to { transform: translateY(100%); } }
+
+/* 通知鈴鐺簡化（2026-11-17 使用者說太大）：只剩一個圓形圖示，未讀數字縮成右上角小圓點；
+   在通知頁也不再變成深色大膠囊，只把鈴鐺換成主色。 */
+[data-ui="student-v2"] :is(.masthead--student, .masthead--app) .snav-bell {
+  position: relative; justify-content: center; width: var(--ctl-h); min-width: 0; padding: 0; gap: 0; border-radius: 50%;
+}
+[data-ui="student-v2"] :is(.masthead--student, .masthead--app) .snav-bell[aria-current] { background: transparent; color: var(--accent); }
+[data-ui="student-v2"] :is(.masthead--student, .masthead--app) .snav-bell[aria-current]:hover { background: var(--accent-soft); }
+[data-ui="student-v2"] :is(.masthead--student, .masthead--app) .snav-bell .mainnav__count {
+  position: absolute; top: 3px; right: 1px; min-width: 16px; height: 16px; margin: 0; padding: 0 4px; font-size: 11px; line-height: 16px;
+  box-shadow: 0 0 0 2px var(--glass-solid, var(--card));
+}
+@media (max-width: 720px) {
+  [data-ui="student-v2"] :is(.masthead--student, .masthead--app) .snav-bell { padding: 0; }
+}
+
+/* 頂端保留搜尋圖示，輸入欄置於搜尋頁。 */
+[data-ui="student-v2"] .student-search-link {
+  display: grid; place-items: center; flex: 0 0 auto;
+  width: var(--ctl-h); height: var(--ctl-h); border-radius: 50%;
+  color: var(--ink);
+}
+[data-ui="student-v2"] .student-search-link:hover,
+[data-ui="student-v2"] .student-search-link[aria-current] { background: var(--accent-soft); }
+
+@media (min-width: 721px) {
+  [data-ui="student-v2"] .masthead--student .masthead__inner { flex-wrap: wrap; }
+  [data-ui="student-v2"] .masthead--student .mainnav {
+    flex: 0 0 auto;
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+  [data-ui="student-v2"] .masthead--student .masthead__tools {
+    flex: 0 0 auto;
+    max-width: 100%;
+  }
+}
+@media (max-width:720px) {
+  [data-ui="student-v2"] .masthead--student .masthead__inner { border-radius:16px; }
+  [data-ui="student-v2"]:not(.sv2-js) .masthead--student .masthead__inner { flex-wrap: wrap; }
+}
+
+[data-ui="student-v2"] .student-search-dialog {
+  position: fixed; inset: clamp(4rem, 12vh, 7rem) 0 auto; margin: 0 auto;
+  width: min(31rem, calc(100% - 1.5rem)); max-height: 74dvh; overflow: auto;
+  padding: .85rem; color: var(--ink); background: var(--card);
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+  backdrop-filter: blur(14px); border: 1px solid var(--line); border-radius: 18px;
+  box-shadow: 0 16px 45px rgb(0 0 0 / .25);
+}
+.student-search-dialog::backdrop { background: rgb(0 0 0 / .14); }
+.student-search-dialog__head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.student-search-dialog__head h2 { margin: 0; font-size: 1rem; }
+.student-search-dialog__head button { min-width: 2.5rem; min-height: 2.5rem; border: 0; background: transparent; color: var(--ink); font-size: 1.3rem; cursor: pointer; }
+.student-search-dialog form { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: .4rem; }
+.student-search-dialog :is(input, select) { min-width: 0; width: 100%; }
+.student-search-dialog [data-search-status] { margin: .7rem 0 0; }
+.student-search-dialog ul { list-style: none; padding: 0; margin: .35rem 0 0; }
+.student-search-dialog li { display: flex; align-items: baseline; gap: .6rem; padding: .4rem 0; border-top: 1px solid var(--line); }
+.student-search-dialog li small { color: var(--soft); flex: 0 0 auto; }
+@media (max-width: 420px) {
+  .student-search-dialog form { grid-template-columns: minmax(0, 1fr) auto; }
+  .student-search-dialog input { grid-column: 1 / -1; }
+}

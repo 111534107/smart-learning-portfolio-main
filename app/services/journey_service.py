@@ -54,7 +54,7 @@ def _empty_categories():
     return {key: [] for key in CATEGORY_KEYS}
 
 
-def build_journey(student, today=None):
+def build_journey(student, today=None, *, include_evidence=False):
     profile = student.student_profile
     admission_year = profile.admission_year if profile else None
     folders = {grade: _empty_categories() for grade in GRADE_LABELS}
@@ -68,6 +68,7 @@ def build_journey(student, today=None):
         place(grade_for(course.year_for_placement, admission_year), "grades", {
             "id": f"course-{course.id}",  # 來源＋資料庫編號：改標題也不會變（首頁拼圖桌的片靠它固定位置）
             "title": course.course_name,
+            "document_id": course.source_document_id,
             "confirmation_status": course.confirmation_status,
             "detail": " · ".join(part for part in (
                 f"{course.credits} 學分" if course.credits is not None else "",
@@ -81,6 +82,7 @@ def build_journey(student, today=None):
         place(grade_for(year, admission_year), "credential", {
             "id": f"credential-{credential.id}",
             "title": credential.credential_name,
+            "document_id": credential.source_document_id,
             "confirmation_status": credential.confirmation_status,
             "detail": credential.level or "",
         })
@@ -97,6 +99,10 @@ def build_journey(student, today=None):
             "confirmation_status": record.status,
             "detail": ("專題與作品集 · " if record.category == "project" else "") + (record.description or ""),
             "source": "" if record.source == "student" else record.source_label,
+            "attachments": [
+                (evidence.id, evidence.display_name, evidence.preview_kind)
+                for evidence in record.evidence_items if evidence.is_available and evidence.file_path and not evidence.external_url
+            ] if include_evidence else [],
         })
 
     totals = {key: 0 for key in CATEGORY_KEYS}

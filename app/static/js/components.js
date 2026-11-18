@@ -738,7 +738,7 @@ document.querySelectorAll("[data-walker]").forEach((walker) => {
   assemble.addEventListener("click", (event) => {
     if (reduce || !pieces.length || !plainClick(event)) return;
     event.preventDefault();
-    const href = assemble.getAttribute("href");
+    const href = assemble.dataset.go || assemble.getAttribute("href");  // home-desk.js 借這個動畫去別頁（實習履歷）
     const go = () => { window.location.href = href; };
     try {
       if (assemble.dataset.busy) return;

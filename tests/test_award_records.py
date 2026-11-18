@@ -404,3 +404,37 @@ def test_enthusiastic_charity_is_not_mistaken_for_leadership():
     assert service.classify("1132熱心公益") == "service"
     assert service.classify("1132熱心服務") == "service"
     assert service.classify("1132熱心") is None
+
+
+def test_award_paste_routes_school_attendance_to_review_without_saving_source(tmp_path):
+    from app.models import AttendanceSummary
+
+    app = records_app(tmp_path)
+    client = app.test_client()
+    login(client)
+    text = "114/10/03\t病假\t病假\n項目\t曠課\t病假\n合計\t0\t2"
+
+    response = client.post("/student/award-records/paste", data={"pasted_table": text})
+    html = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert "核對學期合計" in html and 'name="病假" value="2"' in html
+    assert 'action="/student/attendance-records/confirm"' in html
+    assert "114/10/03" not in html
+    assert response.headers["Cache-Control"] == "no-store"
+    with app.app_context():
+        assert AttendanceSummary.query.count() == 0
+        assert SourceDocument.query.count() == 0
+
+
+def test_award_paste_explains_how_to_import_attendance_daily_rows(tmp_path):
+    app = records_app(tmp_path)
+    client = app.test_client()
+    login(client)
+
+    response = client.post("/student/award-records/paste",
+                           data={"pasted_table": "114/10/03\t病假\t病假"})
+    html = response.get_data(as_text=True)
+    assert response.status_code == 400
+    assert "缺曠" in html and "底部" in html and "無法辨識表格欄位" not in html
+    assert html.count('action="/student/attendance-records"') == 2
+    assert "114/10/03" not in html

@@ -32,6 +32,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/student-v2/ocr.css') }}">
     {% if staff_v2 %}<link rel="stylesheet" href="{{ url_for('static', filename='css/student-v2/staff.css') }}">{% endif %}
     {% endif %}
+    {% if page_name|default('') in ('student-dashboard', 'student-internship-resume') %}<link rel="stylesheet" href="{{ url_for('static', filename='css/student-v2/home-desk.css') }}">{% endif %}
     {% if bg_squares %}<link rel="stylesheet" href="{{ url_for('static', filename='css/bg-squares.css') }}">{% endif %}
   </head>
   <body data-page="{{ page_name|default('workspace') }}"{% if page_name|default('workspace') not in ('student-dashboard', 'public-home') %} data-theme="campus"{% endif %}>
@@ -48,7 +49,25 @@
     {# 學生頁左下角快捷鈕（招生時程／小助手寫自傳／回到頂端）：2026-11-04 使用者決定拿掉（會蓋到內文、看不出用途）。
        檔案 partials/quick_dock.html 與樣式保留未刪，要恢復只要把 include 加回來。 #}
     {% block footer %}{% endblock %}
-    {% if user is defined and user and user.role in ("student", "teacher") and session.get("user_id") %}{% include "partials/assistant.html" %}{% endif %}{# 登入、雙重驗證頁不放小助手（2026-11-18） #}
+    {% if user is defined and user and user.role in ("student", "teacher", "staff") and session.get("user_id") %}{% include "partials/assistant.html" %}{% endif %}{# 登入、雙重驗證頁不放小助手（2026-11-18） #}
+    {% if user is defined and user and user.role == "student" and session.get("user_id") %}
+    <dialog class="student-search-dialog" id="student-search-dialog" aria-labelledby="student-search-title">
+      <div class="student-search-dialog__head">
+        <h2 id="student-search-title">搜尋</h2>
+        <button type="button" data-student-search-close aria-label="關閉搜尋">×</button>
+      </div>
+      <form action="{{ url_for('main.student_search') }}" method="get" role="search">
+        <label class="visually-hidden" for="student-search-overlay-q">搜尋關鍵字</label>
+        <input id="student-search-overlay-q" type="search" name="q" maxlength="60" placeholder="搜尋功能或我的資料" required autofocus>
+        <label class="visually-hidden" for="student-search-overlay-kind">資料類型</label>
+        <select id="student-search-overlay-kind" name="kind"><option value="">全部類型</option>{% for label in ("功能", "成績", "證照", "經歷") %}<option>{{ label }}</option>{% endfor %}</select>
+        <button class="button button--small" type="submit">搜尋</button>
+      </form>
+      <p data-search-status role="status" hidden></p>
+      <ul data-search-results hidden></ul>
+    </dialog>
+    <script src="{{ url_for('static', filename='js/student-search.js') }}" defer></script>
+    {% endif %}
     <script src="{{ url_for('static', filename='js/motion.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/components.js') }}" defer></script>
     {% if student_v2 %}<script src="{{ url_for('static', filename='js/student-v2.js') }}" defer></script>{% endif %}

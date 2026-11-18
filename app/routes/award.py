@@ -6,9 +6,10 @@ from flask import Blueprint, abort, current_app, redirect, render_template, requ
 
 from app.extensions import db
 from app.models import DocumentExtraction, Portfolio, SchoolAwardRecord, SourceDocument
+from app.routes.attendance import review_pasted_totals
 from app.routes.main import get_current_user, role_required
 from app.security import validate_upload_filename
-from app.services import ai_quota_service, award_record_service, storage_service
+from app.services import ai_quota_service, attendance_import, award_record_service, storage_service
 from app.services.journey_service import CATEGORY_LABELS, EXPERIENCE_CATEGORIES, grade_for
 
 award_bp = Blueprint("award", __name__)
@@ -63,6 +64,8 @@ def award_paste():
     """貼上學校獎懲表格（組員版）：本機解析，不送 AI、不扣學校 AI 次數。"""
     user = get_current_user()
     text = request.form.get("pasted_table", "")
+    if attendance_import.looks_like_school_attendance(text):
+        return review_pasted_totals(user, text, from_award=True)
     try:
         student_no = user.student_profile.student_no if user.student_profile else None
         rows = award_record_service.parse_pasted_table(text, student_no)

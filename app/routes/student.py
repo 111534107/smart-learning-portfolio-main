@@ -311,6 +311,33 @@ def journey_docx():
     )
 
 
+@student_bp.route("/student/internship-resume", methods=["GET", "POST"])
+@role_required("student")
+def internship_resume():
+    """專四上學期起：把已確認的資料填進學校規定的實習履歷格式（學生逐項勾選後下載 Word）。"""
+    from app.services import internship_resume as resume
+    from app.content.five_year_plan import INTERNSHIP_SOURCE, RESUME_FORM_SOURCE
+    from app.services.journey_home import SAMPLE_PIECE
+    from app.services.journey_service import build_journey, current_grade
+    user = get_current_user()
+    profile = user.student_profile
+    grade = current_grade(profile.admission_year if profile else None) or 1
+    if not resume.is_open(grade):
+        return render_template("student_internship_resume.html", user=user, locked=True, options=None, piece_d="")
+    options = resume.build_options(user, build_journey(user))
+    if request.method == "POST":
+        choices = resume.read_choices(request.form, options)
+        audit_service.record(user, "student.internship_resume_docx", "user", user.id, commit=True)
+        return send_file(
+            resume.build_docx(options, choices), as_attachment=True,
+            download_name=f"實習履歷-{user.display_name}.docx",
+            mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+    return render_template("student_internship_resume.html", user=user, locked=False, options=options,
+                           piece_d=SAMPLE_PIECE, form_source=RESUME_FORM_SOURCE,
+                           fill_source=INTERNSHIP_SOURCE)
+
+
 @student_bp.get("/student/learning-profile/outputs/<int:output_id>/docx")
 @role_required("student")
 def learning_profile_output_docx(output_id):

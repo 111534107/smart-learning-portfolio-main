@@ -6,14 +6,20 @@ from flask import Blueprint, jsonify, request
 
 from app.routes.main import get_current_user, role_required
 from app.services.assistant_agent_service import decide_plan, plan_history, set_todo_status
-from app.services.assistant_service import ask
+from app.services.assistant_service import ask, offline_answer
 
 assistant_bp = Blueprint("assistant", __name__)
 
 
 @assistant_bp.post("/assistant/ask")
-@role_required("student", "teacher")
+@role_required("student", "teacher", "staff")
 def assistant_ask():
+    if get_current_user().role == "staff":
+        message = request.form.get("message", "").strip()[:1500]
+        if not message:
+            return jsonify({"answer": "請輸入你的問題。", "steps": [], "sources": [], "links": [], "plan": None})
+        answer, sources = offline_answer(message, "目前使用本機文件查詢")
+        return jsonify({"answer": answer, "steps": ["查科上規定"], "sources": sources, "links": [], "plan": None})
     try:
         history = json.loads(request.form.get("history") or "[]")
     except ValueError:

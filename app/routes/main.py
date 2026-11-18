@@ -1,8 +1,9 @@
 import hmac
 from datetime import datetime, timezone
 from functools import wraps
+from pathlib import Path
 
-from flask import Blueprint, abort, current_app, jsonify, redirect, render_template, request, send_file, session, url_for
+from flask import Blueprint, abort, current_app, jsonify, redirect, render_template, request, send_file, send_from_directory, session, url_for
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -10,6 +11,7 @@ from app.extensions import db
 from app.models import AuditLog, AwardCertificate, PortfolioSubmission, SourceDocument, StudentTarget, User
 from app.services.gap_service import analyze_gap
 from app.services.guide_service import CARD_IDS, guide_cards
+from app.content.five_year_plan import CURRICULUM_SOURCE, INTERNSHIP_SOURCE
 from app.services.journey_home import journey_home
 from app.services import graduation_case_service, graduation_check_service, photo_service, student_rules
 from app.services.package_service import latest_review
@@ -301,11 +303,57 @@ def role_required(*allowed_roles):
     return decorator
 
 
+@main_bp.get("/school-docs/<path:name>")
+@role_required("student", "teacher", "staff", "admin")
+def school_doc(name):
+    """小助手引用的科辦原檔（school/Documents/ 的 PDF，沒有公開網址）：登入後才看得到，只開知識庫列出的檔案。"""
+    from app.services.knowledge_service import school_doc_files
+    if name not in school_doc_files():
+        abort(404)
+    folder = Path(current_app.root_path).parent / "school" / "Documents"
+    return send_from_directory(folder, name, mimetype="application/pdf")
+
+
+@main_bp.get("/student/search")
+@role_required("student")
+def student_search():
+    from app.models import LearningCourseRecord, CredentialRecord, Portfolio
+    user = get_current_user()
+    q = request.args.get("q", "").strip()[:60]
+    kind = request.args.get("kind", "")
+    kinds = {"": "全部類型", "功能": "功能", "成績": "成績", "證照": "證照", "經歷": "經歷"}
+    if kind not in kinds:
+        kind = ""
+    results = []
+    entries = [("我的五年", "main.student_dashboard"), ("成績單 上傳成績", "student.learning_profile"),
+               ("證照", "student.learning_profile_credentials"), ("活動與經歷", "student.portfolio_list"),
+               ("畢業門檻", "student.graduation_check"), ("目標校系 備審", "student.target_list"),
+               ("我的待辦", "agent_plan.issues")]
+    if q:
+        for title, endpoint in entries:
+            if kind in ("", "功能") and q.casefold() in title.casefold():
+                results.append(("功能", title, url_for(endpoint)))
+        for model, field, label, endpoint in [
+            (LearningCourseRecord, LearningCourseRecord.course_name, "成績", "student.learning_profile"),
+            (CredentialRecord, CredentialRecord.credential_name, "證照", "student.learning_profile_credentials"),
+            (Portfolio, Portfolio.title, "經歷", "student.portfolio_list"),
+        ]:
+            if kind and kind != label:
+                continue
+            query = model.query.filter(model.student_id == user.id, field.contains(q, autoescape=True))
+            if model is Portfolio:
+                query = query.filter(Portfolio.deleted_at.is_(None))
+            results.extend((label, getattr(row, field.key), url_for(endpoint)) for row in query.limit(20).all())
+    if request.args.get("format") == "json":
+        return jsonify(results=results)
+    return render_template("student_search.html", user=user, q=q, results=results, kind=kind, kinds=kinds)
+
+
 @main_bp.get("/student/dashboard")
 @role_required("student")
 def student_dashboard():
     user = get_current_user()
-    journey = build_journey(user)
+    journey = build_journey(user, include_evidence=True)
     targets = [
         {"program": target.program, "readiness": analyze_gap(user, target.program, journey)["readiness"]}
         for target in StudentTarget.query.filter_by(student_id=user.id).order_by(StudentTarget.selected_at).all()
@@ -333,6 +381,7 @@ def student_dashboard():
         experience_categories=EXPERIENCE_CATEGORIES,
         source_documents=SourceDocument.query.filter_by(owner_id=user.id).all(),
         guide=guide_cards(user, session.get("guide_snooze")),
+        plan_sources=[CURRICULUM_SOURCE, INTERNSHIP_SOURCE],
     )
 
 
@@ -448,7 +497,13 @@ def teacher_dashboard():
     """導師首頁：先看畢業門檻提醒，再看本班學生與待確認的備審資料。
     「專題審查指派／我的審查」2026-10-10 定案不在本系統範圍，畫面拿掉；review 路由與舊資料保留。"""
     user = get_current_user()
+    classes = advised_classes(user)
+    selected_class = request.args.get("class_name", "").strip()
+    if selected_class and selected_class not in classes:
+        abort(400)
     students = students_for_teacher(user)
+    if selected_class:
+        students = [student for student in students if student.student_profile.class_name == selected_class]
     rows = []
     for student in students:
         journey = build_journey(student)
@@ -473,7 +528,8 @@ def teacher_dashboard():
         "dashboard.html",
         title="教師工作台",
         user=user,
-        classes=advised_classes(user),
+        classes=classes,
+        selected_class=selected_class,
         class_rows=rows,
         target_statistics=_target_statistics(rows),
         pending_href=pending_href,
@@ -482,6 +538,21 @@ def teacher_dashboard():
         category_keys=CATEGORY_KEYS,
         category_labels=CATEGORY_LABELS,
     )
+
+
+@main_bp.post("/teacher/class-summary")
+@role_required("teacher")
+def teacher_class_summary():
+    from app.services.teacher_ai_summary import summarize
+    user = get_current_user()
+    selected = request.form.get("class_name", "").strip()
+    if selected and selected not in advised_classes(user):
+        abort(403)
+    students = students_for_teacher(user)
+    if selected:
+        students = [s for s in students if s.student_profile.class_name == selected]
+    result = summarize(students)
+    return render_template("teacher_class_summary.html", user=user, result=result, selected=selected)
 
 
 def _target_progress(student, journey, targets):

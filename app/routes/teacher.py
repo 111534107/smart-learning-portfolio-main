@@ -35,6 +35,17 @@ from app.models import GraduationCase, GraduationCaseEvent
 teacher_bp = Blueprint("teacher", __name__)
 
 
+@teacher_bp.post("/teacher/students/<int:student_id>/summary")
+@role_required("teacher")
+def student_summary(student_id):
+    from app.services.teacher_ai_summary import summarize
+    teacher = get_current_user()
+    student = db.session.get(User, student_id)
+    if not student or not can_view_student(teacher, student):
+        abort(403)
+    return render_template("teacher_class_summary.html", user=teacher, result=summarize([student]), selected="學生資料摘要（僅本機統計）")
+
+
 @teacher_bp.get("/teacher/students/<int:student_id>")
 @role_required("teacher")
 def student_detail(student_id):

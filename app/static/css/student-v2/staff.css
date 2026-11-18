@@ -76,3 +76,16 @@ html[data-staff-ui] .check-row input[type="checkbox"] {
   html[data-staff-ui][data-ui="student-v2"] .masthead--app .mainnav a,
   html[data-staff-ui] .masthead--app .admin-nav-group summary { justify-content: flex-start; border-radius: 14px; }
 }
+
+/* 深色主題選單與文字同步，避免淺底配淺字。 */
+html[data-theme="dark"] .admin-nav-group__links { background:#252321; color:#f5eee5; }
+html[data-theme="dark"] .admin-nav-group__links a { color:#f5eee5; }
+@media (max-width:720px) {
+  html[data-staff-ui][data-ui="student-v2"] .masthead--app .masthead__inner { max-width:100%; min-width:0; box-sizing:border-box; }
+  html[data-staff-ui] .masthead--app .masthead__tools { min-width:0; }
+  html[data-staff-ui] .masthead--app .mainnav { min-width:0; max-width:100%; }
+  html[data-theme="dark"] .admin-nav-group__links { background:transparent; }
+}
+
+.class-filter { display:flex; align-items:center; flex-wrap:wrap; gap:.55rem; margin:0 0 .75rem; }
+.class-filter select { max-width:100%; padding:.45rem .6rem; color:var(--ink); background:var(--card); border:1px solid var(--line); border-radius:8px; font:inherit; }

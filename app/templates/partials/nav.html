@@ -131,6 +131,7 @@
       <a class="mainnav__todo" href="{{ url_for('agent_plan.issues') }}"{% if active == "我的待辦" %} aria-current="page"{% endif %}>我的待辦{% if todo_count %} <span class="mainnav__count" aria-label="{{ todo_count }} 項未完成">{{ todo_count }}</span>{% endif %}{% if agent_todos is defined and agent_todos.pending_plan %}<span class="mainnav__dot" title="有規劃提案等你同意" aria-label="有規劃提案等你同意"></span>{% endif %}</a>
     </nav>
     <div class="masthead__tools">
+      <a class="student-search-link" data-student-search-open href="{{ url_for('main.student_search') }}" aria-label="搜尋功能與我的資料" title="搜尋功能與我的資料"{% if request.endpoint == "main.student_search" %} aria-current="page"{% endif %}><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></a>
       {% if unread_notification_count is defined %}
       <a class="snav-bell" href="{{ url_for('graduation.notifications') }}"{% if active == "通知" %} aria-current="page"{% endif %} aria-label="通知" title="通知">{# 2026-11-17 使用者要求：文字改成簡單的鈴鐺圖標 #}<svg class="snav-bell__icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>{% if unread_notification_count %} <span class="mainnav__count" aria-label="{{ unread_notification_count }} 則未讀通知">{{ unread_notification_count }}</span>{% endif %}</a>
       {% endif %}

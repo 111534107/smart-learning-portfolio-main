@@ -15,6 +15,8 @@
   <header class="work-heading" data-tour="先看本班畢業門檻，再看學生資料與待確認件數。" data-tour-order="1">
     <div><h1>{{ user.display_name }} 老師</h1><p>{% if classes %}負責班級：{{ classes|join("、") }}。{% endif %}先看畢業門檻提醒，點任一列就能打開學生資料。</p></div>
   </header>
+  {% if classes %}<form method="get" class="class-filter"><label for="teacher-class-filter">班級篩選</label> <select id="teacher-class-filter" name="class_name"><option value="">全部負責班級</option>{% for name in classes %}<option value="{{ name }}"{% if name == selected_class %} selected{% endif %}>{{ name }}</option>{% endfor %}</select> <button class="button button--small button--line" type="submit">查看</button></form>{% endif %}
+  <form method="post" action="{{ url_for('main.teacher_class_summary') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="class_name" value="{{ selected_class }}"><button class="button button--small button--line" type="submit">產生目前班級的資料摘要</button><small>僅傳送匿名總數，資料少於 5 人時只顯示本機統計；不包含缺曠。</small></form>
   <section class="work-panel" data-grad-overview data-tour="看本班畢業門檻的整體情形，從最需要關心的學生開始。" data-tour-order="2">
     <div class="work-panel__head"><div><h2>畢業門檻提醒</h2><p>依學生已確認的證照與成績單整理，專四下起才會正式列出缺口。</p></div></div>
     <div class="work-metrics work-metrics--four">

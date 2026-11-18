@@ -3,6 +3,7 @@
 {% set suggestions = {
   "student": ["幫我規劃下一步", "目標校系還缺什麼？", "檢查我的自傳", "二技什麼時候報名？"],
   "teacher": ["誰還沒選目標校系？", "誰在等我確認？", "檢查學生的自傳", "專題報告要交什麼？"],
+  "staff": ["畢業門檻是什麼？", "重補修怎麼辦理？", "專題報告要交什麼？"],
 }[user.role] %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/agent-hub.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/student-v2/assistant.css') }}">

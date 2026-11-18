@@ -104,6 +104,18 @@ home_check = s.get(BASE + "/student/dashboard")
 rec("小助手共用置中視窗控制", home_check.ok and all(marker in home_check.text for marker in (
     'role="dialog" aria-modal="true"', 'data-assistant-overlay', 'data-assistant-reset',
     'data-assistant-expand', 'js/assistant-window.js')))
+home_check = s.get(BASE + "/student/dashboard")
+rec("首頁散落紙張與五年路線", home_check.ok and "data-desk" in home_check.text and "route-map" in home_check.text)
+rec("五年路線插學校規劃並附原檔連結", home_check.text.count('class="route-note ') == 5
+    and "https://im.ukn.edu.tw/p/405-1028-609,c82-1.php" in home_check.text)
+locked_resume = s.get(BASE + "/student/internship-resume")
+rec("專三實習履歷尚未開放", locked_resume.ok and "data-resume-form" not in locked_resume.text)
+resume_session, _ = login("/login", "113534903")
+resume_page = resume_session.get(BASE + "/student/internship-resume")
+rec("專五可整理實習履歷", resume_page.ok and "data-resume-form" in resume_page.text)
+resume_download = resume_session.post(BASE + "/student/internship-resume", data={"csrf_token": csrf(resume_page.text)})
+rec("實習履歷可下載學校格式", resume_download.ok and "wordprocessingml" in resume_download.headers.get("Content-Type", ""))
+
 
 r = s.get(BASE + "/student/targets")
 ids = sorted(set(re.findall(r"/student/targets/(\d+)\"", r.text)))
@@ -248,6 +260,18 @@ grad = s.get(BASE + "/student/graduation-check").text
 rec("畢業門檻工作台：總覽、四個門檻區塊、下一步與學期預警", "data-grad-dashboard" in grad and "data-gd-ring" in grad
     and grad.count('data-gd-block="') == 4 and "data-gd-steps" in grad and "data-semester-warning" in grad
     and 'id="gd-ask"' in grad, f"{grad.count('data-gd-block=')} 個區塊、{grad.count('gd-go')} 個下一步按鈕標記")
+
+# 小助手依科上文件回答時附學生點得到的原檔連結（2026-11-17）：問專四要做什麼、問畢業門檻，出處都要能打開
+ask_page = s.get(BASE + "/student/dashboard").text
+plan_ans = s.post(BASE + "/assistant/ask", data={"message": "專四要做什麼？", "csrf_token": csrf(ask_page)},
+                  headers={"X-CSRFToken": csrf(ask_page)}).json()
+grad_ans = s.post(BASE + "/assistant/ask", data={"message": "畢業門檻要幾張證照？", "csrf_token": csrf(ask_page)},
+                  headers={"X-CSRFToken": csrf(ask_page)}).json()
+grad_url = next((src["url"] for src in grad_ans.get("sources", []) if "畢業門檻" in src["title"]), "")
+grad_pdf = s.get(BASE + grad_url) if grad_url.startswith("/") else None
+rec("小助手科上文件附原檔連結", any(src["url"].startswith("https://im.ukn.edu.tw/") for src in plan_ans.get("sources", []))
+    and grad_pdf is not None and grad_pdf.ok and grad_pdf.content[:4] == b"%PDF",
+    [src["title"] for src in plan_ans.get("sources", [])] + [grad_url])
 
 # 小助手待辦（B6）：規劃 → 同意 → 待辦頁；再規劃一次不會變兩份
 def plan_and_approve(session):

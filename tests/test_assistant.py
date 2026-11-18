@@ -182,3 +182,89 @@ def test_widget_shows_on_student_and_teacher_pages_only(app):
     assert "data-assistant" in student.get("/student/dashboard").get_data(as_text=True)
     assert "data-assistant" in teacher.get("/teacher/dashboard").get_data(as_text=True)
     assert "data-assistant" not in app.test_client().get("/login").get_data(as_text=True)
+
+
+def test_staff_assistant_uses_local_sources_without_sending_question_to_ai(app, monkeypatch):
+    with app.app_context():
+        staff = User(username="staff-assistant", display_name="科辦", role="staff")
+        staff.set_password("pw")
+        db.session.add(staff)
+        db.session.commit()
+    def forbidden(*args, **kwargs):
+        raise AssertionError("科辦問答不得傳送到外部 AI")
+    monkeypatch.setattr(assistant_service.gemini_client, "chat", forbidden)
+    client = app.test_client()
+    client.post("/login", data={"username": "staff-assistant", "password": "pw"})
+    response = client.post("/assistant/ask", data={"message": "畢業門檻"})
+    assert response.status_code == 200
+    assert response.json["sources"]
+
+def test_staff_pages_render_assistant(app):
+    with app.app_context():
+        staff = User(username="staff-page", display_name="科辦", role="staff")
+        staff.set_password("pw")
+        db.session.add(staff)
+        db.session.commit()
+    client = app.test_client()
+    client.post("/login", data={"username": "staff-page", "password": "pw"})
+    response = client.get("/staff/dashboard")
+    assert response.status_code == 200
+    assert "開啟資管科小助手" in response.get_data(as_text=True)
+
+
+def test_teacher_summary_only_sends_anonymous_counts(app, monkeypatch):
+    from app.services.teacher_ai_summary import summarize
+    seen = []
+    def fake_chat(contents, tools, instruction):
+        seen.append(json.dumps(contents, ensure_ascii=False))
+        return {"parts": [{"text": "建議逐項核對資料。"}]}
+    monkeypatch.setattr(assistant_service.gemini_client, "chat", fake_chat)
+    with app.app_context():
+        students = [user(app, "stu")]
+        for i in range(4):
+            extra = User(username=f"synthetic-{i}", display_name=f"測試{i}", role="student")
+            extra.set_password("pw")
+            db.session.add(extra)
+            students.append(extra)
+        db.session.flush()
+        result = summarize(students)
+    assert result["mode"] == "ai"
+    assert "111534100" not in seen[0]
+    assert "stu" not in seen[0]
+    assert "缺曠" not in seen[0]
+    assert "建議逐項核對" in result["text"]
+
+
+def test_teacher_summary_does_not_send_small_group_to_ai(app, monkeypatch):
+    from app.services.teacher_ai_summary import summarize
+    def forbidden(*args, **kwargs):
+        raise AssertionError("small groups must not be sent")
+    monkeypatch.setattr(assistant_service.gemini_client, "chat", forbidden)
+    with app.app_context():
+        result = summarize([user(app, "stu")])
+    assert result["mode"] == "local"
+
+
+
+def test_chat_without_tools_omits_empty_function_declarations(app, monkeypatch):
+    from app.services import gemini_client
+    seen = []
+    def fake_post(body, api_key, opener, model=None):
+        seen.append(body)
+        return {"candidates": [{"content": {"parts": [{"text": "ok"}]}}]}
+    monkeypatch.setattr(gemini_client, "_post", fake_post)
+    with app.app_context():
+        gemini_client.chat([{"role": "user", "parts": [{"text": "匿名總數"}]}], [], "摘要")
+    assert "tools" not in seen[0]
+
+
+def test_chat_preserves_nonempty_function_declarations(app, monkeypatch):
+    from app.services import gemini_client
+    seen = []
+    def fake_post(body, api_key, opener, model=None):
+        seen.append(body)
+        return {"candidates": [{"content": {"parts": [{"text": "ok"}]}}]}
+    monkeypatch.setattr(gemini_client, "_post", fake_post)
+    with app.app_context():
+        gemini_client.chat([], [{"name": "sample"}], "test")
+    assert seen[0]["tools"] == [{"functionDeclarations": [{"name": "sample"}]}]

@@ -119,12 +119,14 @@ def chat(contents, tools, system_instruction, api_key=None, opener=urllib.reques
     contents：對話紀錄，格式為 [{"role": "user"/"model", "parts": [...]}]
     tools：工具說明（functionDeclarations），讓 AI 自己決定要查什麼
     """
-    payload = _post({
+    body = {
         "systemInstruction": {"parts": [{"text": system_instruction}]},
         "contents": contents,
-        "tools": [{"functionDeclarations": tools}],
         "generationConfig": {"temperature": 0.3},
-    }, api_key, opener, model=current_app.config.get("ASSISTANT_MODEL"))
+    }
+    if tools:
+        body["tools"] = [{"functionDeclarations": tools}]
+    payload = _post(body, api_key, opener, model=current_app.config.get("ASSISTANT_MODEL"))
     try:
         return payload["candidates"][0]["content"]
     except (KeyError, IndexError):

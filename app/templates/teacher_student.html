@@ -19,6 +19,8 @@
     </div>
   </header>
 
+  <form method="post" action="{{ url_for('teacher.student_summary', student_id=student.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small button--line" type="submit">查看學生資料摘要</button><small>僅在本機統計，不傳送學生個人資料。</small></form>
+
   <nav class="work-panel" aria-label="學生資料快速導覽">
     <div class="work-panel__head"><div><h2>快速查看</h2><p>點選項目，直接前往學生資料。</p></div></div>
     <div class="record-card__actions">
@@ -26,6 +28,7 @@
       <a class="button button--small button--line" href="#teacher-graduation">畢業門檻</a>
       <a class="button button--small button--line" href="#teacher-targets">目標校系與備審／自傳</a>
       <a class="button button--small button--line" href="#teacher-evidence">佐證照片</a>
+      <a class="button button--small button--line" href="{{ url_for('attendance.advisor_records', student_id=student.id) }}">缺曠合計</a>
     </div>
     <p class="small mt-1">五年資料：<a href="{{ url_for('teacher.student_detail', student_id=student.id, record_status='draft', _anchor='teacher-records') }}">草稿 {{ record_counts.draft }} 筆</a> · <a href="{{ url_for('teacher.student_detail', student_id=student.id, record_status='confirmed', _anchor='teacher-records') }}">學生已確認 {{ record_counts.confirmed }} 筆</a>{% if record_counts.other %} · <a href="{{ url_for('teacher.student_detail', student_id=student.id, record_status='other', _anchor='teacher-records') }}">狀態待確認 {{ record_counts.other }} 筆</a>{% endif %}</p>
   </nav>

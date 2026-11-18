@@ -24,6 +24,32 @@ def _bigrams(text):
     return {text[i:i + 2] for i in range(len(text) - 1)} | ({text} if len(text) == 1 else set())
 
 
+SCHOOL_DOCS_PREFIX = "school/Documents/"
+
+
+def source_url(meta):
+    """學生點得到的原檔連結：有學校網址用學校網址；科辦給的 PDF（school/Documents/）沒有公開網址，
+    就連到系統裡的原檔（/school-docs/檔名，要登入才看得到）。2026-11-17 使用者要求有依據的內容都要附原檔連結。"""
+    url = (meta.get("url") or "").strip()
+    source = (meta.get("source") or "").strip()
+    if not url and source.startswith(SCHOOL_DOCS_PREFIX):
+        from urllib.parse import quote
+        url = "/school-docs/" + quote(source[len(SCHOOL_DOCS_PREFIX):])
+    return url
+
+
+def school_doc_files(folder=KNOWLEDGE_DIR):
+    """知識庫引用到的科辦原檔檔名（只有這些可以從 /school-docs/ 打開）。"""
+    names = set()
+    for path in Path(folder).glob("*.md"):
+        raw = path.read_text(encoding="utf-8")
+        if raw.startswith("---"):
+            source = dict(re.findall(r"^(source): ?(.*)$", raw.split("---", 2)[1], re.M)).get("source", "").strip()
+            if source.startswith(SCHOOL_DOCS_PREFIX):
+                names.add(source[len(SCHOOL_DOCS_PREFIX):])
+    return names
+
+
 @lru_cache(maxsize=1)
 def _chunks(folder=KNOWLEDGE_DIR):
     chunks = []
@@ -38,7 +64,7 @@ def _chunks(folder=KNOWLEDGE_DIR):
             if len(text) < 20:
                 continue
             chunks.append({"doc": path.stem, "title": title, "heading": heading, "text": text[:2500],
-                           "url": meta.get("url", ""), "grams": _bigrams(text),
+                           "url": source_url(meta), "grams": _bigrams(text),
                            "title_grams": _bigrams(title + heading)})
     return chunks
 

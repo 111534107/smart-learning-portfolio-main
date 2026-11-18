@@ -18,7 +18,10 @@
     <form method="post" action="{{ url_for('award.award_paste') }}" class="form-stack">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label class="field">學校獎懲表格<textarea name="pasted_table" rows="8" required data-award-paste placeholder="從學校系統複製表格後，貼在這裡">{{ pasted_table or '' }}</textarea></label>
-      <div><button class="button" type="submit">整理並核對</button></div>
+      <div class="record-card__actions">
+        <button class="button" type="submit">整理並核對</button>
+        <a class="button button--line" href="{{ url_for('attendance.records') }}">改匯入缺曠記錄</a>
+      </div>
     </form>
   </section>
 

@@ -5,6 +5,9 @@
    - 效能：只動 transform（位移＋旋轉），方塊 10 個，手機只留 6 個；不用 JavaScript。
    - 減少動態效果：系統設定 prefers-reduced-motion 時方塊停在原地不動。 */
 
+/* 固定背景留在頁面底色上方、內容下方，避免負層級被頁面底色蓋住。 */
+body { isolation: isolate; }
+
 .bg-squares {
   position: fixed;
   inset: 0;

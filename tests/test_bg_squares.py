@@ -24,7 +24,7 @@ def app(tmp_path):
                       "UPLOAD_FOLDER": str(tmp_path)})
     with app.app_context():
         db.create_all()
-        for username, role in (("student_syn", "student"), ("teacher_syn", "teacher"), ("admin_syn", "admin")):
+        for username, role in (("student_syn", "student"), ("teacher_syn", "teacher"), ("staff_syn", "staff"), ("admin_syn", "admin")):
             user = User(username=username, display_name="合成帳號", role=role)
             user.set_password("pw")
             db.session.add(user)
@@ -40,7 +40,7 @@ def logged_in(app, username):
 
 def test_student_pages_have_one_background_layer(app):
     client = logged_in(app, "student_syn")
-    for path in ("/student/dashboard", "/student/targets"):
+    for path in ("/student/dashboard", "/student/targets", "/student/graduation-check", "/student/portfolio", "/student/files", "/forms"):
         html = client.get(path).get_data(as_text=True)
         assert html.count(LAYER) == 1, path
         assert "css/bg-squares.css" in html
@@ -64,6 +64,9 @@ def test_staff_and_admin_pages_also_have_the_layer(app):
     teacher = logged_in(app, "teacher_syn")
     html = teacher.get("/teacher/dashboard", follow_redirects=True).get_data(as_text=True)
     assert 'data-staff-ui="teacher"' in html and html.count(LAYER) == 1
+    staff = logged_in(app, "staff_syn")
+    html = staff.get("/staff/dashboard", follow_redirects=True).get_data(as_text=True)
+    assert 'data-staff-ui="staff"' in html and html.count(LAYER) == 1
     admin = logged_in(app, "admin_syn")
     html = admin.get("/admin/dashboard", follow_redirects=True).get_data(as_text=True)
     assert 'data-staff-ui="admin"' in html and html.count(LAYER) == 1

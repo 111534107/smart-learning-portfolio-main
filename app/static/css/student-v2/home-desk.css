@@ -1,0 +1,286 @@
+/* 學生首頁第一屏「散落的紙張」、拼圖舞台、底部五年路線、實習履歷頁（2026-11-17）
+   來源：設計示範 _design-demo/student-v2/index.html 的 .sheets／.sheet／.doc，搬進正式系統並改用系統真實資料。
+   只有學生首頁與實習履歷頁會載入（base.html 依 page_name 判斷）。 */
+
+/* 路線節點與資料夾共用年級色，紙張和六類資料仍沿用首頁的藍綠色。 */
+.journey-home {
+  --year-1: #284acb; --year-2: #218173; --year-3: #d7972f; --year-4: #c85e43; --year-5: #7554af;
+  --cat-grades: #2f6672; --cat-credential: #417884; --cat-activity: #548893;
+  --cat-competition: #6b98a2; --cat-service: #22505a; --cat-leadership: #3a6e7a;
+  --paper: #f8f4ee; --paper-line: #d6ccbe; --paper-ink: #2b2622;
+}
+html[data-theme="dark"] .journey-home {
+  --year-1: #8aabff; --year-2: #71c9ae; --year-3: #efb75a; --year-4: #f19b7d; --year-5: #bd9af4;
+  --cat-grades: #8ab4bc; --cat-credential: #7ba7b0; --cat-activity: #6c99a3;
+  --cat-competition: #5e8b95; --cat-service: #9cc2c9; --cat-leadership: #78a3ac;
+}
+.journey-home .year-puzzle { --cat-grades: inherit; --cat-credential: inherit; --cat-activity: inherit;
+  --cat-competition: inherit; --cat-service: inherit; --cat-leadership: inherit; }
+/* 深色外觀時站點顏色比較淺，站裡的數字改用深字才看得清楚 */
+html[data-theme="dark"] .journey-home .stop-node__count { fill: #171411; }
+html[data-theme="dark"] .journey-home .route-list__dot { color: #171411; }
+.journey-home [data-stop="3"] .stop-node__count { fill: #171411; }
+.journey-home .route-list__stop:nth-child(3) .route-list__dot { color: #171411; }
+.journey-home [data-stop="4"] .stop-node__count { fill: #171411; }
+.journey-home .route-list__stop:nth-child(4) .route-list__dot { color: #171411; }
+
+/* 拼圖桌：暖色深桌面（原本是冷灰藍，和暖色頁面不搭） */
+.journey-home .ptable { background-color: #2e2924; border-color: #1f1b17; }
+.journey-home .year-puzzle.is-stage { background: var(--bg, #e7e0d5); }
+
+/* ---------- 第一屏：散落的紙（照設計示範 _design-demo/student-v2 的舊版：鋪滿一屏、大張、中間站一個小人） ---------- */
+.today { max-width: 80rem; }
+.desk { position: relative; isolation: isolate; height: clamp(30rem, calc(100svh - 12rem), 50rem); margin: 0 0 .9rem; overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--line));
+  border-radius: clamp(1rem, 2.6vw, 1.6rem); text-align: center;
+  background: color-mix(in srgb, var(--card) 48%, transparent);
+  backdrop-filter: blur(4px);
+  box-shadow: inset 0 0 20px color-mix(in srgb, var(--card) 62%, transparent), 0 16px 35px -28px var(--ink); }
+
+/* 中間的火柴人（和五年路線上的小人物同一個造型）：慢慢呼吸、手輕輕擺 */
+.desk__me { position: absolute; left: 50%; top: 46%; z-index: 0; width: clamp(3.6rem, 6vw, 5.2rem); transform: translate(-50%, -50%);
+  overflow: visible; animation: desk-breathe 4s ease-in-out infinite; pointer-events: none; }
+.desk__me .jwalker__body { fill: var(--ink); stroke: var(--ink); }
+.desk__me-arm { transform-box: fill-box; transform-origin: top center; animation: desk-wave 2.4s ease-in-out infinite alternate; }
+.desk__me-arm--r { animation-direction: alternate-reverse; }
+@keyframes desk-breathe { 50% { transform: translate(-50%, -52%); } }
+@keyframes desk-wave { from { transform: rotate(-8deg); } to { transform: rotate(8deg); } }
+
+.desk__center { position: absolute; left: 50%; bottom: .6rem; z-index: 0; transform: translateX(-50%); margin: 0; pointer-events: none;
+  color: var(--soft, var(--muted)); font-weight: 700; font-size: .9375rem; white-space: nowrap; }
+.desk__center b { font-size: 1.6rem; color: var(--accent); margin-right: .15em; }
+
+/* 紙：頁數越多越大張（--p 是 1～6 頁）；5 頁以上疊成厚厚一疊；有寫說明的右上角一個小圓點 */
+.dsheet { position: absolute; left: var(--x); top: var(--y); z-index: 1; width: clamp(50px, calc(5vw + var(--p, 1) * .75vw), 150px); aspect-ratio: 1 / 1.25;
+  padding: 0; background: var(--paper); border: 1px solid var(--paper-line); border-radius: 8px; cursor: grab;
+  box-shadow: 0 1px 0 rgb(43 38 34 / .05), 0 14px 24px -16px rgb(70 50 30 / .45);
+  transform: translate(-50%, -50%) rotate(calc(var(--r) + var(--tilt, 0deg)));
+  transition: transform .25s, box-shadow .25s, border-color .2s; touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.dsheet::before { content: ""; position: absolute; inset: 16% 14% 30%; background: repeating-linear-gradient(transparent 0 9px, rgb(43 38 34 / .13) 9px 10px); }
+.dsheet--note::after { content: ""; position: absolute; right: 10%; top: 8%; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); }
+.dsheet--thick { box-shadow: 0 14px 24px -16px rgb(70 50 30 / .45), 6px 7px 0 -1px var(--paper), 6px 7px 0 0 var(--paper-line); }
+html[data-theme="dark"] .dsheet--thick { box-shadow: 0 14px 24px -16px rgb(0 0 0 / .6), 6px 7px 0 -1px #e4ddd2, 6px 7px 0 0 #bfb4a5; }
+.dsheet__tag { position: absolute; left: 50%; bottom: -2.2em; transform: translateX(-50%); max-width: 14em; overflow: hidden; text-overflow: ellipsis;
+  padding: 3px 9px; border-radius: 99px; background: var(--paper); color: var(--paper-ink); border: 1px solid var(--paper-line);
+  font-size: .875rem; font-weight: 700; white-space: nowrap; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.dsheet:hover, .dsheet:focus-visible, .dsheet.is-dragging { z-index: 40; border-color: var(--accent); outline: none; }
+.dsheet:hover .dsheet__tag, .dsheet:focus-visible .dsheet__tag, .dsheet.is-dragging .dsheet__tag { opacity: 1; }
+.dsheet:focus-visible { box-shadow: 0 0 0 3px var(--accent); }
+.dsheet:hover:not(.is-dragging) { transform: translate(-50%, -56%) rotate(var(--r)) scale(1.06); }
+.dsheet.is-held { transition: transform .2s cubic-bezier(.3, 1.6, .4, 1); }
+.dsheet.is-dragging { cursor: grabbing; transition: none; transform: translate(-50%, -50%) rotate(calc(var(--r) + var(--tilt, 0deg))) scale(1.12);
+  box-shadow: 0 30px 40px -20px rgb(70 50 30 / .5); }
+/* 進場：從上面落下（只播一次） */
+.js .dsheet { animation: dsheet-drop .9s cubic-bezier(.2, .8, .25, 1) both; animation-delay: var(--d, 0s); }
+.js .dsheet.is-landed { animation: none; }
+@keyframes dsheet-drop { from { opacity: 0; transform: translate(-50%, -120%) rotate(calc(var(--r) * -2)) scale(1.15); } }
+
+/* 按下「變成拼圖」：紙往中間收、縮小消失 */
+.desk.is-gathering .dsheet { left: 50%; top: 50%; opacity: 0; transition: left .55s cubic-bezier(.5, 0, .3, 1), top .55s cubic-bezier(.5, 0, .3, 1), opacity .35s .3s, transform .55s;
+  transform: translate(-50%, -50%) rotate(0deg) scale(.35); pointer-events: none; }
+
+.desk__reset { position: absolute; right: .75rem; top: .75rem; z-index: 50; padding: .3rem .8rem; border: 1px solid var(--line, #d6ccbe); border-radius: 6px;
+  background: var(--card, #f8f4ee); color: var(--ink); font: inherit; font-size: .8125rem; font-weight: 700; cursor: pointer; }
+.desk__reset[hidden] { display: none; }
+.desk__more { margin: 0 0 .75rem; }
+.desk-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .6rem; margin: 0 0 1.1rem; }
+.desk-action-locked { position: relative; max-width: 100%; text-align: center; }
+.desk-action-locked .button[aria-disabled="true"] {
+  color: var(--muted); background: color-mix(in srgb, var(--card) 83%, var(--ink));
+  border-color: var(--line); box-shadow: none; cursor: not-allowed;
+}
+.desk-action-locked .button[aria-disabled="true"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.desk-action-tip {
+  position: absolute; z-index: 60; inset-block-start: calc(100% + .35rem); inset-inline: 0;
+  margin-inline: auto; width: max-content; max-width: 100%; padding: .35rem .65rem;
+  border-radius: .55rem; background: var(--ink); color: var(--card);
+  font-size: .8125rem; line-height: 1.35; visibility: hidden; pointer-events: none;
+  box-shadow: 0 5px 16px -6px var(--ink);
+}
+.desk-action-locked:not(.tip-dismissed):focus-within .desk-action-tip { visibility: visible; }
+@media (hover: hover) {
+  .desk-action-locked:not(.tip-dismissed):hover .desk-action-tip { visibility: visible; }
+}
+.today .maker-row { margin-bottom: 1.25rem; }
+
+/* 「今天先完成哪一步」縮成一條：只留最重要的一步，其餘的卡片收起來 */
+.today .guide { display: block; margin-bottom: .75rem; }
+.today .guide-card { min-height: 0; padding: .6rem 1rem; flex-direction: row; align-items: center; flex-wrap: wrap; gap: .5rem 1rem; box-shadow: none; border-width: 1px; }
+.today .guide-card:first-child .guide-card__text, .today .guide-card .guide-card__text { flex: 1 1 14rem; font-size: 1rem; }
+.today .guide-card:not(:first-child) { display: none; }
+.today__title { margin-bottom: .5rem; }
+
+/* ---------- 打開一張紙 ---------- */
+.sheet-doc { width: min(30rem, calc(100vw - 2rem)); padding: 0; border: 1px solid var(--paper-line); border-radius: 10px; background: var(--paper); color: var(--paper-ink);
+  box-shadow: 0 30px 60px -20px rgb(0 0 0 / .5); }
+.sheet-doc::backdrop { background: rgb(20 16 12 / .5); }
+.sheet-doc article { position: relative; padding: 1.5rem 1.5rem 1.25rem; text-align: left;
+  background: repeating-linear-gradient(transparent 0 1.9rem, rgb(43 38 34 / .08) 1.9rem calc(1.9rem + 1px)); }
+.sheet-doc__close { position: absolute; right: .5rem; top: .4rem; width: 2.25rem; height: 2.25rem; border: 0; background: none; color: inherit; font-size: 1.4rem; cursor: pointer; }
+.sheet-doc__meta { margin: 0 0 .3rem; font-size: .875rem; font-weight: 700; color: #574e45; }
+.sheet-doc h3 { margin: 0 0 .6rem; font-size: 1.3rem; line-height: 1.4; overflow-wrap: anywhere; color: var(--paper-ink); }  /* 紙永遠是淺色，深色外觀下標題也要用深字 */
+.sheet-doc__detail { margin: 0 0 1rem; line-height: 1.9; white-space: pre-line; overflow-wrap: anywhere; }
+.sheet-doc__detail:empty { display: none; }
+.js .sheet-doc[open] { animation: sheet-open .25s ease-out; }
+@keyframes sheet-open { from { opacity: 0; transform: translateY(12px) rotate(-1.5deg) scale(.96); } }
+
+/* ---------- 拼圖舞台：平常收起來，按按鈕才整頁攤開 ---------- */
+.year-puzzle.is-stowed { display: none; }
+.year-puzzle.is-stage { position: fixed; inset: 0; z-index: 900; display: grid; align-content: center; margin: 0; padding: 1rem;
+  background: var(--bg, #e7e0d5); overflow: hidden; animation: stage-in .3s ease-out; }
+.year-puzzle.is-stage .ptable { width: min(100%, 64rem, calc((100vh - 6rem) * 16 / 9)); }
+.year-puzzle.is-stage > :not(.ptable):not(.table-defs):not(.year-puzzle__title) { display: none; }
+@keyframes stage-in { from { opacity: 0; } }
+
+/* ---------- 底部五年路線 ---------- */
+.route-map__heading { margin: 0 0 .5rem; font-family: var(--font-serif); font-size: clamp(1.4rem, 3vw, 2.1rem); line-height: 1.3; }
+.route-map__heading small { display: block; margin-top: .3rem; font-family: var(--font-sans); font-size: .9375rem; font-weight: 700; color: var(--soft, var(--muted)); }
+.journey-home .route-map {
+  margin-top: 2.5rem; margin-bottom: 1rem; padding: clamp(.6rem, 2vw, 1.25rem);
+  border: 1px solid var(--line); border-radius: 1.35rem;
+  background: color-mix(in srgb, var(--card) 76%, transparent);
+}
+.route-legend {
+  list-style: none; display: flex; flex-wrap: wrap; justify-content: center; gap: .4rem 1rem;
+  padding: 0; margin: .85rem 0 0; color: var(--muted); font-size: .8125rem;
+}
+.route-legend li { display: flex; align-items: center; gap: .35rem; }
+.route-legend span { display: block; inline-size: .95rem; }
+.route-legend__past { border-block-start: 3px solid var(--accent); }
+.route-legend__future { border-block-start: 2px dashed var(--muted); }
+.route-legend span.route-legend__now { inline-size: .65rem; block-size: .65rem; border: 2px solid var(--accent); border-radius: 50%; }
+/* 不規則的路＋插在路上的學校規劃：板子和 SVG 同比例（1000 × --route-h），規劃小卡用百分比對準每一站 */
+/* 上下留空間：窄一點的螢幕小卡會比較高，伸出板子外也不會蓋到標題和出處那一行 */
+.route-board { position: relative; max-width: 64rem; margin: 3.3rem auto 5.9rem; aspect-ratio: 1000 / var(--route-h, 390); }
+.route-board .route-map__svg { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; }
+.journey-home .route-map__ghost { stroke: var(--muted); opacity: .42; stroke-dasharray: .85 1.25; stroke-width: 4; }
+.journey-home .route-map__walked { stroke-width: 8; }
+.journey-home .stop-node--future .stop-node__dot,
+.journey-home .stop-node--future .stop-node__label { opacity: .85; }
+/* 站名壓在彎曲的路上時看不清楚：字外圍描一圈底色 */
+.journey-home .stop-node__label { paint-order: stroke; stroke: var(--bg, #e7e0d5); stroke-width: 7px; stroke-linejoin: round; }
+.route-note { position: absolute; z-index: 2; width: 18.6%; transform: translateX(-50%); padding: .45rem .6rem .5rem; box-sizing: border-box;
+  background: var(--card, #f8f4ee); color: var(--ink); border: 1px solid var(--line, #d6ccbe); border-top: 4px solid var(--year, var(--accent)); border-radius: 8px;
+  box-shadow: var(--shadow, 0 12px 28px -20px rgb(70 50 30 / .4)); text-align: left; text-decoration: none; font-size: .8125rem; line-height: 1.45;
+  transition: transform .2s; animation: note-in .5s ease-out both; }
+.route-note:nth-of-type(2) { animation-delay: .15s; } .route-note:nth-of-type(3) { animation-delay: .3s; }
+.route-note:nth-of-type(4) { animation-delay: .45s; } .route-note:nth-of-type(5) { animation-delay: .6s; }
+.route-note:hover, .route-note:focus-visible { transform: translateX(-50%) translateY(-3px); }
+.route-note b { display: block; font-size: .875rem; color: var(--accent); }
+.route-note span { display: block; font-weight: 700; }
+.route-note--now { border-color: var(--year); box-shadow: 0 0 0 2px color-mix(in srgb, var(--year) 27%, transparent); }
+.route-note--future { border-top-style: dashed; }
+@keyframes note-in { from { opacity: 0; translate: 0 8px; } }
+.route-list__plan { grid-column: 2 / -1; margin-top: -.35rem; font-size: .875rem; color: var(--soft, var(--muted)); }
+@media (max-width: 720px) { .route-board { display: none; } }
+/* 跳頁統一走全站導覽，五年路線只保留年級節點，不再重複四個功能捷徑。 */
+.journey-home .place-grid,
+.journey-home .route-map__svg .place { display: none; }
+
+
+/* ---------- 實習履歷頁 ---------- */
+.resume-page { max-width: 54rem; }
+.resume-lead { display: flex; gap: 1.25rem; align-items: flex-start; margin-bottom: 1.25rem; }
+.resume-lead h2 { margin: 0 0 .4rem; font-size: 1.4rem; line-height: 1.4; }
+.resume-lead p { margin: 0 0 .4rem; }
+.resume-lead__piece { flex: 0 0 5rem; width: 5rem; fill: var(--accent); stroke: var(--ink); stroke-width: 3; animation: piece-click .6s cubic-bezier(.3, 1.6, .4, 1) both; }
+@keyframes piece-click { from { transform: rotate(-40deg) scale(.4); opacity: 0; } }
+.resume-block { margin-bottom: 1.25rem; }
+.resume-block > h2 { margin: 0 0 .6rem; font-size: 1.15rem; }
+.resume-basic { display: flex; flex-wrap: wrap; gap: .5rem 2rem; margin: 0; }
+.resume-basic dt { font-size: .8125rem; font-weight: 700; color: var(--soft, var(--muted)); }
+.resume-basic dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.resume-picks { list-style: none; margin: .5rem 0 0; padding: 0; display: grid; gap: .4rem; }
+.resume-pick { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .4rem 1rem; padding: .5rem .75rem;
+  border: 1px solid var(--line, #d6ccbe); border-left: 4px solid var(--accent); border-radius: 6px; background: var(--card, #f8f4ee);
+  transition: opacity .2s, border-color .2s, transform .2s; }
+.resume-pick__main { display: flex; align-items: center; gap: .6rem; flex: 1 1 14rem; min-width: 0; cursor: pointer; font-weight: 700; }
+.resume-pick__main input { flex: 0 0 auto; width: 1.2rem; height: 1.2rem; accent-color: var(--accent); }
+.resume-pick__main span { min-width: 0; overflow-wrap: anywhere; }
+.resume-pick__main small { display: block; font-weight: 400; font-size: .8125rem; color: var(--soft, var(--muted)); }
+.resume-pick__col select { max-width: 100%; }
+.resume-pick.is-out { opacity: .55; border-left-color: var(--line, #d6ccbe); transform: translateX(6px); }
+.resume-pick.is-out .resume-pick__main span { text-decoration: line-through; }
+.resume-section { margin-top: 1.1rem; }
+.resume-section__title { display: block; margin-bottom: .3rem; font-weight: 700; }
+.resume-section textarea { width: 100%; box-sizing: border-box; padding: .6rem .75rem; border: 1px solid var(--line, #d6ccbe); border-radius: 6px;
+  background: var(--card, #f8f4ee); color: var(--ink); font: inherit; line-height: 1.7; resize: vertical; }
+.resume-section__preview { margin-top: .4rem; font-size: .875rem; color: var(--soft, var(--muted)); white-space: pre-line; }
+.resume-section__preview:empty { display: none; }
+.resume-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; margin-bottom: 2rem; }
+.resume-actions p { flex: 1 1 100%; margin: 0; }
+
+/* ---------- 手機 ---------- */
+@media (max-width: 720px) {
+  /* 手機：紙鋪成 4 欄、中間四格空給小人（照設計示範）；只鋪 20 張 */
+  .desk { height: clamp(32rem, calc(100svh - 9rem), 44rem); }
+  .desk__me { top: 33%; width: 3.6rem; }
+  .dsheet { left: var(--mx); top: var(--my); width: clamp(48px, calc(11vw + var(--p, 1) * 1.2vw), 78px); }
+  .dsheet--wide-only { display: none; }
+  .desk__center { font-size: .875rem; white-space: normal; width: 90%; }
+  .year-puzzle.is-stage .ptable { width: min(100%, calc((100vh - 6rem) * 3 / 4)); }
+  .desk-actions .button { width: 100%; text-align: center; }
+  .resume-lead__piece { flex-basis: 3.2rem; width: 3.2rem; }
+}
+
+/* ---------- 減少動態效果：全部停住 ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .desk__me, .desk__me-arm, .route-note { animation: none; }
+  .route-note { transition: none; }
+  .js .dsheet, .js .sheet-doc[open], .year-puzzle.is-stage, .resume-lead__piece { animation: none; }
+  .dsheet, .resume-pick, .desk.is-gathering .dsheet { transition: none; }
+}
+
+/* 中窄視窗的產出按鈕並排，避免和底部導覽形成多排相似按鈕。 */
+@media (min-width: 480px) and (max-width: 720px) {
+  .desk-actions .button { width: auto; flex: 1 1 0; }
+}
+
+/* 實習履歷頁：核心科目依成績分三組 */
+.resume-sub { margin: 1rem 0 .3rem; font-size: 1rem; }
+.resume-courses { list-style: none; margin: .4rem 0 0; padding: 0; display: grid; gap: .35rem; }
+.resume-courses li { padding: .4rem .7rem; border-left: 4px solid var(--line, #d6ccbe); background: var(--card, #f8f4ee); border-radius: 4px; }
+.resume-courses b { display: block; font-size: .9375rem; }
+.resume-courses span { display: block; font-size: .875rem; color: var(--soft, var(--muted)); overflow-wrap: anywhere; }
+.resume-courses__pass { border-left-color: var(--accent) !important; }
+.resume-courses__fail { border-left-color: var(--warn, #8a4e10) !important; }
+
+.route-note-stem { stroke: var(--year, var(--accent)); stroke-width: 2; stroke-dasharray: 3 3; }
+.year-guide { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: .7rem; margin-bottom: 1rem; }
+.year-guide__card { padding: .8rem; border: 1px solid var(--line); border-top: 3px solid var(--year, var(--accent)); border-radius: 12px; background: var(--card); }
+.year-guide__card h3 { font-size: 1rem; margin: 0 0 .4rem; }
+.year-guide__card p { margin: .35rem 0; }
+.year-guide__card summary { cursor: pointer; color: var(--accent); }
+.year-guide__source { display: block; width: fit-content; margin-top: .35rem; overflow-wrap: anywhere; }
+.folder-panel .paper-item a { display: block; width: fit-content; margin-top: .25rem; }
+
+.journey-home .route-list__stop--future { opacity: 1; }
+.journey-home .route-list__stop a { column-gap: .55rem; }
+
+/* Tabs and their folder panels share a grade color in both themes. */
+.journey-home .folders-drawer { scroll-margin-top: 6rem; }
+.journey-home .folder-tab {
+  background: color-mix(in srgb, var(--year) 19%, var(--card));
+  border-color: color-mix(in srgb, var(--year) 65%, var(--line));
+  color: var(--ink);
+}
+.journey-home .folder-tab::before { background: var(--year); }
+.journey-home .folder-tab[aria-selected="true"] {
+  background: color-mix(in srgb, var(--year) 31%, var(--card));
+}
+.journey-home .folder-panel {
+  background: color-mix(in srgb, var(--year) 9%, var(--card));
+  border-color: color-mix(in srgb, var(--year) 65%, var(--line));
+  box-shadow: 5px 5px 0 color-mix(in srgb, var(--year) 65%, var(--line));
+}
+.journey-home .year-guide__card {
+  border-top-color: var(--year);
+  background: color-mix(in srgb, var(--year) 13%, var(--card));
+}
+.journey-home .year-guide__card + .year-guide__card {
+  background: color-mix(in srgb, var(--accent) 9%, var(--card));
+}
+
+@media (max-width: 479px) {
+  .desk-action-locked { width: 100%; }
+}

@@ -26,6 +26,8 @@ ACTION_LABELS = {
     "ai.settings": "調整 AI 設定",
     "student.welcome_done": "看完歡迎頁",
     "portfolio.confirm": "確認經歷",
+    "attendance.import": "匯入缺曠合計",
+    "attendance.view": "班導查看缺曠合計",
     "certificate.issue": "科辦開立電子獎狀",
     "certificate.approve": "主任或副主任核准電子獎狀",
     "certificate.edit": "科辦修改待核准獎狀內文",
