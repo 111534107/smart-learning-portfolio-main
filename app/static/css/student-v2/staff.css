@@ -89,3 +89,47 @@ html[data-theme="dark"] .admin-nav-group__links a { color:#f5eee5; }
 
 .class-filter { display:flex; align-items:center; flex-wrap:wrap; gap:.55rem; margin:0 0 .75rem; }
 .class-filter select { max-width:100%; padding:.45rem .6rem; color:var(--ink); background:var(--card); border:1px solid var(--line); border-radius:8px; font:inherit; }
+
+/* ===== 管理員版面（2026-11-18 使用者要求）：左側固定側邊欄＋右側工作區，不用浮動膠囊頂端列 =====
+   只在桌機寬度生效；窄螢幕沿用上面的「選單」按鈕與頂端列。 */
+@media (min-width: 961px) {
+  html[data-staff-ui="admin"] body { background: var(--surface); }
+  html[data-staff-ui="admin"] main#main-content { margin-left: 15.5rem; max-width: none; }
+  html[data-staff-ui="admin"] .masthead--admin {
+    position: fixed; inset: 0 auto 0 0; width: 15.5rem; padding: 0; z-index: 40;
+  }
+  html[data-staff-ui="admin"][data-ui="student-v2"] .masthead--admin .masthead__inner {
+    flex-direction: column; align-items: stretch; flex-wrap: nowrap; justify-content: flex-start;
+    width: 100%; height: 100%; max-width: none; margin: 0; padding: .75rem .6rem;
+    border-radius: 0; border-width: 0 1px 0 0; border-style: solid; border-color: var(--line);
+    background: var(--card); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
+    overflow-y: auto; gap: .5rem;
+  }
+  html[data-staff-ui="admin"] .masthead--admin .brand { padding: .25rem .5rem .75rem; border-bottom: 1px solid var(--line); margin-bottom: .25rem; }
+  html[data-staff-ui="admin"] .masthead--admin .snav-toggle { display: none !important; }
+  html[data-staff-ui="admin"] .masthead--admin .mainnav {
+    display: flex !important; flex-direction: column; align-items: stretch; gap: .15rem; flex: 1 1 auto; margin: 0;
+  }
+  html[data-staff-ui="admin"] .masthead--admin .admin-nav-groups { flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: .6rem; margin-top: .4rem; }
+  html[data-staff-ui="admin"] .masthead--admin .admin-nav-group { display: block; position: static; }
+  html[data-staff-ui="admin"] .masthead--admin .admin-nav-group__title {
+    margin: 0 0 .25rem; padding: 0 .75rem; font-size: .75rem; font-weight: 700; letter-spacing: .06em; color: var(--muted, #6b625a);
+  }
+  html[data-staff-ui="admin"] .masthead--admin .admin-nav-group__links {
+    position: static; display: flex; flex-direction: column; min-width: 0; padding: 0; border: 0; box-shadow: none; background: transparent;
+  }
+  html[data-ui="student-v2"] .masthead--admin .mainnav a {
+    display: block; width: 100%; padding: .32rem .75rem; border-radius: 6px; border-left: 3px solid transparent;
+    background: transparent; color: var(--ink); font-size: .9rem; white-space: nowrap;
+  }
+  html[data-ui="student-v2"] .masthead--admin .mainnav a:hover { background: var(--accent-soft); }
+  html[data-ui="student-v2"] .masthead--admin .mainnav a[aria-current] {
+    background: var(--accent-soft); color: var(--accent); font-weight: 700; border-left-color: var(--accent);
+  }
+  html[data-staff-ui="admin"] .masthead--admin .admin-nav-home { font-weight: 700; }
+  /* 帳號區放在側邊欄最下面，選單往上展開 */
+  html[data-staff-ui="admin"] .masthead--admin .masthead__tools { margin: auto 0 0; padding-top: .75rem; border-top: 1px solid var(--line); }
+  html[data-staff-ui="admin"] .masthead--admin .account-menu { width: 100%; position: relative; }
+  html[data-staff-ui="admin"] .masthead--admin .account-menu__button { width: 100%; justify-content: flex-start; gap: .5rem; }
+  html[data-staff-ui="admin"] .masthead--admin .account-menu__panel { top: auto; bottom: 100%; left: 0; right: auto; width: 100%; margin-bottom: .4rem; }
+}

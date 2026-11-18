@@ -28,13 +28,14 @@
     <nav class="mainnav" id="app-mainnav" aria-label="主要導覽">
       {% if user.role == "admin" %}
       {% set admin_links = links["admin"] %}
-      <a href="{{ admin_links[0][1] }}"{% if active == admin_links[0][0] %} aria-current="page"{% endif %}>系統總覽</a>
+      {# 管理員（2026-11-18 使用者要求）：左側固定側邊欄，分類清單全部展開，不用點開下拉；窄螢幕仍收成「選單」 #}
+      <a class="admin-nav-home" href="{{ admin_links[0][1] }}"{% if active == admin_links[0][0] %} aria-current="page"{% endif %}>系統總覽</a>
       <div class="admin-nav-groups" role="group" aria-label="管理功能分類">
         {% for group_name, indices in [("帳號與角色", [1, 11, 7]), ("課程與招生", [3, 12, 13, 4, 5, 15, 6]), ("系統設定", [8, 14, 9, 10])] %}
-        <details class="admin-nav-group">
-          <summary>{{ group_name }}</summary>
+        <section class="admin-nav-group">
+          <h2 class="admin-nav-group__title">{{ group_name }}</h2>
           <div class="admin-nav-group__links">{% for index in indices %}{% set label, href = admin_links[index] %}<a href="{{ href }}"{% if label == active %} aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}</div>
-        </details>
+        </section>
         {% endfor %}
       </div>
       {% else %}
