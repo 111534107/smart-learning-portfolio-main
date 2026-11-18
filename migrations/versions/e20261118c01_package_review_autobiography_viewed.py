@@ -3,14 +3,14 @@
 只存是／否，不存自傳內容。可為空的布林欄位，SQLite 與 MySQL 都能直接新增；舊資料維持空值。
 
 Revision ID: e20261118c01
-Revises: d20261118m01
+Revises: a20261118a02
 """
 
 from alembic import op
 import sqlalchemy as sa
 
 revision = "e20261118c01"
-down_revision = "d20261118m01"
+down_revision = "a20261118a02"
 branch_labels = None
 depends_on = None
 
