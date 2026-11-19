@@ -22,6 +22,7 @@ from app.services.gap_service import ALL_LABELS, analyze_gap
 from app.services.journey_service import CATEGORY_KEYS, CATEGORY_LABELS, build_journey
 from app.services.package_service import latest_review
 from app.services import audit_service, autobiography_service, review_snapshot_service
+from app.services import internship_resume as resume
 from app.services import autobiography_comment_service as comment_service
 from app.services import transfer_plan as transfer_plan_service
 from app.services.autobiography_service import latest_draft, version_of
@@ -43,7 +44,20 @@ def student_summary(student_id):
     student = db.session.get(User, student_id)
     if not student or not can_view_student(teacher, student):
         abort(403)
-    return render_template("teacher_class_summary.html", user=teacher, result=summarize([student]), selected="學生資料摘要（僅本機統計）")
+    return render_template("teacher_class_summary.html", user=teacher, result=summarize([student]),
+                           summary_label="學生資料摘要（僅本機統計）")
+
+
+@teacher_bp.get("/teacher/students/<int:student_id>/internship-resume")
+@role_required("teacher")
+def internship_resume(student_id):
+    teacher = get_current_user()
+    student = _student_or_403(teacher, student_id)
+    saved = resume.latest_saved(student)
+    contents = saved.content_json if saved else None
+    return render_template("teacher_internship_resume.html", user=teacher, student=student, saved=saved,
+                           contents=contents, blocks=resume.autobiography_blocks(contents["choices"]) if saved else [],
+                           columns=dict(resume.COLUMNS))
 
 
 @teacher_bp.get("/teacher/students/<int:student_id>")

@@ -18,7 +18,7 @@ from docx.shared import Cm, Pt, RGBColor
 
 from app.models import (CourseRule, CredentialRecord, CurriculumCourse, CurriculumVersion, LearningCourseRecord,
                         PackageReview, Portfolio)
-from app.services import package_exclusion, storage_service
+from app.services import package_exclusion, package_export, storage_service
 from app.services.autobiography_service import CONFIRMED_PORTFOLIO_STATUSES, latest_draft
 from app.services.file_preview import preview_kind
 from app.services.gap_service import analyze_gap, chapter_order
@@ -341,7 +341,7 @@ def _credential_body(document, student, required=None):
         _note(document, f"另有 {pending} 張證照尚未確認，未放入本文件。")
 
 
-def _chapter_body(document, student, chapter, program):
+def _chapter_body(document, student, chapter, program, draft):
     codes = chapter["keys"]
     required = package_exclusion.required_keys(program)  # 學生選擇不放的資料不印；簡章必備的類別除外
     if chapter["code"] == "02":
@@ -367,7 +367,6 @@ def _chapter_body(document, student, chapter, program):
         return
     if chapter["code"] == "04":
         # 自傳：有學生儲存過的「自傳小幫手」版本就放進來，沒有就留撰寫提示
-        draft = latest_draft(student, program)
         if draft:
             for paragraph in draft.content_json.get("paragraphs", []):
                 if paragraph.get("heading"):
@@ -388,7 +387,7 @@ def _chapter_body(document, student, chapter, program):
 
 # ---------- 封面、目錄、頁首頁尾 ----------
 
-def _cover(document, student, program, review, confirmed):
+def _cover(document, student, program, review_status, confirmed):
     profile = student.student_profile
     for _ in range(3):
         document.add_paragraph()
@@ -415,7 +414,7 @@ def _cover(document, student, program, review, confirmed):
         _font(cells[0].paragraphs[0].add_run(f"{label}："), size=16, bold=True)
         _font(cells[1].paragraphs[0].add_run(value), size=16)
     document.add_paragraph()
-    status = REVIEW_TEXT.get(review.status, "尚未送導師確認") if review else "尚未送導師確認"
+    status = REVIEW_TEXT.get(review_status, "尚未送導師確認")
     _centered(document, f"導師確認：{status}", 12)
     if not confirmed:
         _centered(document, UNCONFIRMED_NOTE, 11, bold=True, color=RED)
@@ -446,9 +445,23 @@ def _header_footer(section, confirmed):
         _font(header.add_run(UNCONFIRMED_HEADER), size=10, bold=True, color=RED)
 
 
-def build_package_docx(student, program):
-    review = latest_review(student, program)
-    confirmed = bool(review and review.status == "confirmed")
+def draft_review_status(review):
+    if review and review.status != "confirmed":
+        return review.status
+    return None
+
+
+def build_package_docx(student, program, *, review=None, draft_only=False):
+    if review is None:
+        review = latest_review(student, program)
+    export = package_export.confirmed_export(review)
+    if export and not draft_only:
+        return package_export.read(student.id, export, word=True)
+    return render_package_docx(student, program, latest_draft(student, program), draft_review_status(review))
+
+
+def render_package_docx(student, program, draft, review_status):
+    confirmed = review_status == "confirmed"
     gap = analyze_gap(student, program)
     # 01 封面與目錄就是下面的封面頁與目錄頁；其餘章節依校系加權排序
     chapters = [chapter for chapter in chapter_order(program) if chapter["code"] != "01"]
@@ -463,7 +476,7 @@ def build_package_docx(student, program):
     section.different_first_page_header_footer = True  # 封面不印頁碼與頁首
     _header_footer(section, confirmed)
 
-    _cover(document, student, program, review, confirmed)
+    _cover(document, student, program, review_status, confirmed)
     _page_break(document)
     _toc(document, chapters)
 
@@ -489,7 +502,7 @@ def build_package_docx(student, program):
         _bookmark(heading, f"_Toc_ch{position:02d}", position)
         if not confirmed:
             _note(document, "（本章內容尚未經導師確認）")
-        _chapter_body(document, student, chapter, program)
+        _chapter_body(document, student, chapter, program, draft)
 
     document.add_paragraph("本文件內容皆為學生確認之資料；正式規定以當年度招生簡章與各校系分則為準。")
     stream = BytesIO()

@@ -19,12 +19,14 @@ from pathlib import Path
 from docx import Document
 from docx.enum.table import WD_ROW_HEIGHT_RULE
 
+from app.extensions import db
 from app.models import CredentialRecord, LearningCourseRecord, LearningProfileOutput, Portfolio
 from app.services.eligibility_service import normalize_course_name
 from app.services.journey_service import EXPERIENCE_CATEGORIES, GRADE_LABELS
 
 TEMPLATE = Path(__file__).resolve().parent.parent / "content" / "internship_resume_template.docx"
 OPEN_FROM_GRADE = 4
+OUTPUT_TYPE = "internship_resume"
 
 # 學校格式「相關證照」的四欄
 COLUMNS = [("labor", "勞動部"), ("international", "國際證照"), ("domestic", "國內證照"), ("other", "其他證照")]
@@ -184,6 +186,17 @@ def autobiography_blocks(choices):
             lines = [f"證照：{item['name']}" for item in choices["credentials"]] + lines
         blocks.append((title, choices["texts"].get(key, ""), lines))
     return blocks
+
+
+def latest_saved(student):
+    return (LearningProfileOutput.query.filter_by(student_id=student.id, output_type=OUTPUT_TYPE)
+            .order_by(LearningProfileOutput.id.desc()).first())
+
+
+def save_snapshot(student, options, choices):
+    contents = {key: options[key] for key in ("name", "student_no", "email", "courses")}
+    db.session.add(LearningProfileOutput(student_id=student.id, output_type=OUTPUT_TYPE,
+                                         content_json={**contents, "choices": choices}, source_snapshot_json={}))
 
 
 def _unique_cells(row):

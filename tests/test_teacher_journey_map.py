@@ -1,5 +1,6 @@
 from datetime import date
 import re
+from urllib.parse import parse_qs, urlsplit
 
 from app import create_app
 from app.extensions import db
@@ -194,7 +195,13 @@ def test_teacher_summary_rejects_class_outside_teacher_scope():
     assert client.post("/teacher/class-summary", data={"class_name": "不是負責的班"}).status_code == 403
     response = client.post("/teacher/class-summary", data={"class_name": "資管科三甲"})
     assert response.status_code == 200
-    assert "人數較少" in response.get_data(as_text=True)
+    html = response.get_data(as_text=True)
+    assert "人數較少" in html
+    selected_link = re.search(r'href="([^"]+)">回工作台</a>', html).group(1)
+    assert parse_qs(urlsplit(selected_link).query) == {"class_name": ["資管科三甲"]}
+    all_classes = client.post("/teacher/class-summary", data={"class_name": ""})
+    assert all_classes.status_code == 200
+    assert 'href="/teacher/dashboard">回工作台</a>' in all_classes.get_data(as_text=True)
 
 def test_teacher_student_summary_only_for_own_student():
     app, student_id = teacher_journey_app()
@@ -212,3 +219,5 @@ def test_teacher_student_summary_only_for_own_student():
     response = client.post(f"/teacher/students/{student_id}/summary")
     assert response.status_code == 200
     assert "本機統計" in response.get_data(as_text=True)
+    assert 'href="/teacher/dashboard"' in response.get_data(as_text=True)
+    assert 'href="/teacher/dashboard?class_name=' not in response.get_data(as_text=True)

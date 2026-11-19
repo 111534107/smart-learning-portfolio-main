@@ -52,6 +52,8 @@ from app.services import graduation_check_service
 from app.services.gap_checklist import download_checklist, review_timeline
 from app.services.journey_service import CATEGORY_LABELS, EXPERIENCE_CATEGORIES, build_journey
 from app.services.package_service import build_package_docx, latest_review
+from app.services import package_export
+from app.services import internship_resume as resume
 from app.services.file_preview import inline_file
 from app.services.record_status import learning_profile_state, portfolio_state
 from app.services import autobiography_comment_service
@@ -315,7 +317,6 @@ def journey_docx():
 @role_required("student")
 def internship_resume():
     """專四上學期起：把已確認的資料填進學校規定的實習履歷格式（學生逐項勾選後下載 Word）。"""
-    from app.services import internship_resume as resume
     from app.content.five_year_plan import INTERNSHIP_SOURCE, RESUME_FORM_SOURCE
     from app.services.journey_home import SAMPLE_PIECE
     from app.services.journey_service import build_journey, current_grade
@@ -327,13 +328,21 @@ def internship_resume():
     options = resume.build_options(user, build_journey(user))
     if request.method == "POST":
         choices = resume.read_choices(request.form, options)
+        if request.form.get("action") == "save":
+            resume.save_snapshot(user, options, choices)
+            audit_service.record(user, "student.internship_resume_save", "user", user.id, commit=True)
+            return redirect(url_for("student.internship_resume", saved=1))
+        document = resume.build_docx(options, choices)
+        resume.save_snapshot(user, options, choices)
         audit_service.record(user, "student.internship_resume_docx", "user", user.id, commit=True)
         return send_file(
-            resume.build_docx(options, choices), as_attachment=True,
+            document, as_attachment=True,
             download_name=f"實習履歷-{user.display_name}.docx",
             mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         )
-    return render_template("student_internship_resume.html", user=user, locked=False, options=options,
+    snapshot = resume.latest_saved(user)
+    choices = snapshot.content_json["choices"] if snapshot else None
+    return render_template("student_internship_resume.html", user=user, locked=False, options=options, choices=choices,
                            piece_d=SAMPLE_PIECE, form_source=RESUME_FORM_SOURCE,
                            fill_source=INTERNSHIP_SOURCE)
 
@@ -342,7 +351,7 @@ def internship_resume():
 @role_required("student")
 def learning_profile_output_docx(output_id):
     output = db.session.get(LearningProfileOutput, output_id)
-    if not output:
+    if not output or output.output_type == resume.OUTPUT_TYPE:
         abort(404)
     user = get_current_user()
     if output.student_id != user.id:
@@ -1680,6 +1689,7 @@ def target_gap(program_id):
         review_timeline=review_timeline(user, program),
         autobiography=autobiography,
         download_checklist=download_checklist(user, program, gap, review, autobiography),
+        formal_review=package_export.latest_confirmed_export_review(user, program),
         mail_recipients=_package_recipients(user),
         mail_ready=_package_mail_ready(),
         labels=ALL_LABELS,
@@ -1694,7 +1704,12 @@ def target_request_review(program_id):
     reason = student_rules.review_block_reason(user)
     if reason:
         return _blocked(user, reason)
-    review_snapshot_service.request_review(user, program)
+    try:
+        review_snapshot_service.request_review(user, program)
+    except package_export.ExportUnavailable as error:
+        return _blocked(user, str(error))[0], 503
+    except review_snapshot_service.ReviewChanged:
+        return _blocked(user, "送審狀態剛更新，請回備審頁確認後再送一次。")[0], 409
     return redirect(url_for("student.target_gap", program_id=program.id, sent=1,
                             no_teacher=1 if not review_snapshot_service.review_teachers(user) else None))
 
@@ -1717,8 +1732,15 @@ def package_review_result(review_id):
 def target_package(program_id):
     user = get_current_user()
     program = _selected_target_or_404(user, program_id)
+    try:
+        review, export = _package_edition(user, program, request.args.get("draft") == "1")
+        data = build_package_docx(user, program, review=review, draft_only=not export)
+    except PackageEditionChanged as error:
+        return _blocked(user, str(error))[0], 409
+    except package_export.ExportUnavailable as error:
+        return _blocked(user, str(error))[0], 503
     return send_file(
-        build_package_docx(user, program),
+        data,
         as_attachment=True,
         download_name=f"備審資料-{program.school_name}-{program.department_name}.docx",
         mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -1740,6 +1762,24 @@ PACKAGE_MAIL_DAILY_LIMIT = 5  # 每位學生每天最多寄幾次備審打包
 PACKAGE_MAIL_SUBJECT = "【資管科學習歷程】你的備審資料打包"
 
 
+class PackageEditionChanged(ValueError):
+    pass
+
+
+def _package_edition(user, program, draft_only):
+    if "review_id" not in request.args:
+        review = latest_review(user, program)
+        return review, None if draft_only else package_export.confirmed_export(review)
+
+    review = PackageReview.query.filter_by(
+        id=request.args.get("review_id", type=int), student_id=user.id, rule_version_id=program.id,
+    ).first_or_404()
+    export = package_export.confirmed_export(review)
+    if not export or export["key"] != request.args.get("edition") or draft_only:
+        raise PackageEditionChanged("這個連結的送審版本已無法下載，請回備審頁查看目前的版本。")
+    return review, export
+
+
 @student_bp.get("/student/targets/<int:program_id>/package.zip")
 @role_required("student")
 def target_package_zip(program_id):
@@ -1747,10 +1787,17 @@ def target_package_zip(program_id):
     from app.services import package_zip
     user = get_current_user()
     program = _selected_target_or_404(user, program_id)
-    data, manifest = package_zip.build_zip(user, program)
+    try:
+        review, export = _package_edition(user, program, request.args.get("draft") == "1")
+        data, manifest = package_zip.build_zip(user, program, review=review, draft_only=not export)
+    except PackageEditionChanged as error:
+        return _blocked(user, str(error))[0], 409
+    except package_export.ExportUnavailable as error:
+        return _blocked(user, str(error))[0], 503
     audit_service.record(user, "package.zip_download", "admission_program", program.id,
                          detail={"files": len(manifest["included"]), "skipped": len(manifest["skipped"])}, commit=True)
-    return send_file(data, as_attachment=True, download_name=package_zip.download_name(program),
+    filename = export["filename"] if export else package_zip.download_name(program)
+    return send_file(data, as_attachment=True, download_name=filename,
                      mimetype="application/zip")
 
 
@@ -1769,17 +1816,26 @@ def target_package_send(program_id):
                                        AuditLog.created_at >= day_start).count()
     if sent_today >= PACKAGE_MAIL_DAILY_LIMIT:
         return _blocked(user, f"今天已經寄了 {PACKAGE_MAIL_DAILY_LIMIT} 次備審打包，請明天再寄，或直接用「打包下載」。")[0], 429
-    data, manifest = package_zip.build_zip(user, program)
+    try:
+        review, export = _package_edition(user, program, request.form.get("draft") == "1")
+        data, manifest = package_zip.build_zip(user, program, review=review, draft_only=not export)
+    except PackageEditionChanged as error:
+        return _blocked(user, str(error))[0], 409
+    except package_export.ExportUnavailable as error:
+        return _blocked(user, str(error))[0], 503
     payload = data.getvalue()
     label = f"{program.school_name} {program.department_name}"
     limit = float(current_app.config.get("MAIL_MAX_ATTACHMENT_MB", 15)) * 1024 * 1024
-    intro = f"{user.display_name} 您好：\n\n這是你在資管科智慧學習歷程系統要求寄出的備審資料打包（{label}）。\n"
+    edition = "導師已確認的送審版" if export else "目前草稿，尚未經導師確認"
+    intro = f"{user.display_name} 您好：\n\n這是你在資管科智慧學習歷程系統要求寄出的備審資料打包（{label}）。\n版本：{edition}。\n"
     outro = "\n如果不是你本人要求的，請登入系統修改密碼並通知導師。這封信由系統自動寄出，請勿直接回覆。\n"
     if len(payload) <= limit:
         body = intro + "壓縮檔在附件，裡面的「清單.txt」列出放了哪些檔案。\n" + outro
-        attachments = [(package_zip.download_name(program), payload, "application/zip")]
+        filename = export["filename"] if export else package_zip.download_name(program)
+        attachments = [(filename, payload, "application/zip")]
     else:
-        link = f"{email_notify.site_url()}{url_for('student.target_package_zip', program_id=program.id)}"
+        version = {"review_id": review.id, "edition": export["key"]} if export else {"draft": 1}
+        link = email_notify.site_url() + url_for("student.target_package_zip", program_id=program.id, **version)
         body = intro + f"檔案太大，沒辦法放在信裡。請登入系統後用這個連結下載：\n{link}\n" + outro
         attachments = []
     status = email_notify.deliver(recipient["address"], PACKAGE_MAIL_SUBJECT, body, attachments, user_id=user.id)

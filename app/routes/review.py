@@ -3,7 +3,7 @@ from flask import Blueprint, abort, redirect, render_template, request, url_for
 from app.extensions import db
 from app.models import PortfolioSubmission, SubmissionAssignment, TeacherReviewFeedback
 from app.routes.main import get_current_user, role_required
-from app.services.review_service import record_teacher_feedback
+from app.services.review_service import can_teacher_review, record_teacher_feedback
 
 
 review_bp = Blueprint("review", __name__)
@@ -32,6 +32,7 @@ def teacher_reviews():
         .order_by(SubmissionAssignment.assigned_at.desc())
         .all()
     )
+    assignments = [item for item in assignments if can_teacher_review(item.submission, user)]
     return render_template(
         "review_queue.html",
         user=user,

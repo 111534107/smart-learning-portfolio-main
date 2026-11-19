@@ -12,7 +12,7 @@ from docx import Document
 
 from app import create_app
 from app.extensions import db
-from app.models import AuditLog, CredentialRecord, Portfolio, StudentProfile, User
+from app.models import AuditLog, ClassAdvisor, CredentialRecord, Portfolio, StudentProfile, User
 from app.services import internship_resume as resume
 from app.services.journey_home import SHEET_LIMIT, journey_home
 from app.services.journey_service import academic_year_of, build_journey
@@ -52,6 +52,45 @@ def _login(app):
 
 def _user():
     return User.query.filter_by(username="stu").one()
+
+
+def test_current_advisor_sees_only_the_last_saved_or_downloaded_resume(app):
+    with app.app_context():
+        student = _user()
+        student.student_profile.class_name = "實習測試班"
+        sid = student.id
+        for username, year in (("advisor", academic_year_of(date.today())), ("old", academic_year_of(date.today()) - 1)):
+            teacher = User(username=username, display_name=username, role="teacher")
+            teacher.set_password("pw")
+            db.session.add(teacher)
+            db.session.flush()
+            db.session.add(ClassAdvisor(teacher_id=teacher.id, class_name="實習測試班", school_year=year))
+        db.session.commit()
+
+    def teacher_client(username):
+        client = app.test_client()
+        client.post("/staff/login", data={"username": username, "password": "pw"})
+        return client
+
+    student = _login(app)
+    advisor = teacher_client("advisor")
+    read_url = f"/teacher/students/{sid}/internship-resume"
+    assert "實習履歷" in advisor.get(f"/teacher/students/{sid}").get_data(as_text=True)
+    assert "尚未儲存或下載" in advisor.get(read_url).get_data(as_text=True)
+    assert teacher_client("old").get(read_url).status_code == 403
+    assert advisor.post(read_url).status_code == 405
+    with app.app_context():
+        chosen = Portfolio.query.filter_by(title="資訊社社課").one().id
+    form_url = "/student/internship-resume"
+    saved = student.post(form_url, data={"action": "save", "text_study": "第一份合成履歷",
+                                        "exp": f"portfolio-{chosen}"}, follow_redirects=True)
+    assert "第一份合成履歷" in saved.get_data(as_text=True)
+    page = advisor.get(read_url).get_data(as_text=True)
+    assert "第一份合成履歷" in page and "資訊社社課" in page and "不想放的志工" not in page
+    exported = student.post(form_url, data={"text_study": "第二份合成履歷"})
+    assert exported.status_code == 200 and ".docx" in exported.headers["Content-Disposition"]
+    page = advisor.get(read_url).get_data(as_text=True)
+    assert "第二份合成履歷" in page and "第一份合成履歷" not in page
 
 
 # ---------- 散落的紙 ----------

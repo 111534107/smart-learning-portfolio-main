@@ -29,6 +29,7 @@
       <a class="button button--small button--line" href="#teacher-targets">目標校系與備審／自傳</a>
       <a class="button button--small button--line" href="#teacher-evidence">佐證照片</a>
       <a class="button button--small button--line" href="{{ url_for('attendance.advisor_records', student_id=student.id) }}">缺曠合計</a>
+      <a class="button button--small button--line" href="{{ url_for('teacher.internship_resume', student_id=student.id) }}">實習履歷</a>
     </div>
     <p class="small mt-1">五年資料：<a href="{{ url_for('teacher.student_detail', student_id=student.id, record_status='draft', _anchor='teacher-records') }}">草稿 {{ record_counts.draft }} 筆</a> · <a href="{{ url_for('teacher.student_detail', student_id=student.id, record_status='confirmed', _anchor='teacher-records') }}">學生已確認 {{ record_counts.confirmed }} 筆</a>{% if record_counts.other %} · <a href="{{ url_for('teacher.student_detail', student_id=student.id, record_status='other', _anchor='teacher-records') }}">狀態待確認 {{ record_counts.other }} 筆</a>{% endif %}</p>
   </nav>
