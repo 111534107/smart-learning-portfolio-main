@@ -584,3 +584,134 @@ def test_word_lists_project_links_under_project_item(app):
         text = "\n".join(p.text for p in docx_lib.Document(build_package_docx(student, program)).paragraphs)
     assert "校園導覽網站" in text
     assert "作品連結：程式碼　https://github.com/example/campus" in text
+
+def test_formal_exports_keep_the_confirmed_submission(app, sent):
+    from pathlib import Path
+
+    from docx import Document
+
+    from app.models import ClassAdvisor, LearningProfileOutput, PackageReview
+
+    program_id = _pid(app)
+    target_url = f"/student/targets/{program_id}"
+    base = target_url + "/package"
+    client = login(app)
+    with app.app_context():
+        student = _stu()
+        teacher = User(username="review-teacher", display_name="測試導師", role="teacher")
+        teacher.set_password("pw-123456789")
+        db.session.add(teacher)
+        db.session.flush()
+        db.session.add(ClassAdvisor(teacher_id=teacher.id, class_name=student.student_profile.class_name,
+                                    school_year=academic_year_of(date.today())))
+        db.session.add(LearningProfileOutput(
+            student_id=student.id, output_type="autobiography_ai",
+            content_json={"program_id": program_id, "version": 1, "paragraphs": [{"text": "BIO_VERSION_ONE"}]},
+            source_snapshot_json={},
+        ))
+        db.session.commit()
+
+    assert client.post(target_url + "/review").status_code == 302
+    with app.app_context():
+        review = PackageReview.query.one()
+        review_url = f"/teacher/package-reviews/{review.id}"
+        edition = f"?review_id={review.id}&edition={review.snapshot_json['export']['key']}"
+        taken_at = review.snapshot_json["taken_at"]
+        archive_path = (Path(app.config["UPLOAD_FOLDER"]) / "package-reviews" / str(review.student_id)
+                        / f"{review.snapshot_json['export']['key']}.zip")
+    assert client.get(base + ".zip" + edition).status_code == 409
+    assert "尚未經導師確認" in "\n".join(
+        p.text for p in Document(io.BytesIO(client.get(base + ".docx").data)).paragraphs
+    )
+
+    teacher_client = app.test_client()
+    teacher_client.post("/staff/login", data={"username": "review-teacher", "password": "pw-123456789"})
+    decision = {"decision": "confirmed", "taken_at": taken_at}
+    archive_bytes = archive_path.read_bytes()
+    archive_path.unlink()
+    blocked = teacher_client.post(review_url, data=decision)
+    assert "notice=export_unavailable" in blocked.location
+    with app.app_context():
+        assert PackageReview.query.one().status == "pending"
+    archive_path.write_bytes(archive_bytes)
+    assert teacher_client.post(review_url, data=decision).status_code == 302
+    with app.app_context():
+        student = _stu()
+        db.session.add(LearningProfileOutput(
+            student_id=student.id, output_type="autobiography_ai",
+            content_json={"program_id": program_id, "version": 2, "paragraphs": [{"text": "BIO_VERSION_TWO"}]},
+            source_snapshot_json={},
+        ))
+        db.session.add(CredentialRecord(
+            student_id=student.id, credential_name="NEW_CREDENTIAL", confirmation_status="confirmed",
+        ))
+        evidence = PortfolioEvidence.query.filter_by(display_name="黑客松獎狀.jpg").one()
+        storage_service.local_path(evidence.file_path).write_bytes(b"NEW_ATTACHMENT")
+        db.session.commit()
+
+    page = client.get(target_url).get_data(as_text=True)
+    assert "下載正式版 Word" in page
+    word = client.get(base + ".docx" + edition)
+    assert word.status_code == 200
+    document = Document(io.BytesIO(word.data))
+    word_text = "\n".join(
+        [paragraph.text for paragraph in document.paragraphs]
+        + [cell.text for table in document.tables for row in table.rows for cell in row.cells]
+    )
+    assert "導師已確認" in word_text
+    assert "BIO_VERSION_ONE" in word_text
+    assert "BIO_VERSION_TWO" not in word_text
+    assert "乙級軟體應用" in word_text
+    assert "NEW_CREDENTIAL" not in word_text
+    bundle = client.get(base + ".zip" + edition)
+    assert bundle.status_code == 200
+    assert client.post(base + "/send" + edition, data={"to": "school"}).status_code == 302
+    assert sent[0][3][0][1] == bundle.data
+    with zipfile.ZipFile(io.BytesIO(bundle.data)) as archive:
+        assert not any(name.endswith("第2版.docx") for name in archive.namelist())
+        standalone = next(name for name in archive.namelist() if name.endswith("第1版.docx"))
+        embedded = next(name for name in archive.namelist() if name.endswith("01_備審資料.docx"))
+        assert archive.read(embedded) == word.data
+        assert "BIO_VERSION_ONE" in "\n".join(p.text for p in Document(io.BytesIO(archive.read(standalone))).paragraphs)
+        attachment = next(name for name in archive.namelist() if name.endswith("黑客松獎狀.jpg"))
+        assert archive.read(attachment) == "jpg-黑客松獎狀.jpg".encode()
+    app.config["MAIL_MAX_ATTACHMENT_MB"] = 0
+    assert client.post(base + "/send" + edition, data={"to": "school"}).status_code == 302
+    assert base + ".zip" + edition in sent[-1][2]
+
+    assert teacher_client.post(review_url + "/withdraw", data={"reason": "撤回測試"}).status_code == 302
+    assert client.get(base + ".zip" + edition).status_code == 409
+    assert client.post(base + "/send" + edition, data={"to": "school"}).status_code == 409
+    assert any(name.endswith("第2版.docx") for name in _names(client.get(base + ".zip").data))
+
+    assert client.post(target_url + "/review").status_code == 302
+    with app.app_context():
+        review = PackageReview.query.one()
+        new_edition = f"?review_id={review.id}&edition={review.snapshot_json['export']['key']}"
+        taken_at = review.snapshot_json["taken_at"]
+    assert new_edition != edition
+    assert teacher_client.post(review_url, data={"decision": "confirmed", "taken_at": taken_at}).status_code == 302
+    assert client.get(base + ".zip" + edition).status_code == 409
+    confirmed_zip = client.get(base + ".zip" + new_edition)
+    assert any(name.endswith("第2版.docx") for name in _names(confirmed_zip.data))
+    assert client.post(target_url + "/review").status_code == 302
+    page = client.get(target_url).get_data(as_text=True)
+    assert "目前仍可下載先前確認的正式版" in page
+    assert client.get(base + ".zip" + new_edition).data == confirmed_zip.data
+
+
+def test_missing_attachment_rejects_submission_without_creating_review(app, monkeypatch):
+    from app.models import PackageReview
+
+    def missing(_location):
+        raise storage_service.StorageUnavailable("synthetic missing file")
+
+    monkeypatch.setattr(storage_service, "read_bytes", missing)
+    target_url = f"/student/targets/{_pid(app)}"
+    client = login(app)
+    response = client.post(target_url + "/review")
+    assert response.status_code == 503
+    assert "有原始檔或佐證目前無法讀取" in response.get_data(as_text=True)
+    assert client.get(target_url + "/package.zip?draft=1").status_code == 200
+    with app.app_context():
+        assert PackageReview.query.count() == 0

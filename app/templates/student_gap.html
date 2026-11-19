@@ -112,7 +112,7 @@
         </ol>
         {% endif %}
         {% if review and review.status == "needs_revision" %}<blockquote><b>{{ review.teacher.display_name if review.teacher else "導師" }}：</b>{{ review.comment }}</blockquote>{% endif %}
-        {% if review and review.status == "confirmed" %}<p class="small">{{ review.teacher.display_name if review.teacher else "導師" }} 已確認內容合理，可以產出備審資料。{% if review.autobiography_viewed is not none %}<span data-review-confirmed-label>{{ "導師已確認（已檢視自傳）" if review.autobiography_viewed else "導師已確認（未檢視自傳）" }}</span>{% endif %}</p>{% endif %}
+        {% if review and review.status == "confirmed" %}<p class="small">{{ review.teacher.display_name if review.teacher else "導師" }} 已確認這次送審。{% if review.autobiography_viewed is not none %}<span data-review-confirmed-label>{{ "導師已確認（已檢視自傳）" if review.autobiography_viewed else "導師已確認（未檢視自傳）" }}</span>{% endif %}</p>{% endif %}
         {% if request.args.get("sent") %}<p class="notice mb-1" role="status">已送出。導師看到的是現在這一份內容，之後再改要重新送出。</p>{% endif %}
         {% if request.args.get("no_teacher") %}<p class="alert mb-1" role="alert">目前沒有找到你班級的導師，尚未送出導師通知。請聯絡系統管理員確認班級與導師設定。</p>{% endif %}
         {% if review and review.snapshot_json and review.snapshot_json.autobiography %}<p class="small muted mb-1">送出的自傳是第 {{ review.snapshot_json.autobiography.version }} 版。</p>{% endif %}
@@ -135,7 +135,15 @@
 
       <section class="sheet sheet--ink" aria-labelledby="package-title" data-tour="最後在這裡下載備審資料。" data-tour-order="3">
         <h2 id="package-title" class="mb-1">產出備審資料</h2>
-        <p class="small mb-1">依上面的目錄順序產出 Word，可以再編輯後列印。{% if not review or review.status != "confirmed" %}還沒經導師確認，文件上會註明。{% endif %}</p>
+        {% set formal_export = formal_review.snapshot_json.export if formal_review else none %}
+        {% set version_args = {"review_id": formal_review.id, "edition": formal_export.key} if formal_export else {"draft": 1} %}
+        {% if formal_export %}
+        <p class="small mb-1">{% if formal_review.id != review.id %}目前仍可下載先前確認的正式版。{% endif %}新增或修改的資料經導師確認後，才會進入正式版。</p>
+        {% elif review and review.status == "confirmed" %}
+        <p class="small mb-1">這筆舊確認紀錄沒有保存完整的送審檔案。請重新送審以取得正式版，目前可下載草稿。</p>
+        {% else %}
+        <p class="small mb-1">目前可下載草稿。導師確認後可下載這次送審的正式版。</p>
+        {% endif %}
         <ul data-tour="下載前看一下還有哪幾項沒完成。" data-tour-order="3" class="download-checklist" aria-label="下載前檢查清單">
           {% for item in download_checklist %}
           <li class="download-checklist__item {{ 'is-complete' if item.complete else 'is-open' }}">
@@ -146,22 +154,25 @@
           {% endfor %}
         </ul>
         <p class="small mb-1">有不想放的成績、證照或經歷？<a href="{{ url_for('student.package_exclusions', program_id=program.id) }}">選擇放進備審的資料 →</a></p>
-        <a class="button button--accent" href="{{ url_for('student.target_package', program_id=program.id) }}">下載 Word ↓</a>
+        <a class="button button--accent" href="{{ url_for('student.target_package', program_id=program.id, **version_args) }}">{{ "下載正式版 Word" if formal_export else "下載 Word 草稿" }} ↓</a>
+        {% if formal_export %}<a class="button button--line" href="{{ url_for('student.target_package', program_id=program.id, draft=1) }}">下載目前草稿 Word ↓</a>{% endif %}
         <div class="mt-1" data-package-bundle>
           <p class="small mb-1">要連同自傳、已確認的成績單證照原始檔和佐證一起帶走：</p>
-          <a class="button button--line" href="{{ url_for('student.target_package_zip', program_id=program.id) }}">一鍵打包下載（ZIP）↓</a>
+          <a class="button button--line" href="{{ url_for('student.target_package_zip', program_id=program.id, **version_args) }}">{{ "下載正式版 ZIP" if formal_export else "下載草稿 ZIP" }} ↓</a>
+          {% if formal_export %}<a class="button button--line" href="{{ url_for('student.target_package_zip', program_id=program.id, draft=1) }}">下載目前草稿 ZIP ↓</a>{% endif %}
           {% set mailed = request.args.get("mailed") %}
           {% if mailed == "sent" %}<p class="small mt-1" role="status"><b>✓ 已寄出</b>，壓縮檔在信件附件。</p>
           {% elif mailed == "link" %}<p class="small mt-1" role="status"><b>✓ 已寄出下載連結</b>：檔案太大放不進信裡，要登入才能下載。</p>
           {% elif mailed == "logged" %}<p class="small mt-1" role="status"><b>! 這次沒有寄出</b>：系統目前沒有設定寄信，請先用「一鍵打包下載」。</p>
           {% elif mailed == "failed" %}<p class="small mt-1" role="status"><b>! 信寄不出去</b>，請稍後再試，或先用「一鍵打包下載」。</p>{% endif %}
-          <form class="mt-1" method="post" action="{{ url_for('student.target_package_send', program_id=program.id) }}">
+          <form class="mt-1" method="post" action="{{ url_for('student.target_package_send', program_id=program.id, review_id=formal_review.id if formal_export else none, edition=formal_export.key if formal_export else none) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {% if not formal_export %}<input type="hidden" name="draft" value="1">{% endif %}
             {% if mail_recipients %}
             <label class="field small">寄到我的信箱
               <select name="to">{% for r in mail_recipients %}<option value="{{ r.key }}">{{ r.label }}（{{ r.address }}）</option>{% endfor %}</select>
             </label>
-            <button class="button button--line button--small" type="submit">打包寄給我</button>
+            <button class="button button--line button--small" type="submit">打包寄給我（{{ "正式版" if formal_export else "草稿" }}）</button>
             {% if not mail_ready %}<p class="small mt-1">目前還沒有設定寄信帳號，按了也不會真的寄出；請先用「一鍵打包下載」。</p>{% endif %}
             {% elif user.backup_email and not user.backup_email_verified_at %}
             <p class="small">備用信箱 {{ user.backup_email }} 還在等待確認：到信箱點確認連結，或請管理員代為確認後就能寄。</p>

@@ -2,14 +2,14 @@
 
 壓縮檔內容（最外層一個資料夾「備審資料_校名科系」）：
 - 01_備審資料.docx：和「下載 Word」同一份。
-- 02_自傳_第N版.docx：最新一版自傳（還沒寫就沒有）。
+- 02_自傳_第N版.docx：該次送審的自傳，草稿打包則使用目前版本。
 - 03_成績單與證照原始檔／：學生上傳、已確認的原始檔。
 - 04_經歷佐證／<經歷標題>／：已確認經歷的佐證檔。
 - 清單.txt：放了哪些、哪些沒放與原因；自傳提到學生選擇不放的經歷或證照時，另外提醒（自傳是學生的文字，系統不改）。
 
 只放學生已確認的資料；學生選擇「不放進備審」的不放（簡章規定必備的類別除外，規則見 package_exclusion）。
 原始成績單是整份檔案：裡面只要有一門課被選擇不放（且成績不是必備），整份就不放，免得那一科還是被看到。
-檔案暫時拿不到（例如雲端沒連線）不會讓打包失敗，只在清單註明。
+草稿打包時，暫時拿不到的檔案會列在清單。送審時須能讀取所有納入的檔案，才能封存。
 """
 import io
 import re
@@ -18,8 +18,8 @@ from datetime import datetime, timedelta, timezone
 
 from app.models import CredentialRecord, LearningCourseRecord, Portfolio, SourceDocument, User
 from app.extensions import db
-from app.services import autobiography_backup, autobiography_service, package_exclusion, storage_service
-from app.services.package_service import build_package_docx
+from app.services import autobiography_backup, autobiography_service, package_exclusion, package_export, storage_service
+from app.services.package_service import draft_review_status, latest_review, render_package_docx
 
 TAIPEI = timezone(timedelta(hours=8))
 _UNSAFE = re.compile(r"[/\\:*?\"<>|\r\n\t]+")
@@ -77,7 +77,17 @@ def _excluded_mentions(student, required, content):
     return [name for name in dict.fromkeys(names) if name and name in text]
 
 
-def build_zip(student, program):
+def build_zip(student, program, *, review=None, draft_only=False):
+    if review is None:
+        review = latest_review(student, program)
+    export = package_export.confirmed_export(review)
+    if export and not draft_only:
+        return package_export.read(student.id, export), export["manifest"]
+    draft = autobiography_service.latest_draft(student, program)
+    return render_zip(student, program, draft, draft_review_status(review))
+
+
+def render_zip(student, program, draft, review_status):
     """回傳 (BytesIO, 清單)。清單是 {"included": [...], "skipped": [...], "notes": [...]}。"""
     required = package_exclusion.required_keys(program)
     root = root_name(program)
@@ -98,14 +108,17 @@ def build_zip(student, program):
         def add_stored(path, location, label):
             try:
                 data = storage_service.read_bytes(location)
-            except storage_service.StorageUnavailable:
+            except (OSError, storage_service.StorageUnavailable) as error:
+                if review_status == "confirmed":
+                    raise package_export.ExportUnavailable(
+                        "有原始檔或佐證目前無法讀取，請確認附件可開啟後再送審。"
+                    ) from error
                 skipped.append(f"{label}：檔案暫時拿不到，沒有放")
                 return
             add(path, data, label)
 
-        add("01_備審資料.docx", build_package_docx(student, program).getvalue(), "備審資料 Word")
+        add("01_備審資料.docx", render_package_docx(student, program, draft, review_status).getvalue(), "備審資料 Word")
 
-        draft = autobiography_service.latest_draft(student, program)
         if draft:
             content = draft.content_json
             editor = db.session.get(User, content["editor_id"]) if content.get("editor_id") else None
@@ -142,7 +155,9 @@ def build_zip(student, program):
                            f"佐證：{record.title}／{evidence.display_name}")
 
         now = datetime.now(TAIPEI).strftime("%Y-%m-%d %H:%M")
-        lines = [f"備審資料打包｜{program.school_name} {program.department_name}", f"產生時間：{now}（台北時間）", "",
+        edition = "導師已確認的送審版" if review_status == "confirmed" else "草稿，尚未經導師確認"
+        lines = [f"備審資料打包｜{program.school_name} {program.department_name}",
+                 f"版本：{edition}", f"產生時間：{now}（台北時間）", "",
                  "只包含你已確認、而且沒有選擇「不放進備審」的資料。正式規定以當年度招生簡章為準。", "",
                  "已放入："] + [f"- {item}" for item in included]
         if skipped:

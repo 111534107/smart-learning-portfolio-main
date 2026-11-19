@@ -1,6 +1,7 @@
 from app import create_app
 from app.extensions import db
-from app.models import Portfolio, PortfolioSubmission, SubmissionAssignment, User
+from app.models import ClassAdvisor, Portfolio, PortfolioSubmission, StudentProfile, SubmissionAssignment, User
+from app.services.teacher_scope import current_school_year
 
 
 def feedback_app():
@@ -21,6 +22,9 @@ def feedback_app():
             user.set_password("test-password")
             db.session.add(user)
         db.session.flush()
+        db.session.add(StudentProfile(user_id=student.id, student_no="TEST-FEEDBACK", class_name="測試甲班"))
+        db.session.add(ClassAdvisor(teacher_id=teacher.id, class_name="測試甲班",
+                                    school_year=current_school_year()))
         portfolio = Portfolio(
             student_id=student.id,
             title="Feedback workflow item",

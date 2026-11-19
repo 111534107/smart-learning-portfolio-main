@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+
+{% block title %}實習履歷｜導師工作台{% endblock %}
+{% block navigation %}{{ masthead(user, "工作台") }}{% endblock %}
+
+{% block content %}
+<section class="work-shell" data-work-role="teacher">
+  <header class="work-heading">
+    <div>
+      <p><a href="{{ url_for('teacher.student_detail', student_id=student.id) }}">← 回學生資料</a></p>
+      <h1>{{ student.display_name }}的實習履歷</h1>
+      <p>唯讀查看學生最後一次儲存或下載的內容。</p>
+    </div>
+  </header>
+  {% if saved %}
+  <section class="work-panel">
+    <h2>履歷資料</h2>
+    <p>儲存時間 {{ saved.created_at|taipei_time("%Y-%m-%d %H:%M") }}</p>
+    <dl>
+      <dt>姓名</dt><dd>{{ contents.name }}</dd>
+      <dt>學號</dt><dd>{{ contents.student_no }}</dd>
+      <dt>電子信箱</dt><dd>{{ contents.email or "未填寫" }}</dd>
+    </dl>
+    <h3>已修習專業核心科目</h3>
+    {% set passed = contents.courses|selectattr("status", "equalto", "pass")|map(attribute="name")|list %}
+    {% set blank = contents.courses|selectattr("status", "equalto", "unknown")|map(attribute="name")|list %}
+    <p>及格科目：{{ passed|join("、") if passed else "尚無" }}</p>
+    {% if blank %}<p>學分留白：{{ blank|join("、") }}</p>{% endif %}
+    <h3>相關證照</h3>
+    {% if contents.choices.credentials %}
+    <ul>
+      {% for item in contents.choices.credentials %}<li>{{ columns[item.column] }}：{{ item.name }}</li>{% endfor %}
+    </ul>
+    {% else %}<p>這份履歷未選入證照。</p>{% endif %}
+  </section>
+  <section class="work-panel">
+    <h2>自傳與經歷</h2>
+    {% for title, text, lines in blocks %}
+    <h3>{{ title }}</h3>
+    {% if text %}<p style="white-space:pre-wrap">{{ text }}</p>{% endif %}
+    {% if lines %}<ul>{% for line in lines %}<li>{{ line }}</li>{% endfor %}</ul>{% endif %}
+    {% if not text and not lines %}<p>這一段留白。</p>{% endif %}
+    {% endfor %}
+  </section>
+  {% else %}
+  <p class="work-panel">學生尚未儲存或下載實習履歷。</p>
+  {% endif %}
+</section>
+{% endblock %}

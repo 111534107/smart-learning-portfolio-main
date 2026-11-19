@@ -16,6 +16,7 @@ from app.services.admission_service import import_seed_programs, published_progr
 from app.services.transfer_exam import import_transfer_programs
 from app.services.journey_service import EXPERIENCE_CATEGORIES, academic_year_of, current_grade
 from app.services.portfolio_service import create_submission_snapshot
+from app.services.review_service import assign_submission
 
 
 DEMO_PASSWORD = "demo2026"
@@ -94,12 +95,15 @@ def _seed_journey_board(student_id, admission_year):
     return portfolios
 
 
-def _seed_staff_queue(student, portfolios):
+def _seed_staff_queue(student, teacher, portfolios):
     """讓科辦展示時有東西可處理：兩筆已送審成果、一張待核准的服務電子獎狀。"""
     for key in (("competition", 5), ("activity", 5)):
         portfolio = portfolios.get(key)
         if portfolio:
-            db.session.add(create_submission_snapshot(portfolio, student))
+            submission = create_submission_snapshot(portfolio, student)
+            db.session.add(submission)
+            if key == ("competition", 5):
+                assign_submission(submission, teacher)
     service = portfolios.get(("service", 4))
     if service:
         # 電子獎狀只開給「從學校獎懲記錄匯入」的服務紀錄
@@ -150,7 +154,7 @@ def create_local_demo_app():
             admission_year=admission_year,
         ))
         portfolios = _seed_journey_board(users["student"].id, admission_year)
-        _seed_staff_queue(users["student"], portfolios)
+        _seed_staff_queue(users["student"], users["teacher"], portfolios)
         # 2026-11-13 不放合成表單：表單由科辦按「從學校網站更新表單」抓真的，沒有的請學生到科辦拿紙本
         db.session.add(ClassAdvisor(
             teacher_id=users["teacher"].id,

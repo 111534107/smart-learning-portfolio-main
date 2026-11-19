@@ -10,13 +10,13 @@
 from datetime import datetime, timezone
 
 from app.extensions import db
-from app.models import AuditLog, ClassAdvisor, Notification, PackageReview, User
-from app.services import audit_service, autobiography_service
+from app.models import AuditLog, LearningProfileOutput, Notification, PackageReview
+from app.services import audit_service, autobiography_service, package_export, package_zip, teacher_scope
 from app.services.gap_service import analyze_gap
 from app.services.package_service import latest_review
 
 
-def build_snapshot(student, program):
+def build_snapshot(student, program, *, taken_at=None):
     draft = autobiography_service.latest_draft(student, program)
     evidence_package = autobiography_service.build_evidence_package(student, program)
     return {
@@ -26,39 +26,54 @@ def build_snapshot(student, program):
                           if draft else None),
         "readiness": analyze_gap(student, program)["readiness"],
         "program": {"id": program.id, "school_name": program.school_name, "department_name": program.department_name},
-        "taken_at": datetime.now(timezone.utc).isoformat(),
+        "taken_at": taken_at or datetime.now(timezone.utc).isoformat(),
     }
 
 
 def review_teachers(student):
-    """沿用現行班級權限規則，取得所有啟用中的導師；同一老師不重複。"""
-    profile = student.student_profile
-    if not profile or not profile.class_name:
-        return []
-    teacher_ids = {row.teacher_id for row in ClassAdvisor.query.filter_by(class_name=profile.class_name).all()}
-    return User.query.filter(User.id.in_(teacher_ids), User.role == "teacher", User.is_active.is_(True)).all()
+    """取得學生目前學年度的啟用中班導。"""
+    return teacher_scope.teachers_for_student(student)
 
 
 def request_review(student, program):
     """學生送審；回傳這次的 PackageReview。"""
     snapshot = build_snapshot(student, program)
-    review = latest_review(student, program)
-    if not review or review.status != "pending":
-        review = PackageReview(student_id=student.id, rule_version_id=program.id, status="pending")
-        db.session.add(review)
-    review.snapshot_json = snapshot
-    review.readiness_percent = snapshot["readiness"]
-    review.requested_at = datetime.now(timezone.utc)
-    db.session.flush()
-    audit_service.record(student, "package_review.request", "package_review", review.id,
-                         detail={"program_id": program.id})
-    for teacher in review_teachers(student):
-        db.session.add(Notification(
-            recipient_id=teacher.id,
-            message=f"{student.display_name} 已送出 {program.school_name} {program.department_name} 的備審資料，請確認。"[:255],
-            link=f"/teacher/students/{student.id}#teacher-target-{program.id}",
-        ))
-    db.session.commit()
+    autobiography = snapshot["autobiography"]
+    draft = db.session.get(LearningProfileOutput, autobiography["output_id"]) if autobiography else None
+    archive, manifest = package_zip.render_zip(student, program, draft, "confirmed")
+    db.session.expire_all()
+    if snapshot != build_snapshot(student, program, taken_at=snapshot["taken_at"]):
+        raise ReviewChanged("changed", NOTICES["changed"])
+    export = package_export.save(student.id, archive, manifest, package_zip.download_name(program))
+    snapshot["export"] = export
+    previous_export = None
+    student_id = student.id
+    try:
+        review = latest_review(student, program)
+        fields = {"snapshot_json": snapshot, "readiness_percent": snapshot["readiness"],
+                  "requested_at": datetime.now(timezone.utc)}
+        if review and review.status == "pending":
+            previous_export = (review.snapshot_json or {}).get("export")
+            _update_review(review, **fields)
+        else:
+            review = PackageReview(student_id=student_id, rule_version_id=program.id, status="pending", **fields)
+            db.session.add(review)
+        db.session.flush()
+        audit_service.record(student, "package_review.request", "package_review", review.id,
+                             detail={"program_id": program.id})
+        for teacher in review_teachers(student):
+            db.session.add(Notification(
+                recipient_id=teacher.id,
+                message=f"{student.display_name} 已送出 {program.school_name} {program.department_name} 的備審資料，請確認。"[:255],
+                link=f"/teacher/students/{student.id}#teacher-target-{program.id}",
+            ))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        package_export.discard(student_id, export)
+        raise
+    if previous_export:
+        package_export.discard(student_id, previous_export)
     return review
 
 
@@ -129,6 +144,7 @@ NOTICES = {
     "newer": "學生已經送出新的送審，這一筆不能再變更，請處理最新的那一筆。",
     "changed": "學生剛更新了送審內容，請先看新的內容再確認。",
     "autobiography_changed": "學生送審後自傳又存了新版本，不能確認舊的那份；請選「需要修改」請學生重新送審。",
+    "export_unavailable": "此版本的送審檔案無法讀取。請選「需要修改」，請學生重新送審後再確認。",
 }
 
 
@@ -145,6 +161,19 @@ def _check_latest(review):
         raise ReviewChanged("newer", NOTICES["newer"])
 
 
+def _update_review(review, **fields):
+    # 資料庫同時核對狀態與快照時間，避免更新送審和導師決定互相覆蓋。
+    taken_at = (review.snapshot_json or {}).get("taken_at")
+    updated = PackageReview.query.filter(
+        PackageReview.id == review.id,
+        PackageReview.status == review.status,
+        PackageReview.snapshot_json["taken_at"].as_string() == taken_at,
+    ).update(fields, synchronize_session=False)
+    if updated != 1:
+        raise ReviewChanged("changed", NOTICES["changed"])
+    db.session.refresh(review)
+
+
 def decide(review, teacher, decision, comment, seen_taken_at=None, autobiography_viewed=None):
     """導師確認（confirmed）或請學生修改（needs_revision）。
 
@@ -158,12 +187,12 @@ def decide(review, teacher, decision, comment, seen_taken_at=None, autobiography
         raise ReviewChanged("changed", NOTICES["changed"])
     if decision == "confirmed" and autobiography_changed(review):
         raise ReviewChanged("autobiography_changed", NOTICES["autobiography_changed"])
-    review.status = decision
-    review.comment = comment or None
+    if decision == "confirmed" and not package_export.submission_archive_available(review):
+        raise ReviewChanged("export_unavailable", NOTICES["export_unavailable"])
     # 導師自己選有沒有看自傳；只記是／否，不存自傳內容。沒有勾選就是「未檢視」，不擋任何流程
-    review.autobiography_viewed = bool(autobiography_viewed)
-    review.teacher_id = teacher.id
-    review.reviewed_at = datetime.now(timezone.utc)
+    _update_review(review, status=decision, comment=comment or None,
+                   autobiography_viewed=bool(autobiography_viewed), teacher_id=teacher.id,
+                   reviewed_at=datetime.now(timezone.utc))
     _log(teacher, "package_review.confirm" if decision == "confirmed" else "package_review.needs_revision", review,
          autobiography_viewed=review.autobiography_viewed)
     result = "已確認" if decision == "confirmed" else "建議修改"
@@ -182,9 +211,7 @@ def withdraw(review, teacher, reason):
     if not reason:
         raise ValueError("撤回確認時，請寫下原因。")
     _check_latest(review)  # 學生已經送了新的一筆時，不能再把舊的改回等待中（會變成兩筆等待確認）
-    review.status = "pending"
-    review.teacher_id = teacher.id
-    review.reviewed_at = datetime.now(timezone.utc)
+    _update_review(review, status="pending", teacher_id=teacher.id, reviewed_at=datetime.now(timezone.utc))
     _log(teacher, "package_review.withdraw", review, reason=reason[:500])
     db.session.commit()
 

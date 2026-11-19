@@ -6,7 +6,7 @@ from app import create_app
 from app.extensions import db
 from app.models import AdmissionProgram, CredentialRecord, LearningCourseRecord, PackageReview, Portfolio, StudentProfile, User
 from app.services.admission_service import import_seed_programs
-from app.services.package_service import build_package_docx
+from app.services.package_service import build_package_docx, render_package_docx
 
 
 def test_package_follows_weighted_chapter_order_and_lists_records():
@@ -27,10 +27,9 @@ def test_package_follows_weighted_chapter_order_and_lists_records():
         db.session.add(CredentialRecord(student_id=student.id, credential_name="不可引用的草稿證照", confirmation_status="draft"))
         db.session.add(Portfolio(student_id=student.id, title="班級學藝股長", category="leadership", school_year=2, status="confirmed"))
         program = AdmissionProgram.query.filter_by(program_code="208003").one()
-        db.session.add(PackageReview(student_id=student.id, rule_version_id=program.id, status="confirmed"))
         db.session.commit()
 
-        stream = build_package_docx(student, program)
+        stream = render_package_docx(student, program, None, "confirmed")
 
     package = Document(stream)
     text = [paragraph.text for paragraph in package.paragraphs]
@@ -144,9 +143,20 @@ def test_unconfirmed_package_is_marked_on_cover_header_and_chapters():
 
 
 def test_confirmed_package_has_no_unconfirmed_marks():
-    package = _build("confirmed")
+    app = create_app({"SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:", "TESTING": True})
+    with app.app_context():
+        db.create_all()
+        import_seed_programs()
+        student, program = _seed_student(None)
+        package = Document(render_package_docx(student, program, None, "confirmed"))
     assert "尚未經導師確認" not in _all_text(package)
     assert "尚未經導師確認" not in package.sections[0].header.paragraphs[0].text
+
+
+def test_legacy_confirmation_without_archive_exports_only_a_draft():
+    text = _all_text(_build("confirmed"))
+    assert "尚未經導師確認" in text
+    assert "導師已確認" not in text
 
 
 def test_confirmed_evidence_images_are_placed_in_two_column_grid(tmp_path):

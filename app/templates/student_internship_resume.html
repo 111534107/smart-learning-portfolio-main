@@ -27,6 +27,9 @@
 
   <form method="post" action="{{ url_for('student.internship_resume') }}" class="resume-form" data-resume-form>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if request.args.get("saved") == "1" %}<p class="notice" role="status">已儲存實習履歷。</p>{% endif %}
+    {% set credential_ids = choices.credentials|map(attribute="id")|list if choices else [] %}
+    {% set experience_ids = choices.experiences|map(attribute="id")|list if choices else [] %}
 
     <section class="sheet resume-block" aria-labelledby="resume-basic">
       <h2 id="resume-basic">實習生履歷表</h2>
@@ -55,12 +58,13 @@
         {% for item in options.credentials %}
         <li class="resume-pick" data-pick>
           <label class="resume-pick__main">
-            <input type="checkbox" name="cred" value="{{ item.id }}" checked data-pick-box data-line="證照：{{ item.name }}" data-section="skill">
+            <input type="checkbox" name="cred" value="{{ item.id }}"{% if not choices or item.id in credential_ids %} checked{% endif %} data-pick-box data-line="證照：{{ item.name }}" data-section="skill">
             <span>{{ item.name }}</span>
           </label>
           <label class="resume-pick__col"><span class="visually-hidden">{{ item.name }}填在哪一欄</span>
             <select name="col_{{ item.id }}">
-              {% for key, label in options.columns %}<option value="{{ key }}"{% if key == item.column %} selected{% endif %}>{{ label }}</option>{% endfor %}
+              {% set saved_credential = choices.credentials|selectattr("id", "equalto", item.id)|first if choices else none %}
+              {% for key, label in options.columns %}<option value="{{ key }}"{% if key == (saved_credential.column if saved_credential else item.column) %} selected{% endif %}>{{ label }}</option>{% endfor %}
             </select>
           </label>
         </li>
@@ -74,17 +78,18 @@
     <section class="sheet resume-block" aria-labelledby="resume-bio">
       <h2 id="resume-bio">自傳</h2>
       <p class="small muted">學校格式列了四項。上面的格子自己寫；下面勾選的資料會一行一筆列在那一段後面。
-        {% if options.bio %}「求學經過、社團活動」已帶入你在系統裡的自傳第 {{ options.bio.version }} 版，可以改。{% else %}系統不會替你寫，這四段請自己寫。{% endif %}</p>
+        {% if choices %}已帶入你上次儲存或下載的內容。{% elif options.bio %}「求學經過、社團活動」已帶入你在系統裡的自傳第 {{ options.bio.version }} 版，可以改。{% else %}系統不會替你寫，這四段請自己寫。{% endif %}</p>
       {% for section in options.sections %}
       <div class="resume-section" data-resume-section="{{ section.key }}">
         <label class="resume-section__title" for="text-{{ section.key }}">{{ section.title }}</label>
-        <textarea id="text-{{ section.key }}" name="text_{{ section.key }}" rows="{{ 7 if section.text else 3 }}" maxlength="3000">{{ section.text }}</textarea>
+        {% set text = choices.texts.get(section.key, "") if choices else section.text %}
+        <textarea id="text-{{ section.key }}" name="text_{{ section.key }}" rows="{{ 7 if text else 3 }}" maxlength="3000">{{ text }}</textarea>
         {% if section.picks %}
         <ul class="resume-picks">
           {% for item in section.picks %}
           <li class="resume-pick" data-pick>
             <label class="resume-pick__main">
-              <input type="checkbox" name="exp" value="{{ item.id }}" checked data-pick-box data-line="{{ item.line }}" data-section="{{ section.key }}">
+              <input type="checkbox" name="exp" value="{{ item.id }}"{% if not choices or item.id in experience_ids %} checked{% endif %} data-pick-box data-line="{{ item.line }}" data-section="{{ section.key }}">
               <span><small>{{ item.grade_label }}・{{ item.kind }}</small>{{ item.title }}</span>
             </label>
           </li>
@@ -99,6 +104,7 @@
     <div class="resume-actions">
       <p class="small muted" data-resume-count></p>
       <button class="button" type="submit">下載學校格式的實習履歷（Word）</button>
+      <button class="button button--line" type="submit" name="action" value="save">儲存實習履歷</button>
       <a class="button button--line" href="{{ url_for('main.student_dashboard') }}">回我的五年</a>
     </div>
   </form>
