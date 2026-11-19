@@ -1,0 +1,1283 @@
+From 7736162280045887bd6add83ff068968152664de Mon Sep 17 00:00:00 2001
+From: 111534107 <妳的信箱@example.com>
+Date: Thu, 19 Nov 2026 13:40:56 +0800
+Subject: [PATCH] Complete teacher demo review and confirmed package downloads
+
+---
+ app/demo.py                                  |  10 +-
+ app/routes/review.py                         |   3 +-
+ app/routes/student.py                        |  80 +++++++++--
+ app/routes/teacher.py                        |  16 ++-
+ app/services/internship_resume.py            |  13 ++
+ app/services/package_export.py               |  73 +++++++++++
+ app/services/package_service.py              |  33 +++--
+ app/services/package_zip.py                  |  33 +++--
+ app/services/review_service.py               |   4 +-
+ app/services/review_snapshot_service.py      |  97 +++++++++-----
+ app/templates/partials/nav.html              |   2 +-
+ app/templates/student_gap.html               |  23 +++-
+ app/templates/student_internship_resume.html |  16 ++-
+ app/templates/teacher_class_summary.html     |  13 +-
+ app/templates/teacher_internship_resume.html |  50 +++++++
+ app/templates/teacher_student.html           |   1 +
+ tests/test_home_desk_resume.py               |  41 +++++-
+ tests/test_package_docx.py                   |  18 ++-
+ tests/test_package_send.py                   | 131 +++++++++++++++++++
+ tests/test_teacher_feedback_flow.py          |   6 +-
+ tests/test_teacher_journey_map.py            |  11 +-
+ 21 files changed, 582 insertions(+), 92 deletions(-)
+ create mode 100644 app/services/package_export.py
+ create mode 100644 app/templates/teacher_internship_resume.html
+
+diff --git a/app/demo.py b/app/demo.py
+index 81fac2b..baecfb7 100644
+--- a/app/demo.py
++++ b/app/demo.py
+@@ -16,6 +16,7 @@ from app.services.admission_service import import_seed_programs, published_progr
+ from app.services.transfer_exam import import_transfer_programs
+ from app.services.journey_service import EXPERIENCE_CATEGORIES, academic_year_of, current_grade
+ from app.services.portfolio_service import create_submission_snapshot
++from app.services.review_service import assign_submission
+ 
+ 
+ DEMO_PASSWORD = "demo2026"
+@@ -94,12 +95,15 @@ def _seed_journey_board(student_id, admission_year):
+     return portfolios
+ 
+ 
+-def _seed_staff_queue(student, portfolios):
++def _seed_staff_queue(student, teacher, portfolios):
+     """讓科辦展示時有東西可處理：兩筆已送審成果、一張待核准的服務電子獎狀。"""
+     for key in (("competition", 5), ("activity", 5)):
+         portfolio = portfolios.get(key)
+         if portfolio:
+-            db.session.add(create_submission_snapshot(portfolio, student))
++            submission = create_submission_snapshot(portfolio, student)
++            db.session.add(submission)
++            if key == ("competition", 5):
++                assign_submission(submission, teacher)
+     service = portfolios.get(("service", 4))
+     if service:
+         # 電子獎狀只開給「從學校獎懲記錄匯入」的服務紀錄
+@@ -150,7 +154,7 @@ def create_local_demo_app():
+             admission_year=admission_year,
+         ))
+         portfolios = _seed_journey_board(users["student"].id, admission_year)
+-        _seed_staff_queue(users["student"], portfolios)
++        _seed_staff_queue(users["student"], users["teacher"], portfolios)
+         # 2026-11-13 不放合成表單：表單由科辦按「從學校網站更新表單」抓真的，沒有的請學生到科辦拿紙本
+         db.session.add(ClassAdvisor(
+             teacher_id=users["teacher"].id,
+diff --git a/app/routes/review.py b/app/routes/review.py
+index 4445158..93b5678 100644
+--- a/app/routes/review.py
++++ b/app/routes/review.py
+@@ -3,7 +3,7 @@ from flask import Blueprint, abort, redirect, render_template, request, url_for
+ from app.extensions import db
+ from app.models import PortfolioSubmission, SubmissionAssignment, TeacherReviewFeedback
+ from app.routes.main import get_current_user, role_required
+-from app.services.review_service import record_teacher_feedback
++from app.services.review_service import can_teacher_review, record_teacher_feedback
+ 
+ 
+ review_bp = Blueprint("review", __name__)
+@@ -32,6 +32,7 @@ def teacher_reviews():
+         .order_by(SubmissionAssignment.assigned_at.desc())
+         .all()
+     )
++    assignments = [item for item in assignments if can_teacher_review(item.submission, user)]
+     return render_template(
+         "review_queue.html",
+         user=user,
+diff --git a/app/routes/student.py b/app/routes/student.py
+index ea05eb2..c6eca39 100644
+--- a/app/routes/student.py
++++ b/app/routes/student.py
+@@ -52,6 +52,8 @@ from app.services import graduation_check_service
+ from app.services.gap_checklist import download_checklist, review_timeline
+ from app.services.journey_service import CATEGORY_LABELS, EXPERIENCE_CATEGORIES, build_journey
+ from app.services.package_service import build_package_docx, latest_review
++from app.services import package_export
++from app.services import internship_resume as resume
+ from app.services.file_preview import inline_file
+ from app.services.record_status import learning_profile_state, portfolio_state
+ from app.services import autobiography_comment_service
+@@ -315,7 +317,6 @@ def journey_docx():
+ @role_required("student")
+ def internship_resume():
+     """專四上學期起：把已確認的資料填進學校規定的實習履歷格式（學生逐項勾選後下載 Word）。"""
+-    from app.services import internship_resume as resume
+     from app.content.five_year_plan import INTERNSHIP_SOURCE, RESUME_FORM_SOURCE
+     from app.services.journey_home import SAMPLE_PIECE
+     from app.services.journey_service import build_journey, current_grade
+@@ -327,13 +328,21 @@ def internship_resume():
+     options = resume.build_options(user, build_journey(user))
+     if request.method == "POST":
+         choices = resume.read_choices(request.form, options)
++        if request.form.get("action") == "save":
++            resume.save_snapshot(user, options, choices)
++            audit_service.record(user, "student.internship_resume_save", "user", user.id, commit=True)
++            return redirect(url_for("student.internship_resume", saved=1))
++        document = resume.build_docx(options, choices)
++        resume.save_snapshot(user, options, choices)
+         audit_service.record(user, "student.internship_resume_docx", "user", user.id, commit=True)
+         return send_file(
+-            resume.build_docx(options, choices), as_attachment=True,
++            document, as_attachment=True,
+             download_name=f"實習履歷-{user.display_name}.docx",
+             mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+         )
+-    return render_template("student_internship_resume.html", user=user, locked=False, options=options,
++    snapshot = resume.latest_saved(user)
++    choices = snapshot.content_json["choices"] if snapshot else None
++    return render_template("student_internship_resume.html", user=user, locked=False, options=options, choices=choices,
+                            piece_d=SAMPLE_PIECE, form_source=RESUME_FORM_SOURCE,
+                            fill_source=INTERNSHIP_SOURCE)
+ 
+@@ -342,7 +351,7 @@ def internship_resume():
+ @role_required("student")
+ def learning_profile_output_docx(output_id):
+     output = db.session.get(LearningProfileOutput, output_id)
+-    if not output:
++    if not output or output.output_type == resume.OUTPUT_TYPE:
+         abort(404)
+     user = get_current_user()
+     if output.student_id != user.id:
+@@ -1680,6 +1689,7 @@ def target_gap(program_id):
+         review_timeline=review_timeline(user, program),
+         autobiography=autobiography,
+         download_checklist=download_checklist(user, program, gap, review, autobiography),
++        formal_review=package_export.latest_confirmed_export_review(user, program),
+         mail_recipients=_package_recipients(user),
+         mail_ready=_package_mail_ready(),
+         labels=ALL_LABELS,
+@@ -1694,7 +1704,12 @@ def target_request_review(program_id):
+     reason = student_rules.review_block_reason(user)
+     if reason:
+         return _blocked(user, reason)
+-    review_snapshot_service.request_review(user, program)
++    try:
++        review_snapshot_service.request_review(user, program)
++    except package_export.ExportUnavailable as error:
++        return _blocked(user, str(error))[0], 503
++    except review_snapshot_service.ReviewChanged:
++        return _blocked(user, "送審狀態剛更新，請回備審頁確認後再送一次。")[0], 409
+     return redirect(url_for("student.target_gap", program_id=program.id, sent=1,
+                             no_teacher=1 if not review_snapshot_service.review_teachers(user) else None))
+ 
+@@ -1717,8 +1732,15 @@ def package_review_result(review_id):
+ def target_package(program_id):
+     user = get_current_user()
+     program = _selected_target_or_404(user, program_id)
++    try:
++        review, export = _package_edition(user, program, request.args.get("draft") == "1")
++        data = build_package_docx(user, program, review=review, draft_only=not export)
++    except PackageEditionChanged as error:
++        return _blocked(user, str(error))[0], 409
++    except package_export.ExportUnavailable as error:
++        return _blocked(user, str(error))[0], 503
+     return send_file(
+-        build_package_docx(user, program),
++        data,
+         as_attachment=True,
+         download_name=f"備審資料-{program.school_name}-{program.department_name}.docx",
+         mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+@@ -1740,6 +1762,24 @@ PACKAGE_MAIL_DAILY_LIMIT = 5  # 每位學生每天最多寄幾次備審打包
+ PACKAGE_MAIL_SUBJECT = "【資管科學習歷程】你的備審資料打包"
+ 
+ 
++class PackageEditionChanged(ValueError):
++    pass
++
++
++def _package_edition(user, program, draft_only):
++    if "review_id" not in request.args:
++        review = latest_review(user, program)
++        return review, None if draft_only else package_export.confirmed_export(review)
++
++    review = PackageReview.query.filter_by(
++        id=request.args.get("review_id", type=int), student_id=user.id, rule_version_id=program.id,
++    ).first_or_404()
++    export = package_export.confirmed_export(review)
++    if not export or export["key"] != request.args.get("edition") or draft_only:
++        raise PackageEditionChanged("這個連結的送審版本已無法下載，請回備審頁查看目前的版本。")
++    return review, export
++
++
+ @student_bp.get("/student/targets/<int:program_id>/package.zip")
+ @role_required("student")
+ def target_package_zip(program_id):
+@@ -1747,10 +1787,17 @@ def target_package_zip(program_id):
+     from app.services import package_zip
+     user = get_current_user()
+     program = _selected_target_or_404(user, program_id)
+-    data, manifest = package_zip.build_zip(user, program)
++    try:
++        review, export = _package_edition(user, program, request.args.get("draft") == "1")
++        data, manifest = package_zip.build_zip(user, program, review=review, draft_only=not export)
++    except PackageEditionChanged as error:
++        return _blocked(user, str(error))[0], 409
++    except package_export.ExportUnavailable as error:
++        return _blocked(user, str(error))[0], 503
+     audit_service.record(user, "package.zip_download", "admission_program", program.id,
+                          detail={"files": len(manifest["included"]), "skipped": len(manifest["skipped"])}, commit=True)
+-    return send_file(data, as_attachment=True, download_name=package_zip.download_name(program),
++    filename = export["filename"] if export else package_zip.download_name(program)
++    return send_file(data, as_attachment=True, download_name=filename,
+                      mimetype="application/zip")
+ 
+ 
+@@ -1769,17 +1816,26 @@ def target_package_send(program_id):
+                                        AuditLog.created_at >= day_start).count()
+     if sent_today >= PACKAGE_MAIL_DAILY_LIMIT:
+         return _blocked(user, f"今天已經寄了 {PACKAGE_MAIL_DAILY_LIMIT} 次備審打包，請明天再寄，或直接用「打包下載」。")[0], 429
+-    data, manifest = package_zip.build_zip(user, program)
++    try:
++        review, export = _package_edition(user, program, request.form.get("draft") == "1")
++        data, manifest = package_zip.build_zip(user, program, review=review, draft_only=not export)
++    except PackageEditionChanged as error:
++        return _blocked(user, str(error))[0], 409
++    except package_export.ExportUnavailable as error:
++        return _blocked(user, str(error))[0], 503
+     payload = data.getvalue()
+     label = f"{program.school_name} {program.department_name}"
+     limit = float(current_app.config.get("MAIL_MAX_ATTACHMENT_MB", 15)) * 1024 * 1024
+-    intro = f"{user.display_name} 您好：\n\n這是你在資管科智慧學習歷程系統要求寄出的備審資料打包（{label}）。\n"
++    edition = "導師已確認的送審版" if export else "目前草稿，尚未經導師確認"
++    intro = f"{user.display_name} 您好：\n\n這是你在資管科智慧學習歷程系統要求寄出的備審資料打包（{label}）。\n版本：{edition}。\n"
+     outro = "\n如果不是你本人要求的，請登入系統修改密碼並通知導師。這封信由系統自動寄出，請勿直接回覆。\n"
+     if len(payload) <= limit:
+         body = intro + "壓縮檔在附件，裡面的「清單.txt」列出放了哪些檔案。\n" + outro
+-        attachments = [(package_zip.download_name(program), payload, "application/zip")]
++        filename = export["filename"] if export else package_zip.download_name(program)
++        attachments = [(filename, payload, "application/zip")]
+     else:
+-        link = f"{email_notify.site_url()}{url_for('student.target_package_zip', program_id=program.id)}"
++        version = {"review_id": review.id, "edition": export["key"]} if export else {"draft": 1}
++        link = email_notify.site_url() + url_for("student.target_package_zip", program_id=program.id, **version)
+         body = intro + f"檔案太大，沒辦法放在信裡。請登入系統後用這個連結下載：\n{link}\n" + outro
+         attachments = []
+     status = email_notify.deliver(recipient["address"], PACKAGE_MAIL_SUBJECT, body, attachments, user_id=user.id)
+diff --git a/app/routes/teacher.py b/app/routes/teacher.py
+index 05c38ac..0423611 100644
+--- a/app/routes/teacher.py
++++ b/app/routes/teacher.py
+@@ -22,6 +22,7 @@ from app.services.gap_service import ALL_LABELS, analyze_gap
+ from app.services.journey_service import CATEGORY_KEYS, CATEGORY_LABELS, build_journey
+ from app.services.package_service import latest_review
+ from app.services import audit_service, autobiography_service, review_snapshot_service
++from app.services import internship_resume as resume
+ from app.services import autobiography_comment_service as comment_service
+ from app.services import transfer_plan as transfer_plan_service
+ from app.services.autobiography_service import latest_draft, version_of
+@@ -43,7 +44,20 @@ def student_summary(student_id):
+     student = db.session.get(User, student_id)
+     if not student or not can_view_student(teacher, student):
+         abort(403)
+-    return render_template("teacher_class_summary.html", user=teacher, result=summarize([student]), selected="學生資料摘要（僅本機統計）")
++    return render_template("teacher_class_summary.html", user=teacher, result=summarize([student]),
++                           summary_label="學生資料摘要（僅本機統計）")
++
++
++@teacher_bp.get("/teacher/students/<int:student_id>/internship-resume")
++@role_required("teacher")
++def internship_resume(student_id):
++    teacher = get_current_user()
++    student = _student_or_403(teacher, student_id)
++    saved = resume.latest_saved(student)
++    contents = saved.content_json if saved else None
++    return render_template("teacher_internship_resume.html", user=teacher, student=student, saved=saved,
++                           contents=contents, blocks=resume.autobiography_blocks(contents["choices"]) if saved else [],
++                           columns=dict(resume.COLUMNS))
+ 
+ 
+ @teacher_bp.get("/teacher/students/<int:student_id>")
+diff --git a/app/services/internship_resume.py b/app/services/internship_resume.py
+index 9f9641f..5d87844 100644
+--- a/app/services/internship_resume.py
++++ b/app/services/internship_resume.py
+@@ -19,12 +19,14 @@ from pathlib import Path
+ from docx import Document
+ from docx.enum.table import WD_ROW_HEIGHT_RULE
+ 
++from app.extensions import db
+ from app.models import CredentialRecord, LearningCourseRecord, LearningProfileOutput, Portfolio
+ from app.services.eligibility_service import normalize_course_name
+ from app.services.journey_service import EXPERIENCE_CATEGORIES, GRADE_LABELS
+ 
+ TEMPLATE = Path(__file__).resolve().parent.parent / "content" / "internship_resume_template.docx"
+ OPEN_FROM_GRADE = 4
++OUTPUT_TYPE = "internship_resume"
+ 
+ # 學校格式「相關證照」的四欄
+ COLUMNS = [("labor", "勞動部"), ("international", "國際證照"), ("domestic", "國內證照"), ("other", "其他證照")]
+@@ -186,6 +188,17 @@ def autobiography_blocks(choices):
+     return blocks
+ 
+ 
++def latest_saved(student):
++    return (LearningProfileOutput.query.filter_by(student_id=student.id, output_type=OUTPUT_TYPE)
++            .order_by(LearningProfileOutput.id.desc()).first())
++
++
++def save_snapshot(student, options, choices):
++    contents = {key: options[key] for key in ("name", "student_no", "email", "courses")}
++    db.session.add(LearningProfileOutput(student_id=student.id, output_type=OUTPUT_TYPE,
++                                         content_json={**contents, "choices": choices}, source_snapshot_json={}))
++
++
+ def _unique_cells(row):
+     seen, cells = [], []
+     for cell in row.cells:
+diff --git a/app/services/package_export.py b/app/services/package_export.py
+new file mode 100644
+index 0000000..075d62a
+--- /dev/null
++++ b/app/services/package_export.py
+@@ -0,0 +1,73 @@
++"""Private, immutable archive attached to a single package submission."""
++
++from io import BytesIO
++from pathlib import Path
++from uuid import uuid4
++from zipfile import BadZipFile, ZipFile
++
++from flask import current_app
++
++from app.models import PackageReview
++
++
++class ExportUnavailable(RuntimeError):
++    """The archived file could not be saved or loaded."""
++
++
++def confirmed_export(review):
++    if review and review.status == "confirmed":
++        return (review.snapshot_json or {}).get("export")
++    return None
++
++
++def latest_confirmed_export_review(student, program):
++    reviews = (PackageReview.query.filter_by(student_id=student.id, rule_version_id=program.id, status="confirmed")
++               .order_by(PackageReview.requested_at.desc(), PackageReview.id.desc()))
++    return next((review for review in reviews if confirmed_export(review)), None)
++
++
++def _path(student_id, export):
++    return Path(current_app.config["UPLOAD_FOLDER"]) / "package-reviews" / str(student_id) / f"{export['key']}.zip"
++
++
++def submission_archive_available(review):
++    export = (review.snapshot_json or {}).get("export")
++    if not export or not export.get("key"):
++        return False
++    try:
++        read(review.student_id, export, word=True)
++    except ExportUnavailable:
++        return False
++    return True
++
++
++def discard(student_id, export):
++    try:
++        _path(student_id, export).unlink(missing_ok=True)
++    except OSError:
++        current_app.logger.warning("Could not remove an unused package archive", exc_info=True)
++
++
++def save(student_id, archive, manifest, filename):
++    export = {"key": uuid4().hex, "manifest": manifest, "filename": filename}
++    path = _path(student_id, export)
++    try:
++        path.parent.mkdir(parents=True, exist_ok=True)
++        with path.open("xb") as output:
++            output.write(archive.getbuffer())
++    except OSError as error:
++        discard(student_id, export)
++        raise ExportUnavailable("暫時無法保存這次送審的備審檔案，請稍後再送一次。") from error
++    return export
++
++
++def read(student_id, export, *, word=False):
++    path = _path(student_id, export)
++    try:
++        if word:
++            with ZipFile(path) as archive:
++                name = next(name for name in archive.namelist() if name.endswith("/01_備審資料.docx"))
++                return BytesIO(archive.read(name))
++        return BytesIO(path.read_bytes())
++    except (OSError, BadZipFile, StopIteration) as error:
++        raise ExportUnavailable("暫時無法讀取這份已確認的備審檔案，請聯絡系統管理員。") from error
+diff --git a/app/services/package_service.py b/app/services/package_service.py
+index ce68043..7cb8708 100644
+--- a/app/services/package_service.py
++++ b/app/services/package_service.py
+@@ -18,7 +18,7 @@ from docx.shared import Cm, Pt, RGBColor
+ 
+ from app.models import (CourseRule, CredentialRecord, CurriculumCourse, CurriculumVersion, LearningCourseRecord,
+                         PackageReview, Portfolio)
+-from app.services import package_exclusion, storage_service
++from app.services import package_exclusion, package_export, storage_service
+ from app.services.autobiography_service import CONFIRMED_PORTFOLIO_STATUSES, latest_draft
+ from app.services.file_preview import preview_kind
+ from app.services.gap_service import analyze_gap, chapter_order
+@@ -341,7 +341,7 @@ def _credential_body(document, student, required=None):
+         _note(document, f"另有 {pending} 張證照尚未確認，未放入本文件。")
+ 
+ 
+-def _chapter_body(document, student, chapter, program):
++def _chapter_body(document, student, chapter, program, draft):
+     codes = chapter["keys"]
+     required = package_exclusion.required_keys(program)  # 學生選擇不放的資料不印；簡章必備的類別除外
+     if chapter["code"] == "02":
+@@ -367,7 +367,6 @@ def _chapter_body(document, student, chapter, program):
+         return
+     if chapter["code"] == "04":
+         # 自傳：有學生儲存過的「自傳小幫手」版本就放進來，沒有就留撰寫提示
+-        draft = latest_draft(student, program)
+         if draft:
+             for paragraph in draft.content_json.get("paragraphs", []):
+                 if paragraph.get("heading"):
+@@ -388,7 +387,7 @@ def _chapter_body(document, student, chapter, program):
+ 
+ # ---------- 封面、目錄、頁首頁尾 ----------
+ 
+-def _cover(document, student, program, review, confirmed):
++def _cover(document, student, program, review_status, confirmed):
+     profile = student.student_profile
+     for _ in range(3):
+         document.add_paragraph()
+@@ -415,7 +414,7 @@ def _cover(document, student, program, review, confirmed):
+         _font(cells[0].paragraphs[0].add_run(f"{label}："), size=16, bold=True)
+         _font(cells[1].paragraphs[0].add_run(value), size=16)
+     document.add_paragraph()
+-    status = REVIEW_TEXT.get(review.status, "尚未送導師確認") if review else "尚未送導師確認"
++    status = REVIEW_TEXT.get(review_status, "尚未送導師確認")
+     _centered(document, f"導師確認：{status}", 12)
+     if not confirmed:
+         _centered(document, UNCONFIRMED_NOTE, 11, bold=True, color=RED)
+@@ -446,9 +445,23 @@ def _header_footer(section, confirmed):
+         _font(header.add_run(UNCONFIRMED_HEADER), size=10, bold=True, color=RED)
+ 
+ 
+-def build_package_docx(student, program):
+-    review = latest_review(student, program)
+-    confirmed = bool(review and review.status == "confirmed")
++def draft_review_status(review):
++    if review and review.status != "confirmed":
++        return review.status
++    return None
++
++
++def build_package_docx(student, program, *, review=None, draft_only=False):
++    if review is None:
++        review = latest_review(student, program)
++    export = package_export.confirmed_export(review)
++    if export and not draft_only:
++        return package_export.read(student.id, export, word=True)
++    return render_package_docx(student, program, latest_draft(student, program), draft_review_status(review))
++
++
++def render_package_docx(student, program, draft, review_status):
++    confirmed = review_status == "confirmed"
+     gap = analyze_gap(student, program)
+     # 01 封面與目錄就是下面的封面頁與目錄頁；其餘章節依校系加權排序
+     chapters = [chapter for chapter in chapter_order(program) if chapter["code"] != "01"]
+@@ -463,7 +476,7 @@ def build_package_docx(student, program):
+     section.different_first_page_header_footer = True  # 封面不印頁碼與頁首
+     _header_footer(section, confirmed)
+ 
+-    _cover(document, student, program, review, confirmed)
++    _cover(document, student, program, review_status, confirmed)
+     _page_break(document)
+     _toc(document, chapters)
+ 
+@@ -489,7 +502,7 @@ def build_package_docx(student, program):
+         _bookmark(heading, f"_Toc_ch{position:02d}", position)
+         if not confirmed:
+             _note(document, "（本章內容尚未經導師確認）")
+-        _chapter_body(document, student, chapter, program)
++        _chapter_body(document, student, chapter, program, draft)
+ 
+     document.add_paragraph("本文件內容皆為學生確認之資料；正式規定以當年度招生簡章與各校系分則為準。")
+     stream = BytesIO()
+diff --git a/app/services/package_zip.py b/app/services/package_zip.py
+index b30494b..241ac27 100644
+--- a/app/services/package_zip.py
++++ b/app/services/package_zip.py
+@@ -2,14 +2,14 @@
+ 
+ 壓縮檔內容（最外層一個資料夾「備審資料_校名科系」）：
+ - 01_備審資料.docx：和「下載 Word」同一份。
+-- 02_自傳_第N版.docx：最新一版自傳（還沒寫就沒有）。
++- 02_自傳_第N版.docx：該次送審的自傳，草稿打包則使用目前版本。
+ - 03_成績單與證照原始檔／：學生上傳、已確認的原始檔。
+ - 04_經歷佐證／<經歷標題>／：已確認經歷的佐證檔。
+ - 清單.txt：放了哪些、哪些沒放與原因；自傳提到學生選擇不放的經歷或證照時，另外提醒（自傳是學生的文字，系統不改）。
+ 
+ 只放學生已確認的資料；學生選擇「不放進備審」的不放（簡章規定必備的類別除外，規則見 package_exclusion）。
+ 原始成績單是整份檔案：裡面只要有一門課被選擇不放（且成績不是必備），整份就不放，免得那一科還是被看到。
+-檔案暫時拿不到（例如雲端沒連線）不會讓打包失敗，只在清單註明。
++草稿打包時，暫時拿不到的檔案會列在清單。送審時須能讀取所有納入的檔案，才能封存。
+ """
+ import io
+ import re
+@@ -18,8 +18,8 @@ from datetime import datetime, timedelta, timezone
+ 
+ from app.models import CredentialRecord, LearningCourseRecord, Portfolio, SourceDocument, User
+ from app.extensions import db
+-from app.services import autobiography_backup, autobiography_service, package_exclusion, storage_service
+-from app.services.package_service import build_package_docx
++from app.services import autobiography_backup, autobiography_service, package_exclusion, package_export, storage_service
++from app.services.package_service import draft_review_status, latest_review, render_package_docx
+ 
+ TAIPEI = timezone(timedelta(hours=8))
+ _UNSAFE = re.compile(r"[/\\:*?\"<>|\r\n\t]+")
+@@ -77,7 +77,17 @@ def _excluded_mentions(student, required, content):
+     return [name for name in dict.fromkeys(names) if name and name in text]
+ 
+ 
+-def build_zip(student, program):
++def build_zip(student, program, *, review=None, draft_only=False):
++    if review is None:
++        review = latest_review(student, program)
++    export = package_export.confirmed_export(review)
++    if export and not draft_only:
++        return package_export.read(student.id, export), export["manifest"]
++    draft = autobiography_service.latest_draft(student, program)
++    return render_zip(student, program, draft, draft_review_status(review))
++
++
++def render_zip(student, program, draft, review_status):
+     """回傳 (BytesIO, 清單)。清單是 {"included": [...], "skipped": [...], "notes": [...]}。"""
+     required = package_exclusion.required_keys(program)
+     root = root_name(program)
+@@ -98,14 +108,17 @@ def build_zip(student, program):
+         def add_stored(path, location, label):
+             try:
+                 data = storage_service.read_bytes(location)
+-            except storage_service.StorageUnavailable:
++            except (OSError, storage_service.StorageUnavailable) as error:
++                if review_status == "confirmed":
++                    raise package_export.ExportUnavailable(
++                        "有原始檔或佐證目前無法讀取，請確認附件可開啟後再送審。"
++                    ) from error
+                 skipped.append(f"{label}：檔案暫時拿不到，沒有放")
+                 return
+             add(path, data, label)
+ 
+-        add("01_備審資料.docx", build_package_docx(student, program).getvalue(), "備審資料 Word")
++        add("01_備審資料.docx", render_package_docx(student, program, draft, review_status).getvalue(), "備審資料 Word")
+ 
+-        draft = autobiography_service.latest_draft(student, program)
+         if draft:
+             content = draft.content_json
+             editor = db.session.get(User, content["editor_id"]) if content.get("editor_id") else None
+@@ -142,7 +155,9 @@ def build_zip(student, program):
+                            f"佐證：{record.title}／{evidence.display_name}")
+ 
+         now = datetime.now(TAIPEI).strftime("%Y-%m-%d %H:%M")
+-        lines = [f"備審資料打包｜{program.school_name} {program.department_name}", f"產生時間：{now}（台北時間）", "",
++        edition = "導師已確認的送審版" if review_status == "confirmed" else "草稿，尚未經導師確認"
++        lines = [f"備審資料打包｜{program.school_name} {program.department_name}",
++                 f"版本：{edition}", f"產生時間：{now}（台北時間）", "",
+                  "只包含你已確認、而且沒有選擇「不放進備審」的資料。正式規定以當年度招生簡章為準。", "",
+                  "已放入："] + [f"- {item}" for item in included]
+         if skipped:
+diff --git a/app/services/review_service.py b/app/services/review_service.py
+index 4b37cb8..29982eb 100644
+--- a/app/services/review_service.py
++++ b/app/services/review_service.py
+@@ -13,7 +13,9 @@ def assign_submission(submission, teacher):
+ 
+ 
+ def can_teacher_review(submission, teacher):
+-    return any(item.teacher_id == teacher.id for item in submission.assignments)
++    from app.services.teacher_scope import can_view_student
++    return (can_view_student(teacher, submission.portfolio.student)
++            and any(item.teacher_id == teacher.id for item in submission.assignments))
+ 
+ 
+ def record_teacher_feedback(submission, teacher, comment):
+diff --git a/app/services/review_snapshot_service.py b/app/services/review_snapshot_service.py
+index 700c925..24f0a02 100644
+--- a/app/services/review_snapshot_service.py
++++ b/app/services/review_snapshot_service.py
+@@ -10,13 +10,13 @@
+ from datetime import datetime, timezone
+ 
+ from app.extensions import db
+-from app.models import AuditLog, ClassAdvisor, Notification, PackageReview, User
+-from app.services import audit_service, autobiography_service
++from app.models import AuditLog, LearningProfileOutput, Notification, PackageReview
++from app.services import audit_service, autobiography_service, package_export, package_zip, teacher_scope
+ from app.services.gap_service import analyze_gap
+ from app.services.package_service import latest_review
+ 
+ 
+-def build_snapshot(student, program):
++def build_snapshot(student, program, *, taken_at=None):
+     draft = autobiography_service.latest_draft(student, program)
+     evidence_package = autobiography_service.build_evidence_package(student, program)
+     return {
+@@ -26,39 +26,54 @@ def build_snapshot(student, program):
+                           if draft else None),
+         "readiness": analyze_gap(student, program)["readiness"],
+         "program": {"id": program.id, "school_name": program.school_name, "department_name": program.department_name},
+-        "taken_at": datetime.now(timezone.utc).isoformat(),
++        "taken_at": taken_at or datetime.now(timezone.utc).isoformat(),
+     }
+ 
+ 
+ def review_teachers(student):
+-    """沿用現行班級權限規則，取得所有啟用中的導師；同一老師不重複。"""
+-    profile = student.student_profile
+-    if not profile or not profile.class_name:
+-        return []
+-    teacher_ids = {row.teacher_id for row in ClassAdvisor.query.filter_by(class_name=profile.class_name).all()}
+-    return User.query.filter(User.id.in_(teacher_ids), User.role == "teacher", User.is_active.is_(True)).all()
++    """取得學生目前學年度的啟用中班導。"""
++    return teacher_scope.teachers_for_student(student)
+ 
+ 
+ def request_review(student, program):
+     """學生送審；回傳這次的 PackageReview。"""
+     snapshot = build_snapshot(student, program)
+-    review = latest_review(student, program)
+-    if not review or review.status != "pending":
+-        review = PackageReview(student_id=student.id, rule_version_id=program.id, status="pending")
+-        db.session.add(review)
+-    review.snapshot_json = snapshot
+-    review.readiness_percent = snapshot["readiness"]
+-    review.requested_at = datetime.now(timezone.utc)
+-    db.session.flush()
+-    audit_service.record(student, "package_review.request", "package_review", review.id,
+-                         detail={"program_id": program.id})
+-    for teacher in review_teachers(student):
+-        db.session.add(Notification(
+-            recipient_id=teacher.id,
+-            message=f"{student.display_name} 已送出 {program.school_name} {program.department_name} 的備審資料，請確認。"[:255],
+-            link=f"/teacher/students/{student.id}#teacher-target-{program.id}",
+-        ))
+-    db.session.commit()
++    autobiography = snapshot["autobiography"]
++    draft = db.session.get(LearningProfileOutput, autobiography["output_id"]) if autobiography else None
++    archive, manifest = package_zip.render_zip(student, program, draft, "confirmed")
++    db.session.expire_all()
++    if snapshot != build_snapshot(student, program, taken_at=snapshot["taken_at"]):
++        raise ReviewChanged("changed", NOTICES["changed"])
++    export = package_export.save(student.id, archive, manifest, package_zip.download_name(program))
++    snapshot["export"] = export
++    previous_export = None
++    student_id = student.id
++    try:
++        review = latest_review(student, program)
++        fields = {"snapshot_json": snapshot, "readiness_percent": snapshot["readiness"],
++                  "requested_at": datetime.now(timezone.utc)}
++        if review and review.status == "pending":
++            previous_export = (review.snapshot_json or {}).get("export")
++            _update_review(review, **fields)
++        else:
++            review = PackageReview(student_id=student_id, rule_version_id=program.id, status="pending", **fields)
++            db.session.add(review)
++        db.session.flush()
++        audit_service.record(student, "package_review.request", "package_review", review.id,
++                             detail={"program_id": program.id})
++        for teacher in review_teachers(student):
++            db.session.add(Notification(
++                recipient_id=teacher.id,
++                message=f"{student.display_name} 已送出 {program.school_name} {program.department_name} 的備審資料，請確認。"[:255],
++                link=f"/teacher/students/{student.id}#teacher-target-{program.id}",
++            ))
++        db.session.commit()
++    except Exception:
++        db.session.rollback()
++        package_export.discard(student_id, export)
++        raise
++    if previous_export:
++        package_export.discard(student_id, previous_export)
+     return review
+ 
+ 
+@@ -129,6 +144,7 @@ NOTICES = {
+     "newer": "學生已經送出新的送審，這一筆不能再變更，請處理最新的那一筆。",
+     "changed": "學生剛更新了送審內容，請先看新的內容再確認。",
+     "autobiography_changed": "學生送審後自傳又存了新版本，不能確認舊的那份；請選「需要修改」請學生重新送審。",
++    "export_unavailable": "此版本的送審檔案無法讀取。請選「需要修改」，請學生重新送審後再確認。",
+ }
+ 
+ 
+@@ -145,6 +161,19 @@ def _check_latest(review):
+         raise ReviewChanged("newer", NOTICES["newer"])
+ 
+ 
++def _update_review(review, **fields):
++    # 資料庫同時核對狀態與快照時間，避免更新送審和導師決定互相覆蓋。
++    taken_at = (review.snapshot_json or {}).get("taken_at")
++    updated = PackageReview.query.filter(
++        PackageReview.id == review.id,
++        PackageReview.status == review.status,
++        PackageReview.snapshot_json["taken_at"].as_string() == taken_at,
++    ).update(fields, synchronize_session=False)
++    if updated != 1:
++        raise ReviewChanged("changed", NOTICES["changed"])
++    db.session.refresh(review)
++
++
+ def decide(review, teacher, decision, comment, seen_taken_at=None, autobiography_viewed=None):
+     """導師確認（confirmed）或請學生修改（needs_revision）。
+ 
+@@ -158,12 +187,12 @@ def decide(review, teacher, decision, comment, seen_taken_at=None, autobiography
+         raise ReviewChanged("changed", NOTICES["changed"])
+     if decision == "confirmed" and autobiography_changed(review):
+         raise ReviewChanged("autobiography_changed", NOTICES["autobiography_changed"])
+-    review.status = decision
+-    review.comment = comment or None
++    if decision == "confirmed" and not package_export.submission_archive_available(review):
++        raise ReviewChanged("export_unavailable", NOTICES["export_unavailable"])
+     # 導師自己選有沒有看自傳；只記是／否，不存自傳內容。沒有勾選就是「未檢視」，不擋任何流程
+-    review.autobiography_viewed = bool(autobiography_viewed)
+-    review.teacher_id = teacher.id
+-    review.reviewed_at = datetime.now(timezone.utc)
++    _update_review(review, status=decision, comment=comment or None,
++                   autobiography_viewed=bool(autobiography_viewed), teacher_id=teacher.id,
++                   reviewed_at=datetime.now(timezone.utc))
+     _log(teacher, "package_review.confirm" if decision == "confirmed" else "package_review.needs_revision", review,
+          autobiography_viewed=review.autobiography_viewed)
+     result = "已確認" if decision == "confirmed" else "建議修改"
+@@ -182,9 +211,7 @@ def withdraw(review, teacher, reason):
+     if not reason:
+         raise ValueError("撤回確認時，請寫下原因。")
+     _check_latest(review)  # 學生已經送了新的一筆時，不能再把舊的改回等待中（會變成兩筆等待確認）
+-    review.status = "pending"
+-    review.teacher_id = teacher.id
+-    review.reviewed_at = datetime.now(timezone.utc)
++    _update_review(review, status="pending", teacher_id=teacher.id, reviewed_at=datetime.now(timezone.utc))
+     _log(teacher, "package_review.withdraw", review, reason=reason[:500])
+     db.session.commit()
+ 
+diff --git a/app/templates/partials/nav.html b/app/templates/partials/nav.html
+index fe659c7..e375c53 100644
+--- a/app/templates/partials/nav.html
++++ b/app/templates/partials/nav.html
+@@ -5,7 +5,7 @@
+ {% if user and user.role == "student" and student_progress is defined %}{{ student_masthead(user, active) }}{% else %}
+ {% set links = {
+   "student": [("我的五年", url_for("main.student_dashboard")), ("成績單", url_for("student.learning_profile")), ("證照", url_for("student.learning_profile_credentials")), ("活動與經歷", url_for("student.portfolio_list")), ("目標校系", url_for("student.target_list"))],
+-  "teacher": [("工作台", url_for("main.teacher_dashboard")), ("表單下載", url_for("forms.form_list"))],
++  "teacher": [("工作台", url_for("main.teacher_dashboard")), ("我的審查", url_for("review.teacher_reviews")), ("表單下載", url_for("forms.form_list"))],
+   "staff": [("工作台", url_for("main.staff_dashboard")), ("電子獎狀", url_for("certificate.staff_list")), ("表單下載區", url_for("forms.staff_forms")), ("年級總覽", url_for("main.grade_overview")), ("操作紀錄", url_for("main.staff_activity"))] + ([("導師班級", url_for("staff.classes"))] if user and user.role == "staff" and user.job_title in ("主任", "副主任") else []),
+   "admin": [("系統總覽", url_for("main.admin_dashboard")), ("帳號管理", url_for("admin.accounts")), ("專題規則", url_for("admin.project_types")), ("課程規則", url_for("admin.course_rules")), ("排行篩選選項", url_for("admin.match_filters")), ("校系資料", url_for("admin.programs")), ("招生資料 Agent", url_for("admin.agent_home")), ("導師班級", url_for("admin.classes")), ("OCR 辨識設定", url_for("admin.ocr_settings_page")), ("檔案存放設定", url_for("storage.settings_page")), ("操作紀錄", url_for("admin.audit_logs")), ("Google 登入設定", url_for("admin.google_workspace_page")), ("修業科目表", url_for("admin.curriculum_home")), ("年級總覽", url_for("main.grade_overview")), ("AI 設定", url_for("admin.ai_settings_page")), ("學校資料", url_for("admin_schools.schools_page"))],
+ } %}
+diff --git a/app/templates/student_gap.html b/app/templates/student_gap.html
+index 787d270..faeadc2 100644
+--- a/app/templates/student_gap.html
++++ b/app/templates/student_gap.html
+@@ -112,7 +112,7 @@
+         </ol>
+         {% endif %}
+         {% if review and review.status == "needs_revision" %}<blockquote><b>{{ review.teacher.display_name if review.teacher else "導師" }}：</b>{{ review.comment }}</blockquote>{% endif %}
+-        {% if review and review.status == "confirmed" %}<p class="small">{{ review.teacher.display_name if review.teacher else "導師" }} 已確認內容合理，可以產出備審資料。{% if review.autobiography_viewed is not none %}<span data-review-confirmed-label>{{ "導師已確認（已檢視自傳）" if review.autobiography_viewed else "導師已確認（未檢視自傳）" }}</span>{% endif %}</p>{% endif %}
++        {% if review and review.status == "confirmed" %}<p class="small">{{ review.teacher.display_name if review.teacher else "導師" }} 已確認這次送審。{% if review.autobiography_viewed is not none %}<span data-review-confirmed-label>{{ "導師已確認（已檢視自傳）" if review.autobiography_viewed else "導師已確認（未檢視自傳）" }}</span>{% endif %}</p>{% endif %}
+         {% if request.args.get("sent") %}<p class="notice mb-1" role="status">已送出。導師看到的是現在這一份內容，之後再改要重新送出。</p>{% endif %}
+         {% if request.args.get("no_teacher") %}<p class="alert mb-1" role="alert">目前沒有找到你班級的導師，尚未送出導師通知。請聯絡系統管理員確認班級與導師設定。</p>{% endif %}
+         {% if review and review.snapshot_json and review.snapshot_json.autobiography %}<p class="small muted mb-1">送出的自傳是第 {{ review.snapshot_json.autobiography.version }} 版。</p>{% endif %}
+@@ -135,7 +135,15 @@
+ 
+       <section class="sheet sheet--ink" aria-labelledby="package-title" data-tour="最後在這裡下載備審資料。" data-tour-order="3">
+         <h2 id="package-title" class="mb-1">產出備審資料</h2>
+-        <p class="small mb-1">依上面的目錄順序產出 Word，可以再編輯後列印。{% if not review or review.status != "confirmed" %}還沒經導師確認，文件上會註明。{% endif %}</p>
++        {% set formal_export = formal_review.snapshot_json.export if formal_review else none %}
++        {% set version_args = {"review_id": formal_review.id, "edition": formal_export.key} if formal_export else {"draft": 1} %}
++        {% if formal_export %}
++        <p class="small mb-1">{% if formal_review.id != review.id %}目前仍可下載先前確認的正式版。{% endif %}新增或修改的資料經導師確認後，才會進入正式版。</p>
++        {% elif review and review.status == "confirmed" %}
++        <p class="small mb-1">這筆舊確認紀錄沒有保存完整的送審檔案。請重新送審以取得正式版，目前可下載草稿。</p>
++        {% else %}
++        <p class="small mb-1">目前可下載草稿。導師確認後可下載這次送審的正式版。</p>
++        {% endif %}
+         <ul data-tour="下載前看一下還有哪幾項沒完成。" data-tour-order="3" class="download-checklist" aria-label="下載前檢查清單">
+           {% for item in download_checklist %}
+           <li class="download-checklist__item {{ 'is-complete' if item.complete else 'is-open' }}">
+@@ -146,22 +154,25 @@
+           {% endfor %}
+         </ul>
+         <p class="small mb-1">有不想放的成績、證照或經歷？<a href="{{ url_for('student.package_exclusions', program_id=program.id) }}">選擇放進備審的資料 →</a></p>
+-        <a class="button button--accent" href="{{ url_for('student.target_package', program_id=program.id) }}">下載 Word ↓</a>
++        <a class="button button--accent" href="{{ url_for('student.target_package', program_id=program.id, **version_args) }}">{{ "下載正式版 Word" if formal_export else "下載 Word 草稿" }} ↓</a>
++        {% if formal_export %}<a class="button button--line" href="{{ url_for('student.target_package', program_id=program.id, draft=1) }}">下載目前草稿 Word ↓</a>{% endif %}
+         <div class="mt-1" data-package-bundle>
+           <p class="small mb-1">要連同自傳、已確認的成績單證照原始檔和佐證一起帶走：</p>
+-          <a class="button button--line" href="{{ url_for('student.target_package_zip', program_id=program.id) }}">一鍵打包下載（ZIP）↓</a>
++          <a class="button button--line" href="{{ url_for('student.target_package_zip', program_id=program.id, **version_args) }}">{{ "下載正式版 ZIP" if formal_export else "下載草稿 ZIP" }} ↓</a>
++          {% if formal_export %}<a class="button button--line" href="{{ url_for('student.target_package_zip', program_id=program.id, draft=1) }}">下載目前草稿 ZIP ↓</a>{% endif %}
+           {% set mailed = request.args.get("mailed") %}
+           {% if mailed == "sent" %}<p class="small mt-1" role="status"><b>✓ 已寄出</b>，壓縮檔在信件附件。</p>
+           {% elif mailed == "link" %}<p class="small mt-1" role="status"><b>✓ 已寄出下載連結</b>：檔案太大放不進信裡，要登入才能下載。</p>
+           {% elif mailed == "logged" %}<p class="small mt-1" role="status"><b>! 這次沒有寄出</b>：系統目前沒有設定寄信，請先用「一鍵打包下載」。</p>
+           {% elif mailed == "failed" %}<p class="small mt-1" role="status"><b>! 信寄不出去</b>，請稍後再試，或先用「一鍵打包下載」。</p>{% endif %}
+-          <form class="mt-1" method="post" action="{{ url_for('student.target_package_send', program_id=program.id) }}">
++          <form class="mt-1" method="post" action="{{ url_for('student.target_package_send', program_id=program.id, review_id=formal_review.id if formal_export else none, edition=formal_export.key if formal_export else none) }}">
+             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
++            {% if not formal_export %}<input type="hidden" name="draft" value="1">{% endif %}
+             {% if mail_recipients %}
+             <label class="field small">寄到我的信箱
+               <select name="to">{% for r in mail_recipients %}<option value="{{ r.key }}">{{ r.label }}（{{ r.address }}）</option>{% endfor %}</select>
+             </label>
+-            <button class="button button--line button--small" type="submit">打包寄給我</button>
++            <button class="button button--line button--small" type="submit">打包寄給我（{{ "正式版" if formal_export else "草稿" }}）</button>
+             {% if not mail_ready %}<p class="small mt-1">目前還沒有設定寄信帳號，按了也不會真的寄出；請先用「一鍵打包下載」。</p>{% endif %}
+             {% elif user.backup_email and not user.backup_email_verified_at %}
+             <p class="small">備用信箱 {{ user.backup_email }} 還在等待確認：到信箱點確認連結，或請管理員代為確認後就能寄。</p>
+diff --git a/app/templates/student_internship_resume.html b/app/templates/student_internship_resume.html
+index 885049c..22c7d70 100644
+--- a/app/templates/student_internship_resume.html
++++ b/app/templates/student_internship_resume.html
+@@ -27,6 +27,9 @@
+ 
+   <form method="post" action="{{ url_for('student.internship_resume') }}" class="resume-form" data-resume-form>
+     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
++    {% if request.args.get("saved") == "1" %}<p class="notice" role="status">已儲存實習履歷。</p>{% endif %}
++    {% set credential_ids = choices.credentials|map(attribute="id")|list if choices else [] %}
++    {% set experience_ids = choices.experiences|map(attribute="id")|list if choices else [] %}
+ 
+     <section class="sheet resume-block" aria-labelledby="resume-basic">
+       <h2 id="resume-basic">實習生履歷表</h2>
+@@ -55,12 +58,13 @@
+         {% for item in options.credentials %}
+         <li class="resume-pick" data-pick>
+           <label class="resume-pick__main">
+-            <input type="checkbox" name="cred" value="{{ item.id }}" checked data-pick-box data-line="證照：{{ item.name }}" data-section="skill">
++            <input type="checkbox" name="cred" value="{{ item.id }}"{% if not choices or item.id in credential_ids %} checked{% endif %} data-pick-box data-line="證照：{{ item.name }}" data-section="skill">
+             <span>{{ item.name }}</span>
+           </label>
+           <label class="resume-pick__col"><span class="visually-hidden">{{ item.name }}填在哪一欄</span>
+             <select name="col_{{ item.id }}">
+-              {% for key, label in options.columns %}<option value="{{ key }}"{% if key == item.column %} selected{% endif %}>{{ label }}</option>{% endfor %}
++              {% set saved_credential = choices.credentials|selectattr("id", "equalto", item.id)|first if choices else none %}
++              {% for key, label in options.columns %}<option value="{{ key }}"{% if key == (saved_credential.column if saved_credential else item.column) %} selected{% endif %}>{{ label }}</option>{% endfor %}
+             </select>
+           </label>
+         </li>
+@@ -74,17 +78,18 @@
+     <section class="sheet resume-block" aria-labelledby="resume-bio">
+       <h2 id="resume-bio">自傳</h2>
+       <p class="small muted">學校格式列了四項。上面的格子自己寫；下面勾選的資料會一行一筆列在那一段後面。
+-        {% if options.bio %}「求學經過、社團活動」已帶入你在系統裡的自傳第 {{ options.bio.version }} 版，可以改。{% else %}系統不會替你寫，這四段請自己寫。{% endif %}</p>
++        {% if choices %}已帶入你上次儲存或下載的內容。{% elif options.bio %}「求學經過、社團活動」已帶入你在系統裡的自傳第 {{ options.bio.version }} 版，可以改。{% else %}系統不會替你寫，這四段請自己寫。{% endif %}</p>
+       {% for section in options.sections %}
+       <div class="resume-section" data-resume-section="{{ section.key }}">
+         <label class="resume-section__title" for="text-{{ section.key }}">{{ section.title }}</label>
+-        <textarea id="text-{{ section.key }}" name="text_{{ section.key }}" rows="{{ 7 if section.text else 3 }}" maxlength="3000">{{ section.text }}</textarea>
++        {% set text = choices.texts.get(section.key, "") if choices else section.text %}
++        <textarea id="text-{{ section.key }}" name="text_{{ section.key }}" rows="{{ 7 if text else 3 }}" maxlength="3000">{{ text }}</textarea>
+         {% if section.picks %}
+         <ul class="resume-picks">
+           {% for item in section.picks %}
+           <li class="resume-pick" data-pick>
+             <label class="resume-pick__main">
+-              <input type="checkbox" name="exp" value="{{ item.id }}" checked data-pick-box data-line="{{ item.line }}" data-section="{{ section.key }}">
++              <input type="checkbox" name="exp" value="{{ item.id }}"{% if not choices or item.id in experience_ids %} checked{% endif %} data-pick-box data-line="{{ item.line }}" data-section="{{ section.key }}">
+               <span><small>{{ item.grade_label }}・{{ item.kind }}</small>{{ item.title }}</span>
+             </label>
+           </li>
+@@ -99,6 +104,7 @@
+     <div class="resume-actions">
+       <p class="small muted" data-resume-count></p>
+       <button class="button" type="submit">下載學校格式的實習履歷（Word）</button>
++      <button class="button button--line" type="submit" name="action" value="save">儲存實習履歷</button>
+       <a class="button button--line" href="{{ url_for('main.student_dashboard') }}">回我的五年</a>
+     </div>
+   </form>
+diff --git a/app/templates/teacher_class_summary.html b/app/templates/teacher_class_summary.html
+index 9dc5a91..aa3f5b1 100644
+--- a/app/templates/teacher_class_summary.html
++++ b/app/templates/teacher_class_summary.html
+@@ -3,4 +3,15 @@
+ {% set page_name = "teacher-class-summary" %}
+ {% block title %}班級資料摘要{% endblock %}
+ {% block navigation %}{{ masthead(user, "工作台") }}{% endblock %}
+-{% block content %}<div class="page page--banded"><section class="sheet"><h1>班級資料摘要</h1><p>{{ selected or "所有負責班級" }}</p><p style="white-space:pre-wrap">{{ result.text }}</p><p>結果僅供參考，請以學生已確認資料及正式規定為準。</p><a href="{{ url_for('main.teacher_dashboard', class_name=selected) }}">回工作台</a></section></div>{% endblock %}
+\ No newline at end of file
++{% block content %}
++<div class="page page--banded">
++  <section class="sheet">
++    <h1>班級資料摘要</h1>
++    <p>{{ summary_label or selected or "所有負責班級" }}</p>
++    <p style="white-space:pre-wrap">{{ result.text }}</p>
++    <p>結果僅供參考，請以學生已確認資料及正式規定為準。</p>
++    {% set filters = {"class_name": selected} if selected else {} %}
++    <a href="{{ url_for('main.teacher_dashboard', **filters) }}">回工作台</a>
++  </section>
++</div>
++{% endblock %}
+diff --git a/app/templates/teacher_internship_resume.html b/app/templates/teacher_internship_resume.html
+new file mode 100644
+index 0000000..b2072aa
+--- /dev/null
++++ b/app/templates/teacher_internship_resume.html
+@@ -0,0 +1,50 @@
++{% extends "base.html" %}
++{% from "partials/nav.html" import masthead with context %}
++
++{% block title %}實習履歷｜導師工作台{% endblock %}
++{% block navigation %}{{ masthead(user, "工作台") }}{% endblock %}
++
++{% block content %}
++<section class="work-shell" data-work-role="teacher">
++  <header class="work-heading">
++    <div>
++      <p><a href="{{ url_for('teacher.student_detail', student_id=student.id) }}">← 回學生資料</a></p>
++      <h1>{{ student.display_name }}的實習履歷</h1>
++      <p>唯讀查看學生最後一次儲存或下載的內容。</p>
++    </div>
++  </header>
++  {% if saved %}
++  <section class="work-panel">
++    <h2>履歷資料</h2>
++    <p>儲存時間 {{ saved.created_at|taipei_time("%Y-%m-%d %H:%M") }}</p>
++    <dl>
++      <dt>姓名</dt><dd>{{ contents.name }}</dd>
++      <dt>學號</dt><dd>{{ contents.student_no }}</dd>
++      <dt>電子信箱</dt><dd>{{ contents.email or "未填寫" }}</dd>
++    </dl>
++    <h3>已修習專業核心科目</h3>
++    {% set passed = contents.courses|selectattr("status", "equalto", "pass")|map(attribute="name")|list %}
++    {% set blank = contents.courses|selectattr("status", "equalto", "unknown")|map(attribute="name")|list %}
++    <p>及格科目：{{ passed|join("、") if passed else "尚無" }}</p>
++    {% if blank %}<p>學分留白：{{ blank|join("、") }}</p>{% endif %}
++    <h3>相關證照</h3>
++    {% if contents.choices.credentials %}
++    <ul>
++      {% for item in contents.choices.credentials %}<li>{{ columns[item.column] }}：{{ item.name }}</li>{% endfor %}
++    </ul>
++    {% else %}<p>這份履歷未選入證照。</p>{% endif %}
++  </section>
++  <section class="work-panel">
++    <h2>自傳與經歷</h2>
++    {% for title, text, lines in blocks %}
++    <h3>{{ title }}</h3>
++    {% if text %}<p style="white-space:pre-wrap">{{ text }}</p>{% endif %}
++    {% if lines %}<ul>{% for line in lines %}<li>{{ line }}</li>{% endfor %}</ul>{% endif %}
++    {% if not text and not lines %}<p>這一段留白。</p>{% endif %}
++    {% endfor %}
++  </section>
++  {% else %}
++  <p class="work-panel">學生尚未儲存或下載實習履歷。</p>
++  {% endif %}
++</section>
++{% endblock %}
+diff --git a/app/templates/teacher_student.html b/app/templates/teacher_student.html
+index 272ac98..4f724e8 100644
+--- a/app/templates/teacher_student.html
++++ b/app/templates/teacher_student.html
+@@ -29,6 +29,7 @@
+       <a class="button button--small button--line" href="#teacher-targets">目標校系與備審／自傳</a>
+       <a class="button button--small button--line" href="#teacher-evidence">佐證照片</a>
+       <a class="button button--small button--line" href="{{ url_for('attendance.advisor_records', student_id=student.id) }}">缺曠合計</a>
++      <a class="button button--small button--line" href="{{ url_for('teacher.internship_resume', student_id=student.id) }}">實習履歷</a>
+     </div>
+     <p class="small mt-1">五年資料：<a href="{{ url_for('teacher.student_detail', student_id=student.id, record_status='draft', _anchor='teacher-records') }}">草稿 {{ record_counts.draft }} 筆</a> · <a href="{{ url_for('teacher.student_detail', student_id=student.id, record_status='confirmed', _anchor='teacher-records') }}">學生已確認 {{ record_counts.confirmed }} 筆</a>{% if record_counts.other %} · <a href="{{ url_for('teacher.student_detail', student_id=student.id, record_status='other', _anchor='teacher-records') }}">狀態待確認 {{ record_counts.other }} 筆</a>{% endif %}</p>
+   </nav>
+diff --git a/tests/test_home_desk_resume.py b/tests/test_home_desk_resume.py
+index 988d12b..c0c7830 100644
+--- a/tests/test_home_desk_resume.py
++++ b/tests/test_home_desk_resume.py
+@@ -12,7 +12,7 @@ from docx import Document
+ 
+ from app import create_app
+ from app.extensions import db
+-from app.models import AuditLog, CredentialRecord, Portfolio, StudentProfile, User
++from app.models import AuditLog, ClassAdvisor, CredentialRecord, Portfolio, StudentProfile, User
+ from app.services import internship_resume as resume
+ from app.services.journey_home import SHEET_LIMIT, journey_home
+ from app.services.journey_service import academic_year_of, build_journey
+@@ -54,6 +54,45 @@ def _user():
+     return User.query.filter_by(username="stu").one()
+ 
+ 
++def test_current_advisor_sees_only_the_last_saved_or_downloaded_resume(app):
++    with app.app_context():
++        student = _user()
++        student.student_profile.class_name = "實習測試班"
++        sid = student.id
++        for username, year in (("advisor", academic_year_of(date.today())), ("old", academic_year_of(date.today()) - 1)):
++            teacher = User(username=username, display_name=username, role="teacher")
++            teacher.set_password("pw")
++            db.session.add(teacher)
++            db.session.flush()
++            db.session.add(ClassAdvisor(teacher_id=teacher.id, class_name="實習測試班", school_year=year))
++        db.session.commit()
++
++    def teacher_client(username):
++        client = app.test_client()
++        client.post("/staff/login", data={"username": username, "password": "pw"})
++        return client
++
++    student = _login(app)
++    advisor = teacher_client("advisor")
++    read_url = f"/teacher/students/{sid}/internship-resume"
++    assert "實習履歷" in advisor.get(f"/teacher/students/{sid}").get_data(as_text=True)
++    assert "尚未儲存或下載" in advisor.get(read_url).get_data(as_text=True)
++    assert teacher_client("old").get(read_url).status_code == 403
++    assert advisor.post(read_url).status_code == 405
++    with app.app_context():
++        chosen = Portfolio.query.filter_by(title="資訊社社課").one().id
++    form_url = "/student/internship-resume"
++    saved = student.post(form_url, data={"action": "save", "text_study": "第一份合成履歷",
++                                        "exp": f"portfolio-{chosen}"}, follow_redirects=True)
++    assert "第一份合成履歷" in saved.get_data(as_text=True)
++    page = advisor.get(read_url).get_data(as_text=True)
++    assert "第一份合成履歷" in page and "資訊社社課" in page and "不想放的志工" not in page
++    exported = student.post(form_url, data={"text_study": "第二份合成履歷"})
++    assert exported.status_code == 200 and ".docx" in exported.headers["Content-Disposition"]
++    page = advisor.get(read_url).get_data(as_text=True)
++    assert "第二份合成履歷" in page and "第一份合成履歷" not in page
++
++
+ # ---------- 散落的紙 ----------
+ 
+ def test_desk_has_one_sheet_per_record_and_positions_are_stable(app):
+diff --git a/tests/test_package_docx.py b/tests/test_package_docx.py
+index 0e0be8b..c33ffb5 100644
+--- a/tests/test_package_docx.py
++++ b/tests/test_package_docx.py
+@@ -6,7 +6,7 @@ from app import create_app
+ from app.extensions import db
+ from app.models import AdmissionProgram, CredentialRecord, LearningCourseRecord, PackageReview, Portfolio, StudentProfile, User
+ from app.services.admission_service import import_seed_programs
+-from app.services.package_service import build_package_docx
++from app.services.package_service import build_package_docx, render_package_docx
+ 
+ 
+ def test_package_follows_weighted_chapter_order_and_lists_records():
+@@ -27,10 +27,9 @@ def test_package_follows_weighted_chapter_order_and_lists_records():
+         db.session.add(CredentialRecord(student_id=student.id, credential_name="不可引用的草稿證照", confirmation_status="draft"))
+         db.session.add(Portfolio(student_id=student.id, title="班級學藝股長", category="leadership", school_year=2, status="confirmed"))
+         program = AdmissionProgram.query.filter_by(program_code="208003").one()
+-        db.session.add(PackageReview(student_id=student.id, rule_version_id=program.id, status="confirmed"))
+         db.session.commit()
+ 
+-        stream = build_package_docx(student, program)
++        stream = render_package_docx(student, program, None, "confirmed")
+ 
+     package = Document(stream)
+     text = [paragraph.text for paragraph in package.paragraphs]
+@@ -144,11 +143,22 @@ def test_unconfirmed_package_is_marked_on_cover_header_and_chapters():
+ 
+ 
+ def test_confirmed_package_has_no_unconfirmed_marks():
+-    package = _build("confirmed")
++    app = create_app({"SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:", "TESTING": True})
++    with app.app_context():
++        db.create_all()
++        import_seed_programs()
++        student, program = _seed_student(None)
++        package = Document(render_package_docx(student, program, None, "confirmed"))
+     assert "尚未經導師確認" not in _all_text(package)
+     assert "尚未經導師確認" not in package.sections[0].header.paragraphs[0].text
+ 
+ 
++def test_legacy_confirmation_without_archive_exports_only_a_draft():
++    text = _all_text(_build("confirmed"))
++    assert "尚未經導師確認" in text
++    assert "導師已確認" not in text
++
++
+ def test_confirmed_evidence_images_are_placed_in_two_column_grid(tmp_path):
+     from PIL import Image
+     from app.models import PortfolioEvidence
+diff --git a/tests/test_package_send.py b/tests/test_package_send.py
+index ef12cca..67cae3a 100644
+--- a/tests/test_package_send.py
++++ b/tests/test_package_send.py
+@@ -584,3 +584,134 @@ def test_word_lists_project_links_under_project_item(app):
+         text = "\n".join(p.text for p in docx_lib.Document(build_package_docx(student, program)).paragraphs)
+     assert "校園導覽網站" in text
+     assert "作品連結：程式碼　https://github.com/example/campus" in text
++
++def test_formal_exports_keep_the_confirmed_submission(app, sent):
++    from pathlib import Path
++
++    from docx import Document
++
++    from app.models import ClassAdvisor, LearningProfileOutput, PackageReview
++
++    program_id = _pid(app)
++    target_url = f"/student/targets/{program_id}"
++    base = target_url + "/package"
++    client = login(app)
++    with app.app_context():
++        student = _stu()
++        teacher = User(username="review-teacher", display_name="測試導師", role="teacher")
++        teacher.set_password("pw-123456789")
++        db.session.add(teacher)
++        db.session.flush()
++        db.session.add(ClassAdvisor(teacher_id=teacher.id, class_name=student.student_profile.class_name,
++                                    school_year=academic_year_of(date.today())))
++        db.session.add(LearningProfileOutput(
++            student_id=student.id, output_type="autobiography_ai",
++            content_json={"program_id": program_id, "version": 1, "paragraphs": [{"text": "BIO_VERSION_ONE"}]},
++            source_snapshot_json={},
++        ))
++        db.session.commit()
++
++    assert client.post(target_url + "/review").status_code == 302
++    with app.app_context():
++        review = PackageReview.query.one()
++        review_url = f"/teacher/package-reviews/{review.id}"
++        edition = f"?review_id={review.id}&edition={review.snapshot_json['export']['key']}"
++        taken_at = review.snapshot_json["taken_at"]
++        archive_path = (Path(app.config["UPLOAD_FOLDER"]) / "package-reviews" / str(review.student_id)
++                        / f"{review.snapshot_json['export']['key']}.zip")
++    assert client.get(base + ".zip" + edition).status_code == 409
++    assert "尚未經導師確認" in "\n".join(
++        p.text for p in Document(io.BytesIO(client.get(base + ".docx").data)).paragraphs
++    )
++
++    teacher_client = app.test_client()
++    teacher_client.post("/staff/login", data={"username": "review-teacher", "password": "pw-123456789"})
++    decision = {"decision": "confirmed", "taken_at": taken_at}
++    archive_bytes = archive_path.read_bytes()
++    archive_path.unlink()
++    blocked = teacher_client.post(review_url, data=decision)
++    assert "notice=export_unavailable" in blocked.location
++    with app.app_context():
++        assert PackageReview.query.one().status == "pending"
++    archive_path.write_bytes(archive_bytes)
++    assert teacher_client.post(review_url, data=decision).status_code == 302
++    with app.app_context():
++        student = _stu()
++        db.session.add(LearningProfileOutput(
++            student_id=student.id, output_type="autobiography_ai",
++            content_json={"program_id": program_id, "version": 2, "paragraphs": [{"text": "BIO_VERSION_TWO"}]},
++            source_snapshot_json={},
++        ))
++        db.session.add(CredentialRecord(
++            student_id=student.id, credential_name="NEW_CREDENTIAL", confirmation_status="confirmed",
++        ))
++        evidence = PortfolioEvidence.query.filter_by(display_name="黑客松獎狀.jpg").one()
++        storage_service.local_path(evidence.file_path).write_bytes(b"NEW_ATTACHMENT")
++        db.session.commit()
++
++    page = client.get(target_url).get_data(as_text=True)
++    assert "下載正式版 Word" in page
++    word = client.get(base + ".docx" + edition)
++    assert word.status_code == 200
++    document = Document(io.BytesIO(word.data))
++    word_text = "\n".join(
++        [paragraph.text for paragraph in document.paragraphs]
++        + [cell.text for table in document.tables for row in table.rows for cell in row.cells]
++    )
++    assert "導師已確認" in word_text
++    assert "BIO_VERSION_ONE" in word_text
++    assert "BIO_VERSION_TWO" not in word_text
++    assert "乙級軟體應用" in word_text
++    assert "NEW_CREDENTIAL" not in word_text
++    bundle = client.get(base + ".zip" + edition)
++    assert bundle.status_code == 200
++    assert client.post(base + "/send" + edition, data={"to": "school"}).status_code == 302
++    assert sent[0][3][0][1] == bundle.data
++    with zipfile.ZipFile(io.BytesIO(bundle.data)) as archive:
++        assert not any(name.endswith("第2版.docx") for name in archive.namelist())
++        standalone = next(name for name in archive.namelist() if name.endswith("第1版.docx"))
++        embedded = next(name for name in archive.namelist() if name.endswith("01_備審資料.docx"))
++        assert archive.read(embedded) == word.data
++        assert "BIO_VERSION_ONE" in "\n".join(p.text for p in Document(io.BytesIO(archive.read(standalone))).paragraphs)
++        attachment = next(name for name in archive.namelist() if name.endswith("黑客松獎狀.jpg"))
++        assert archive.read(attachment) == "jpg-黑客松獎狀.jpg".encode()
++    app.config["MAIL_MAX_ATTACHMENT_MB"] = 0
++    assert client.post(base + "/send" + edition, data={"to": "school"}).status_code == 302
++    assert base + ".zip" + edition in sent[-1][2]
++
++    assert teacher_client.post(review_url + "/withdraw", data={"reason": "撤回測試"}).status_code == 302
++    assert client.get(base + ".zip" + edition).status_code == 409
++    assert client.post(base + "/send" + edition, data={"to": "school"}).status_code == 409
++    assert any(name.endswith("第2版.docx") for name in _names(client.get(base + ".zip").data))
++
++    assert client.post(target_url + "/review").status_code == 302
++    with app.app_context():
++        review = PackageReview.query.one()
++        new_edition = f"?review_id={review.id}&edition={review.snapshot_json['export']['key']}"
++        taken_at = review.snapshot_json["taken_at"]
++    assert new_edition != edition
++    assert teacher_client.post(review_url, data={"decision": "confirmed", "taken_at": taken_at}).status_code == 302
++    assert client.get(base + ".zip" + edition).status_code == 409
++    confirmed_zip = client.get(base + ".zip" + new_edition)
++    assert any(name.endswith("第2版.docx") for name in _names(confirmed_zip.data))
++    assert client.post(target_url + "/review").status_code == 302
++    page = client.get(target_url).get_data(as_text=True)
++    assert "目前仍可下載先前確認的正式版" in page
++    assert client.get(base + ".zip" + new_edition).data == confirmed_zip.data
++
++
++def test_missing_attachment_rejects_submission_without_creating_review(app, monkeypatch):
++    from app.models import PackageReview
++
++    def missing(_location):
++        raise storage_service.StorageUnavailable("synthetic missing file")
++
++    monkeypatch.setattr(storage_service, "read_bytes", missing)
++    target_url = f"/student/targets/{_pid(app)}"
++    client = login(app)
++    response = client.post(target_url + "/review")
++    assert response.status_code == 503
++    assert "有原始檔或佐證目前無法讀取" in response.get_data(as_text=True)
++    assert client.get(target_url + "/package.zip?draft=1").status_code == 200
++    with app.app_context():
++        assert PackageReview.query.count() == 0
+diff --git a/tests/test_teacher_feedback_flow.py b/tests/test_teacher_feedback_flow.py
+index 3686059..5d9e460 100644
+--- a/tests/test_teacher_feedback_flow.py
++++ b/tests/test_teacher_feedback_flow.py
+@@ -1,6 +1,7 @@
+ from app import create_app
+ from app.extensions import db
+-from app.models import Portfolio, PortfolioSubmission, SubmissionAssignment, User
++from app.models import ClassAdvisor, Portfolio, PortfolioSubmission, StudentProfile, SubmissionAssignment, User
++from app.services.teacher_scope import current_school_year
+ 
+ 
+ def feedback_app():
+@@ -21,6 +22,9 @@ def feedback_app():
+             user.set_password("test-password")
+             db.session.add(user)
+         db.session.flush()
++        db.session.add(StudentProfile(user_id=student.id, student_no="TEST-FEEDBACK", class_name="測試甲班"))
++        db.session.add(ClassAdvisor(teacher_id=teacher.id, class_name="測試甲班",
++                                    school_year=current_school_year()))
+         portfolio = Portfolio(
+             student_id=student.id,
+             title="Feedback workflow item",
+diff --git a/tests/test_teacher_journey_map.py b/tests/test_teacher_journey_map.py
+index ab2124e..4b2058d 100644
+--- a/tests/test_teacher_journey_map.py
++++ b/tests/test_teacher_journey_map.py
+@@ -1,5 +1,6 @@
+ from datetime import date
+ import re
++from urllib.parse import parse_qs, urlsplit
+ 
+ from app import create_app
+ from app.extensions import db
+@@ -194,7 +195,13 @@ def test_teacher_summary_rejects_class_outside_teacher_scope():
+     assert client.post("/teacher/class-summary", data={"class_name": "不是負責的班"}).status_code == 403
+     response = client.post("/teacher/class-summary", data={"class_name": "資管科三甲"})
+     assert response.status_code == 200
+-    assert "人數較少" in response.get_data(as_text=True)
++    html = response.get_data(as_text=True)
++    assert "人數較少" in html
++    selected_link = re.search(r'href="([^"]+)">回工作台</a>', html).group(1)
++    assert parse_qs(urlsplit(selected_link).query) == {"class_name": ["資管科三甲"]}
++    all_classes = client.post("/teacher/class-summary", data={"class_name": ""})
++    assert all_classes.status_code == 200
++    assert 'href="/teacher/dashboard">回工作台</a>' in all_classes.get_data(as_text=True)
+ 
+ def test_teacher_student_summary_only_for_own_student():
+     app, student_id = teacher_journey_app()
+@@ -212,3 +219,5 @@ def test_teacher_student_summary_only_for_own_student():
+     response = client.post(f"/teacher/students/{student_id}/summary")
+     assert response.status_code == 200
+     assert "本機統計" in response.get_data(as_text=True)
++    assert 'href="/teacher/dashboard"' in response.get_data(as_text=True)
++    assert 'href="/teacher/dashboard?class_name=' not in response.get_data(as_text=True)
