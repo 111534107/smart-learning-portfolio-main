@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "admin-announcement-form" %}
+{% set role_labels = {"student": "學生", "teacher": "老師", "staff": "科辦"} %}
+{% block title %}{{ "編輯公告" if announcement else "手動新增公告" }}｜資管科智慧學習歷程系統{% endblock %}
+{% block navigation %}{{ masthead(user, "招生資料 Agent") }}{% endblock %}
+{% block content %}
+<section class="work-shell" data-work-role="admin">
+  <header class="work-heading">
+    <div>
+      <p class="small"><a href="{{ url_for('announcement.admin_list') }}">← 二技公告管理</a></p>
+      <h1>{{ "編輯公告草稿" if announcement else "手動新增公告" }}</h1>
+      <p>{% if announcement and announcement.channel %}內容由已核准的招生日程擬好，可以改字。重要日期由 Agent 從官方簡章擷取，不在這裡輸入。{% else %}手動公告不對應招生日程，不會顯示重要日期。{% endif %}</p>
+    </div>
+  </header>
+  {% if message %}<p class="notice mb-1" role="status">{{ message }}</p>{% endif %}
+  {% if error %}<p class="alert mb-1" role="alert">{{ error }}</p>{% endif %}
+  <form class="work-panel" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label class="field" data-tour="填寫標題與內容，並選擇公告對象。" data-tour-order="1"><span class="field__label">標題</span><input name="title" maxlength="200" required value="{{ values.title }}"></label>
+    <label class="field"><span class="field__label">內容 <small>學生、老師、科辦看到的文字</small></span><textarea name="body" rows="10">{{ values.body }}</textarea></label>
+    <fieldset class="field"><legend class="field__label">給誰看（至少勾一個）</legend>
+      <div class="check-row">
+        {% for role in ("student", "teacher", "staff") %}
+        <label><input type="checkbox" name="audience" value="{{ role }}"{% if role in values.audience %} checked{% endif %}> {{ role_labels[role] }}</label>
+        {% endfor %}
+      </div></fieldset>
+    {% if dates %}
+    <div class="mt-1" data-key-dates>
+      <h2>重要日期（發布後學生看到的）</h2>
+      <ul class="key-dates">
+        {% for row in dates %}<li{% if row.is_send_review %} data-send-review{% endif %}>{{ row.name }}：{{ row.span }}</li>{% endfor %}
+      </ul>
+      {% if not (dates|selectattr("is_send_review")|list) %}<p class="small">寄送備審資料：簡章未載明</p>{% endif %}
+    </div>
+    {% endif %}
+    <div class="mt-1" data-tour="核對後發布，或先儲存草稿。" data-tour-order="2">
+      {% if announcement %}
+      <button class="button" type="submit" name="action" value="publish">發布</button>
+      <button class="button button--line" type="submit" name="action" value="save">先存草稿</button>
+      {% else %}
+      <button class="button" type="submit">建立草稿</button>
+      {% endif %}
+    </div>
+  </form>
+</section>
+{% endblock %}

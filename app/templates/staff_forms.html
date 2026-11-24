@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer with context %}
+{% set page_name = "staff-forms" %}
+
+{% block title %}表單下載區｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "表單下載區") }}{% endblock %}
+
+{% macro audience(item) %}{% if item.open_to_students and item.open_to_teachers %}學生、老師{% elif item.open_to_students %}學生{% else %}老師{% endif %}{% endmacro %}
+
+{% block content %}
+<style>
+  .staff-forms-group > summary { cursor: pointer; font-weight: 700; padding: .5rem 0; }
+  .staff-forms-cats td input[type="text"] { width: 100%; min-width: 8rem; }
+  .staff-forms-cats td input[type="number"] { width: 5rem; }
+</style>
+<div class="page">
+  <h1 class="visually-hidden">表單下載區</h1>
+  {% if error %}<p class="alert mb-1" role="alert">{{ error }}</p>{% endif %}
+
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>從學校網站抓表單</h2>
+      <p>系統會到下面這些學校網站的表單頁，把表單檔案抓回來。新表單要{{ "你" if can_approve else "主任或副主任" }}核准才會上架；已上架的表單，學校網站換了新檔案時會自動新增一版。</p></div>
+      <form method="post" action="{{ url_for('forms.staff_sync') }}" data-tour="要更新學校表單時按這裡，完成後核對結果。" data-tour-order="1">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="button" type="submit" data-busy-text="正在讀學校網站，約需 30 秒…">從學校網站更新表單</button>
+      </form></div>
+    <ul class="small">{% for source in sources %}<li>{{ source.office }}「{{ source.category }}」：<a href="{{ source.url }}" target="_blank" rel="noopener">{{ source.url }}</a></li>{% endfor %}</ul>
+    {% if sync_result %}
+    <div class="notice mt-1" role="status">
+      <p><b>剛才的結果：</b>新抓到 {{ sync_result.new|length }} 份、更新 {{ sync_result.updated|length }} 份、沒變 {{ sync_result.unchanged }} 份{% if sync_result.errors %}、有 {{ sync_result.errors|length }} 個問題{% endif %}。</p>
+      {% if sync_result.new %}<p class="small">新抓到：{{ sync_result.new|join("、") }}</p>{% endif %}
+      {% if sync_result.updated %}<p class="small">更新：{{ sync_result.updated|join("、") }}</p>{% endif %}
+      {% if sync_result.errors %}<ul class="small">{% for problem in sync_result.errors %}<li>{{ problem }}</li>{% endfor %}</ul>{% endif %}
+    </div>
+    {% endif %}
+  </section>
+
+  <section class="work-panel mt-1" id="pending" data-tour="核對待上架表單；主任可在此核准。" data-tour-order="2">
+    <div class="work-panel__head"><div><h2>待核准上架（{{ pending|length }}）</h2>
+      <p>{% if can_approve %}你是{{ user.job_title }}，核對內容後按「核准上架」，學生與老師才看得到。{% else %}上架要由主任或副主任核准；你可以先點「管理」核對名稱、分類與開放對象。{% endif %}</p></div>
+      {% if can_approve and pending %}<form method="post" action="{{ url_for('forms.staff_approve_all') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit">全部核准上架</button></form>{% endif %}</div>
+    {% if pending %}
+    <div class="table-wrap"><table class="data-table">
+      <thead><tr><th>表單</th><th>分類</th><th>來源</th><th>開放對象</th><th><span class="visually-hidden">操作</span></th></tr></thead>
+      <tbody>{% for item in pending %}<tr>
+        <td>{{ item.title }}</td><td>{{ item.category.name }}</td>
+        <td class="small">{{ "學校網站" if item.origin == "agent" else "科辦上傳" }}{% if item.source_url %} · <a href="{{ item.source_url }}" target="_blank" rel="noopener">原始檔</a>{% endif %}</td>
+        <td class="small">{{ audience(item) }}</td>
+        <td class="check-row"><a class="button button--small button--line" href="{{ url_for('forms.staff_detail', item_id=item.id) }}">管理</a>
+          {% if can_approve %}<form method="post" action="{{ url_for('forms.staff_approve', item_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small" type="submit">核准上架</button></form>{% endif %}</td>
+      </tr>{% endfor %}</tbody>
+    </table></div>
+    {% else %}<p class="muted">沒有等待核准的表單。</p>{% endif %}
+  </section>
+
+  <details class="work-panel mt-1" data-tour="學校網站沒有的表單，可展開手動上架。" data-tour-order="3">
+    <summary><b>學校網站沒有的表單，才手動上架</b></summary>
+    <p class="small muted">學生與老師只看得到開放給自己、而且上架中的表單。{{ "" if can_approve else "手動上架的表單也要主任或副主任核准。" }}之後要改內容請到表單頁「上傳新版本」，舊版會保留。</p>
+    {% set active_categories = categories|selectattr("is_active")|list %}
+    {% if active_categories %}
+    <form method="post" action="{{ url_for('forms.staff_publish') }}" enctype="multipart/form-data" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="field"><span class="field__label">分類</span>
+        <select name="category_id" required>
+          {% for category in active_categories %}<option value="{{ category.id }}"{% if form.get('category_id') == category.id|string %} selected{% endif %}>{{ category.name }}</option>{% endfor %}
+        </select></label>
+      <label class="field"><span class="field__label">表單名稱</span><input name="title" maxlength="100" required value="{{ form.get('title', '') }}"></label>
+      <label class="field"><span class="field__label">說明 <small>選填，例如什麼時候用、交給誰</small></span><textarea name="description" rows="2">{{ form.get('description', '') }}</textarea></label>
+      <fieldset class="field"><legend class="field__label">開放對象（至少勾一個）</legend>
+        <div class="check-row">
+          <label><input type="checkbox" name="open_to_students" value="1"{% if not form or form.get('open_to_students') %} checked{% endif %}> 學生</label>
+          <label><input type="checkbox" name="open_to_teachers" value="1"{% if form.get('open_to_teachers') %} checked{% endif %}> 老師</label>
+        </div></fieldset>
+      <label class="field"><span class="field__label">檔案 <small>PDF、Word、Excel、ODT、ODS，單檔 10 MB 以內；檔案和下面的連結至少要有一個</small></span>
+        <input type="file" name="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.odt,.ods"></label>
+      <label class="field"><span class="field__label">學校網站連結 <small>選填，http 或 https 開頭；之後可以按「檢查連結」看有沒有失效</small></span>
+        <input type="url" name="source_url" maxlength="500" value="{{ form.get('source_url', '') }}" placeholder="https://"></label>
+      <div><button class="button" type="submit">上架</button></div>
+    </form>
+    {% else %}
+    <p class="muted">還沒有啟用中的分類，請先在下方新增分類。</p>
+    {% endif %}
+  </details>
+
+  <section class="work-panel mt-1">
+    <div class="work-panel__head" data-tour="管理已上架表單，或檢查學校連結。" data-tour-order="4"><div><h2>已上架的表單</h2><p>點「管理」可以修改資料、上傳新版本、下架或重新上架。</p></div><a class="button button--line" href="{{ url_for('forms.staff_links') }}">檢查連結</a></div>
+    {% if broken_links %}<p class="alert mb-1" role="alert">有 {{ broken_links }} 個連結失效，學生端已顯示「連結可能已失效，請洽科辦」。請到<a href="{{ url_for('forms.staff_links') }}">檢查連結</a>看是哪幾份，換成最新的連結。</p>{% endif %}
+    {% set ns = namespace(any=false) %}
+    {% for category in categories if category.items %}
+    {% set ns.any = true %}
+    <details class="staff-forms-group" open>
+      <summary>{{ category.name }} <span class="muted">（{{ category.items|length }}）</span>{% if not category.is_active %} <span class="tag tag--warn">分類已停用</span>{% endif %}</summary>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>表單</th><th>開放對象</th><th>狀態</th><th>目前版本</th><th><span class="visually-hidden">操作</span></th></tr></thead>
+          <tbody>
+            {% for item in category.items %}
+            {% set version = item.latest_version %}
+            <tr>
+              <td>{{ item.title }}{% if item.source_url and item.link_status == "broken" %} <span class="tag tag--warn">連結失效</span>{% endif %}</td>
+              <td>{{ audience(item) }}</td>
+              <td>{% if item.is_published %}<span class="tag tag--ok">上架中</span>{% else %}<span class="tag tag--warn">已下架</span>{% endif %}</td>
+              <td class="small">{% if version %}第 {{ version.version_no }} 版 · {{ version.created_at|taipei_time("%Y-%m-%d") }}{% else %}—{% endif %}</td>
+              <td><a class="button button--small" href="{{ url_for('forms.staff_detail', item_id=item.id) }}">管理</a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </details>
+    {% endfor %}
+    {% if not ns.any %}<p class="muted">還沒有上架任何表單。</p>{% endif %}
+  </section>
+
+  <section class="work-panel mt-1" id="categories">
+    <div class="work-panel__head"><div><h2>分類</h2><p>排序數字小的排前面。分類不能刪除，不用時取消「啟用」，底下的表單學生老師就看不到。</p></div></div>
+    {% if categories %}
+    <div class="table-wrap">
+      <table class="data-table staff-forms-cats">
+        <thead><tr><th>名稱</th><th>排序</th><th>啟用</th><th>表單數</th><th><span class="visually-hidden">操作</span></th></tr></thead>
+        <tbody>
+          {% for category in categories %}
+          <tr>
+            <td><input form="cat-{{ category.id }}" type="text" name="name" value="{{ category.name }}" maxlength="50" required aria-label="分類名稱"></td>
+            <td><input form="cat-{{ category.id }}" type="number" name="sort_order" value="{{ category.sort_order }}" aria-label="排序"></td>
+            <td><input form="cat-{{ category.id }}" type="checkbox" name="is_active" value="1"{% if category.is_active %} checked{% endif %} aria-label="啟用"></td>
+            <td>{{ category.items|length }}</td>
+            <td><form id="cat-{{ category.id }}" method="post" action="{{ url_for('forms.staff_category_update', category_id=category.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="button button--small button--line" type="submit">儲存</button></form></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+    <form method="post" action="{{ url_for('forms.staff_category_create') }}" class="check-row mt-1">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>新分類 <input name="name" maxlength="50" required placeholder="例如：實習"></label>
+      <label>排序 <input type="number" name="sort_order" value="0" style="width:5rem"></label>
+      <button class="button button--small" type="submit">新增分類</button>
+    </form>
+  </section>
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

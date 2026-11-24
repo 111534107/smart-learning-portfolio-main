@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "teacher-class-summary" %}
+{% block title %}班級資料摘要{% endblock %}
+{% block navigation %}{{ masthead(user, "工作台") }}{% endblock %}
+{% block content %}<div class="page page--banded"><section class="sheet"><h1>班級資料摘要</h1><p>{{ selected or "所有負責班級" }}</p><p style="white-space:pre-wrap" data-tour="查看班級摘要，並以已確認資料核對。" data-tour-order="1">{{ result.text }}</p><p>結果僅供參考，請以學生已確認資料及正式規定為準。</p><a href="{{ url_for('main.teacher_dashboard', class_name=selected) }}" data-tour="看完摘要後回工作台。" data-tour-order="2">回工作台</a></section></div>{% endblock %}

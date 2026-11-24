@@ -1,0 +1,287 @@
+%%{init: {'theme':'base','themeVariables': {'fontFamily':'Arial, Microsoft JhengHei, sans-serif','fontSize':'14px','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280'},'er':{'minEntityWidth':160,'entityPadding':20}}}%%
+erDiagram
+    USERS ||--o| STUDENT_PROFILES : "學生基本資料"
+    USERS ||--o{ CLASS_ADVISORS : "擔任導師"
+    USERS ||--o{ SOURCE_DOCUMENTS : "上傳"
+    SOURCE_DOCUMENTS ||--o| DOCUMENT_EXTRACTIONS : "辨識結果"
+    USERS ||--o{ LEARNING_COURSE_RECORDS : "成績與學分"
+    SOURCE_DOCUMENTS |o--o{ LEARNING_COURSE_RECORDS : "來源檔"
+    COURSE_RULES }o..o{ LEARNING_COURSE_RECORDS : "畢業學分檢查對照"
+    USERS ||--o{ CREDENTIAL_RECORDS : "證照"
+    SOURCE_DOCUMENTS |o--o{ CREDENTIAL_RECORDS : "來源檔"
+    USERS ||--o{ PORTFOLIOS : "活動競賽服務幹部"
+    PORTFOLIOS ||--o{ PORTFOLIO_EVIDENCE : "佐證"
+    USERS ||--o{ ATTENDANCE_SUMMARIES : "缺曠合計"
+    PORTFOLIOS ||--o| AWARD_CERTIFICATES : "申請電子獎狀"
+    PORTFOLIOS ||--o{ PORTFOLIO_DOMAIN_TAGS : "相關領域"
+    ADMISSION_RULE_VERSIONS ||--o{ ADMISSION_RULE_ITEMS : "備審要求"
+    ADMISSION_RULE_ITEMS ||--o{ ADMISSION_RULE_ITEM_CATEGORIES : "對應類別"
+    USERS ||--o{ STUDENT_TARGETS : "選擇校系"
+    ADMISSION_RULE_VERSIONS ||--o{ STUDENT_TARGETS : "被選擇"
+    USERS ||--o{ LEARNING_PROFILE_OUTPUTS : "自傳與備審"
+    USERS ||--o{ PACKAGE_REVIEWS : "送審與確認"
+    ADMISSION_RULE_VERSIONS ||--o{ PACKAGE_REVIEWS : "針對校系"
+    LEARNING_PROFILE_OUTPUTS ||--o{ AUTOBIOGRAPHY_COMMENTS : "段落註解"
+    USERS ||--o{ AUTOBIOGRAPHY_COMMENTS : "老師或學生寫"
+    AUTOBIOGRAPHY_COMMENTS |o--o{ AUTOBIOGRAPHY_COMMENTS : "回覆"
+    USERS ||--o{ AI_DAILY_USAGE : "每日 AI 用量"
+    PUBLIC_SOURCES ||--o{ PUBLIC_SOURCE_SNAPSHOTS : "每次檢查"
+    PUBLIC_SOURCE_SNAPSHOTS |o--o{ ADMISSION_RULE_VERSIONS : "擷取候選校系"
+    PUBLIC_SOURCE_SNAPSHOTS ||--o{ INFO_ITEMS : "擷取並分類"
+    USERS ||--o{ AGENT_TASKS : "啟動 AI 代理"
+    USERS ||--o{ ANNOUNCEMENTS : "發布公告"
+    ANNOUNCEMENTS ||--o{ ANNOUNCEMENT_READS : "已讀"
+    USERS ||--o{ ANNOUNCEMENT_READS : "讀過"
+    FORM_CATEGORIES ||--o{ FORM_ITEMS : "分類"
+    FORM_ITEMS ||--o{ FORM_ITEM_VERSIONS : "版本"
+    USERS ||--o{ FORM_ITEM_VERSIONS : "科辦上傳"
+    USERS ||--o{ AUDIT_LOGS : "操作紀錄"
+
+    USERS["USERS 使用者　　　"] {
+        int id PK
+        string username "學號或帳號"
+        string role "student teacher staff admin"
+        bool is_active
+    }
+    STUDENT_PROFILES["STUDENT_PROFILES 學生資料　　　"] {
+        int id PK
+        int user_id FK "唯一：一位使用者一筆"
+        string student_no
+        string class_name "班級"
+        int admission_year "入學學年度（管理者匯入）"
+    }
+    CLASS_ADVISORS["CLASS_ADVISORS 導師班級　　　"] {
+        int id PK
+        int teacher_id FK
+        string class_name
+        int school_year
+    }
+    SOURCE_DOCUMENTS["SOURCE_DOCUMENTS 上傳原始檔　　　"] {
+        int id PK
+        int owner_id FK
+        string document_type "成績單 證照 獎懲記錄等"
+        string file_path
+        string status
+    }
+    DOCUMENT_EXTRACTIONS["DOCUMENT_EXTRACTIONS 辨識結果　　　"] {
+        int id PK
+        int source_document_id FK
+        string status "辨識狀態"
+        json notes "AI 註記（待新增）"
+        datetime confirmed_at "學生確認時間"
+    }
+    LEARNING_COURSE_RECORDS["LEARNING_COURSE_RECORDS 成績與學分　　　"] {
+        int id PK
+        int student_id FK
+        int source_document_id FK
+        int school_year
+        string semester
+        string course_code "課號（待新增）"
+        string course_name
+        int credits
+        int score
+        string source_kind "網頁成績 紙本成績單（待新增）"
+    }
+    CREDENTIAL_RECORDS["CREDENTIAL_RECORDS 證照　　　"] {
+        int id PK
+        int student_id FK
+        int source_document_id FK
+        string credential_name
+        string level
+    }
+    PORTFOLIOS["PORTFOLIOS 活動競賽服務幹部　　　"] {
+        int id PK
+        int student_id FK
+        string category "活動 競賽 服務學習 幹部經歷"
+        string title
+        string evidence_source "證明來源"
+        string status
+    }
+    PORTFOLIO_DOMAIN_TAGS["PORTFOLIO_DOMAIN_TAGS 經歷相關領域　　　"] {
+        int portfolio_id PK "也是 FK"
+        string tag PK "一個領域一列"
+        int sort_order
+    }
+    PORTFOLIO_EVIDENCE["PORTFOLIO_EVIDENCE 佐證檔案　　　"] {
+        int id PK
+        int portfolio_id FK
+        string file_path
+        string external_url
+    }
+    ATTENDANCE_SUMMARIES["ATTENDANCE_SUMMARIES 缺曠合計（待新增）　　　"] {
+        int id PK
+        int student_id FK
+        int school_year
+        string semester
+        json leave_totals "各假別合計，不存逐日明細"
+        int one_third_hours "應上課三分之一時數"
+        int absent_hours "至今缺課總時數"
+        bool include_in_package "放進備審，預設否"
+        datetime include_confirmed_at "學生看過提醒並確認"
+    }
+    COURSE_RULES["COURSE_RULES 課程規則與修業科目表　　　"] {
+        int id PK
+        int school_year "入學年度"
+        string course_name
+        string category "必修 選修等"
+        string requirement_type
+        int credits
+    }
+    AWARD_CERTIFICATES["AWARD_CERTIFICATES 電子獎狀　　　"] {
+        int id PK
+        int portfolio_id FK "學生由這筆紀錄決定"
+        string title "證明類別：科上派的服務 TA 社團"
+        string status "pending approved returned"
+        string verify_code "驗證碼"
+        int reviewed_by_id FK "核准的科辦"
+    }
+    ADMISSION_RULE_VERSIONS["ADMISSION_RULE_VERSIONS 校系與年度　　　"] {
+        int id PK
+        string program_code "志願代碼"
+        string school_name "學校"
+        string department_name "科系"
+        string admission_category "招生類別"
+        int admission_year "學年度"
+        string source_url "資料來源"
+        string status "candidate published"
+        string data_origin "manual agent"
+        json details_json "資格 文件 時程 連結 特色（待新增）"
+        date checked_at "最後確認日期"
+    }
+    ADMISSION_RULE_ITEMS["ADMISSION_RULE_ITEMS 校系備審要求　　　"] {
+        int id PK
+        int rule_version_id FK
+        string source_item_name "簡章原始項目名稱"
+        int weight_percent "加權百分比"
+        string mapping_status "確定 待確認"
+        bool is_required
+    }
+    ADMISSION_RULE_ITEM_CATEGORIES["ADMISSION_RULE_ITEM_CATEGORIES 備審項目對應類別　　　"] {
+        int item_id PK "也是 FK"
+        string category_key PK "一個類別一列"
+        int sort_order
+    }
+    STUDENT_TARGETS["STUDENT_TARGETS 學生目標校系　　　"] {
+        int id PK
+        int student_id FK
+        int rule_version_id FK
+        datetime selected_at
+    }
+    LEARNING_PROFILE_OUTPUTS["LEARNING_PROFILE_OUTPUTS 自傳版本與備審產出　　　"] {
+        int id PK
+        int student_id FK
+        string output_type "自傳 備審資料"
+        int version "第幾版"
+        int edited_by FK "誰存的"
+        datetime created_at
+    }
+    PACKAGE_REVIEWS["PACKAGE_REVIEWS 導師確認紀錄　　　"] {
+        int id PK
+        int student_id FK
+        int rule_version_id FK "目標校系"
+        int teacher_id FK "確認的導師"
+        string status "pending confirmed needs_revision"
+        json snapshot_json "送審快照：事實、自傳版本、完成度"
+        string comment "修改建議"
+    }
+    AUTOBIOGRAPHY_COMMENTS["AUTOBIOGRAPHY_COMMENTS 段落註解（待新增）　　　"] {
+        int id PK
+        int output_id FK "寫在哪個自傳版本"
+        int paragraph_index "第幾段"
+        int author_id FK "哪位老師或學生"
+        int parent_id FK "回覆哪一則"
+        string body
+        datetime created_at
+        datetime resolved_at "已處理"
+        int resolved_by FK
+    }
+    AI_DAILY_USAGE["AI_DAILY_USAGE 每日 AI 用量　　　"] {
+        int id PK
+        int user_id FK
+        date usage_date
+        string key_kind "school own"
+        int count
+    }
+    PUBLIC_SOURCES["PUBLIC_SOURCES 資料來源　　　"] {
+        int id PK
+        string name
+        string url
+        string source_type "二技招生 資管科官網 資圖中心 行事曆"
+        bool is_active
+        string check_status "正常 失效（待新增）"
+        string last_error "失效原因（待新增）"
+    }
+    PUBLIC_SOURCE_SNAPSHOTS["PUBLIC_SOURCE_SNAPSHOTS 來源檢查紀錄　　　"] {
+        int id PK
+        int source_id FK
+        string content_hash "內容雜湊，每次都保留"
+        datetime fetched_at
+    }
+    AGENT_TASKS["AGENT_TASKS AI 代理任務　　　"] {
+        int id PK
+        string task_type
+        int requester_id FK
+        string status
+        string error_message
+    }
+    INFO_ITEMS["INFO_ITEMS 分類後的學校資訊（待新增）　　　"] {
+        int id PK
+        int snapshot_id FK
+        string title
+        string url "原始連結"
+        string topic "主題"
+        string grades "適用年級"
+        string item_type "公告 規定 時程 比賽"
+        date valid_until "有效期間"
+        string status "candidate published"
+        int reviewed_by FK "核對的管理員"
+    }
+    ANNOUNCEMENTS["ANNOUNCEMENTS 公告（待新增）　　　"] {
+        int id PK
+        string title
+        string body
+        string audience "給哪些角色或指定學生"
+        int admission_year "對應學年度"
+        int published_by FK
+        datetime published_at
+        datetime withdrawn_at "下架（不刪除）"
+    }
+    ANNOUNCEMENT_READS["ANNOUNCEMENT_READS 公告已讀（待新增）　　　"] {
+        int id PK
+        int announcement_id FK
+        int user_id FK
+        datetime read_at
+    }
+    FORM_CATEGORIES["FORM_CATEGORIES 表單分類（待新增）　　　"] {
+        int id PK
+        string name
+        int sort_order
+        bool is_active
+    }
+    FORM_ITEMS["FORM_ITEMS 表單項目（待新增）　　　"] {
+        int id PK
+        int category_id FK
+        string name
+        bool open_to_students
+        bool open_to_teachers
+        bool is_listed "上架中"
+        int created_by FK
+    }
+    FORM_ITEM_VERSIONS["FORM_ITEM_VERSIONS 表單版本（待新增）　　　"] {
+        int id PK
+        int item_id FK
+        int version "發布後不可覆寫"
+        string file_path
+        string file_hash
+        int uploaded_by FK
+        datetime uploaded_at
+    }
+    AUDIT_LOGS["AUDIT_LOGS 操作紀錄　　　"] {
+        int id PK
+        int user_id FK
+        string action "動作"
+        string target_type
+        int target_id
+        json detail_json
+        datetime created_at
+    }

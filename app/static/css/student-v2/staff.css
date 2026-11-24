@@ -1,0 +1,223 @@
+/* 老師、科辦、管理員的新版外觀補充（2026-11-13）
+   - 這些頁和學生頁共用 css/student-v2/ 的配色、頂端列與元件；本檔只放教職員頁需要的差異。
+   - 只有教職員頁會載入（base.html 的 staff_v2），<html> 上有 data-staff-ui="teacher|staff|admin"。
+   - 原則：後台以效率為優先，表格維持表格（不像學生頁在手機上改成卡片），太寬就在表格框內左右捲。 */
+
+/* 表格：手機上在框內左右捲，不撐寬整頁（學生頁的 ocr.css 把 .table-wrap 設成 overflow: visible 給卡片用） */
+html[data-staff-ui] .table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+@media (max-width: 720px) {
+  html[data-staff-ui][data-ui="student-v2"] .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+  }
+  /* 表格內容不要被學生頁的卡片規則拆開 */
+  html[data-staff-ui] .table-wrap .data-table { min-width: 36rem; }
+  html[data-staff-ui] .table-wrap .data-table td,
+  html[data-staff-ui] .table-wrap .data-table th { white-space: nowrap; }
+  html[data-staff-ui] .table-wrap .data-table td:nth-child(n+2) { white-space: normal; min-width: 6rem; }
+  /* 工作區標題列：按鈕換到下一行，不擠出畫面 */
+  html[data-staff-ui] .work-panel__head { flex-wrap: wrap; }
+  html[data-staff-ui] .work-panel__head > * { min-width: 0; }
+  html[data-staff-ui] .admin-inline-form { flex-wrap: wrap; }
+}
+
+/* 後台密度：表格列距比學生頁緊一點 */
+html[data-staff-ui] .data-table td,
+html[data-staff-ui] .data-table th { padding-block: .55rem; }
+
+/* 單一勾選框和文字放同一行（v2 的輸入框規則會把它當一般欄位撐開） */
+html[data-staff-ui] label > input[type="checkbox"],
+html[data-staff-ui] .check-row input[type="checkbox"] {
+  width: auto;
+  height: auto;
+  margin-inline-end: .4rem;
+  vertical-align: middle;
+}
+
+/* 手機頂端列：學生用底部分頁列，教職員保留「選單」按鈕。展開的選單換到頂端列下一行、整排寬，
+   不要擠在圓角膠囊裡（新版外殼預設不換行） */
+@media (max-width: 720px) {
+  html[data-staff-ui][data-ui="student-v2"] .masthead--app .masthead__inner {
+    flex-wrap: wrap;
+    border-radius: 24px;
+    row-gap: 4px;
+  }
+  html[data-staff-ui] .masthead--app .brand { order: 1; }
+  html[data-staff-ui] .masthead--app .masthead__tools { order: 2; margin-left: auto; }
+  html[data-staff-ui] .masthead--app .snav-toggle { order: 3; white-space: nowrap; margin-left: 4px; }
+  /* 和此處 720px 的版型切換同步，避免 701～720px 選單展開卻沒有收合按鈕。 */
+  html.js[data-staff-ui] .masthead--app .snav-toggle {
+    display: inline-flex; justify-content: center; width: 44px; height: 44px;
+    padding: 0; border: 0; border-radius: 50%; background: transparent; font-size: 0;
+  }
+  html.js[data-staff-ui] .masthead--app .snav-toggle:hover { background: var(--accent-soft); }
+  html[data-staff-ui][data-ui="student-v2"] .masthead--app .snav-bell {
+    position: relative; justify-content: center; width: 44px; height: 44px; padding: 0; font-size: 0;
+  }
+  /* 鈴鐺圖示由 nav.html 的 svg 提供；這裡不再用 ::before 另畫一個（合併後出現兩個鈴鐺） */
+  html[data-staff-ui] .masthead--app .snav-bell .mainnav__count {
+    position: absolute; top: 1px; right: 0; margin: 0;
+  }
+  html.js[data-staff-ui] .masthead--app .snav-toggle[aria-expanded="false"] + .mainnav { display: none; }
+  html[data-staff-ui][data-ui="student-v2"] .masthead--app .mainnav {
+    order: 4;
+    flex-basis: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    padding: 6px 2px 4px;
+    border-top: 1px solid var(--line);
+  }
+  html[data-staff-ui][data-ui="student-v2"] .masthead--app .mainnav a,
+  html[data-staff-ui] .masthead--app .admin-nav-group summary { justify-content: flex-start; border-radius: 14px; }
+}
+
+/* 深色主題選單與文字同步，避免淺底配淺字。 */
+html[data-theme="dark"] .admin-nav-group__links { background:#252321; color:#f5eee5; }
+html[data-theme="dark"] .admin-nav-group__links a { color:#f5eee5; }
+@media (max-width:720px) {
+  html[data-staff-ui][data-ui="student-v2"] .masthead--app .masthead__inner { max-width:100%; min-width:0; box-sizing:border-box; }
+  html[data-staff-ui] .masthead--app .masthead__tools { min-width:0; }
+  html[data-staff-ui] .masthead--app .mainnav { min-width:0; max-width:100%; }
+  html[data-theme="dark"] .admin-nav-group__links { background:transparent; }
+}
+
+.class-filter { display:flex; align-items:center; flex-wrap:wrap; gap:.55rem; margin:0 0 .75rem; }
+.class-filter select { max-width:100%; padding:.45rem .6rem; color:var(--ink); background:var(--card); border:1px solid var(--line); border-radius:8px; font:inherit; }
+
+/* ===== 管理員版面（2026-11-18 使用者要求）：左側固定側邊欄＋右側工作區，不用浮動膠囊頂端列 =====
+   只在桌機寬度生效；窄螢幕沿用上面的「選單」按鈕與頂端列。 */
+@media (min-width: 961px) {
+  html[data-staff-ui="admin"] body { background: var(--surface); }
+  html[data-staff-ui="admin"] main#main-content { margin-left: var(--admin-side, 15.5rem); max-width: none; }
+  html[data-staff-ui="admin"] .masthead--admin {
+    position: fixed; inset: 0 auto 0 0; width: var(--admin-side, 15.5rem); padding: 0; z-index: 40;
+  }
+  html[data-staff-ui="admin"][data-ui="student-v2"] .masthead--admin .masthead__inner {
+    flex-direction: column; align-items: stretch; flex-wrap: nowrap; justify-content: flex-start;
+    width: 100%; height: 100%; max-width: none; margin: 0; padding: .75rem .6rem;
+    border-radius: 0; border-width: 0 1px 0 0; border-style: solid; border-color: var(--line);
+    background: var(--card); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
+    overflow-y: auto; gap: .5rem;
+  }
+  html[data-staff-ui="admin"] .masthead--admin .brand { padding: .25rem .5rem .75rem; border-bottom: 1px solid var(--line); margin-bottom: .25rem; }
+  html[data-staff-ui="admin"] .masthead--admin .snav-toggle { display: none !important; }
+  html[data-staff-ui="admin"] .masthead--admin .mainnav {
+    display: flex !important; flex-direction: column; align-items: stretch; gap: .15rem; flex: 1 1 auto; margin: 0;
+  }
+  html[data-staff-ui="admin"] .masthead--admin .admin-nav-groups { flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: .6rem; margin-top: .4rem; }
+  html[data-staff-ui="admin"] .masthead--admin .admin-nav-group { display: block; position: static; }
+  html[data-staff-ui="admin"] .masthead--admin .admin-nav-group__title {
+    margin: 0 0 .25rem; padding: 0 .75rem; font-size: .75rem; font-weight: 700; letter-spacing: .06em; color: var(--muted, #6b625a);
+  }
+  html[data-staff-ui="admin"] .masthead--admin .admin-nav-group__links {
+    position: static; display: flex; flex-direction: column; min-width: 0; padding: 0; border: 0; box-shadow: none; background: transparent;
+  }
+  html[data-ui="student-v2"] .masthead--admin .mainnav a {
+    display: block; width: 100%; padding: .32rem .75rem; border-radius: 6px; border-left: 3px solid transparent;
+    background: transparent; color: var(--ink); font-size: .9rem; white-space: nowrap;
+  }
+  html[data-ui="student-v2"] .masthead--admin .mainnav a:hover { background: var(--accent-soft); }
+  html[data-ui="student-v2"] .masthead--admin .mainnav a[aria-current] {
+    background: var(--accent-soft); color: var(--accent); font-weight: 700; border-left-color: var(--accent);
+  }
+  html[data-staff-ui="admin"] .masthead--admin .admin-nav-home { font-weight: 700; }
+  /* 帳號區放在側邊欄最下面，選單往上展開 */
+  html[data-staff-ui="admin"] .masthead--admin .masthead__tools { margin: auto 0 0; padding-top: .75rem; border-top: 1px solid var(--line); }
+  html[data-staff-ui="admin"] .masthead--admin .account-menu { width: 100%; position: relative; }
+  html[data-staff-ui="admin"] .masthead--admin .account-menu__button { width: 100%; justify-content: flex-start; gap: .5rem; }
+  html[data-staff-ui="admin"] .masthead--admin .account-menu__panel { top: auto; bottom: 100%; left: 0; right: auto; width: 100%; margin-bottom: .4rem; }
+}
+
+@media (min-width: 721px) and (max-width: 960px) { html[data-staff-ui="admin"] { --admin-side: 12.5rem; } }
+/* 窄螢幕（手機選單）：分類標題小字、連結直排，不要用大標題字級 */
+@media (max-width: 720px) {
+  html[data-staff-ui="admin"] .masthead--admin .admin-nav-group__title { margin: .5rem 0 .15rem; padding: 0 .75rem; font-size: .75rem; letter-spacing: .06em; }
+  html[data-staff-ui="admin"] .masthead--admin .admin-nav-group__links { position: static; display: flex; flex-direction: column; min-width: 0; box-shadow: none; border: 0; background: transparent; padding: 0; }
+}
+
+/* OCR 的選項原本套到共用卡片與表單格線，窄螢幕會佔同一欄並互相擠壓。 */
+html[data-staff-ui="admin"] body[data-page="admin-ocr"] .ocr-device-form {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+}
+html[data-staff-ui="admin"] body[data-page="admin-ocr"] .ocr-device-form fieldset {
+  min-width: 0;
+  display: grid;
+  gap: .75rem;
+}
+html[data-staff-ui="admin"] body[data-page="admin-ocr"] .ocr-device-form .choice {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+html[data-staff-ui="admin"] body[data-page="admin-ocr"] .ocr-device-form .choice span { overflow-wrap: anywhere; }
+@media (max-width: 720px) {
+  html[data-staff-ui="admin"] .masthead--admin .mainnav {
+    max-height: calc(100dvh - 110px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  html[data-staff-ui="admin"] .admin-inline-form,
+  html[data-staff-ui="admin"] .admin-item-form { grid-template-columns: minmax(0, 1fr); }
+  html[data-staff-ui="admin"] :is(.admin-inline-form, .admin-item-form) > * { min-width: 0; max-width: 100%; }
+}
+@media (max-width: 640px) {
+  /* 一格可能同時有標題、說明與表單，避免格線自動產生過寬的隱含欄。 */
+  html[data-staff-ui="admin"] .table-wrap table.table--stack td { display: block; min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+  html[data-staff-ui="admin"] table.table--stack td::before { display: block; margin-bottom: .2rem; }
+  html[data-staff-ui="admin"] table.table--stack td > * { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+}
+
+@media (max-width: 640px) {
+  html[data-staff-ui="admin"] body[data-page="admin-ai"] table.table--stack input:not([type="checkbox"]) {
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+}
+
+
+/* 主任與科辦：表格內連結高度至少 44px */
+html[data-staff-ui] .data-table td a {
+  display: inline-flex !important;
+  align-items: center !important;
+  min-height: 44px !important;
+}
+
+/* 主任與科辦：表格容器全尺寸不撐開視窗，確保左右捲動限制在容器內 */
+html[data-staff-ui] .table-wrap,
+html[data-staff-ui][data-ui="student-v2"] .table-wrap {
+  overflow-x: auto !important;
+  max-width: 100% !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+
+/* 主任與科辦頁面防平板橫向溢出 */
+html[data-staff-ui],
+html[data-staff-ui] body {
+  overflow-x: hidden !important;
+}
+html[data-staff-ui] .work-shell {
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+html[data-staff-ui] .work-panel {
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  overflow-x: hidden !important;
+}
+html[data-staff-ui] .table-wrap,
+html[data-staff-ui][data-ui="student-v2"] .table-wrap {
+  overflow-x: auto !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}

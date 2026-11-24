@@ -1,0 +1,52 @@
+%%{init: {'theme':'base','themeVariables': {'fontSize':'18px','fontFamily':'DFKai-SB, BiauKai, serif','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280','edgeLabelBackground':'#FFFFFF'},'flowchart':{'wrappingWidth':400}}}%%
+flowchart TD
+    classDef student fill:#DBEAFE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef teacher fill:#DCFCE7,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef staff fill:#FEF3C7,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef system fill:#E0F2FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef store fill:#F3F4F6,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef ai fill:#FFEDD5,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef alert fill:#FEE2E2,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef pending fill:#FFFFFF,stroke:#9CA3AF,color:#6B7280,stroke-width:1px,stroke-dasharray:5 3;
+
+    subgraph StaffSide[科助建立與維護；科主任核准上架]
+        SLogin([科助登入]):::staff --> Manage[進入「表單管理」]:::staff
+        Manage --> Category[分類管理<br/>新增、改名、排序、停用]:::staff
+        Category -.- CatRule[已有項目的分類不能刪除，只能停用]:::pending
+        Manage --> NewItem[新增項目<br/>名稱、說明、分類<br/>開放對象：學生、老師，或兩者]:::staff
+        NewItem --> UploadFile[上傳檔案<br/>PDF、Word、Excel、ODT]:::staff
+        UploadFile --> FileOK{副檔名、檔案類型、<br/>大小（10MB 內）正確？}
+        FileOK -- 否 --> FileErr[顯示錯誤原因，請重新上傳]:::alert
+        FileErr --> UploadFile
+        FileOK -- 是 --> Who{新增的人是主任或副主任？}
+        Who -- 是 --> Publish[發布為第 1 版，項目上架]:::staff
+        Who -- 否（科助） --> Wait[第 1 版待核准<br/>主任或副主任核准後才上架]:::staff
+        Wait --> Publish
+        Manage --> Revise[已上架的項目要改內容<br/>上傳新版本]:::staff
+        Revise --> FileOK2{檔案檢查通過？}
+        FileOK2 -- 否 --> FileErr
+        FileOK2 -- 是 --> NewVersion[新增版本號<br/>舊版本保留、不能覆寫]:::system
+        Manage --> Unlist[下架項目<br/>（可重新上架）]:::staff
+    end
+
+    Publish --> Store[(表單項目與各版本檔案<br/>記錄上傳者、時間與檔案比對資訊)]:::store
+    NewVersion --> Store
+    Unlist --> Store
+    Publish --> Log[寫入操作紀錄<br/>上架、改版、下架]:::system
+    NewVersion --> Log
+    Unlist --> Log
+
+    subgraph UserSide[學生、老師：下載]
+        ULogin([學生或老師登入]):::student --> List[進入「表單下載」<br/>依分類收合，標題顯示項目數量<br/>可用關鍵字搜尋]:::system
+        List --> Filter[只列出開放給自己角色、<br/>而且上架中的項目<br/>顯示名稱、說明、版本日期]:::system
+        Filter --> Pick[選擇要下載的項目]:::student
+        Pick --> Allowed{有權限下載？<br/>（開放給此角色且上架中）}
+        Allowed -- 否 --> Deny[顯示沒有使用權限<br/>直接輸入網址也一樣]:::alert
+        Allowed -- 是 --> Download[下載最新版本]:::system
+        Download --> Offline[學生或老師自行填寫<br/>依科上原本的方式繳交]:::student
+    end
+
+    Store --> Filter
+    Ask[資管科小助手（限定範圍的提問）<br/>問「公假單在哪下載？」<br/>只回覆提問者有權限的下載連結]:::ai -.-> Pick
+    Offline -.- NoCollect[繳回系統、收件、退件：<br/>2026-10-09 暫停，不在本版]:::pending
+    Unlist -.- UnlistRule[下架後清單不顯示，網址也打不開；<br/>舊版本檔案仍保留，科助、科主任在後台查得到]:::pending

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "admin-curriculum" %}
+{% set status_labels = {"candidate": ("待確認", "tag--warn"), "check_failed": ("檢查不通過", "tag--danger"), "published": ("已確認", "tag--ok"), "superseded": ("已被新版取代", "tag"), "rejected": ("不採用", "tag")} %}
+
+{% block title %}修業科目表｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "修業科目表") }}{% endblock %}
+
+{% block content %}
+<section class="work-shell" data-work-role="admin" data-page-curriculum>
+  <header class="work-heading">
+    <div><h1>修業科目表</h1>
+      <p>代理到<a href="{{ index_url }}" target="_blank" rel="noopener">資管科「修業科目表」頁面</a>下載 {{ min_year }} 學年度以後入學的 PDF，用程式讀出科目與學分、檢查數字有沒有對上，存成「待確認」。<b>你按確認後，畢業門檻才改用這一版</b>；沒確認的年度沿用人工核對過的 111、113 學年度資料。</p></div>
+  </header>
+  {% if message %}<p class="notice mb-1" role="status">{{ message }}</p>{% endif %}
+  {% if error %}<p class="alert mb-1" role="alert">{{ error }}</p>{% endif %}
+
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>檢查網站更新</h2><p>同一個檔案再抓一次不會重複建立。數字由程式從 PDF 讀出，不經 AI。</p></div>
+      <form method="post" action="{{ url_for('admin.curriculum_check') }}" data-tour="需要更新科目表時，先檢查學校網站。" data-tour-order="1"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit" data-busy-text="下載與檢查中…（約 10～30 秒）">檢查網站更新</button></form></div>
+  </section>
+
+  <section class="work-panel" id="curriculum-pending" data-tour="核對候選版本差異，再確認或不採用。" data-tour-order="2">
+    <div class="work-panel__head"><div><h2>等你處理（{{ pending|length }}）</h2><p>看過檢查結果與差異後，確認或不採用。</p></div></div>
+    {% for version in pending %}
+    {% set label, tag = status_labels[version.status] %}
+    <article class="sheet mb-1" data-curriculum-version="{{ version.id }}">
+      <div class="sheet__head"><h3>{{ version.admission_year }} 學年度入學　<span class="tag {{ tag }}">{{ label }}</span></h3>
+        <a class="small" href="{{ version.source_url }}" target="_blank" rel="noopener">原始 PDF</a></div>
+      {% if version.total_credits %}<p>總畢業學分 <b>{{ version.total_credits }}</b>（必修 {{ version.required_credits }}、選修 {{ version.elective_credits }}），共 {{ version.courses|length }} 門科目。</p>{% endif %}
+      <h4>檢查結果</h4>
+      <ul class="small">
+        {% for check in version.checks_json or [] %}<li>{{ "✓" if check.ok else "✗" }} {{ check.name }}：{{ check.detail }}</li>{% endfor %}
+      </ul>
+      <h4>重點</h4>
+      <p class="small">{{ version.summary }}</p>
+      {% if version.notes_json %}<details class="small"><summary>本科相關規定（從 PDF 讀出）</summary><ul>{% for note in version.notes_json %}<li>{{ note }}</li>{% endfor %}</ul></details>{% endif %}
+      <details class="small"><summary>全部科目</summary>
+        <div class="table-wrap"><table class="data-table">
+          <thead><tr><th>類別</th><th>科目</th><th>學分</th><th>備註</th></tr></thead>
+          <tbody>{% for course in version.courses %}<tr><td>{{ course.category or "（認不出）" }}</td><td>{{ course.name }}</td><td>{{ course.credits }}</td><td>{{ course.note or "" }}</td></tr>{% endfor %}</tbody>
+        </table></div>
+      </details>
+      <div class="mt-1">
+        {% if version.status == "candidate" %}
+        <form method="post" action="{{ url_for('admin.curriculum_decide', version_id=version.id, decision='publish') }}" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small" type="submit">確認，畢業門檻改用這一版</button></form>
+        {% endif %}
+        <form method="post" action="{{ url_for('admin.curriculum_decide', version_id=version.id, decision='reject') }}" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--line button--small" type="submit">不採用</button></form>
+      </div>
+    </article>
+    {% else %}
+    <p class="muted">目前沒有待處理的版本。</p>
+    {% endfor %}
+  </section>
+
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>目前使用中的版本</h2></div></div>
+    {% if published %}
+    <ul>{% for year, version in published|dictsort(reverse=true) %}<li>{{ year }} 學年度：{{ version.total_credits }} 學分（必修 {{ version.required_credits }}、選修 {{ version.elective_credits }}），{{ version.reviewed_at|taipei_time("%Y-%m-%d") if version.reviewed_at else "" }} 確認</li>{% endfor %}</ul>
+    {% else %}
+    <p class="muted">還沒有確認過的版本，畢業門檻沿用人工核對的 111、113 學年度資料。</p>
+    {% endif %}
+    {% if history %}<details class="small"><summary>舊版與不採用的紀錄</summary><ul>{% for version in history %}<li>{{ version.admission_year }} 學年度　{{ status_labels[version.status][0] }}　{{ version.created_at|taipei_time("%Y-%m-%d") }}</li>{% endfor %}</ul></details>{% endif %}
+  </section>
+</section>
+{% endblock %}

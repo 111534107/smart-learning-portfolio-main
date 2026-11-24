@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "teacher-graduation" %}
+{% set nav_active = "畢業門檻" %}
+
+{% block title %}{{ title }}｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, nav_active) }}{% endblock %}
+
+{% block content %}
+<section class="work-shell work-shell--wide" data-work-role="teacher">
+  <header class="work-heading" data-tour="這一頁看本班畢業門檻的整體情形，從最需要關心的學生開始。" data-tour-order="1">
+    <div><h1>畢業門檻</h1><p>{% if classes %}負責班級：{{ classes|join("、") }}。{% endif %}點任一列的「查看」，就能打開那位學生的畢業門檻案件。</p></div>
+  </header>
+  {% include "partials/teacher_class_filter.html" %}
+  <section class="work-panel" data-grad-overview data-tour="看本班畢業門檻的整體情形，從最需要關心的學生開始。" data-tour-order="2">
+    <div class="work-panel__head"><div><h2>畢業門檻提醒</h2><p>依學生已確認的證照與成績單整理，專四下起才會正式列出缺口。</p></div></div>
+    <div class="work-metrics work-metrics--four">
+      <article class="work-metric"><span>全班人數</span><strong>{{ grad.total }}</strong><small>人</small></article>
+      <article class="work-metric"><span>已達門檻</span><strong>{{ grad.met }}</strong><small>人</small></article>
+      <article class="work-metric"><span>確定有缺口</span><strong>{{ grad.gap }}</strong><small>人</small></article>
+      <article class="work-metric"><span>資料待確認</span><strong>{{ grad.data }}</strong><small>人</small></article>
+    </div>
+    {% if grad.total %}
+    <div class="grad-bar" role="img" aria-label="已達門檻 {{ grad.met }} 人、確定有缺口 {{ grad.gap }} 人、資料待確認 {{ grad.data }} 人" style="display:flex;height:12px;border-radius:6px;overflow:hidden;background:#d9dde3;margin:12px 0 4px">
+      <span style="width:{{ grad.met * 100 / grad.total }}%;background:#2e8b57"></span>
+      <span style="width:{{ grad.gap * 100 / grad.total }}%;background:#c0392b"></span>
+      <span style="width:{{ grad.data * 100 / grad.total }}%;background:#8a919c"></span>
+    </div>
+    <p class="small muted">綠色已達門檻、紅色確定有缺口、灰色資料待確認{% if grad.other %}；另有 {{ grad.other }} 人還在修課、抵免待核對、或待人工確認{% endif %}。</p>
+    {% endif %}
+    <h3 class="mt-1">需要優先關心的學生</h3>
+    {% if grad.priority %}
+    <div class="table-wrap">
+      <table class="data-table data-table--rowlink" data-priority-list>
+        <thead><tr><th>學生</th><th>目前缺口</th><th>建議行動</th><th><span class="visually-hidden">操作</span></th></tr></thead>
+        <tbody>
+          {% for row in grad.priority %}
+          <tr class="row-link">
+            <td><b>{{ row.student.display_name }}</b> <span class="muted small mono">{{ row.case.number }}</span></td>
+            <td>{{ row.label }}</td>
+            <td>{{ row.hint }}</td>
+            <td class="row-link__action"><a class="button button--small row-link__target" href="{{ url_for('graduation.case_detail', case_id=row.case.id) }}" aria-label="查看 {{ row.student.display_name }} 的畢業門檻案件">查看</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="muted">目前沒有需要優先關心的學生。</p>
+    {% endif %}
+    <p class="small muted">{{ grad_disclaimer }}</p>
+  </section>
+</section>
+{% endblock %}

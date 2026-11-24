@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "admin-ai" %}
+
+{% block title %}AI 設定｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "AI 設定") }}{% endblock %}
+
+{% block content %}
+<section class="work-shell" data-work-role="admin">
+  <header class="work-heading">
+    <div><h1>AI 設定</h1><p>選要用哪幾家 AI、用哪個模型、誰先誰後。系統照順序呼叫，前一家額度用完或連不上，就自動換下一家。</p></div>
+  </header>
+  {% if message %}<p class="notice mb-1" role="status">{{ message }}</p>{% endif %}
+  <section class="work-panel mb-1" data-ai-rules data-tour="設定前先了解送出資料與金鑰的規則。" data-tour-order="1">
+    <h2>送給 AI 前一定會做的事</h2>
+    <ul class="small">
+      <li>AI 不讀圖片或檔案：PDF 先抽出文字，掃描檔和照片先用系統的 OCR 辨識成文字。</li>
+      <li>姓名、學號、帳號、電子郵件、身分證號、電話換成代號（去識別化）後才送出。</li>
+      <li>金鑰只放在伺服器的 .env，不存在資料庫，這頁只顯示有沒有設定。</li>
+    </ul>
+  </section>
+  <form method="post" class="work-panel" data-ai-settings data-tour="選啟用項目、順序及模型，完成後儲存。" data-tour-order="2">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>啟用</th><th>順序</th><th>AI</th><th>模型</th><th>金鑰</th></tr></thead>
+        <tbody>
+          {% for p in providers %}
+          <tr>
+            <td><input type="checkbox" name="enabled_{{ p.name }}" value="1" aria-label="啟用 {{ p.label }}"{% if p.enabled %} checked{% endif %}></td>
+            <td><input type="number" name="order_{{ p.name }}" value="{{ loop.index }}" min="1" max="9" style="width:4rem" aria-label="{{ p.label }} 的順序"></td>
+            <td><b>{{ p.label }}</b></td>
+            <td><input name="model_{{ p.name }}" value="{{ p.model }}" aria-label="{{ p.label }} 的模型"></td>
+            <td>{% if not p.key_env %}<span class="tag tag--info">不需要</span>{% elif p.has_key %}<span class="tag tag--ok">已設定</span>{% else %}<span class="tag tag--warn">未設定</span> <small class="muted mono">{{ p.key_env }}</small>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="small muted">本機 Ollama 不連外網；模型存放位置由電腦的 OLLAMA_MODELS 設定決定（本機是 <span class="mono">D:\AI\OllamaModels</span>），模型欄要填已下載的名稱（例如 <span class="mono">qwen2.5-coder:7b</span>）。本機小模型讀長篇簡章不準，建議放在最後當備援。OpenAI 欄也可以接 DeepSeek、Groq 等相容服務，網址在 .env 的 OPENAI_BASE_URL。</p>
+    <div><button class="button" type="submit">儲存</button></div>
+  </form>
+</section>
+{% endblock %}

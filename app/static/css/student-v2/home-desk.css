@@ -1,0 +1,3075 @@
+/* 學生首頁第一屏「散落的紙張」、拼圖舞台、底部五年路線、實習履歷頁（2026-11-17）
+   來源：設計示範 _design-demo/student-v2/index.html 的 .sheets／.sheet／.doc，搬進正式系統並改用系統真實資料。
+   只有學生首頁與實習履歷頁會載入（base.html 依 page_name 判斷）。 */
+
+/* 路線節點與資料夾共用年級色，紙張和六類資料仍沿用首頁的藍綠色。 */
+.journey-home {
+  --year-1: #284acb;
+  --year-2: #218173;
+  --year-3: #d7972f;
+  --year-4: #c85e43;
+  --year-5: #7554af;
+  --cat-grades: #2f6672;
+  --cat-credential: #417884;
+  --cat-activity: #548893;
+  --cat-competition: #6b98a2;
+  --cat-service: #22505a;
+  --cat-leadership: #3a6e7a;
+  --desk-paper: #f8f4ee;
+  --paper-line: #d6ccbe;
+  --paper-ink: #2b2622;
+}
+
+html[data-theme="dark"] .journey-home {
+  --year-1: #8aabff;
+  --year-2: #71c9ae;
+  --year-3: #efb75a;
+  --year-4: #f19b7d;
+  --year-5: #bd9af4;
+  --cat-grades: #8ab4bc;
+  --cat-credential: #7ba7b0;
+  --cat-activity: #6c99a3;
+  --cat-competition: #5e8b95;
+  --cat-service: #9cc2c9;
+  --cat-leadership: #78a3ac;
+}
+
+.journey-home .year-puzzle {
+  --cat-grades: inherit;
+  --cat-credential: inherit;
+  --cat-activity: inherit;
+  --cat-competition: inherit;
+  --cat-service: inherit;
+  --cat-leadership: inherit;
+}
+
+/* 深色外觀時站點顏色比較淺，站裡的數字改用深字才看得清楚 */
+html[data-theme="dark"] .journey-home .stop-node__count {
+  fill: #171411;
+}
+
+html[data-theme="dark"] .journey-home .route-list__dot {
+  color: #171411;
+}
+
+.journey-home [data-stop="3"] .stop-node__count {
+  fill: #171411;
+}
+
+.journey-home .route-list__stop:nth-child(3) .route-list__dot {
+  color: #171411;
+}
+
+.journey-home [data-stop="4"] .stop-node__count {
+  fill: #171411;
+}
+
+.journey-home .route-list__stop:nth-child(4) .route-list__dot {
+  color: #171411;
+}
+
+/* 拼圖桌：暖色深桌面（原本是冷灰藍，和暖色頁面不搭） */
+.journey-home .ptable {
+  background-color: #2e2924;
+  border-color: #1f1b17;
+}
+
+.journey-home .year-puzzle.is-stage {
+  background: var(--bg, #e7e0d5);
+}
+
+/* ---------- 第一屏：散落的紙（照設計示範 _design-demo/student-v2 的舊版：鋪滿一屏、大張、中間站一個小人） ---------- */
+.today {
+  max-width: 80rem;
+}
+
+.desk {
+  position: relative;
+  isolation: isolate;
+  height: clamp(30rem, calc(100svh - 12rem), 50rem);
+  margin: 0 0 .9rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--line));
+  border-radius: clamp(1rem, 2.6vw, 1.6rem);
+  text-align: center;
+  background: color-mix(in srgb, var(--card) 48%, transparent);
+  backdrop-filter: blur(4px);
+  box-shadow: inset 0 0 20px color-mix(in srgb, var(--card) 62%, transparent), 0 16px 35px -28px var(--ink);
+}
+
+/* 中間的火柴人（和五年路線上的小人物同一個造型）：慢慢呼吸、手輕輕擺 */
+.desk__me {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  z-index: 0;
+  width: clamp(3.6rem, 6vw, 5.2rem);
+  transform: translate(-50%, -50%);
+  overflow: visible;
+  animation: desk-breathe 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.desk__me .jwalker__body {
+  fill: var(--ink);
+  stroke: var(--ink);
+}
+
+.desk__me-arm {
+  transform-box: fill-box;
+  transform-origin: top center;
+  animation: desk-wave 2.4s ease-in-out infinite alternate;
+}
+
+.desk__me-arm--r {
+  animation-direction: alternate-reverse;
+}
+
+@keyframes desk-breathe {
+  50% {
+    transform: translate(-50%, -52%);
+  }
+}
+
+@keyframes desk-wave {
+  from {
+    transform: rotate(-8deg);
+  }
+
+  to {
+    transform: rotate(8deg);
+  }
+}
+
+.desk__center {
+  position: absolute;
+  left: 50%;
+  bottom: .6rem;
+  z-index: 0;
+  transform: translateX(-50%);
+  margin: 0;
+  pointer-events: none;
+  color: var(--soft, var(--muted));
+  font-weight: 700;
+  font-size: .9375rem;
+  white-space: nowrap;
+}
+
+.desk__center b {
+  font-size: 1.6rem;
+  color: var(--accent);
+  margin-right: .15em;
+}
+
+/* 紙：頁數越多越大張（--p 是 1～6 頁）；5 頁以上疊成厚厚一疊；有寫說明的右上角一個小圓點 */
+.dsheet {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  z-index: 1;
+  width: clamp(50px, calc(5vw + var(--p, 1) * .75vw), 150px);
+  aspect-ratio: 1 / 1.25;
+  padding: 0;
+  background: var(--desk-paper);
+  border: 1px solid var(--paper-line);
+  border-radius: 8px;
+  cursor: grab;
+  box-shadow: 0 1px 0 rgb(43 38 34 / .05), 0 14px 24px -16px rgb(70 50 30 / .45);
+  transform: translate(-50%, -50%) rotate(calc(var(--r) + var(--tilt, 0deg)));
+  transition: transform .25s, box-shadow .25s, border-color .2s;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.dsheet::before {
+  content: "";
+  position: absolute;
+  inset: 16% 14% 30%;
+  background: repeating-linear-gradient(transparent 0 9px, rgb(43 38 34 / .13) 9px 10px);
+}
+
+.dsheet--note::after {
+  content: "";
+  position: absolute;
+  right: 10%;
+  top: 8%;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.dsheet--thick {
+  box-shadow: 0 14px 24px -16px rgb(70 50 30 / .45), 6px 7px 0 -1px var(--desk-paper), 6px 7px 0 0 var(--paper-line);
+}
+
+html[data-theme="dark"] .dsheet--thick {
+  box-shadow: 0 14px 24px -16px rgb(0 0 0 / .6), 6px 7px 0 -1px #e4ddd2, 6px 7px 0 0 #bfb4a5;
+}
+
+.dsheet__tag {
+  position: absolute;
+  left: 50%;
+  bottom: -2.2em;
+  transform: translateX(-50%);
+  max-width: 14em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 3px 9px;
+  border-radius: 99px;
+  background: var(--desk-paper);
+  color: var(--paper-ink);
+  border: 1px solid var(--paper-line);
+  font-size: .875rem;
+  font-weight: 700;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity .2s;
+  pointer-events: none;
+}
+
+.dsheet:hover,
+.dsheet:focus-visible,
+.dsheet.is-dragging {
+  z-index: 40;
+  border-color: var(--accent);
+  outline: none;
+}
+
+.dsheet:hover .dsheet__tag,
+.dsheet:focus-visible .dsheet__tag,
+.dsheet.is-dragging .dsheet__tag {
+  opacity: 1;
+}
+
+.dsheet:focus-visible {
+  box-shadow: 0 0 0 3px var(--accent);
+}
+
+.dsheet:hover:not(.is-dragging) {
+  transform: translate(-50%, -56%) rotate(var(--r)) scale(1.06);
+}
+
+.dsheet.is-held {
+  transition: transform .2s cubic-bezier(.3, 1.6, .4, 1);
+}
+
+.dsheet.is-dragging {
+  cursor: grabbing;
+  transition: none;
+  transform: translate(-50%, -50%) rotate(calc(var(--r) + var(--tilt, 0deg))) scale(1.12);
+  box-shadow: 0 30px 40px -20px rgb(70 50 30 / .5);
+}
+
+/* 進場：從上面落下（只播一次） */
+.js .dsheet {
+  animation: dsheet-drop .9s cubic-bezier(.2, .8, .25, 1) both;
+  animation-delay: var(--d, 0s);
+}
+
+.js .dsheet.is-landed {
+  animation: none;
+}
+
+@keyframes dsheet-drop {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -120%) rotate(calc(var(--r) * -2)) scale(1.15);
+  }
+}
+
+/* 按下「變成拼圖」：紙往中間收、縮小消失 */
+.desk.is-gathering .dsheet {
+  left: 50%;
+  top: 50%;
+  opacity: 0;
+  transition: left .55s cubic-bezier(.5, 0, .3, 1), top .55s cubic-bezier(.5, 0, .3, 1), opacity .35s .3s, transform .55s;
+  transform: translate(-50%, -50%) rotate(0deg) scale(.35);
+  pointer-events: none;
+}
+
+.desk__reset {
+  position: absolute;
+  right: .75rem;
+  top: .75rem;
+  z-index: 50;
+  padding: .3rem .8rem;
+  border: 1px solid var(--line, #d6ccbe);
+  border-radius: 6px;
+  background: var(--card, #f8f4ee);
+  color: var(--ink);
+  font: inherit;
+  font-size: .8125rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.desk__reset[hidden] {
+  display: none;
+}
+
+.desk__more {
+  margin: 0 0 .75rem;
+}
+
+.desk-actions .button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .45em;
+}
+
+.desk-actions svg {
+  width: 1.12em;
+  height: 1.12em;
+  flex: 0 0 auto;
+}
+
+.desk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: .6rem;
+  margin: 0 0 1.1rem;
+}
+
+.desk-action-locked {
+  position: relative;
+  max-width: 100%;
+  text-align: center;
+}
+
+.desk-action-locked .button[aria-disabled="true"] {
+  color: var(--muted);
+  background: color-mix(in srgb, var(--card) 83%, var(--ink));
+  border-color: var(--line);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.desk-action-locked .button[aria-disabled="true"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.desk-action-tip {
+  position: absolute;
+  z-index: 60;
+  inset-block-start: calc(100% + .35rem);
+  inset-inline: 0;
+  margin-inline: auto;
+  width: max-content;
+  max-width: 100%;
+  padding: .35rem .65rem;
+  border-radius: .55rem;
+  background: var(--ink);
+  color: var(--card);
+  font-size: .8125rem;
+  line-height: 1.35;
+  visibility: hidden;
+  pointer-events: none;
+  box-shadow: 0 5px 16px -6px var(--ink);
+}
+
+.desk-action-locked:not(.tip-dismissed):focus-within .desk-action-tip {
+  visibility: visible;
+}
+
+@media (hover: hover) {
+  .desk-action-locked:not(.tip-dismissed):hover .desk-action-tip {
+    visibility: visible;
+  }
+}
+
+.today .maker-row {
+  margin-bottom: 1.25rem;
+}
+
+/* 「今天先完成哪一步」縮成一條：只留最重要的一步，其餘的卡片收起來 */
+.today .guide {
+  display: block;
+  margin-bottom: .75rem;
+}
+
+.today .guide-card {
+  min-height: 0;
+  padding: .6rem 1rem;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .5rem 1rem;
+  box-shadow: none;
+  border-width: 1px;
+}
+
+.today .guide-card:first-child .guide-card__text,
+.today .guide-card .guide-card__text {
+  flex: 1 1 14rem;
+  font-size: 1rem;
+}
+
+.today .guide-card:not(:first-child) {
+  display: none;
+}
+
+.today__title {
+  margin-bottom: .5rem;
+}
+
+/* ---------- 打開一張紙 ---------- */
+.sheet-doc {
+  width: min(30rem, calc(100vw - 2rem));
+  padding: 0;
+  border: 1px solid var(--paper-line);
+  border-radius: 10px;
+  background: var(--desk-paper);
+  color: var(--paper-ink);
+  box-shadow: 0 30px 60px -20px rgb(0 0 0 / .5);
+}
+
+.sheet-doc::backdrop {
+  background: rgb(20 16 12 / .5);
+}
+
+.sheet-doc article {
+  position: relative;
+  padding: 1.5rem 1.5rem 1.25rem;
+  text-align: left;
+  background: repeating-linear-gradient(transparent 0 1.9rem, rgb(43 38 34 / .08) 1.9rem calc(1.9rem + 1px));
+}
+
+.sheet-doc__close {
+  position: absolute;
+  right: .5rem;
+  top: .4rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+
+.sheet-doc__meta {
+  margin: 0 0 .3rem;
+  font-size: .875rem;
+  font-weight: 700;
+  color: #574e45;
+}
+
+.sheet-doc h3 {
+  margin: 0 0 .6rem;
+  font-size: 1.3rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  color: var(--paper-ink);
+}
+
+/* 紙永遠是淺色，深色外觀下標題也要用深字 */
+.sheet-doc__detail {
+  margin: 0 0 1rem;
+  line-height: 1.9;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.sheet-doc__detail:empty {
+  display: none;
+}
+
+.js .sheet-doc[open] {
+  animation: sheet-open .25s ease-out;
+}
+
+@keyframes sheet-open {
+  from {
+    opacity: 0;
+    transform: translateY(12px) rotate(-1.5deg) scale(.96);
+  }
+}
+
+/* ---------- 拼圖舞台：平常收起來，按按鈕才整頁攤開 ---------- */
+.year-puzzle.is-stowed {
+  display: none;
+}
+
+.year-puzzle.is-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: grid;
+  align-content: center;
+  margin: 0;
+  padding: 1rem;
+  background: var(--bg, #e7e0d5);
+  overflow: hidden;
+  animation: stage-in .3s ease-out;
+}
+
+.year-puzzle.is-stage .ptable {
+  width: min(100%, 64rem, calc((100vh - 6rem) * 16 / 9));
+}
+
+.year-puzzle.is-stage> :not(.ptable):not(.table-defs):not(.year-puzzle__title) {
+  display: none;
+}
+
+@keyframes stage-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ---------- 底部五年路線 ---------- */
+.route-map__heading {
+  margin: 0 0 .5rem;
+  font-family: var(--font-serif);
+  font-size: clamp(1.4rem, 3vw, 2.1rem);
+  line-height: 1.3;
+}
+
+.route-map__heading small {
+  display: block;
+  margin-top: .3rem;
+  font-family: var(--font-sans);
+  font-size: .9375rem;
+  font-weight: 700;
+  color: var(--soft, var(--muted));
+}
+
+.journey-home .route-map {
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+  padding: clamp(.6rem, 2vw, 1.25rem);
+  border: 1px solid var(--line);
+  border-radius: 1.35rem;
+  background: color-mix(in srgb, var(--card) 76%, transparent);
+}
+
+.route-legend {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: .4rem 1rem;
+  padding: 0;
+  margin: .85rem 0 0;
+  color: var(--muted);
+  font-size: .8125rem;
+}
+
+.route-legend li {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+}
+
+.route-legend span {
+  display: block;
+  inline-size: .95rem;
+}
+
+.route-legend__past {
+  border-block-start: 3px solid var(--accent);
+}
+
+.route-legend__future {
+  border-block-start: 2px dashed var(--muted);
+}
+
+.route-legend span.route-legend__now {
+  inline-size: .65rem;
+  block-size: .65rem;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+}
+
+/* 不規則的路＋插在路上的學校規劃：板子和 SVG 同比例（1000 × --route-h），規劃小卡用百分比對準每一站 */
+/* 上下留空間：窄一點的螢幕小卡會比較高，伸出板子外也不會蓋到標題和出處那一行 */
+.route-board {
+  position: relative;
+  max-width: 64rem;
+  margin: 3.3rem auto 5.9rem;
+  aspect-ratio: 1000 / var(--route-h, 390);
+}
+
+.route-board .route-map__svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+}
+
+.journey-home .route-map__ghost {
+  stroke: var(--muted);
+  opacity: .42;
+  stroke-dasharray: .85 1.25;
+  stroke-width: 4;
+}
+
+.journey-home .route-map__walked {
+  stroke-width: 8;
+}
+
+.journey-home .stop-node--future .stop-node__dot,
+.journey-home .stop-node--future .stop-node__label {
+  opacity: .85;
+}
+
+/* 站名壓在彎曲的路上時看不清楚：字外圍描一圈底色 */
+.journey-home .stop-node__label {
+  paint-order: stroke;
+  stroke: var(--bg, #e7e0d5);
+  stroke-width: 7px;
+  stroke-linejoin: round;
+}
+
+.route-note {
+  position: absolute;
+  z-index: 2;
+  width: 18.6%;
+  transform: translateX(-50%);
+  padding: .45rem .6rem .5rem;
+  box-sizing: border-box;
+  background: var(--card, #f8f4ee);
+  color: var(--ink);
+  border: 1px solid var(--line, #d6ccbe);
+  border-top: 4px solid var(--year, var(--accent));
+  border-radius: 8px;
+  box-shadow: var(--shadow, 0 12px 28px -20px rgb(70 50 30 / .4));
+  text-align: left;
+  text-decoration: none;
+  font-size: .8125rem;
+  line-height: 1.45;
+  transition: transform .2s;
+  animation: note-in .5s ease-out both;
+}
+
+.route-note:nth-of-type(2) {
+  animation-delay: .15s;
+}
+
+.route-note:nth-of-type(3) {
+  animation-delay: .3s;
+}
+
+.route-note:nth-of-type(4) {
+  animation-delay: .45s;
+}
+
+.route-note:nth-of-type(5) {
+  animation-delay: .6s;
+}
+
+.route-note:hover,
+.route-note:focus-visible {
+  transform: translateX(-50%) translateY(-3px);
+}
+
+.route-note b {
+  display: block;
+  font-size: .875rem;
+  color: var(--accent);
+}
+
+.route-note span {
+  display: block;
+  font-weight: 700;
+}
+
+.route-note--now {
+  border-color: var(--year);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--year) 27%, transparent);
+}
+
+.route-note--future {
+  border-top-style: dashed;
+}
+
+@keyframes note-in {
+  from {
+    opacity: 0;
+    translate: 0 8px;
+  }
+}
+
+.route-list__plan {
+  grid-column: 2 / -1;
+  margin-top: -.35rem;
+  font-size: .875rem;
+  color: var(--soft, var(--muted));
+}
+
+@media (max-width: 720px) {
+  .route-board {
+    display: none;
+  }
+}
+
+/* 跳頁統一走全站導覽，五年路線只保留年級節點，不再重複四個功能捷徑。 */
+.journey-home .place-grid,
+.journey-home .route-map__svg .place {
+  display: none;
+}
+
+
+/* ---------- 實習履歷頁 ---------- */
+.resume-page {
+  max-width: 54rem;
+}
+
+.resume-lead {
+  display: flex;
+  gap: 1.25rem;
+  align-items: flex-start;
+  margin-bottom: 1.25rem;
+}
+
+.resume-lead h2 {
+  margin: 0 0 .4rem;
+  font-size: 1.4rem;
+  line-height: 1.4;
+}
+
+.resume-lead p {
+  margin: 0 0 .4rem;
+}
+
+.resume-lead__piece {
+  flex: 0 0 5rem;
+  width: 5rem;
+  fill: var(--accent);
+  stroke: var(--ink);
+  stroke-width: 3;
+  animation: piece-click .6s cubic-bezier(.3, 1.6, .4, 1) both;
+}
+
+@keyframes piece-click {
+  from {
+    transform: rotate(-40deg) scale(.4);
+    opacity: 0;
+  }
+}
+
+.resume-block {
+  margin-bottom: 1.25rem;
+}
+
+.resume-block>h2 {
+  margin: 0 0 .6rem;
+  font-size: var(--fs-md);
+}
+
+.resume-basic {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem 2rem;
+  margin: 0;
+}
+
+.resume-basic dt {
+  font-size: .8125rem;
+  font-weight: 700;
+  color: var(--soft, var(--muted));
+}
+
+.resume-basic dd {
+  margin: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.resume-picks {
+  list-style: none;
+  margin: .5rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: .4rem;
+}
+
+.resume-pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .4rem 1rem;
+  padding: .5rem .75rem;
+  border: 1px solid var(--line, #d6ccbe);
+  border-left: 4px solid var(--accent);
+  border-radius: 6px;
+  background: var(--card, #f8f4ee);
+  transition: opacity .2s, border-color .2s, transform .2s;
+}
+
+.resume-pick__main {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  flex: 1 1 14rem;
+  min-width: 0;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.resume-pick__main input {
+  flex: 0 0 auto;
+  width: 1.2rem;
+  height: 1.2rem;
+  accent-color: var(--accent);
+}
+
+.resume-pick__main span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.resume-pick__main small {
+  display: block;
+  font-weight: 400;
+  font-size: .8125rem;
+  color: var(--soft, var(--muted));
+}
+
+.resume-pick__col select {
+  max-width: 100%;
+}
+
+.resume-pick.is-out {
+  opacity: .55;
+  border-left-color: var(--line, #d6ccbe);
+  transform: translateX(6px);
+}
+
+.resume-pick.is-out .resume-pick__main span {
+  text-decoration: line-through;
+}
+
+.resume-section {
+  margin-top: 1.1rem;
+}
+
+.resume-section__title {
+  display: block;
+  margin-bottom: .3rem;
+  font-weight: 700;
+}
+
+.resume-section textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: .6rem .75rem;
+  border: 1px solid var(--line, #d6ccbe);
+  border-radius: 6px;
+  background: var(--card, #f8f4ee);
+  color: var(--ink);
+  font: inherit;
+  line-height: 1.7;
+  resize: vertical;
+}
+
+.resume-section__preview {
+  margin-top: .4rem;
+  font-size: .875rem;
+  color: var(--soft, var(--muted));
+  white-space: pre-line;
+}
+
+.resume-section__preview:empty {
+  display: none;
+}
+
+.resume-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .6rem 1rem;
+  margin-bottom: 2rem;
+}
+
+.resume-actions p {
+  flex: 1 1 100%;
+  margin: 0;
+}
+
+/* ---------- 手機 ---------- */
+@media (max-width: 720px) {
+
+  /* 手機：紙鋪成 4 欄、中間四格空給小人（照設計示範）；只鋪 20 張 */
+  .desk {
+    height: clamp(32rem, calc(100svh - 9rem), 44rem);
+  }
+
+  .desk__me {
+    top: 33%;
+    width: 3.6rem;
+  }
+
+  .dsheet {
+    left: var(--mx);
+    top: var(--my);
+    width: clamp(48px, calc(11vw + var(--p, 1) * 1.2vw), 78px);
+  }
+
+  .dsheet--wide-only {
+    display: none;
+  }
+
+  .desk__center {
+    font-size: .875rem;
+    white-space: normal;
+    width: 90%;
+  }
+
+  .year-puzzle.is-stage .ptable {
+    width: min(100%, calc((100vh - 6rem) * 3 / 4));
+  }
+
+  .desk-actions .button {
+    width: 100%;
+    text-align: center;
+  }
+
+  .resume-lead__piece {
+    flex-basis: 3.2rem;
+    width: 3.2rem;
+  }
+}
+
+/* ---------- 減少動態效果：全部停住 ---------- */
+@media (prefers-reduced-motion: reduce) {
+
+  .desk__me,
+  .desk__me-arm,
+  .route-note {
+    animation: none;
+  }
+
+  .route-note {
+    transition: none;
+  }
+
+  .js .dsheet,
+  .js .sheet-doc[open],
+  .year-puzzle.is-stage,
+  .resume-lead__piece {
+    animation: none;
+  }
+
+  .dsheet,
+  .resume-pick,
+  .desk.is-gathering .dsheet {
+    transition: none;
+  }
+}
+
+/* 中窄視窗的產出按鈕並排，避免和底部導覽形成多排相似按鈕。 */
+@media (min-width: 480px) and (max-width: 720px) {
+  .desk-actions .button {
+    width: auto;
+    flex: 1 1 0;
+  }
+}
+
+/* 實習履歷頁：核心科目依成績分三組 */
+.resume-sub {
+  margin: 1rem 0 .3rem;
+  font-size: 1rem;
+}
+
+.resume-courses {
+  list-style: none;
+  margin: .4rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: .35rem;
+}
+
+.resume-courses li {
+  padding: .4rem .7rem;
+  border-left: 4px solid var(--line, #d6ccbe);
+  background: var(--card, #f8f4ee);
+  border-radius: 4px;
+}
+
+.resume-courses b {
+  display: block;
+  font-size: .9375rem;
+}
+
+.resume-courses span {
+  display: block;
+  font-size: .875rem;
+  color: var(--soft, var(--muted));
+  overflow-wrap: anywhere;
+}
+
+.resume-courses__pass {
+  border-left-color: var(--accent) !important;
+}
+
+.resume-courses__fail {
+  border-left-color: var(--warn, #8a4e10) !important;
+}
+
+.route-note-stem {
+  stroke: var(--year, var(--accent));
+  stroke-width: 2;
+  stroke-dasharray: 3 3;
+}
+
+.year-guide {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: .7rem;
+  margin-bottom: 1rem;
+}
+
+.year-guide__card {
+  padding: .8rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+}
+
+.year-guide__card h3 {
+  font-size: 1rem;
+  margin: 0 0 .4rem;
+}
+
+.year-guide__card p {
+  margin: .35rem 0;
+}
+
+.year-guide__card summary {
+  cursor: pointer;
+  color: var(--accent);
+}
+
+.year-guide__source {
+  display: block;
+  width: fit-content;
+  margin-top: .35rem;
+  overflow-wrap: anywhere;
+}
+
+.folder-panel .paper-item a {
+  display: block;
+  width: fit-content;
+  margin-top: .25rem;
+}
+
+.journey-home .route-list__stop--future {
+  opacity: 1;
+}
+
+.journey-home .route-list__stop a {
+  column-gap: .55rem;
+}
+
+/* The year colors are reserved for the narrow strip above each tab. */
+.journey-home .folders-drawer {
+  scroll-margin-top: 6rem;
+}
+
+.journey-home .folder-tab {
+  background: var(--paper-deep);
+  border-color: var(--line-strong, var(--line));
+  color: var(--ink);
+}
+
+.journey-home .folder-tab::before {
+  background: var(--year);
+}
+
+.journey-home .folder-tab[aria-selected="true"] {
+  background: var(--card);
+  border-color: var(--muted);
+}
+
+.journey-home .folder-panel {
+  background: var(--card);
+  border-color: var(--line-strong, var(--line));
+  box-shadow: 5px 5px 0 var(--line);
+}
+
+.journey-home .year-guide__card {
+  background: var(--surface);
+}
+
+.journey-home .folder-panel .paper-item {
+  border-left-color: var(--line);
+}
+
+.journey-home .target-mini>.sheet__head {
+  background: transparent;
+  color: var(--ink);
+}
+
+@media (max-width: 479px) {
+  .desk-action-locked {
+    width: 100%;
+  }
+}
+
+/* ===== 實習履歷編輯頁（2026-11-18）：照資管科「02_學生實習履歷」的版面，A4 直式、白底黑字、標楷體；右邊是「我的資料」與圖片收納匣 ===== */
+.resume-page--editor {
+  max-width: 82rem;
+}
+
+.rz-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .6rem;
+  justify-content: flex-end;
+  margin: 0 0 .8rem;
+  position: sticky;
+  top: .5rem;
+  z-index: 5;
+}
+
+.rz-bar p {
+  margin-right: auto;
+}
+
+.rz-help {
+  margin: 0 0 1rem;
+  padding: .7rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+}
+
+.rz-help summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.rz-help .resume-courses {
+  margin: .6rem 0;
+}
+
+.rz-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 21rem;
+  gap: 1.2rem;
+  align-items: start;
+}
+
+.rz-paper {
+  display: grid;
+  gap: 1.2rem;
+  justify-items: center;
+}
+
+/* A4：寬 210mm、高 297mm（自傳可往下長）；字型一律標楷體（學校格式）；白底黑字 */
+.rz-page {
+  --rz-font: "DFKai-SB", "BiauKai", "標楷體", "Kaiti TC", "KaiTi", "STKaiti", "Noto Serif TC", serif;
+  width: 210mm;
+  max-width: 100%;
+  height: 297mm;
+  overflow: hidden;
+  box-sizing: border-box;
+  padding: 14mm 14mm 12mm;
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #bbbbbb;
+  box-shadow: 0 2px 12px rgb(0 0 0 / .25);
+  font-family: var(--rz-font);
+  font-size: 12pt;
+  line-height: 1.5;
+}
+
+.rz-page.rz-bio-page,
+.rz-page.rz-framed.rz-bio-page {
+  height: auto;
+  min-height: 297mm;
+  overflow: visible;
+}
+
+.rz-page,
+.rz-page * {
+  font-family: var(--rz-font) !important;
+}
+
+.rz-page,
+.rz-page *:not(a):not(.rz-slot__view *) {
+  color: #000000;
+}
+
+html .rz-page :is(h1, h2, h3, h4, p, span, b, strong, label, td, th, li, div, small, figcaption, summary):not(a) {
+  color: #000000 !important;
+}
+
+html .rz-page .rz-zone__hint,
+html .rz-page .rz-slot__view span,
+html .rz-page .rz-bio__hint,
+html .rz-page .rz-actions__hint {
+  color: #666666 !important;
+  font-weight: 400;
+}
+
+.rz-page a {
+  color: #1d5a68;
+}
+
+.rz-head {
+  text-align: center;
+  margin: 0;
+  font-size: 18pt;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.rz-head--title {
+  font-size: 18pt;
+  margin: 0 0 .5rem;
+}
+
+.rz-sub {
+  margin: 0 0 .6rem;
+  font-size: 11pt;
+}
+
+/* 封面 */
+.rz-page.rz-cover {
+  position: relative;
+  container-type: inline-size;
+  aspect-ratio: 210 / 297;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  text-align: center;
+}
+
+.rz-cover>* {
+  position: absolute;
+  margin: 0;
+}
+
+.rz-cover__school,
+.rz-cover__dept,
+.rz-cover__title {
+  inset-inline: 4%;
+  font-size: 6.1cqw;
+  font-weight: 700;
+}
+
+.rz-cover__school {
+  top: 6%;
+}
+
+.rz-cover__dept {
+  top: 14%;
+}
+
+.rz-cover__logo {
+  top: 33%;
+  left: 30%;
+  width: 40%;
+  height: auto;
+}
+
+.rz-cover__title {
+  top: 60.5%;
+}
+
+.rz-cover__line {
+  left: 0;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  gap: 3cqw;
+  align-items: baseline;
+  font-size: 4.8cqw;
+  text-align: left;
+}
+
+/* 使用者 2026-11-20：學號、姓名水平置中 */
+.rz-cover__line {
+  top: 69%;
+}
+
+.rz-cover__line+.rz-cover__line {
+  top: 73.5%;
+}
+
+.rz-cover__line b {
+  flex: 0 0 40cqw;
+  text-align: center;
+  font-weight: 400;
+  border-bottom: 1px solid #000;
+}
+
+.rz-cover__period {
+  top: 90%;
+  inset-inline: 5%;
+  font-size: 3.3cqw;
+  font-weight: 700;
+}
+
+.rz-cover__period .rz-input {
+  width: 45%;
+  font: inherit;
+}
+
+.rz-address-part {
+  display: inline-block;
+  white-space: nowrap;
+  margin-inline-end: .35em;
+}
+
+.rz-address-part select,
+[data-bio-mode] {
+  font: inherit;
+}
+
+[data-bio-format][hidden] {
+  display: none;
+}
+
+/* 表格：外框雙線、內框單線 */
+.rz-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0;
+  table-layout: fixed;
+}
+
+.rz-table th,
+.rz-table td {
+  border: 1px solid #000000;
+  padding: 1px 5px;
+  vertical-align: top;
+  word-break: break-all;
+}
+
+.rz-sheet {
+  border: 3px double #000000;
+}
+
+.rz-band {
+  text-align: center;
+  font-weight: 700;
+}
+
+.rz-cols-head th,
+.rz-courses thead th {
+  background: #d9d9d9;
+  font-weight: 400;
+  text-align: center;
+}
+
+.rz-courses td {
+  height: 1.55em;
+  font-size: 10.5pt;
+  padding: 0 4px;
+  word-break: normal;
+}
+
+.rz-courses td.rz-credit {
+  text-align: center;
+  width: 9%;
+}
+
+.rz-courses td:nth-child(odd) {
+  width: 24%;
+}
+
+.rz-courses td.is-removed {
+  background: repeating-linear-gradient(135deg, #ffffff, #ffffff 4px, #eeeeee 4px, #eeeeee 8px);
+}
+
+.rz-cell-lg {
+  height: 2.4rem;
+}
+
+.rz-cell-contact p {
+  margin: .15rem 0;
+}
+
+.rz-cell-photo {
+  width: 38mm;
+  text-align: center;
+}
+
+.rz-label {
+  width: 22%;
+  text-align: center;
+  font-weight: 700;
+}
+
+.rz-conduct label,
+.rz-langs label {
+  margin-right: 1rem;
+  white-space: nowrap;
+}
+
+.rz-lang {
+  display: inline-block;
+  margin-right: 1rem;
+}
+
+.rz-certcol {
+  height: 5.2rem;
+  font-size: 10.5pt;
+}
+
+.rz-certcol ul {
+  margin: 0;
+  padding-left: 1rem;
+}
+
+.rz-zone.is-over,
+.rz-slot.is-over,
+.rz-tray.is-over,
+.rz-gridcell.is-over {
+  outline: 3px solid #1d5a68;
+  background: #e9f2f4;
+}
+
+/* 自傳：整頁外框；只有「家庭生活」要自己寫，其他三項預先放入系統自傳的對應段落 */
+.rz-framed {
+  border: 2px solid #000000;
+}
+
+.rz-bio {
+  margin: .5rem 0;
+  padding: .2rem .3rem;
+  border: 1px dashed transparent;
+}
+
+.rz-bio.is-over {
+  border-color: #1d5a68;
+}
+
+.rz-bio--own {
+  background: #fffbe8;
+}
+
+.resume-section__title {
+  font-weight: 700;
+  display: block;
+  margin-bottom: .1rem;
+}
+
+.rz-page textarea {
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  padding: .1rem 0;
+  font-size: 12pt;
+  line-height: 1.6;
+  background: transparent !important;
+  color: #000000 !important;
+  box-sizing: border-box;
+  resize: none;
+  overflow: hidden;
+}
+
+.rz-bio--own textarea {
+  border-bottom: 1px dotted #999999;
+}
+
+.rz-page .resume-section__preview {
+  white-space: pre-line;
+  font-size: 10.5pt;
+  color: #333333 !important;
+}
+
+/* 成績單、證照、競賽、缺曠：標題在框內上方，圖片填滿 */
+.rz-transcript .rz-multi {
+  display: block;
+  height: 232mm;
+  position: relative;
+}
+
+.rz-transcript .rz-multi__item {
+  margin: 0;
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
+
+.rz-transcript .rz-multi__item img {
+  max-width: 100%;
+  max-height: 228mm;
+  object-fit: contain;
+  border: 0;
+}
+
+.rz-multi__tools {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  gap: .3rem;
+}
+
+.rz-actions {
+  margin: .4rem 0 0;
+  display: flex;
+  gap: .4rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.rz-grid2 {
+  border: 3px double #000000;
+  table-layout: fixed;
+}
+
+.rz-gridcell {
+  width: 50%;
+  text-align: center;
+  padding: 4px;
+  vertical-align: top;
+}
+
+.rz-gridcell .rz-slot__view {
+  min-height: 7.2rem;
+}
+
+.rz-gridcell .rz-slot__view img {
+  max-height: 8.2rem;
+}
+
+.rz-caption {
+  width: 100%;
+  text-align: center;
+  margin-top: .2rem;
+}
+
+.rz-abs__caption {
+  text-align: center;
+  font-weight: 700;
+  margin: .6rem 0 .6rem;
+  font-size: 13pt;
+}
+
+.rz-shot {
+  border: 1px solid #000000;
+  min-height: 200mm;
+  display: grid;
+  place-items: stretch;
+}
+
+.rz-shot .rz-slot {
+  height: 100%;
+}
+
+.rz-shot .rz-slot__view {
+  min-height: 196mm;
+  border: 0;
+}
+
+.rz-shot .rz-slot__view img {
+  max-height: 196mm;
+}
+
+/* 輸入框：像直接在文件上打字（底線），一律標楷體 */
+.rz-page input.rz-input {
+  border: 0;
+  border-bottom: 1px solid #666666;
+  background: transparent !important;
+  color: #000000 !important;
+  padding: 0 .2rem;
+  min-width: 6rem;
+  font-size: inherit;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.rz-input--s {
+  min-width: 0 !important;
+  width: 3rem;
+  text-align: center;
+}
+
+.rz-input--mid {
+  min-width: 0 !important;
+  width: 9rem;
+}
+
+.rz-input--wide {
+  min-width: 8rem !important;
+  width: 60%;
+}
+
+.rz-page input.rz-input::placeholder {
+  color: #888888;
+}
+
+.rz-page input[type="radio"],
+.rz-page input[type="checkbox"] {
+  accent-color: #000000;
+}
+
+.rz-page .button--line,
+.rz-page .button--quiet {
+  color: #000000 !important;
+  border: 1px solid #666666;
+  background: #ffffff;
+  font-size: 10pt;
+  padding: 0 .6rem;
+}
+
+/* 圖片格：平常只看到圖，滑過或選取時才出現按鈕（版面保持像文件） */
+.rz-slot {
+  position: relative;
+  display: grid;
+}
+
+.rz-slot__view {
+  min-height: 5rem;
+  border: 1px dashed #999999;
+  display: grid;
+  place-items: center;
+  padding: .2rem;
+  text-align: center;
+}
+
+.rz-slot__view img {
+  max-width: 100%;
+  max-height: 9rem;
+}
+
+.rz-slot__actions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem;
+  justify-content: center;
+  padding: .25rem;
+  background: rgb(255 255 255 / .92);
+  opacity: 0;
+  transition: opacity .15s;
+}
+
+.rz-slot:hover .rz-slot__actions,
+.rz-slot:focus-within .rz-slot__actions,
+.rz-slot.is-active-slot .rz-slot__actions {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .rz-slot__actions {
+    opacity: 1;
+    position: static;
+  }
+}
+
+.rz-slot.is-active-slot .rz-slot__view {
+  border-color: #1d5a68;
+  border-style: solid;
+}
+
+.rz-multi__item {
+  margin: 0;
+  position: relative;
+}
+
+/* 右邊的資料 */
+.rz-side {
+  position: sticky;
+  top: 3.6rem;
+  max-height: calc(100vh - 4.4rem);
+  overflow: auto;
+  display: grid;
+  gap: .9rem;
+  padding: .9rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+}
+
+.rz-side__title {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.rz-side__block h3 {
+  margin: 0 0 .35rem;
+  font-size: .98rem;
+}
+
+.rz-side .resume-pick {
+  cursor: grab;
+}
+
+.rz-tray {
+  min-height: 5.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  padding: .4rem;
+  border: 2px dashed var(--line);
+  border-radius: 8px;
+  margin-bottom: .4rem;
+}
+
+.rz-tray__item {
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  background: none;
+  cursor: grab;
+}
+
+.rz-tray__item img {
+  display: block;
+  width: 4.6rem;
+  height: 3.6rem;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.rz-tray__item.is-selected {
+  border-color: var(--accent);
+}
+
+@media (max-width: 1100px) {
+  .rz-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .rz-side {
+    position: static;
+    max-height: none;
+    order: -1;
+  }
+}
+
+@media (max-width: 860px) {
+  .rz-page {
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    padding: 8mm 4mm;
+    font-size: 11pt;
+  }
+
+  .rz-courses td {
+    font-size: 8.5pt;
+  }
+
+  .rz-transcript .rz-multi {
+    height: auto;
+  }
+}
+
+.rz-addbar {
+  margin: .6rem 0 0;
+  display: flex;
+  gap: .5rem;
+  justify-content: center;
+}
+
+.rz-grid-page,
+.rz-page.rz-framed.rz-bio-page {
+  height: auto;
+  min-height: 297mm;
+  overflow: visible;
+}
+
+/* ----- 2026-11-18 第三輪修正 ----- */
+/* 單選：沒選是空心圓、選了才是實心（原本主題把每個都畫成實心黑點） */
+html .rz-page input[type="radio"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: .95em;
+  height: .95em;
+  margin: 0 .25em 0 0;
+  padding: 0;
+  border: 1.5px solid #000000;
+  border-radius: 50%;
+  background: #ffffff !important;
+  vertical-align: -.1em;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+html .rz-page input[type="radio"]:checked {
+  background: radial-gradient(#000000 0 45%, #ffffff 50%) !important;
+}
+
+html .rz-page input[type="radio"]:focus-visible {
+  outline: 2px solid #1d5a68;
+  outline-offset: 2px;
+}
+
+/* 相關證照：一格一張 */
+.rz-certcell {
+  height: 1.9em;
+  font-size: 10.5pt;
+  padding: 0 5px;
+  vertical-align: middle;
+  word-break: normal;
+}
+
+.rz-certcell [data-cert-name] {
+  display: block;
+}
+
+.rz-certcell .rz-zone__hint {
+  font-size: 9pt;
+}
+
+/* 粗外框：成績單與自傳單線粗框、證照與競賽雙線粗框（學校 PDF） */
+.rz-frame {
+  border: 2.5px solid #000000;
+  padding: 5mm 5mm 4mm;
+  min-height: 266mm;
+  box-sizing: border-box;
+}
+
+.rz-frame--double {
+  border: 4px double #000000;
+}
+
+.rz-page.rz-framed {
+  border: 1px solid #bbbbbb;
+}
+
+.rz-transcript .rz-head--title {
+  border-bottom: 1px solid #000000;
+  margin: -5mm -5mm 3mm;
+  padding: 2mm 0;
+}
+
+.rz-frame--double .rz-table,
+.rz-frame--double .rz-grid2 {
+  border: 0;
+}
+
+.rz-frame--double .rz-grid2 td {
+  border: 1px solid #000000;
+}
+
+.rz-frame--double .rz-grid2 tr:first-child td {
+  border-top: 0;
+}
+
+.rz-frame--double .rz-grid2 td:first-child {
+  border-left: 0;
+}
+
+.rz-frame--double .rz-grid2 td:last-child {
+  border-right: 0;
+}
+
+.rz-frame--double .rz-grid2 tr:last-child td {
+  border-bottom: 0;
+}
+
+/* 說明精簡 */
+.rz-help {
+  padding: .5rem .9rem;
+}
+
+.rz-help__list {
+  margin: .4rem 0;
+  padding-left: 1.2rem;
+}
+
+.rz-assist textarea {
+  width: 100%;
+  box-sizing: border-box;
+  margin: .3rem 0;
+}
+
+.rz-bio__hint {
+  font-weight: 400;
+  font-size: 10pt;
+}
+
+.rz-flash {
+  background: #fff6c8 !important;
+  transition: background .4s;
+}
+
+/* ----- 各頁開關與證照輸入格 ----- */
+.rz-pagewrap {
+  display: grid;
+  gap: .4rem;
+  justify-items: center;
+  width: 100%;
+}
+
+.rz-pagebar {
+  display: flex;
+  gap: .5rem;
+  align-items: center;
+  width: min(100%, 210mm);
+  padding: .35rem .7rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  font-size: .9rem;
+}
+
+.rz-pagewrap.is-excluded .rz-page {
+  display: none;
+}
+
+.rz-pagewrap.is-excluded .rz-pagebar {
+  opacity: .75;
+  border-style: dashed;
+}
+
+.rz-cellinput {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 10.5pt;
+}
+
+html .rz-page input.rz-cellinput {
+  min-width: 0 !important;
+  border-bottom: 0;
+}
+
+/* ----- 拿掉格子、列數調整 ----- */
+.rz-gridcell {
+  position: relative;
+}
+
+.rz-cellremove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  z-index: 2;
+  width: 1.6rem;
+  height: 1.6rem;
+  line-height: 1;
+  border: 1px solid #666666;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #000000 !important;
+  font-size: 1rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .15s;
+}
+
+.rz-gridcell:hover .rz-cellremove,
+.rz-cellremove:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .rz-cellremove {
+    opacity: 1;
+  }
+}
+
+.rz-editonly {
+  margin: .4rem 0 0;
+}
+
+/* ----- 自傳一鍵生成與明顯的危險操作 ----- */
+.rz-reset--hidden {
+  display: none;
+}
+
+.rz-reset-button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .35rem;
+  padding: .55rem .85rem;
+  border: 2px solid var(--danger, #9b3d36);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--danger, #9b3d36);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.rz-reset-button svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  fill: currentColor;
+  flex: none;
+}
+
+.rz-reset-button:hover {
+  background: var(--danger-soft, #f8e1dc);
+}
+
+.rz-reset-button:focus-visible,
+.rz-bio-assist__button:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.rz-bio-assist {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: .35rem;
+  margin: 0 0 .75rem;
+  padding: .7rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--ink);
+  font-family: var(--font-base, system-ui, sans-serif) !important;
+}
+
+.rz-bio-assist * {
+  font-family: var(--font-base, system-ui, sans-serif) !important;
+}
+
+.rz-bio-assist__button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 6px;
+  padding: .65rem 1rem;
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.rz-bio-assist__button:disabled {
+  opacity: .68;
+  cursor: wait;
+}
+
+.rz-bio-assist__status,
+.rz-bio-assist__note,
+.rz-bio-assist__success {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.rz-bio-assist__status {
+  color: var(--ink);
+}
+
+.rz-bio-assist__note {
+  color: var(--muted);
+}
+
+.rz-bio-assist__success {
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.rz-bio-field-note {
+  margin: .15rem 0 .35rem;
+  color: var(--muted);
+  font-family: var(--font-base, system-ui, sans-serif) !important;
+  font-size: .88rem;
+  line-height: 1.5;
+}
+
+.rz-bio-hint {
+  margin: .25rem 0;
+  color: var(--muted);
+  font-family: var(--font-base, system-ui, sans-serif) !important;
+  font-size: .88rem;
+  line-height: 1.5;
+}
+
+.rz-free-preview {
+  margin: .35rem 0 .75rem;
+  white-space: pre-line;
+  font-size: 10.5pt;
+  color: #333333;
+}
+
+/* ----- 垂直置中（深度檢查：所有表格格子原本都是靠上，內容往上飄）----- */
+.rz-page .rz-table th,
+.rz-page .rz-table td {
+  vertical-align: middle;
+}
+
+.rz-page .rz-cell-contact {
+  vertical-align: middle;
+}
+
+.rz-page .rz-cell-contact p {
+  margin: .25rem 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .1rem .4rem;
+}
+
+.rz-page .rz-courses td {
+  vertical-align: middle;
+}
+
+.rz-page .rz-gridcell {
+  vertical-align: middle;
+}
+
+.rz-page .rz-label {
+  vertical-align: middle;
+}
+
+.rz-page .rz-cell-photo {
+  vertical-align: middle;
+}
+
+.rz-page .rz-cell-lg {
+  vertical-align: middle;
+}
+
+html .rz-page input[type="radio"] {
+  vertical-align: middle;
+  margin-top: -2px;
+}
+
+.rz-page .rz-conduct label,
+.rz-page .rz-langs label,
+.rz-page .rz-gender label {
+  display: inline-flex;
+  align-items: center;
+  gap: .1rem;
+}
+
+@media (max-width: 375px) {
+  .rz-bar {
+    justify-content: stretch;
+  }
+
+  .rz-bar p {
+    width: 100%;
+  }
+
+  .rz-bar .button,
+  .rz-bar .rz-reset-button {
+    flex: 1 1 calc(50% - .3rem);
+    min-width: 0;
+  }
+
+  .rz-bio-assist {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .rz-bio-assist__button {
+    width: 100%;
+    white-space: normal;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .rz-slot__actions,
+  .rz-cellremove,
+  .rz-flash {
+    transition: none;
+  }
+}
+
+/* ===== 2026-11-20 實習履歷過關修正 ===== */
+.rz-mobile-save {
+  display: none;
+}
+
+.rz-bar {
+  position: relative;
+  top: auto;
+  z-index: auto;
+}
+
+@media (max-width: 1099.98px) {
+  .rz-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .rz-side {
+    position: static;
+    top: auto;
+    max-height: none;
+    order: -1;
+    overflow: visible;
+    transform: none;
+  }
+
+  .rz-side__handle {
+    display: flex;
+    position: static;
+    min-height: 44px;
+  }
+
+  .rz-side:not(.is-open) :not(.rz-side__handle) {
+    display: none;
+  }
+
+  .rz-side.is-open {
+    display: grid;
+  }
+
+  .rz-side.is-open :is(.rz-side__title, .small.muted, [data-for], .rz-tray) {
+    display: revert;
+  }
+
+  .rz-mobile-save {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    margin: 0 0 var(--space-2);
+  }
+
+  .rz-bar {
+    position: relative;
+  }
+
+  .rz-input,
+  .rz-side select,
+  .rz-page select,
+  .rz-bio-assist__button {
+    min-height: 44px;
+  }
+
+  html .rz-page input.rz-input {
+    min-height: 44px !important;
+  }
+}
+
+@media print {
+
+  .rz-editonly,
+  .rz-reset,
+  .rz-reset-button,
+  .rz-bio-assist,
+  .rz-bio-field-note,
+  .rz-bio-hint,
+  .rz-free-preview {
+    display: none !important;
+  }
+}
+
+.rz-page input.rz-input {
+  vertical-align: baseline;
+}
+
+/* ----- 第四輪：尺寸與線條照學校 PDF 實測（96dpi 像素）-----
+   版面邊界 64.5px（約 17mm）；證照、競賽外框是兩條 2px 線中間隔 1.8px，內部格線 0.67px；
+   證照圖片列 192px、名稱列 37px；相關證照每列約 24px；履歷表、自傳、成績單是 0.67px 單線。 */
+.rz-page {
+  padding: 17mm 17mm 12mm;
+}
+
+.rz-sheet {
+  border: 1px solid #000000;
+}
+
+.rz-frame {
+  border: 1px solid #000000;
+}
+
+.rz-table th,
+.rz-table td {
+  border-width: .67px;
+}
+
+.rz-certcell {
+  height: 24px;
+  padding: 0 4px;
+}
+
+html .rz-page input.rz-cellinput {
+  height: 22px;
+  line-height: 22px;
+  padding: 0 2px;
+  font-size: 10.5pt;
+}
+
+.rz-courses td {
+  height: 24px;
+}
+
+.rz-frame--double {
+  border: 2px solid #000000;
+  box-shadow: inset 0 0 0 1.8px #ffffff, inset 0 0 0 3.8px #000000;
+  padding: 3.8px;
+  min-height: 0;
+}
+
+.rz-frame--double .rz-grid2 {
+  width: 100%;
+  table-layout: fixed;
+  border: 0;
+  border-collapse: collapse;
+}
+
+.rz-frame--double .rz-grid2 td.rz-gridcell {
+  width: 50%;
+  padding: 0;
+  vertical-align: top;
+  border: .67px solid #000000;
+}
+
+.rz-frame--double .rz-grid2 tr:first-child td {
+  border-top: 0;
+}
+
+.rz-frame--double .rz-grid2 td:first-child {
+  border-left: 0;
+}
+
+.rz-frame--double .rz-grid2 td:last-child {
+  border-right: 0;
+}
+
+.rz-frame--double .rz-grid2 tr:last-child td {
+  border-bottom: 0;
+}
+
+.rz-gridcell .rz-slot {
+  display: block;
+}
+
+.rz-gridcell .rz-slot__view {
+  height: 192px;
+  min-height: 0;
+  border: 0;
+  border-bottom: .67px solid #000000;
+  border-radius: 0;
+  padding: 4px;
+  box-sizing: border-box;
+}
+
+.rz-gridcell .rz-slot__view img {
+  max-height: 184px;
+  max-width: 100%;
+}
+
+html .rz-page input.rz-caption {
+  display: block;
+  width: 100%;
+  height: 37px;
+  margin: 0;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 0;
+  text-align: center;
+  font-size: 12pt;
+  box-sizing: border-box;
+}
+
+/* 主題給輸入框的最小高度（約 40px）會把表格撐高；紙上的輸入框改回依內容 */
+html .rz-page input.rz-input,
+html .rz-page input.rz-cellinput,
+html .rz-page input.rz-caption {
+  min-height: 0 !important;
+}
+
+html .rz-page input.rz-cellinput {
+  height: 22px !important;
+}
+
+html .rz-page input.rz-caption {
+  height: 37px !important;
+}
+
+/* 有「新增一格」按鈕的頁（證照、競賽）：按鈕是編輯用的，不佔 A4 的下緣 */
+.rz-page:has(.rz-addbar) {
+  padding-bottom: 4mm;
+}
+
+.rz-head--title {
+  margin: 0 0 .35rem;
+}
+
+/* ----- 手機與窄螢幕：「我的資料」收成底部抽屜（原本整塊排在履歷上面，要先捲過一大段）-----
+   平常只露出一條把手；點開是半個畫面高的抽屜，後面的履歷還可以捲、可以看；捲到哪一頁就只顯示那一頁用得到的卡片。 */
+.rz-side__handle {
+  display: none;
+}
+
+@media (max-width: 899px) {
+  .resume-page--editor {
+    padding-bottom: 4.5rem;
+  }
+
+  .rz-side {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+    z-index: 40;
+    order: 0;
+    max-height: 40dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    margin: 0;
+    border-radius: 16px 16px 0 0;
+    border-bottom: 0;
+    padding: 0 .9rem calc(.9rem + env(safe-area-inset-bottom));
+    box-shadow: 0 -6px 24px rgb(0 0 0 / .28);
+    transform: translateY(calc(100% - 43px));
+    transition: transform .22s ease;
+  }
+
+  .rz-side.is-open {
+    transform: none;
+  }
+
+  .rz-side__handle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    width: 100%;
+    height: 43px;
+    min-height: 43px;
+    padding: 0 .2rem;
+    border: 0;
+    background: var(--card);
+    color: var(--ink);
+    font: 700 1rem/1 inherit;
+    cursor: pointer;
+  }
+
+  .rz-side__handle-hint {
+    margin-right: auto;
+    font-weight: 400;
+    color: var(--accent);
+  }
+
+  .rz-side__chev {
+    transition: transform .2s;
+  }
+
+  .rz-side.is-open .rz-side__chev {
+    transform: rotate(180deg);
+  }
+
+  /* 捲到哪一頁就只顯示那一頁用得到的卡片（還沒判斷出是哪一頁時全部顯示） */
+  .rz-side[data-focus] [data-for] {
+    display: none;
+  }
+
+  .rz-side[data-focus="basic"] [data-for~="basic"],
+  .rz-side[data-focus="bio"] [data-for~="bio"],
+  .rz-side[data-focus="transcript"] [data-for~="transcript"],
+  .rz-side[data-focus="cert"] [data-for~="cert"],
+  .rz-side[data-focus="contest"] [data-for~="contest"],
+  .rz-side[data-focus="absence"] [data-for~="absence"] {
+    display: block;
+  }
+
+  .rz-side__title,
+  .rz-side>.small.muted {
+    display: none;
+  }
+}
+
+/* ----- 照片周圍的線：照片左邊那條直線、照片與連絡資料下面（地址上面）那條橫線拿掉；照片的虛線框平常也不畫 ----- */
+.rz-page .rz-cell-contact {
+  border-right-style: hidden;
+  border-bottom-style: hidden;
+}
+
+.rz-page .rz-cell-photo {
+  border-left-style: hidden;
+  border-bottom-style: hidden;
+}
+
+.rz-page .rz-sheet tr:nth-child(3) td {
+  border-top-style: hidden;
+}
+
+.rz-page .rz-cell-photo .rz-slot__view {
+  border-color: transparent;
+}
+
+.rz-page .rz-cell-photo .rz-slot:hover .rz-slot__view,
+.rz-page .rz-cell-photo .rz-slot.is-active-slot .rz-slot__view {
+  border: 1px dashed #999999;
+}
+
+/* ----- 2026-11-19 逐頁對照學校 PDF（編輯頁） ----- */
+/* 語文能力：2 欄 × 2 列（英語、日語在左，台語、客語在右） */
+.rz-page .rz-langgrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(2, auto);
+  gap: .1rem 1rem;
+}
+
+.rz-page .rz-langgrid .rz-lang {
+  display: block;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.rz-page .rz-langgrid label {
+  margin-right: .5rem;
+}
+
+/* 核心科目：科目名稱不換行（PDF 每科一行），學分欄窄一點 */
+.rz-page .rz-courses {
+  table-layout: fixed;
+}
+
+.rz-page .rz-courses th:nth-child(odd),
+.rz-page .rz-courses td:nth-child(odd) {
+  width: 25%;
+}
+
+.rz-page .rz-courses td:nth-child(odd) {
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.rz-page .rz-courses th:nth-child(even),
+.rz-page .rz-courses td.rz-credit {
+  width: 8.3%;
+}
+
+.rz-page .rz-courses thead th {
+  white-space: nowrap;
+  padding: 0 2px;
+}
+
+.rz-page .rz-courses td {
+  font-size: 10pt;
+}
+
+/* 缺曠記錄：上面項目／時數表（雙線外框、置中），下面查詢截圖（單線框）；整頁沒有外框 */
+.rz-page .rz-abs-table {
+  width: 60%;
+  margin: .6rem auto 0;
+  border: 3px double #000000;
+  table-layout: fixed;
+}
+
+.rz-page .rz-abs-table th,
+.rz-page .rz-abs-table td {
+  text-align: center;
+  height: 1.9em;
+  padding: 0 6px;
+  vertical-align: middle;
+}
+
+.rz-page .rz-abs-table th {
+  font-weight: 700;
+}
+
+.rz-page .rz-abs__caption {
+  text-align: center;
+  font-weight: 700;
+  margin: 1rem 0 .5rem;
+  font-size: 13pt;
+}
+
+.rz-page .rz-absence .rz-shot {
+  border: 1px solid #000000;
+  min-height: 105mm;
+  display: grid;
+  place-items: stretch;
+}
+
+.rz-page .rz-absence .rz-shot .rz-slot__view {
+  min-height: 100mm;
+  border: 0;
+}
+
+.rz-page .rz-absence .rz-shot .rz-slot__view img {
+  max-height: 120mm;
+}
+
+/* 手機（寬度 860 以下）：紙張改成跟著螢幕寬，表格文字可換行、不超出紙張，不出現橫向捲動 */
+@media (max-width: 860px) {
+  .rz-page .rz-langgrid {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+    grid-auto-flow: row;
+  }
+
+  .rz-page .rz-langgrid .rz-lang {
+    white-space: normal;
+  }
+
+  .rz-page .rz-courses td {
+    font-size: 7.5pt;
+    line-height: 1.25;
+    padding: 1px 2px;
+  }
+
+  .rz-page .rz-courses td:nth-child(odd) {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .rz-page .rz-courses th:nth-child(odd),
+  .rz-page .rz-courses td:nth-child(odd) {
+    width: 24%;
+  }
+
+  .rz-page .rz-courses th:nth-child(even),
+  .rz-page .rz-courses td.rz-credit {
+    width: 10%;
+    white-space: nowrap;
+  }
+
+  .rz-page .rz-courses thead th {
+    font-size: 7.5pt;
+  }
+
+  .rz-page .rz-abs-table {
+    width: 100%;
+  }
+
+  .rz-page .rz-absence .rz-shot {
+    min-height: 60mm;
+  }
+
+  .rz-page .rz-absence .rz-shot .rz-slot__view {
+    min-height: 55mm;
+  }
+}
+
+@media (max-width: 860px) {
+
+  .rz-page,
+  .rz-page.rz-framed {
+    padding: 8mm 3mm;
+  }
+
+  .rz-pagebar {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+  }
+
+  .rz-pagebar input[type="checkbox"] {
+    width: 22px;
+    height: 22px;
+    flex: none;
+  }
+
+  .rz-cellremove { width: 44px; height: 44px; }
+}
+
+/* 2026-11-20 使用者：自傳與履歷的內容一律標楷體；紙面上的下拉選單、輸入框在深色外觀也要白底黑字（原本深色底配黑字看不見）。 */
+.rz-page select,
+.rz-page textarea,
+.rz-page option {
+  background: #ffffff !important;
+  color: #000000 !important;
+  border: 1px solid #000000 !important;
+  border-radius: 0 !important;
+}
+
+.rz-page select {
+  padding: 2px 6px;
+  min-height: 32px;
+}
+
+.rz-page textarea::placeholder,
+.rz-page input::placeholder {
+  color: #666666 !important;
+}
+
+/* 缺曠記錄：編輯控制只在畫面上，紙面與匯出的 Word 都保持學校格式的黑字白底 */
+.rz-visually-hidden-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.rz-absence__tools {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: .5rem;
+  width: 60%;
+  margin: .6rem auto 0;
+}
+
+.rz-absence__button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  cursor: pointer;
+  font: 700 14px/1.25 var(--font-sans, inherit);
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  text-align: center;
+}
+
+html[data-theme="dark"] .rz-absence__button {
+  color: var(--ink);
+  background: var(--card);
+  border-color: var(--line);
+}
+
+.rz-absence__status,
+.rz-absence__success,
+.rz-absence__note {
+  max-width: 60%;
+  margin: .35rem auto 0;
+  text-align: center;
+  color: var(--ink);
+  font-size: 12pt;
+  line-height: 1.45;
+}
+
+.rz-absence__status:empty,
+.rz-absence__success:empty {
+  display: none;
+}
+
+.rz-absence__status {
+  font-weight: 700;
+}
+
+.rz-absence__success {
+  font-size: 10.5pt;
+}
+
+.rz-absence__note {
+  font-size: 10pt;
+}
+
+.rz-page .rz-abs-table .rz-abs-hour {
+  width: 100%;
+  min-height: 0 !important;
+  height: 1.9em;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  color: #000000;
+  text-align: center;
+  font-family: "標楷體", DFKai-SB, KaiTi, serif;
+  font-size: 12pt;
+  font-weight: 700;
+  line-height: 1.9em;
+  padding: 0 4px;
+}
+
+.rz-page .rz-abs-table .rz-abs-hour:focus {
+  box-shadow: inset 0 0 0 1px #000000;
+}
+
+.rz-abs-total-wrap {
+  display: inline-block;
+  position: relative;
+  margin-left: .25rem;
+  vertical-align: middle;
+}
+
+.rz-abs-total-help {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid #000000;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #000000;
+  font: 700 12px/20px Arial, sans-serif;
+  cursor: help;
+}
+
+.rz-abs-total-tip {
+  position: absolute;
+  z-index: 10;
+  left: 50%;
+  top: calc(100% + 6px);
+  width: 18rem;
+  max-width: 70vw;
+  padding: .45rem .55rem;
+  transform: translateX(-50%);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+  box-shadow: 0 6px 18px -10px var(--ink);
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity .15s;
+}
+
+.rz-abs-total-wrap:hover .rz-abs-total-tip,
+.rz-abs-total-help:focus+.rz-abs-total-tip,
+.rz-abs-total-tip.is-visible {
+  visibility: visible;
+  opacity: 1;
+}
+
+@media (max-width: 860px) {
+
+  .rz-absence__tools,
+  .rz-absence__status,
+  .rz-absence__success,
+  .rz-absence__note {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .rz-absence__tools {
+    align-items: stretch;
+  }
+
+  .rz-absence__button {
+    flex: 1 1 10rem;
+    max-width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rz-abs-total-tip {
+    transition: none;
+  }
+}
+
+@media print {
+
+  .rz-editonly,
+  .rz-pagebar,
+  .rz-absence__tools,
+  .rz-absence__status,
+  .rz-absence__success,
+  .rz-absence__note,
+  .rz-abs-total-help,
+  .rz-abs-total-tip {
+    display: none !important;
+  }
+
+  .rz-page .rz-abs-table .rz-abs-hour {
+    color: #000000;
+    background: #ffffff;
+  }
+}
+
+/* ===== 2026-11-20 過關修正第二輪 ===== */
+
+/* 首頁路線數字在兩種外觀都使用足夠對比的前景色 */
+.journey-home .route-list__here {
+  color: var(--on);
+  background: var(--accent);
+}
+
+.journey-home [data-stop="3"] .stop-node__count,
+.journey-home [data-stop="4"] .stop-node__count,
+.journey-home .route-list__stop:nth-child(3) .route-list__dot,
+.journey-home .route-list__stop:nth-child(4) .route-list__dot {
+  fill: #000000;
+  color: #000000;
+}
+
+html[data-theme="dark"] .journey-home :is(.stop-node__count, .route-list__dot) {
+  fill: var(--on);
+  color: var(--on);
+}
+
+html[data-theme="dark"] .journey-home .route-list__stop:nth-child(3) .route-list__dot,
+html[data-theme="dark"] .journey-home .route-list__stop:nth-child(4) .route-list__dot {
+  color: var(--on);
+}
+
+/* 手機與平板：履歷資料側欄回到文件流底部，沿用既有按鈕收合 */
+@media (max-width: 1099.98px) {
+  body[data-page="student-internship-resume"] .rz-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  body[data-page="student-internship-resume"] .rz-paper {
+    order: 0;
+  }
+
+  body[data-page="student-internship-resume"] .rz-side {
+    position: static;
+    inset: auto;
+    order: 1;
+    max-height: none;
+    height: auto;
+    overflow: visible;
+    margin: 0;
+    border-radius: 8px;
+    padding: .9rem;
+    box-shadow: none;
+    transform: none;
+    transition: none;
+  }
+
+  body[data-page="student-internship-resume"] .rz-side__handle {
+    position: static;
+    top: auto;
+    display: flex;
+    width: 100%;
+    height: auto;
+    min-height: 44px;
+    align-items: center;
+  }
+
+  body[data-page="student-internship-resume"] .rz-side:not(.is-open)> :not(.rz-side__handle) {
+    display: none !important;
+  }
+
+  body.is-typing[data-page="student-internship-resume"] .rz-side {
+    display: none !important;
+  }
+
+  /* 標籤、單選選項、下拉選單與紙面小欄位保留可操作的 44px 高度 */
+  body[data-page="student-internship-resume"] .rz-page :is(.rz-gender label, .rz-conduct label, .rz-langs label, .rz-lang label, label[for]) {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    vertical-align: middle;
+  }
+
+  body[data-page="student-internship-resume"] .rz-page :is(select, input.rz-input, input.rz-cellinput, input.rz-caption, .rz-abs-hour),
+  body[data-page="student-internship-resume"] .rz-side select {
+    min-height: 44px !important;
+  }
+
+  html body[data-page="student-internship-resume"] .rz-page :is(input.rz-input, input.rz-cellinput, input.rz-caption) {
+    min-height: 44px !important;
+  }
+
+  body[data-page="student-internship-resume"] .rz-pagebar {
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+  }
+
+  body[data-page="student-internship-resume"] .rz-pagebar input[type="checkbox"],
+  body[data-page="student-internship-resume"] .rz-side input[type="checkbox"] {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+  }
+
+  body[data-page="student-internship-resume"] .rz-page .button,
+  body[data-page="student-internship-resume"] .rz-mobile-save {
+    min-height: 44px;
+  }
+
+  body.is-typing[data-page="student-internship-resume"] .rz-mobile-save {
+    display: inline-flex !important;
+    visibility: visible;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* 深色外觀：路線圓點與站點數字在深色底上改用亮色前景，對比至少 4.5:1 */
+html[data-theme="dark"] .journey-home .route-list__stop .route-list__dot,
+html[data-theme="dark"] .journey-home .stop-node__count {
+  color: var(--ink);
+  fill: var(--ink);
+}
+
+html[data-theme="dark"] .journey-home .route-list__stop:nth-child(3) .route-list__dot,
+html[data-theme="dark"] .journey-home .route-list__stop:nth-child(4) .route-list__dot,
+html[data-theme="dark"] .journey-home [data-stop="3"] .stop-node__count,
+html[data-theme="dark"] .journey-home [data-stop="4"] .stop-node__count {
+  color: var(--ink);
+  fill: var(--ink);
+}
+
+/* ===== 2026-11-20 深色首頁高對比度覆寫：節點文字一律大於 4.5:1 ===== */
+html[data-theme="dark"] .journey-home .stop-node__count {
+  fill: var(--ink) !important;
+}
+
+html[data-theme="dark"] .journey-home .route-list__dot,
+html[data-theme="dark"] .journey-home .route-list__stop--past .route-list__dot,
+html[data-theme="dark"] .journey-home .route-list__stop--now .route-list__dot,
+html[data-theme="dark"] .journey-home .route-list__stop--future .route-list__dot {
+  background: var(--sheet) !important;
+  color: var(--ink) !important;
+  border: 3px solid var(--year) !important;
+}
+
+@media (max-width: 720px) {
+  .route-board,
+  .route-board .route-map__svg {
+    display: none !important;
+  }
+}
+
+@media (max-width: 1099.98px) {
+  [data-ui="student-v2"] :is(.desk-actions .button, .desk-action-locked .button,
+    .maker-row a.button, .guide-card__actions .button, .year-guide__source,
+    .route-map__source a, .resume-actions .button, .rz-bar .button,
+    .rz-bio-assist__button, .rz-reset-button, .rz-mobile-save) {
+    min-height: 44px;
+    height: auto;
+  }
+
+  [data-ui="student-v2"] :is(.year-guide__source, .route-map__source a) {
+    display: inline-flex;
+    align-items: center;
+    white-space: normal;
+    line-height: 1.35;
+  }
+}
+
+body[data-page="student-internship-resume"] .rz-page :is(input, select, textarea),
+body[data-page="student-internship-resume"] .rz-side :is(input, select, textarea) {
+  position: static;
+}
+
+body[data-page="student-internship-resume"].is-typing :is(.rz-page, .rz-layout) {
+  max-height: none;
+  overflow: visible;
+}
+
+body[data-page="student-internship-resume"].is-typing .rz-mobile-save {
+  display: inline-flex !important;
+  position: static;
+  visibility: visible;
+}
+
+body[data-page="student-internship-resume"].is-typing .rz-bar {
+  display: none !important;
+}
+
+/* 實習履歷：檔案輸入框維持可聚焦的 visually-hidden，不在手機與平板顯示 */
+[data-ui="student-v2"] body[data-page="student-internship-resume"] input[type="file"] {
+  display: none !important;
+  position: absolute;
+  width: 0;
+  height: 0;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.rz-cellremove { width: 44px; height: 44px; }

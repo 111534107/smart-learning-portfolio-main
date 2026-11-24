@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "admin-dashboard" %}
+
+{% block title %}系統管理｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "系統總覽") }}{% endblock %}
+
+{% block content %}
+<section class="work-shell work-shell--wide" data-work-role="admin" data-system-overview>
+  <header class="work-heading" data-tour="先看今天有幾件事要處理。" data-tour-order="1">
+    <div><h1>系統總覽</h1><p>{% if todo_total %}今天有 {{ todo_total }} 類事情要處理，點數字卡直接到處理頁。{% else %}目前沒有待處理的事項。{% endif %}</p></div>
+    <span class="queue-badge{% if todo_total %} queue-badge--strong{% endif %}">{{ todo_total }} 類待處理</span>
+  </header>
+
+  <section class="work-panel" id="admin-todos" tabindex="-1" data-admin-todos data-tour="數字卡直接連到要處理的頁面；0 表示這一類目前沒事。" data-tour-order="2">
+    <div class="work-panel__head"><div><h2>今天要處理</h2><p>候選更新要你核准，學生才看得到；資料來源失效、分類待核對、班級沒有導師也在這裡提醒。</p></div></div>
+    <div class="work-metrics admin-todo">
+      {% for todo in todos %}
+      <a class="work-metric work-metric--link{% if not todo.count %} admin-todo--clear{% endif %}" href="{{ todo.href }}" data-admin-todo="{{ todo.key }}">
+        <span>{{ todo.label }}</span><strong>{{ todo.count }}</strong><small>{{ todo.hint }}</small>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="work-panel" id="admin-accounts" tabindex="-1" data-tour="帳號人數與各角色負責的事；帳號、密碼只有管理員能改。" data-tour-order="3">
+    <div class="work-panel__head"><div><h2>帳號</h2><p>帳號、密碼只有管理員能改。</p></div><a class="button button--small button--line" href="{{ url_for('admin.accounts') }}">帳號管理</a></div>
+    <div class="work-metrics">
+      <article class="work-metric"><span>學生</span><strong>{{ student_count }}</strong><small>整理成績、證照與學習歷程</small></article>
+      <article class="work-metric"><span>導師</span><strong>{{ teacher_count }}</strong><small>查看本班學生的畢業門檻與備審資料</small></article>
+      <article class="work-metric"><span>科辦</span><strong>{{ staff_count }}</strong><small>核准電子獎狀、管理表單下載區</small></article>
+    </div>
+  </section>
+
+  <section class="work-panel" id="admin-graduation" tabindex="-1" data-grad-recheck>
+    <div class="work-panel__head"><div><h2>畢業門檻重新對照</h2><p>學生改資料時系統會自動對照；學期跨到專四下或專五上時，按一次讓全科案件依新階段開立或結案。正式畢業資格審查由教務處負責。</p></div>
+      <form method="post" action="{{ url_for('graduation.recheck') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small button--line" type="submit">重新對照全科</button></form></div>
+    <form class="form-stack mt-1" method="post" action="{{ url_for('graduation.save_check_dates') }}" data-check-dates>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <h3>教務處檢核日期（本學年）</h3>
+      <p class="small muted">填了以後，專四、專五學生和導師會看到還有幾天。空白代表還沒公布。</p>
+      {% if check_dates_error %}<p class="notice notice--warn">{{ check_dates_error }}</p>{% endif %}
+      <label class="field">第一次檢核（專四下）<input type="date" name="first" value="{{ check_dates.first.isoformat() if check_dates.first else '' }}"></label>
+      <label class="field">第二次檢核（專五上）<input type="date" name="second" value="{{ check_dates.second.isoformat() if check_dates.second else '' }}"></label>
+      <label class="field">模擬今天（展示用，空白＝用真正的今天）<input type="date" name="today" value="{{ check_dates.today.isoformat() if check_dates.today else '' }}"></label>
+      <div><button class="button button--small" type="submit">儲存檢核日期</button></div>
+    </form>
+  </section>
+
+  <section class="work-panel" id="email-notify" tabindex="-1" data-email-notify-admin>
+    <div class="work-panel__head"><div><h2>電子郵件通知</h2><p>畢業缺口案件、各學期預警、檢核日期倒數會同時寄信給學生與導師（學生、導師可在帳號設定自己關閉）。{% if email_smtp_ready %}SMTP 已設定，會真的寄信。{% else %}目前沒有設定 SMTP（或是展示站），不會寄信，只寫進記錄檔與操作紀錄。{% endif %}</p></div></div>
+    <form class="form-stack mt-1" method="post" action="{{ url_for('main.save_email_notify') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="field"><span><input type="checkbox" name="enabled"{% if email_notify_enabled %} checked{% endif %}> 全系統啟用電子郵件通知</span></label>
+      <div><button class="button button--small" type="submit">儲存</button></div>
+    </form>
+  </section>
+
+  <section class="work-panel" id="login-security" tabindex="-1" data-login-security>
+    <div class="work-panel__head"><div><h2>管理員登入安全</h2><p>管理員登入網址不放在公開頁面：<code>/admin/login</code>。{% if config.get('ADMIN_TWO_FACTOR_REQUIRED') %}一定要六位數驗證碼{% else %}六位數驗證碼目前沒有強制（本機展示站或測試）{% endif %}，密碼錯 5 次鎖 15 分鐘，閒置 15 分鐘自動登出。</p></div></div>
+    <form class="form-stack mt-1" method="post" action="{{ url_for('main.save_login_security') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <h3>只能從學校網路登入</h3>
+      <p class="small muted">填學校的網段（例如 163.17.0.0/16），多個用逗號分開。空白＝不限制。你現在的位置：<span class="mono">{{ current_ip }}</span></p>
+      {% if login_security_error %}<p class="notice notice--warn">{{ login_security_error }}</p>{% endif %}
+      {% if login_security_message %}<p class="notice">{{ login_security_message }}</p>{% endif %}
+      <label class="field">允許的網段<input name="networks" value="{{ login_networks }}" placeholder="空白＝不限制"></label>
+      <div><button class="button button--small" type="submit">儲存</button></div>
+    </form>
+  </section>
+
+  <section class="work-panel" id="admin-audit" tabindex="-1">
+    <div class="work-panel__head"><div><h2>操作紀錄</h2><p>誰在什麼時候登入、確認、刪除或上傳；不記內容與個資。</p></div><a class="button button--small" href="{{ url_for('admin.audit_logs') }}">查看操作紀錄</a></div>
+  </section>
+</section>
+{% endblock %}

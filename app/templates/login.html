@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% import "partials/login_parts.html" as parts with context %}
+{% set page_name = "login" %}
+
+{% block title %}學生登入｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(active="login") }}{% endblock %}
+
+{% block content %}
+<section class="auth">
+  <div class="auth__side">
+    {% with bg_panel = true %}{% include "partials/bg_squares.html" %}{% endwith %}
+    <div>
+      <h1>歡迎回來。<br>上次整理到哪裡了？</h1>
+    </div>
+    <div class="auth__years" aria-hidden="true">
+      {% for n in range(1, 6) %}<span style="--y: var(--year-{{ n }});"></span>{% endfor %}
+    </div>
+  </div>
+  <div class="auth__form">
+    <div class="auth__card" data-motion="reveal">
+      <p class="auth__portal">學生</p>
+      <h2>學生登入</h2>
+      {{ parts.error_box(error, wrong_page) }}
+      {{ parts.google_button(google_login_enabled, url_for('main.google_login', next=next_path), "使用學校 Google Workspace 帳號登入") }}
+      {% if google_login_enabled %}<p class="small">在 Google 頁面只要輸入學號（第一次登入會自動建立你的帳號）。</p>{% endif %}
+      <details class="auth__fallback" data-tour="沒有學校帳號時，展開用帳號密碼登入。" data-tour-order="2"{% if request.method == "POST" and not wrong_page %} open{% endif %}>
+        <summary>沒有學校帳號？用帳號密碼登入</summary>
+        {{ parts.password_form(url_for('main.login'), next_path, "帳號", "學號") }}
+      </details>
+      <p class="auth__switch small">老師與科辦人員請到 <a href="{{ url_for('main.staff_login') }}">教職員登入</a></p>
+    </div>
+    {{ parts.demo_accounts(url_for('main.login'), ["student"]) }}
+  </div>
+</section>
+{% endblock %}

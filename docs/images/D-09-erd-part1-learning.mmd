@@ -1,0 +1,115 @@
+%%{init: {'theme':'base','themeVariables': {'fontFamily':'Arial, Microsoft JhengHei, sans-serif','fontSize':'14px','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280'},'er':{'minEntityWidth':160,'entityPadding':20}}}%%
+erDiagram
+    USERS ||--o| STUDENT_PROFILES : "學生基本資料"
+    USERS ||--o{ CLASS_ADVISORS : "擔任導師"
+    USERS ||--o{ SOURCE_DOCUMENTS : "上傳"
+    SOURCE_DOCUMENTS ||--o| DOCUMENT_EXTRACTIONS : "辨識結果"
+    USERS ||--o{ LEARNING_COURSE_RECORDS : "成績與學分"
+    SOURCE_DOCUMENTS |o--o{ LEARNING_COURSE_RECORDS : "來源檔"
+    COURSE_RULES }o..o{ LEARNING_COURSE_RECORDS : "畢業學分檢查對照"
+    USERS ||--o{ CREDENTIAL_RECORDS : "證照"
+    SOURCE_DOCUMENTS |o--o{ CREDENTIAL_RECORDS : "來源檔"
+    USERS ||--o{ PORTFOLIOS : "活動競賽服務幹部"
+    PORTFOLIOS ||--o{ PORTFOLIO_EVIDENCE : "佐證"
+    USERS ||--o{ ATTENDANCE_SUMMARIES : "缺曠合計"
+    PORTFOLIOS ||--o| AWARD_CERTIFICATES : "申請電子獎狀"
+    PORTFOLIOS ||--o{ PORTFOLIO_DOMAIN_TAGS : "相關領域"
+
+    USERS["USERS 使用者　　　"] {
+        int id PK
+        string username "學號或帳號"
+        string role "student teacher staff admin"
+        bool is_active
+    }
+    STUDENT_PROFILES["STUDENT_PROFILES 學生資料　　　"] {
+        int id PK
+        int user_id FK "唯一：一位使用者一筆"
+        string student_no
+        string class_name "班級"
+        int admission_year "入學學年度（管理者匯入）"
+    }
+    CLASS_ADVISORS["CLASS_ADVISORS 導師班級　　　"] {
+        int id PK
+        int teacher_id FK
+        string class_name
+        int school_year
+    }
+    SOURCE_DOCUMENTS["SOURCE_DOCUMENTS 上傳原始檔　　　"] {
+        int id PK
+        int owner_id FK
+        string document_type "成績單 證照 獎懲記錄等"
+        string file_path
+        string status
+    }
+    DOCUMENT_EXTRACTIONS["DOCUMENT_EXTRACTIONS 辨識結果　　　"] {
+        int id PK
+        int source_document_id FK
+        string status "辨識狀態"
+        json notes "AI 註記（待新增）"
+        datetime confirmed_at "學生確認時間"
+    }
+    LEARNING_COURSE_RECORDS["LEARNING_COURSE_RECORDS 成績與學分　　　"] {
+        int id PK
+        int student_id FK
+        int source_document_id FK
+        int school_year
+        string semester
+        string course_code "課號（待新增）"
+        string course_name
+        int credits
+        int score
+        string source_kind "網頁成績 紙本成績單（待新增）"
+    }
+    COURSE_RULES["COURSE_RULES 課程規則與修業科目表　　　"] {
+        int id PK
+        int school_year "入學年度"
+        string course_name
+        string category "必修 選修等"
+        string requirement_type
+        int credits
+    }
+    CREDENTIAL_RECORDS["CREDENTIAL_RECORDS 證照　　　"] {
+        int id PK
+        int student_id FK
+        int source_document_id FK
+        string credential_name
+        string level
+    }
+    PORTFOLIOS["PORTFOLIOS 活動競賽服務幹部　　　"] {
+        int id PK
+        int student_id FK
+        string category "活動 競賽 服務學習 幹部經歷"
+        string title
+        string evidence_source "證明來源"
+        string status
+    }
+    PORTFOLIO_EVIDENCE["PORTFOLIO_EVIDENCE 佐證檔案　　　"] {
+        int id PK
+        int portfolio_id FK
+        string file_path
+        string external_url
+    }
+    PORTFOLIO_DOMAIN_TAGS["PORTFOLIO_DOMAIN_TAGS 經歷相關領域　　　"] {
+        int portfolio_id PK "也是 FK"
+        string tag PK "一個領域一列"
+        int sort_order
+    }
+    ATTENDANCE_SUMMARIES["ATTENDANCE_SUMMARIES 缺曠合計（待新增）　　　"] {
+        int id PK
+        int student_id FK
+        int school_year
+        string semester
+        json leave_totals "各假別合計，不存逐日明細"
+        int one_third_hours "應上課三分之一時數"
+        int absent_hours "至今缺課總時數"
+        bool include_in_package "放進備審，預設否"
+        datetime include_confirmed_at "學生看過提醒並確認"
+    }
+    AWARD_CERTIFICATES["AWARD_CERTIFICATES 電子獎狀　　　"] {
+        int id PK
+        int portfolio_id FK "學生由這筆紀錄決定"
+        string title "證明類別：科上派的服務 TA 社團"
+        string status "pending approved returned"
+        string verify_code "驗證碼"
+        int reviewed_by_id FK "核准的科辦"
+    }

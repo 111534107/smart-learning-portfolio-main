@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% set page_name = "autobiography-versions" %}
+{% set role_text = {"ai": "AI 產生", "student": "學生修改", "teacher": "導師修改"} %}
+
+{% block title %}自傳版本紀錄｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "工作台" if teacher_view else "備審資料") }}{% endblock %}
+
+{% block content %}
+{% if teacher_view %}
+{{ page_band("自傳版本紀錄", [("返回學生資料", url_for('teacher.student_detail', student_id=student.id, _anchor='teacher-target-' ~ program.id))], note=student.display_name ~ "・" ~ program.school_name ~ " " ~ program.department_name) }}
+{% else %}
+{{ page_band("自傳版本紀錄", [("小助手寫自傳", url_for('student.autobiography', program_id=program.id))], note=program.school_name ~ " " ~ program.department_name) }}
+{% endif %}
+<div class="page page--banded">
+  {% if cancelled %}<p class="notice notice--warn mb-1">這是已取消的目標校系。自傳紀錄都還保留著，可以看，但不能再修改；要繼續寫請重新加入目標。</p>{% endif %}
+  {% if not versions %}
+  <p class="paper-empty">還沒有自傳。</p>
+  {% else %}
+  {% if not teacher_view and can_delete|default(false) %}
+  <form class="mb-1" method="post" action="{{ url_for('student.autobiography_delete') }}" data-confirm="確定要刪除這個校系的整份自傳草稿嗎？全部 {{ versions|length }} 個版本都會刪除、不能復原。（只有從沒送過導師的草稿才能刪）">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="program_id" value="{{ program.id }}">
+    <button class="button button--small button--line" type="submit">刪除整份草稿</button>
+    <span class="muted small">這份自傳還沒送過導師，可以整份刪掉重寫；送審後就只能另存新版。</span>
+  </form>
+  {% endif %}
+  <div class="split">
+    <section class="sheet" data-tour="查看選定版本的內容與修改差異。" data-tour-order="1">
+      {% set content = selected.content_json %}
+      {% set editor = editors.get(content.editor_id) %}
+      <div class="sheet__head"><h2>第 {{ version_of(selected) }} 版</h2>
+        <span class="tag {{ 'tag--warn' if content.editor_role == 'teacher' else 'tag--info' }}">{{ role_text.get(content.editor_role, "修改") }}</span></div>
+      <p class="small muted mb-1">{{ selected.created_at|taipei_time("%Y-%m-%d %H:%M") }}{% if editor %} · {{ editor.display_name }}{% endif %}{% if backup_label(selected) %} · {{ backup_label(selected) }}{% endif %}{% if previous %} · 和第 {{ version_of(previous) }} 版比較：<ins>綠色</ins>是新增、<del>紅色</del>是刪掉{% endif %}</p>
+      {% for paragraph in diff %}
+      <section class="draft__paragraph">
+        <h3 class="h3">{{ paragraph.title }}{% if paragraph.changed %} <span class="tag tag--warn">有修改</span>{% endif %}</h3>
+        <p class="version-text">{{ paragraph.html }}</p>
+        {% if paragraph.comment %}<blockquote class="teacher-comment"><b>導師意見：</b>{{ paragraph.comment }}</blockquote>{% endif %}
+      </section>
+      {% endfor %}
+    </section>
+    <aside class="sheet" data-tour="點版本號，切換查看歷次儲存內容。" data-tour-order="2">
+      <h2 class="h3 mb-1">所有版本</h2>
+      <p class="small muted mb-1">每次儲存都會留下一版，不會被覆蓋，也不能刪除。</p>
+      <ol class="version-list">
+        {% for version in versions %}
+        {% set c = version.content_json %}
+        <li{% if version.id == selected.id %} aria-current="true"{% endif %}>
+          <a href="{{ url_for('teacher.autobiography_versions', student_id=student.id, program_id=program.id, v=version.id) if teacher_view else url_for('student.autobiography_versions', program_id=program.id, v=version.id) }}">第 {{ version_of(version) }} 版</a>
+          <span class="small muted">{{ "示範草稿（沒有接上 AI）" if c.provider == "demo" and c.editor_role == "ai" else role_text.get(c.editor_role, "修改") }}{% if editors.get(c.editor_id) %} · {{ editors[c.editor_id].display_name }}{% endif %} · {{ version.created_at|taipei_time("%m-%d %H:%M") }}{% if backup_label(version) %} · {{ backup_label(version) }}{% endif %}</span>
+        </li>
+        {% endfor %}
+      </ol>
+    </aside>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

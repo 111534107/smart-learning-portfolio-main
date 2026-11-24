@@ -1,0 +1,29 @@
+%%{init: {'theme':'base','themeVariables': {'fontSize':'18px','fontFamily':'DFKai-SB, BiauKai, serif','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280','edgeLabelBackground':'#FFFFFF'}}}%%
+flowchart TD
+    classDef student fill:#DBEAFE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef system fill:#F3F4F6,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef teacher fill:#DCFCE7,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef staff fill:#EDE9FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef alert fill:#FEE2E2,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+
+    Start([學生登入]) --> Goal{是否已設定目標？}
+    Goal -- 否 --> Choose[選擇升學、就業或實習目標]:::student
+    Choose --> Map[建立個人五年學習地圖]:::system
+    Goal -- 是 --> Upload
+    Map --> Upload[上傳成績單、證照、作品與其他資料]:::student
+    Upload --> Extract[系統擷取並建立可校正草稿]:::system
+    Extract --> Confirm[學生校正、補充與確認]:::student
+    Confirm --> Complete{資料是否完整？}
+    Complete -- 否 --> Missing[顯示待補資料]:::alert
+    Missing --> Upload
+    Complete -- 是 --> Rules[套用適用年度規則]:::system
+    Rules --> Check{是否需要人工檢核？}
+    Check -- 是 --> Teacher[教師／導師提供回饋]:::teacher
+    Teacher --> Staff[科辦／行政確認規則或結論]:::staff
+    Staff --> Fix{需要補件？}
+    Fix -- 是 --> Confirm
+    Fix -- 否 --> Result[產生摘要、待補清單與文件草稿]:::system
+    Check -- 否 --> Result
+    Result --> Gap[對照目標顯示差距與下一步]:::system
+    Gap --> Word[學生編輯、下載 Word 或送入審查專案]:::student
+    Word --> End([完成])

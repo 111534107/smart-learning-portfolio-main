@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "teacher-internship-resume" %}
+{% block title %}{{ student.display_name }} 的實習履歷｜導師工作台{% endblock %}
+{% block navigation %}{{ masthead(user, "工作台") }}{% endblock %}
+{% macro pic(ref) %}{% if ref %}<img class="bio-images__thumb" src="{{ url_for('student.autobiography_image', student_id=student.id, image_id=ref) }}" alt="學生放的圖片">{% endif %}{% endmacro %}
+{% block content %}
+<section class="work-shell" data-work-role="teacher">
+  <header class="work-heading">
+    <div>
+      <p class="small"><a href="{{ url_for('teacher.student_detail', student_id=student.id) }}">← {{ student.display_name }}</a></p>
+      <h1>{{ student.display_name }} 的實習履歷</h1>
+      <p>唯讀。這是學生最後一次按「儲存」或「下載」時的內容{% if saved_at %}（{{ saved_at|taipei_time("%Y-%m-%d %H:%M") }}）{% endif %}；學生下載的 Word 就是照這一份產生。</p>
+    </div>
+  </header>
+  {% if not saved and not drafts.has_content(draft) %}
+  <section class="work-panel"><p class="muted">學生還沒有儲存過實習履歷。</p></section>
+  {% else %}
+  <section class="work-panel" data-teacher-resume data-tour="查看學生填寫的基本資料。" data-tour-order="1">
+    <h2>基本資料</h2>
+    <dl class="resume-basic">
+      <div><dt>實習期間</dt><dd>{{ draft.period or "（未填）" }}</dd></div>
+      <div><dt>出生日期</dt><dd>{% if draft.birth|select|list %}{{ draft.birth[0] }} 年 {{ draft.birth[1] }} 月 {{ draft.birth[2] }} 日{% else %}（未填）{% endif %}</dd></div>
+      <div><dt>性別</dt><dd>{{ draft.gender or "（未填）" }}</dd></div>
+      <div><dt>電話</dt><dd>{{ draft.phone or "（未填）" }}</dd></div>
+      <div><dt>地址</dt><dd>{{ drafts.address_text(draft) or "（未填）" }}</dd></div>
+      <div><dt>操行</dt><dd>{{ draft.conduct or "（未填）" }}</dd></div>
+      <div><dt>語文能力</dt><dd>{% for key, label in drafts.LANGUAGES %}{{ label }}：{{ draft.langs[key] or "—" }}　{% endfor %}</dd></div>
+    </dl>
+    {{ pic(draft.photo) }}
+  </section>
+  {% if saved %}
+  <section class="work-panel" data-tour="查看自傳與所選資料，提供學生建議。" data-tour-order="2">
+    <h2>自傳與放進去的資料</h2>
+    {% if saved.get("bio_mode") == "free" %}
+    <p class="version-text">{{ saved.texts.get("free") or "（空白）" }}</p>
+    {% else %}
+    {% for key, title in [("family", "家庭生活"), ("study", "求學經過、社團活動"), ("skill", "個人專長、簡要經歷"), ("future", "未來生涯規劃")] %}
+    <h3 class="h3 mt-1">{{ title }}</h3>
+    <p class="version-text">{{ saved.texts.get(key) or "（空白）" }}</p>
+    {% endfor %}
+    <p class="small muted">放進去的證照 {{ saved.credentials|length }} 筆、經歷 {{ saved.experiences|length }} 筆（內容見下載的 Word）。</p>
+    {% endif %}
+  </section>
+  {% endif %}
+  {% if draft.certcells %}
+  <section class="work-panel">
+    <h2>相關證照（學生填的）</h2>
+    <ul>{% for key, label in [("labor", "勞動部"), ("international", "國際證照"), ("domestic", "國內證照"), ("other", "其他證照")] %}{% for name in draft.certcells[key] if name %}<li>{{ label }}：{{ name }}</li>{% endfor %}{% endfor %}</ul>
+  </section>
+  {% endif %}
+  <section class="work-panel">
+    <h2>圖片</h2>
+    {% if draft.transcript %}<h3 class="h3">成績單</h3>{% for ref in draft.transcript %}{{ pic(ref) }}{% endfor %}{% endif %}
+    {% set certs = draft.certimg|selectattr("image")|list + draft.certimg|selectattr("name")|rejectattr("image")|list %}
+    {% if certs %}<h3 class="h3 mt-1">證照</h3>{% for entry in certs %}<figure class="bio-images__item">{{ pic(entry.image) }}<figcaption class="small">{{ entry.name }}</figcaption></figure>{% endfor %}{% endif %}
+    {% set contests = draft.contest|selectattr("image")|list + draft.contest|selectattr("caption")|rejectattr("image")|list %}
+    {% if contests %}<h3 class="h3 mt-1">競賽</h3>{% for entry in contests %}<figure class="bio-images__item">{{ pic(entry.image) }}<figcaption class="small">{{ entry.caption }}</figcaption></figure>{% endfor %}{% endif %}
+    {% if not draft.transcript and not certs and not contests %}<p class="muted">沒有放圖片。</p>{% endif %}
+  </section>
+  <section class="work-panel">
+    <h2>缺曠記錄（學生自己輸入）</h2>
+    <p class="small">查詢區間：{{ draft.absence.range or "（未填）" }}</p>
+    <ul>{% for label in drafts.ABSENCE_ROWS %}{% if draft.absence.rows[loop.index0] %}<li>{{ label }}：{{ draft.absence.rows[loop.index0] }}</li>{% endif %}{% endfor %}</ul>
+    {{ pic(draft.absence.image) }}
+  </section>
+  {% endif %}
+</section>
+{% endblock %}

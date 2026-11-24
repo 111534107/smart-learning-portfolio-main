@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="878" viewBox="0 0 980 878" font-family="Microsoft JhengHei, Noto Sans TC, Arial, sans-serif">
+<rect width="980" height="878" fill="#FFFFFF"/>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#374151"/></marker></defs>
+<rect x="20" y="20" width="940" height="838" fill="none" stroke="#9CA3AF" stroke-width="1.5" rx="6"/>
+<text x="40" y="52" font-size="18" fill="#374151">資管科智慧學習歷程系統－老師（導師、專任教師、指導老師）</text>
+<circle cx="190" cy="379.0" r="62" fill="#DCFCE7" stroke="#374151" stroke-width="3"/>
+<text x="190" y="388.0" font-size="26" font-weight="bold" text-anchor="middle" fill="#111827">老師</text>
+<ellipse cx="190" cy="493.0" rx="38" ry="52" fill="#FFFFFF" stroke="#374151" stroke-width="3"/>
+<path d="M154,486.0 L112,514.0" stroke="#374151" stroke-width="3" fill="none"/>
+<circle cx="106" cy="518.0" r="8" fill="#FFFFFF" stroke="#374151" stroke-width="3"/>
+<path d="M226,486.0 L268,514.0" stroke="#374151" stroke-width="3" fill="none"/>
+<circle cx="274" cy="518.0" r="8" fill="#FFFFFF" stroke="#374151" stroke-width="3"/>
+<path d="M170,541.0 L170,586.0 L150,586.0" stroke="#374151" stroke-width="3" fill="none"/>
+<path d="M210,541.0 L210,586.0 L230,586.0" stroke="#374151" stroke-width="3" fill="none"/>
+<path d="M282,518.0 L436,105.0" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<rect x="440" y="70" width="490" height="70" rx="35.0" fill="#FFFFFF" stroke="#374151" stroke-width="2.5"/>
+<text x="685.0" y="101.0" font-size="20" font-weight="bold" text-anchor="middle" fill="#111827">學生清單</text>
+<text x="685.0" y="127.0" font-size="15" text-anchor="middle" fill="#4B5563">（只能看與自己有關的學生；查看完成度）</text>
+<path d="M282,518.0 L436,191.0" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<rect x="440" y="156" width="490" height="70" rx="35.0" fill="#FFFFFF" stroke="#374151" stroke-width="2.5"/>
+<text x="685.0" y="187.0" font-size="20" font-weight="bold" text-anchor="middle" fill="#111827">學生資料檢視</text>
+<text x="685.0" y="213.0" font-size="15" text-anchor="middle" fill="#4B5563">（學習資料、原始檔、目標校系與缺件）</text>
+<path d="M282,518.0 L436,277.0" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<rect x="440" y="242" width="490" height="70" rx="35.0" fill="#FFFFFF" stroke="#374151" stroke-width="2.5"/>
+<text x="685.0" y="273.0" font-size="20" font-weight="bold" text-anchor="middle" fill="#111827">段落註解與修改自傳</text>
+<text x="685.0" y="299.0" font-size="15" text-anchor="middle" fill="#4B5563">（註解記錄是哪位老師；修改後學生要重新送審）</text>
+<path d="M282,518.0 L436,363.0" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<rect x="440" y="328" width="490" height="70" rx="35.0" fill="#FFFFFF" stroke="#374151" stroke-width="2.5"/>
+<text x="685.0" y="359.0" font-size="20" font-weight="bold" text-anchor="middle" fill="#111827">確認送審版本</text>
+<text x="685.0" y="385.0" font-size="15" text-anchor="middle" fill="#4B5563">（導師確認學生送審的那一版，或請學生修改）</text>
+<path d="M282,518.0 L436,449.0" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<rect x="440" y="414" width="490" height="70" rx="35.0" fill="#FFFFFF" stroke="#374151" stroke-width="2.5"/>
+<text x="685.0" y="445.0" font-size="20" font-weight="bold" text-anchor="middle" fill="#111827">二技公告與提醒學生</text>
+<text x="685.0" y="471.0" font-size="15" text-anchor="middle" fill="#4B5563">（看到四、五年級學生並可發提醒）</text>
+<path d="M282,518.0 L436,535.0" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<rect x="440" y="500" width="490" height="70" rx="35.0" fill="#FFFFFF" stroke="#374151" stroke-width="2.5"/>
+<text x="685.0" y="531.0" font-size="20" font-weight="bold" text-anchor="middle" fill="#111827">查看本班缺曠合計</text>
+<text x="685.0" y="557.0" font-size="15" text-anchor="middle" fill="#4B5563">（只有班導看得到，不送給 AI）</text>
+<path d="M282,518.0 L436,621.0" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<rect x="440" y="586" width="490" height="70" rx="35.0" fill="#FFFFFF" stroke="#374151" stroke-width="2.5"/>
+<text x="685.0" y="617.0" font-size="20" font-weight="bold" text-anchor="middle" fill="#111827">下載表單</text>
+<text x="685.0" y="643.0" font-size="15" text-anchor="middle" fill="#4B5563">（科辦開放給老師的表單）</text>
+<path d="M282,518.0 L436,707.0" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-dasharray="8 5"/>
+<rect x="440" y="672" width="490" height="70" rx="35.0" fill="#FFFFFF" stroke="#374151" stroke-width="2.5" stroke-dasharray="8 5"/>
+<text x="685.0" y="703.0" font-size="20" font-weight="bold" text-anchor="middle" fill="#6B7280">班級統計</text>
+<text x="685.0" y="729.0" font-size="15" text-anchor="middle" fill="#4B5563">（預計申請學校、完成度與缺件；Phase 2）</text>
+<path d="M282,518.0 L436,793.0" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<rect x="440" y="758" width="490" height="70" rx="35.0" fill="#FFFFFF" stroke="#374151" stroke-width="2.5"/>
+<text x="685.0" y="800.0" font-size="20" font-weight="bold" text-anchor="middle" fill="#111827">登出</text>
+</svg>

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer with context %}
+{% set page_name = "staff-certificate-review" %}
+
+{% block title %}審核電子獎狀｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "電子獎狀") }}{% endblock %}
+
+{% block content %}
+<style>
+  .cert-source { display: grid; grid-template-columns: max-content 1fr; gap: .3rem 1rem; margin: 0 0 .8rem; }
+  .cert-source dt { color: var(--muted, #666); }
+  .cert-source dd { margin: 0; }
+  .cert-source__preview { display: block; width: 100%; max-height: 70vh; border: 1px solid var(--line, #ccc); border-radius: 6px; background: #fff; }
+  iframe.cert-source__preview { height: 70vh; }
+  @media (max-width: 600px) { .cert-source { grid-template-columns: 1fr; } }
+</style>
+
+<div class="page narrow">
+  <p class="small"><a href="{{ url_for('certificate.staff_list') }}">← 回電子獎狀清單</a></p>
+  <section class="sheet mb-1">
+    <h1 class="h2">{{ cert.student.display_name }} 的電子獎狀申請</h1>
+    <p>申請類別：<span class="tag">{{ kind_label }}</span></p>
+    <p>經歷標題：<b>{{ cert.portfolio.title }}</b>{% if cert.portfolio.description %}（{{ cert.portfolio.description }}）{% endif %}</p>
+  </section>
+
+  <section class="sheet mb-1" aria-labelledby="award-source-title" data-award-source data-tour="先對照學校獎懲記錄，確認申請內容。" data-tour-order="1">
+    <h2 class="h3" id="award-source-title">對照學校獎懲記錄</h2>
+    {% if award_row %}
+    <dl class="cert-source">
+      <dt>獎懲事由（匯入時原文）</dt><dd><b>{{ award_row.reason }}</b></dd>
+      {% if award_row.date or award_row.name %}<dt>日期與獎懲</dt><dd>{{ award_row.date or "" }} {{ award_row.name or "" }}{% if award_row.count %} {{ award_row.count }} 次{% endif %}</dd>{% endif %}
+    </dl>
+    {% if award_row.reason != cert.portfolio.title %}<p class="alert small" role="note">學生後來改過經歷標題，和獎懲原文不同，請以原文為準。</p>{% endif %}
+    {% else %}
+    <p class="muted small">這筆是較早匯入的資料，系統沒有留下逐列原文；下面是學生的經歷標題：<b>{{ cert.portfolio.title }}</b></p>
+    {% endif %}
+    {% set source_doc = cert.portfolio.source_document %}
+    {% if source_doc %}
+    {% set source_url = url_for('certificate.staff_source', cert_id=cert.id) %}
+    <p class="small">學生上傳的獎懲記錄原始檔：{{ source_doc.display_name }}
+      {% if source_kind %}<a href="{{ source_url }}" target="_blank" rel="noopener">另開視窗</a>{% endif %}</p>
+    {% if source_kind == "image" %}
+    <img class="cert-source__preview" src="{{ source_url }}" alt="{{ cert.student.display_name }} 上傳的獎懲記錄原始檔">
+    {% elif source_kind == "pdf" %}
+    <iframe class="cert-source__preview" src="{{ source_url }}" title="{{ cert.student.display_name }} 上傳的獎懲記錄原始檔"></iframe>
+    {% else %}
+    <p class="muted small">這種檔案不能在網頁預覽。</p>
+    {% endif %}
+    {% else %}
+    <p class="muted small">沒有原始檔（可能是貼上表格匯入的）。</p>
+    {% endif %}
+  </section>
+
+  {% if cert.status == "approved" %}<p class="notice mb-1">已核准，驗證碼 <span class="mono">{{ cert.verify_code }}</span>。</p>{% endif %}
+  {% if cert.status == "returned" %}<p class="notice mb-1">已退回：{{ cert.return_reason }}</p>{% endif %}
+
+  <section class="sheet">
+    {% if error %}<p class="alert mb-1" role="alert">{{ error }}</p>{% endif %}
+    {% if cert.status == "pending" %}
+    <form method="post" class="form-stack" data-tour="修改獎狀後儲存、核准或退回申請。" data-tour-order="2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <p class="muted small">獎狀外框固定；下面的文字會印在獎狀上，系統已先帶入，可以直接修改。</p>
+      <label class="field"><span class="field__label">證明類別（獎狀標題）</span><input name="title" value="{{ cert.title }}" maxlength="50" required></label>
+      <label class="field"><span class="field__label">內文</span><textarea name="body" rows="6" required>{{ cert.body }}</textarea></label>
+      <label class="field"><span class="field__label">發證單位</span><input name="issuer" value="{{ cert.issuer }}" maxlength="100" required></label>
+      <label class="field"><span class="field__label">退回原因 <small>只有退回時要填</small></span><input name="return_reason" maxlength="500" value="{{ cert.return_reason or '' }}"></label>
+      {% if not can_approve %}<p class="notice notice--warn">核准要由主任或副主任按。你可以先核對、修改內文後按「儲存修改」，或資料有問題時退回給學生。</p>{% endif %}
+      <div class="record-card__actions">
+        {% if can_approve %}<button class="button" type="submit" name="action" value="approve">核准並產出獎狀</button>
+        {% else %}<button class="button" type="submit" name="action" value="save">儲存修改，請主任核准</button>{% endif %}
+        <button class="button button--line" type="submit" name="action" value="return" formnovalidate>退回</button>
+        <a class="button button--line" href="{{ url_for('certificate.certificate_view', cert_id=cert.id) }}" target="_blank" rel="noopener">預覽獎狀</a>
+      </div>
+    </form>
+    {% else %}<p>這筆申請已處理，不能重複審核。</p>{% endif %}
+  </section>
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

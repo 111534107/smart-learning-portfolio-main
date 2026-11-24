@@ -1,0 +1,77 @@
+/* 學生端 v2 設計變數（2026-11-11，照設計示範 _design-demo/student-v2/common.css 的 :root 與深色）
+   - 只有學生頁會載入這個檔（base.html 依 user.role == "student" 加 link，並在 <html> 加 data-ui="student-v2"）。
+   - 老師、科辦、管理員頁沒有 data-ui，也不會載入本檔，外觀不變。
+   - 下半段把舊樣式（design-system.css、theme-campus.css）用的變數對到新配色，舊元件也跟著換色、支援深色。 */
+
+html[data-ui="student-v2"] {
+  --bg: #e7e0d5;          /* 頁面底：暖灰亞麻 */
+  --surface: #f1ebe2;     /* 主畫面 */
+  --card: #f8f4ee;        /* 卡片、紙張：暖白 */
+  --ink: #2b2622;         /* 主要文字，對 card 約 13:1 */
+  --soft: #574e45;        /* 次要文字，對 card 約 7.5:1 */
+  --line: #d6ccbe;
+  --accent: #2f6672;      /* 唯一主色：深灰藍綠 */
+  --accent-soft: rgb(47 102 114 / .11);
+  --warn: #8a4e10;
+  --warn-soft: #f2e3cf;
+  --warn-line: #e3c9a6;
+  --bio-warn: #9b3d36;
+  --on: #ffffff;
+  --stripe: #ede5d9;
+  --shadow: 0 1px 0 rgb(43 38 34 / .05), 0 12px 28px -20px rgb(70 50 30 / .4);
+  --glass: rgb(248 244 238 / .72);
+  --glass-line: rgb(255 252 247 / .8);
+  --font: "Microsoft JhengHei", "微軟正黑體", "PingFang TC", "Noto Sans TC", sans-serif;
+  /* 液態玻璃：由帳號選單的「玻璃效果」滑桿改 --galpha／--gblur */
+  --gblur: 24px;
+  --gsat: 180%;
+  --galpha: .62;
+  --r-outer: 32px;
+  /* 統一尺寸：按鈕、輸入框同一個高度 */
+  --ctl-h: 2.5rem;
+  --ctl-fs: .9375rem;
+  color-scheme: light;
+}
+
+html[data-ui="student-v2"][data-theme="dark"] {
+  --bg: #171411;
+  --surface: #1f1b17;
+  --card: #28231e;
+  --ink: #ece3d6;
+  --soft: #b9ad9d;
+  --line: #3d362e;
+  --accent: #7cb8c4;
+  --accent-soft: rgb(124 184 196 / .14);
+  --warn: #e2a865;
+  --warn-soft: #3d2f20;
+  --warn-line: #6b5236;
+  --bio-warn: #e8a39b;
+  --on: #171411;
+  --stripe: #332d26;
+  --glass: rgb(40 35 30 / .72);
+  --glass-line: rgb(255 240 220 / .1);
+  --shadow: 0 1px 0 rgb(0 0 0 / .2), 0 14px 30px -18px rgb(0 0 0 / .7);
+  color-scheme: dark;
+}
+
+/* 舊變數對到新配色。寫在 body 上，才能蓋過 theme-campus.css 的 [data-theme="campus"]（也是設在 body）。 */
+html[data-ui="student-v2"] body {
+  --paper: var(--surface);
+  --paper-deep: var(--bg);
+  --sheet: var(--card);
+  --ink-soft: var(--soft);
+  --muted: var(--soft);
+  --line-strong: var(--ink);
+  --ok: var(--accent);
+  --ok-soft: var(--accent-soft);
+  --font-sans: var(--font);
+  --shadow-sheet: var(--shadow);
+  --shadow-card: var(--shadow);
+  --radius-card: 22px;
+  --band-navy: var(--ink);
+  --band-caramel: var(--accent);
+}
+html[data-ui="student-v2"][data-theme="dark"] body {
+  --danger: #f0a08f;
+  --danger-soft: #3d2420;
+}

@@ -1,0 +1,519 @@
+/* 學生端 v2：成績單、證照（OCR）四頁（2026-11-11，樣式照設計示範 data.html 的成績單／證照）
+   頁面：learning-profile（列表）、learning-profile-upload（上傳）、learning-profile-processing（辨識中）、
+         learning-profile-review（核對確認）。只在 <html data-ui="student-v2"> 下生效。
+   重點：手機表格一列一張卡；拖檔案整頁提示；辨識中掃描線＋閃爍骨架卡；完成後卡片依序發下來（deal）；
+         「減少動態」時直接顯示，不停在透明。 */
+
+[data-ui="student-v2"] body[data-page^="learning-profile"] .page { width: min(1100px, calc(100% - 32px)); }
+
+/* ---------- 發牌動畫：卡片依序落下 ---------- */
+@keyframes sv2-deal { from { opacity: 0; transform: translateY(-24px) rotate(-2deg); } }
+[data-ui="student-v2"] .sv2-deal > * { animation: sv2-deal .5s cubic-bezier(.2, .9, .3, 1) backwards; }
+[data-ui="student-v2"] .sv2-deal > :nth-child(2) { animation-delay: .05s; }
+[data-ui="student-v2"] .sv2-deal > :nth-child(3) { animation-delay: .1s; }
+[data-ui="student-v2"] .sv2-deal > :nth-child(4) { animation-delay: .15s; }
+[data-ui="student-v2"] .sv2-deal > :nth-child(5) { animation-delay: .2s; }
+[data-ui="student-v2"] .sv2-deal > :nth-child(6) { animation-delay: .25s; }
+[data-ui="student-v2"] .sv2-deal > :nth-child(7) { animation-delay: .3s; }
+[data-ui="student-v2"] .sv2-deal > :nth-child(n+8) { animation-delay: .35s; }
+
+/* ---------- 列表頁：櫃子、表格、證照卡 ---------- */
+[data-ui="student-v2"] .list-head { display: flex; justify-content: space-between; align-items: center; gap: 12px 20px; flex-wrap: wrap; margin-bottom: 18px; }
+[data-ui="student-v2"] .list-head p { margin: 0; color: var(--soft); font-weight: 700; }
+[data-ui="student-v2"] .record-group__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+[data-ui="student-v2"] .record-group__head h2 { margin: 0; font-size: var(--fs-lg); font-weight: 900; }
+[data-ui="student-v2"] :is(.sv2-table, .course-table) { width: 100%; border-collapse: collapse; font-size: var(--ctl-fs); }
+[data-ui="student-v2"] :is(.sv2-table, .course-table) :is(th, td) { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; background: none; }
+[data-ui="student-v2"] :is(.sv2-table, .course-table) th { color: var(--soft); font-size: var(--fs-sm); font-weight: 700; }
+[data-ui="student-v2"] :is(.sv2-table, .course-table) tbody tr { transition: background .2s; }
+[data-ui="student-v2"] :is(.sv2-table, .course-table) tbody tr:hover { background: var(--accent-soft); }
+[data-ui="student-v2"] :is(.sv2-table, .course-table) td .inline-form { display: inline; margin-left: 4px; }
+[data-ui="student-v2"] .record-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
+[data-ui="student-v2"] .record-card {
+  position: relative; display: flex; flex-direction: column; gap: 6px; min-height: 150px; padding: 16px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow);
+  transform: rotate(var(--r, 0deg));
+  transition: transform .25s cubic-bezier(.2, 1.2, .3, 1), box-shadow .25s, border-color .25s;
+}
+[data-ui="student-v2"] .record-cards > .record-card:nth-child(3n+1) { --r: -.7deg; }
+[data-ui="student-v2"] .record-cards > .record-card:nth-child(3n+2) { --r: .5deg; }
+[data-ui="student-v2"] .record-card:hover { transform: translateY(-6px) rotate(0); border-color: var(--accent); box-shadow: 0 22px 40px -22px rgb(70 50 30 / .45); }
+[data-ui="student-v2"] .record-card h3 { margin: 10px 0 0; font-size: var(--fs-base); line-height: 1.35; }
+[data-ui="student-v2"] .record-card p { margin: 0; color: var(--soft); font-size: var(--fs-sm); }
+[data-ui="student-v2"] .paper-empty {
+  display: grid; place-items: center; min-height: 140px; padding: 16px; border: 1.5px dashed var(--line); border-radius: 14px;
+  background: none; color: var(--soft); font-weight: 700; text-align: center; text-decoration: none;
+}
+[data-ui="student-v2"] a.paper-empty:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+[data-ui="student-v2"] .outputs-disclosure { margin-top: 1.25rem; padding: 1rem 1.25rem; border: 1px solid var(--line); border-radius: 22px; background: var(--card); }
+
+/* 手機：表格一列一張卡（第一格當標題，最後一格的按鈕放右邊） */
+@media (max-width: 720px) {
+  [data-ui="student-v2"] :is(.sv2-table, .course-table),
+  [data-ui="student-v2"] :is(.sv2-table, .course-table) tbody,
+  [data-ui="student-v2"] :is(.sv2-table, .course-table) tr,
+  [data-ui="student-v2"] :is(.sv2-table, .course-table) td { display: block; }
+  [data-ui="student-v2"] :is(.sv2-table, .course-table) thead { display: none; }
+  [data-ui="student-v2"] :is(.sv2-table, .course-table) tr {
+    display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; margin-bottom: 10px; padding: 12px 14px;
+    border: 1px solid var(--line); border-radius: 14px; background: var(--card); box-shadow: var(--shadow);
+  }
+  [data-ui="student-v2"] :is(.sv2-table, .course-table) td { grid-column: 1; padding: 0; border: 0; color: var(--soft); font-size: var(--fs-sm); }
+  [data-ui="student-v2"] :is(.sv2-table, .course-table) td:first-child { color: var(--ink); font-size: var(--fs-base); font-weight: 900; }
+  [data-ui="student-v2"] :is(.sv2-table, .course-table) td[data-label]:not(:first-child)::before { content: attr(data-label) "："; }
+  [data-ui="student-v2"] :is(.sv2-table, .course-table) td:last-child { grid-column: 2; grid-row: 1 / span 4; align-self: center; text-align: right; color: var(--ink); }
+  [data-ui="student-v2"] :is(.sv2-table, .course-table) td:last-child[data-label]::before { content: none; }
+  [data-ui="student-v2"] .sv2-table--docs td:last-child { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+  [data-ui="student-v2"] .sv2-table--docs td:last-child .inline-form { margin: 0; }
+  [data-ui="student-v2"] .sv2-table--docs td:last-child .button { width: 100%; }
+  /* 成績表：課名當卡片標題，年級、學期、學分、分數排在下面 */
+  [data-ui="student-v2"] .course-table td[data-label="課程"] { order: -1; color: var(--ink); font-size: var(--fs-base); font-weight: 900; }
+  [data-ui="student-v2"] .course-table td[data-label="課程"]::before { content: none !important; }
+  [data-ui="student-v2"] .course-table td:first-child { color: var(--soft); font-size: var(--fs-sm); font-weight: 400; }
+  [data-ui="student-v2"] .course-table td:first-child::before { content: attr(data-label) "："; }
+  [data-ui="student-v2"] .course-table td:last-child { grid-row: 1 / span 6; }
+  [data-ui="student-v2"] .record-cards { grid-template-columns: 1fr 1fr; gap: 12px; }
+  [data-ui="student-v2"] .record-card { min-height: 120px; padding: 12px; }
+  [data-ui="student-v2"] .table-wrap { overflow: visible; border: 0; }
+  /* 卡片化後長句要能換行（全站表格在窄螢幕設了 keep-all，中文長句會撐破畫面；11-12 驗收：備審資料頁寬 488px） */
+  [data-ui="student-v2"] .sv2-table tr { grid-template-columns: minmax(0, 1fr) auto; }
+  [data-ui="student-v2"] .table-wrap .sv2-table td { min-width: 0; word-break: normal; overflow-wrap: anywhere; }
+}
+
+/* ---------- 拖檔案：整頁出現「放開就上傳」 ---------- */
+[data-ui="student-v2"] .sv2-drop {
+  position: fixed; inset: 12px; z-index: 60; display: none; place-items: center; align-content: center; gap: 8px;
+  border: 2px dashed var(--accent); border-radius: 26px; background: color-mix(in srgb, var(--surface) 88%, transparent);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  color: var(--accent); text-align: center; pointer-events: none;
+}
+[data-ui="student-v2"] .sv2-drop b { font-size: var(--fs-xl); font-weight: 900; }
+[data-ui="student-v2"] .sv2-drop small { color: var(--soft); font-size: var(--fs-sm); font-weight: 700; }
+[data-ui="student-v2"].sv2-dropping .sv2-drop { display: grid; animation: sv2-grow .35s cubic-bezier(.25, 1.4, .35, 1); }
+[data-ui="student-v2"] .sv2-drop-form { display: none; }
+
+/* 上傳頁的拖放框 */
+[data-ui="student-v2"] .dropzone {
+  min-height: 200px; border: 1.5px dashed var(--line); border-radius: 18px; background: var(--surface);
+  transition: background .2s, border-color .2s, transform .35s cubic-bezier(.3, 1.6, .4, 1);
+}
+[data-ui="student-v2"] .dropzone:hover,
+[data-ui="student-v2"] .dropzone.is-dragging,
+[data-ui="student-v2"] .dropzone:focus-within,
+[data-ui="student-v2"].sv2-dropping .dropzone { border-color: var(--accent); background: var(--accent-soft); }
+[data-ui="student-v2"] .dropzone.is-chosen { border-style: solid; border-color: var(--accent); }
+[data-ui="student-v2"] .dropzone__hint b { color: var(--accent); }
+[data-ui="student-v2"] .dropzone__hint b::before { content: "＋"; display: block; font-size: 2rem; line-height: 1; margin-bottom: 4px; }
+[data-ui="student-v2"] .upload-kind { margin: 0; }
+
+/* ---------- 辨識中：掃描線、閃爍骨架卡 ---------- */
+[data-ui="student-v2"] .ocr-sheet { border-radius: 18px; background: var(--card); box-shadow: 0 22px 40px -18px rgb(70 50 30 / .55); border: 1px solid var(--line); }
+[data-ui="student-v2"] .ocr-sheet__ghost span { background: var(--stripe); }
+[data-ui="student-v2"] .ocr-sheet__ghost span:first-child { background: var(--line); }
+[data-ui="student-v2"] .ocr-sheet__beam {
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--accent) 18%, transparent));
+  border-bottom-color: var(--accent);
+  box-shadow: 0 6px 16px -4px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+[data-ui="student-v2"] .ocr-stamp { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--card) 90%, transparent); border-radius: 14px; }
+[data-ui="student-v2"] .ocr-stamp--failed { border-color: var(--danger); color: var(--danger); }
+[data-ui="student-v2"] .ocr-panel__title { font-family: var(--font); }
+[data-ui="student-v2"] .ocr-timeline { border-color: var(--line); }
+[data-ui="student-v2"] .ocr-ruler__track { border-color: var(--line); border-radius: 99px; overflow: hidden; }
+[data-ui="student-v2"] .ocr-ruler__head b { font-family: var(--font); }
+
+[data-ui="student-v2"] .sv2-skeleton { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+[data-ui="student-v2"] .sv2-skeleton > div {
+  display: grid; gap: 8px; align-content: start; min-height: 96px; padding: 12px;
+  border: 1px solid var(--line); border-radius: 14px; background: var(--card); box-shadow: var(--shadow);
+}
+[data-ui="student-v2"] .sv2-skeleton > div > i {
+  display: block; height: .7rem; border-radius: 6px;
+  background: linear-gradient(90deg, var(--stripe), var(--line), var(--stripe)) 0 0 / 200% 100%;
+  animation: sv2-shim 1.1s linear infinite;
+}
+[data-ui="student-v2"] .sv2-skeleton > div > i:first-child { width: 45%; height: .6rem; }
+[data-ui="student-v2"] .sv2-skeleton > div > i:last-child { width: 70%; }
+[data-ui="student-v2"] .sv2-skeleton > div:nth-child(2) > i { animation-delay: .15s; }
+[data-ui="student-v2"] .sv2-skeleton > div:nth-child(3) > i { animation-delay: .3s; }
+@keyframes sv2-shim { to { background-position: -200% 0; } }
+/* 讀完：骨架停止閃爍，卡片翻成主色、依序彈一下 */
+[data-ui="student-v2"] .sv2-skeleton.is-done > div { border-color: var(--accent); animation: sv2-deal .5s cubic-bezier(.2, .9, .3, 1) backwards; }
+[data-ui="student-v2"] .sv2-skeleton.is-done > div:nth-child(2) { animation-delay: .08s; }
+[data-ui="student-v2"] .sv2-skeleton.is-done > div:nth-child(3) { animation-delay: .16s; }
+[data-ui="student-v2"] .sv2-skeleton.is-done > div > i { animation: none; background: var(--accent-soft); }
+@media (max-width: 720px) {
+  [data-ui="student-v2"] .ocr-desk { grid-template-columns: 1fr; }
+  [data-ui="student-v2"] .sv2-skeleton > div { min-height: 72px; }
+}
+
+/* ---------- 核對確認頁：把頁內寫死的白底、藍色換成本套配色（深色也看得清楚） ---------- */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] :is(.review-headline, .review-filter-bar, .credential-editor, .academic-summary, .score-group, .course-review-section, .review-savebar) {
+  background: var(--card); border-color: var(--line); color: var(--ink);
+}
+[data-ui="student-v2"] body[data-page="learning-profile-review"] :is(.review-headline, .credential-editor, .academic-summary, .score-group) { border-radius: 22px; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .review-filter-bar { border-radius: 999px; padding: 8px 12px; box-shadow: var(--shadow); top: 76px; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .review-savebar { border-radius: 999px; bottom: 12px; margin-inline: auto; max-width: 760px; box-shadow: 0 14px 34px -16px rgb(70 50 30 / .45); border: 1px solid var(--line); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .ocr-trace { background: var(--surface); border-color: var(--line); border-radius: 16px; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] :is(.review-headline p, .empty, .score-lock-status, .review-savebar__count, .score-group__best, .note-source, .course-year-group__top-three) { color: var(--soft); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] :is(.course-review-section h4, .course-review-section thead tr, .course-review-section thead th) { background: var(--bg); color: var(--ink); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] :is(.course-review-semester > summary) { background: var(--accent-soft); color: var(--ink); border-radius: 14px; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] :is(.course-review-semester > summary::after, .course-year-group > summary::after, .highest-mark) { color: var(--accent); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section :is(th, td) { border-color: var(--line); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section td[data-label]::before { color: var(--soft); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .review-view { min-height: var(--ctl-h); border-color: var(--line); background: var(--card); color: var(--ink); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .review-view[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--on); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tr.needs-review,
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-editor .needs-review { background: color-mix(in srgb, var(--warn-soft) 55%, transparent); box-shadow: inset 4px 0 0 var(--warn); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section.failed h4 { background: var(--danger-soft); color: var(--danger); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section.pending h4 { background: var(--warn-soft); color: var(--warn); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] :is(.review-warning, .confidence-low, .confidence-unknown, .note-text, .pending-badge) { color: var(--warn); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .note-chip { background: var(--stripe); color: var(--ink); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .note-chip--failed { background: var(--danger-soft); color: var(--danger); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .note-chip--ok { background: var(--accent-soft); color: var(--accent); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .note-chip--info { background: var(--accent-soft); color: var(--ink); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .note-chip--warn { background: var(--warn-soft); color: var(--warn); }
+/* 可以打字的欄位：有框、有底色；待確認的用虛線橘框；被鎖住的成績是灰底斜線 */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] :is(.course-review-section, .course-editor, .credential-editor, .edit-table) input:not([type="checkbox"], [type="radio"]) {
+  border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink);
+}
+[data-ui="student-v2"] body[data-page="learning-profile-review"] :is(.course-review-section, .course-editor) input.value-pending,
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section td.field-low input { border: 1.5px dashed var(--warn); background: var(--warn-soft); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] :is(.course-review-section, .course-editor) input.score-locked {
+  background: repeating-linear-gradient(135deg, var(--stripe) 0 6px, transparent 6px 12px), var(--surface); color: var(--soft); border-style: solid;
+}
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .credential-field-preview { background: #fff; border-color: var(--line); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr { animation: sv2-deal .45s cubic-bezier(.2, .9, .3, 1) backwards; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr:nth-child(2) { animation-delay: .04s; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr:nth-child(3) { animation-delay: .08s; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr:nth-child(4) { animation-delay: .12s; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr:nth-child(n+5) { animation-delay: .16s; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .credential-editor { animation: sv2-deal .5s cubic-bezier(.2, .9, .3, 1) backwards; }
+
+/* 減少動態：所有卡片直接顯示（shell.css 已把動畫全部關掉；這裡再保險一次，絕不停在透明） */
+@media (prefers-reduced-motion: reduce) {
+  [data-ui="student-v2"] :is(.sv2-deal > *, .record-card, .sv2-skeleton > div, .course-review-section tbody tr, .credential-editor, .ocr-sheet__img.is-loaded) { opacity: 1 !important; transform: none !important; }
+}
+
+/* 核對頁：原檔預覽、「其他資訊」摺疊區 */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] :is(.source-doc, .review-more) { background: var(--card); border: 1px solid var(--line); border-radius: 18px; color: var(--ink); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .review-more > summary { background: none; color: var(--ink); }
+
+/* ================= 成績單核對：快速對照原圖（2026-11-11 第二輪） =================
+   每門課一張卡：最上面是「原圖這一列」截圖，下面科目一整行、學分／成績／學期／年級一排（手機 2×2）。
+   要核對的卡左邊有橘色邊；「下一筆要核對」跳到的卡會亮框。 */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr {
+  grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .5rem .75rem; padding: .85rem 1rem;
+  border-bottom: 1px solid var(--line); scroll-margin: 140px 0 120px;
+  transition: box-shadow .3s, background .3s;
+}
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr > td:first-child { grid-column: 1 / -1; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section td.course-notes-cell { grid-column: 1 / -1; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section td[data-label]::before {
+  content: attr(data-label); display: block; margin-bottom: .2rem; color: var(--soft); font-size: var(--fs-xs); font-weight: 700;
+}
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section td:first-child input { font-size: var(--fs-md); font-weight: 800; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section input { min-height: 2.5rem; }
+/* 原圖這一列 */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] td.sv2-crop {
+  order: -1; grid-column: 1 / -1; display: block; padding: 4px; border: 1px solid var(--line); border-radius: 10px;
+  background: #fff; overflow: hidden;
+}
+[data-ui="student-v2"] body[data-page="learning-profile-review"] td.sv2-crop::before {
+  content: "原圖"; display: inline-block; margin: 0 0 4px; padding: 0 8px; border-radius: 99px;
+  background: var(--accent); color: #fff; font-size: var(--fs-xs); font-weight: 700;
+}
+[data-ui="student-v2"][data-theme="dark"] body[data-page="learning-profile-review"] td.sv2-crop::before { color: #171411; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] td.sv2-crop img { display: block; width: 100%; max-height: 4.5rem; object-fit: contain; object-position: left center; }
+/* 要核對的卡 */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tr[data-attention="true"] { box-shadow: inset 4px 0 0 var(--warn); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tr.sv2-focus {
+  background: var(--accent-soft); box-shadow: inset 4px 0 0 var(--accent), 0 0 0 2px var(--accent);
+}
+/* 註記縮小一點，不搶欄位 */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-notes { gap: .25rem .5rem; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .note-source a { color: var(--accent); }
+/* 原圖整張：電腦版黏在左邊、讓開頂端列 */
+@media (min-width: 961px) {
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-layout .source-doc { top: 88px; max-height: calc(100vh - 104px); }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-layout .course-review-section tr { grid-template-columns: minmax(0, 2.2fr) repeat(4, minmax(0, 1fr)); }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-layout .course-review-section tbody tr > td:first-child { grid-column: auto; }
+}
+/* 儲存列：確認、修改數、下一筆 */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .review-savebar { gap: .6rem; flex-wrap: wrap; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .sv2-next { margin-left: auto; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .sv2-next b { margin-left: 4px; color: var(--accent); font-variant-numeric: tabular-nums; }
+@media (max-width: 720px) {
+  /* 手機核對頁是專心做事的頁：收起底部分頁列，儲存列貼底，小助手讓到上面 */
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .sv2-tabbar { display: none; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .assistant:not(.is-open) { bottom: 84px !important; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-savebar { bottom: max(10px, env(safe-area-inset-bottom)); padding: 8px; border-radius: 22px; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-savebar__count { display: none; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-savebar .button { flex: 1; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: .75rem; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-filter-bar { border-radius: 22px; }
+}
+/* 收合／展開字樣用主色（頁內原本寫死藍色） */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] :is(.course-year-group, .course-review-semester, .score-group) > summary::after { color: var(--accent); }
+/* 小助手讓到儲存列上面（所有寬度） */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .assistant:not(.is-open) { bottom: 96px !important; }
+@media (max-width: 720px) {
+  /* 手機：原圖這一列放大到看得清楚，左右滑看整列 */
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] td.sv2-crop { overflow-x: auto; overscroll-behavior-x: contain; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] td.sv2-crop img { width: auto; max-width: none; height: 2.75rem; max-height: none; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .sv2-next { font-size: 0; flex: 0 0 auto; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .sv2-next::before { content: "下一筆"; font-size: var(--fs-sm); }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .sv2-next b { font-size: var(--fs-sm); }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .assistant:not(.is-open) { bottom: 84px !important; }
+}
+
+/* ================= 成績單核對：精簡表格（11-11 第三輪，使用者：學校成績單 80 多門，一門一張大卡太長、字太大） =================
+   一門課一行；原圖截圖不再每列都放：電腦版顯示在左側原圖上方（目前停在哪一列就換哪一列），手機版點一列才展開。 */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr {
+  padding: .3rem .75rem; gap: .25rem .5rem; align-items: center; border-bottom: 1px solid var(--line); cursor: default;
+}
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section td[data-label]::before { display: none; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section input {
+  min-height: 2rem; padding: .15rem .45rem; border-radius: 8px; font-size: var(--fs-sm); box-shadow: none;
+}
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section td:first-child input { font-size: var(--fs-sm); font-weight: 700; }
+/* 「⚠ 待確認」「最高成績」等小字：欄位本身已經是虛線橘框，只留給螢幕閱讀器 */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section :is(.pending-badge, .highest-mark) {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section td.sv2-crop { display: none; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section h4 { padding: .45rem .75rem; font-size: var(--fs-sm); }
+/* 註記：平常一行、超出省略；停在這一列時整段顯示 */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-notes { flex-wrap: nowrap; overflow: hidden; white-space: nowrap; padding: 0; font-size: var(--fs-xs); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-notes > * { flex: 0 0 auto; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-notes .note-text { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] tr:is(:focus-within, .sv2-focus, .sv2-open) .course-notes { flex-wrap: wrap; white-space: normal; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] tr:is(:focus-within, .sv2-focus) { background: var(--accent-soft); }
+
+@media (min-width: 721px) {
+  /* 表頭只出現一次（每段最上面），欄位不用每列重複標籤 */
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section thead { display: block !important; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section thead th:last-child { display: block !important; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section :is(thead tr, tbody tr) {
+    display: grid; grid-template-columns: minmax(8rem, 2.2fr) minmax(3rem, .55fr) minmax(3.5rem, .65fr) minmax(4rem, .8fr) minmax(4rem, .8fr) minmax(6rem, 2fr);
+  }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section thead tr { padding: .3rem .75rem; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section thead th { font-size: var(--fs-xs); color: var(--soft); background: none; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr > td:first-child,
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section td.course-notes-cell { grid-column: auto; }
+}
+/* 電腦版：左側原圖上方的「這一列」放大條 */
+[data-ui="student-v2"] .sv2-strip { margin: 0 0 .75rem; padding: 6px; border: 2px solid var(--accent); border-radius: 12px; background: var(--card); }
+[data-ui="student-v2"] .sv2-strip[hidden] { display: none; }
+[data-ui="student-v2"] .sv2-strip figcaption { margin: 0 0 4px; color: var(--accent); font-size: var(--fs-xs); font-weight: 700; }
+[data-ui="student-v2"] .sv2-strip img { display: block; width: 100%; height: auto; max-height: 6rem; object-fit: contain; object-position: left center; }
+
+@media (max-width: 720px) {
+  /* 手機：一行只放 科目｜學分｜成績；點一下展開學期、年級、原圖、註記 */
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr {
+    grid-template-columns: minmax(0, 1fr) 3.2rem 3.8rem; padding: .35rem .6rem; cursor: pointer;
+  }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr > td:first-child { grid-column: auto; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr:not(.sv2-open) > td:is(:nth-child(4), :nth-child(5), .course-notes-cell) { display: none; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr.sv2-open {
+    grid-template-columns: repeat(2, minmax(0, 1fr)); padding: .6rem; background: var(--accent-soft); cursor: default;
+  }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr.sv2-open > td:first-child,
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr.sv2-open > td.course-notes-cell { grid-column: 1 / -1; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr.sv2-open td[data-label]::before { display: block; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr.sv2-open > td.sv2-crop { display: block; }
+  /* 手機收起時的欄位名稱提示：段落最上面一行小標 */
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section h4::after {
+    content: "科目・學分・成績（點一列看原圖與其他欄位）"; display: block; margin-top: 2px; color: var(--soft); font-size: var(--fs-xs); font-weight: 400;
+  }
+}
+
+/* ================= 成績單核對：用學校實際成績單（85 門）檢核後的修正 ================= */
+/* 篩選掉的列一定要隱藏（上面 display:grid 權重較高，曾讓「要核對」7 門變成顯示 45 門） */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tr[hidden] { display: none !important; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .page.ocr-review { width: min(1480px, calc(100% - 32px)); }
+/* 數字欄不要上下箭頭，避免滾輪誤改 */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section input[type="number"]::-webkit-inner-spin-button,
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+/* 平常一列只有一行：來源、信心小字、重複的「需要人工確認」只在停在這一列時出現 */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tr:not(:focus-within, .sv2-focus, .sv2-open) :is(.note-source, small[id^="confidence-"], .note-chip--warn:has(~ .note-text)) {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
+/* 年級／學期／及格三層標題收緊 */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .score-group { margin-bottom: .6rem; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .score-group > summary { padding: .5rem .9rem; font-size: var(--fs-base); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-year-group__body { padding: 0 .6rem .6rem; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-semester > summary { margin: .35rem 0 .3rem; padding: .3rem .75rem; font-size: var(--fs-sm); border-radius: 10px; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-semester > summary::after { font-size: var(--fs-xs); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section { margin: .25rem 0 .5rem; overflow: hidden; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .review-filter-bar { border-radius: 22px; align-items: center; padding: 6px 10px; gap: .4rem .75rem; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .score-lock-status { font-size: var(--fs-xs); font-weight: 400; }
+@media (min-width: 721px) {
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-layout .course-review-section :is(thead tr, tbody tr:not([hidden])) {
+    display: grid; grid-template-columns: minmax(8rem, 2.2fr) minmax(2.8rem, .5fr) minmax(3.2rem, .55fr) minmax(4.6rem, .8fr) minmax(3.8rem, .65fr) minmax(6rem, 1.9fr);
+    gap: .25rem .4rem; align-items: center;
+  }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-layout .course-review-section tbody tr > td:first-child,
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-layout .course-review-section td.course-notes-cell { grid-column: auto; }
+  /* 停在這一列：註記換到下一行完整顯示 */
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-layout .course-review-section tr:is(:focus-within, .sv2-focus) td.course-notes-cell { grid-column: 1 / -1; }
+}
+@media (min-width: 961px) {
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-layout { grid-template-columns: minmax(20rem, 2fr) minmax(0, 3.2fr); }
+}
+@media (max-width: 720px) {
+  /* 收起時像一般清單（不是一堆輸入框）；點一列才變成可以打字 */
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr:not(.sv2-open) input {
+    min-height: 0; padding: 0; border: 0 !important; background: none !important; box-shadow: none;
+    pointer-events: none; text-overflow: ellipsis; color: var(--ink); font-size: var(--fs-sm);
+  }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr:not(.sv2-open) input[type="number"] { text-align: right; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr:not(.sv2-open) input::placeholder { color: var(--warn); font-weight: 700; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr:not(.sv2-open) { min-height: 2.75rem; }
+  /* 打字時至少 16px，否則 iPhone 會自動放大畫面 */
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr.sv2-open input { min-height: 2.5rem; font-size: 16px; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .assistant:not(.is-open) .assistant__toggle { font-size: 0; gap: 0; padding: .95rem; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-filter-bar .review-views { width: 100%; }
+}
+
+/* 欄寬微調：「1年級」不被裁字；提示統一放右邊註記欄，不在窄欄內換行撐高 */
+@media (min-width: 721px) {
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-layout .course-review-section :is(thead tr, tbody tr:not([hidden])) {
+    grid-template-columns: minmax(8rem, 2.1fr) minmax(2.8rem, .45fr) minmax(3.4rem, .55fr) minmax(5rem, .8fr) minmax(4.6rem, .75fr) minmax(6rem, 1.8fr);
+  }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tr small[id^="confidence-"] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+
+/* 成績列表（85 門）：電腦版列距收緊；手機一門兩行的清單，不是一門一張大卡 */
+[data-ui="student-v2"] .record-group .course-table :is(th, td) { padding: 6px 12px; }
+@media (max-width: 720px) {
+  [data-ui="student-v2"] .record-group .course-table tbody tr {
+    grid-template-columns: auto auto auto 1fr auto; gap: 0 10px; align-items: center;
+    margin: 0; padding: 8px 2px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: none; box-shadow: none;
+  }
+  [data-ui="student-v2"] .record-group .course-table td { grid-column: auto; grid-row: 2; font-size: var(--fs-xs); font-weight: 400; color: var(--soft); }
+  [data-ui="student-v2"] .record-group .course-table td[data-label="課程"] { grid-column: 1 / 5; grid-row: 1; font-size: var(--fs-sm); font-weight: 700; color: var(--ink); }
+  [data-ui="student-v2"] .record-group .course-table td[data-label="分數"] { grid-column: 5; grid-row: 1; justify-self: end; font-size: var(--fs-base); font-weight: 900; color: var(--ink); }
+  [data-ui="student-v2"] .record-group .course-table td[data-label="分數"]::before { content: none; }
+  [data-ui="student-v2"] .record-group .course-table td[data-label="年級"] { grid-column: 1; }
+  [data-ui="student-v2"] .record-group .course-table td[data-label="學期"] { grid-column: 2; }
+  [data-ui="student-v2"] .record-group .course-table td[data-label="學分"] { grid-column: 3; }
+  [data-ui="student-v2"] .record-group .course-table td[data-label="狀態"] { grid-column: 5; grid-row: 2; justify-self: end; transform: scale(.82); transform-origin: right center; }
+}
+
+/* 手機成績列表：小字標籤和值同一行（原本被舊樣式拆成兩行，一門課高 110px） */
+@media (max-width: 720px) {
+  [data-ui="student-v2"] .record-group .course-table tbody tr { grid-template-columns: max-content max-content max-content minmax(0, 1fr) auto; }
+  [data-ui="student-v2"] .record-group .course-table td { display: block; padding: 0 !important; white-space: nowrap; }
+  [data-ui="student-v2"] .record-group .course-table td[data-label="課程"] { white-space: normal; }
+  [data-ui="student-v2"] .record-group .course-table td:is([data-label="年級"], [data-label="學期"], [data-label="學分"])::before { display: inline; margin: 0; font-size: inherit; content: attr(data-label) " "; }
+  [data-ui="student-v2"] .record-group .course-table td[data-label="課程"]::before,
+  [data-ui="student-v2"] .record-group .course-table td[data-label="狀態"]::before { content: none !important; }
+}
+
+/* 證照核對：每個欄位一張小卡，值和原圖截圖放一起，OCR 原文退到次要 */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .credential-evidence { display: grid; grid-template-columns: 1fr; gap: 8px; margin: 0; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .credential-evidence dt { margin: 6px 0 -6px; color: var(--soft); font-size: var(--fs-xs); font-weight: 700; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .credential-evidence dd { display: grid; gap: 2px; margin: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .credential-evidence dd small { color: var(--soft); font-size: var(--fs-xs); }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .credential-evidence dd small.review-warning { color: var(--warn); font-weight: 700; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .credential-field-preview { max-width: 100%; max-height: 3.5rem; border-radius: 8px; }
+@media (min-width: 721px) {
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .credential-evidence { grid-template-columns: 8rem minmax(0, 1fr); align-items: start; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .credential-evidence dt { margin: 10px 0 0; }
+}
+@media (max-width: 720px) {
+  /* 狀態章不要把第二行撐高 */
+  [data-ui="student-v2"] .record-group .course-table td[data-label="狀態"] { display: flex; align-items: center; height: 1.25rem; }
+}
+
+/* 11-12 手機核對頁：壓平年級／學期／群組三層外框，資料列滿版、字縮小，一眼看出缺漏與不及格 */
+@media (max-width: 720px) {
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-headline { padding: 10px 12px; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-headline h2 { margin: 0; font-size: var(--fs-base); line-height: 1.35; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-headline p { margin: 2px 0 0; font-size: var(--fs-xs); }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .score-group { padding: 0; overflow: hidden; border-radius: 14px; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .score-group > summary { padding: .4rem .75rem; font-size: var(--fs-sm); }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] :is(.score-group__body, .course-year-group__body, .course-review-semester) { margin: 0; padding: 0; border: 0; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-semester > summary { margin: 0; padding: .25rem .75rem; border-radius: 0; font-size: var(--fs-xs); }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section { margin: 0; padding: 0; border: 0; border-radius: 0; box-shadow: none; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section h4 { margin: 0; padding: .2rem .75rem; border-radius: 0; font-size: var(--fs-xs); }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section h4::after { content: none; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-editor { margin: 0; padding: 0; overflow: hidden; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr:not(.sv2-open) { min-height: 2.25rem; padding-block: 0; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr:not(.sv2-open) input { min-height: 2.1rem; font-size: .875rem; }
+  /* 一眼看出：不及格成績紅字、缺值橘底 */
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] tr[data-review-kind="failed"] td[data-label="成績"] input { color: var(--danger); font-weight: 900; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] td.field-pending input { background: var(--warn-soft); }
+  /* 展開列：原圖不放大，欄位兩欄 */
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr.sv2-open > td.sv2-crop { max-width: 100%; padding: 4px 6px; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr.sv2-open > td.sv2-crop img { height: 2rem; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr.sv2-open > td.sv2-crop::before { display: none; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr.sv2-open td { min-width: 0; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section tbody tr.sv2-open input { min-height: 2.25rem; width: 100%; }
+  /* 底部儲存列不要蓋住最後幾列 */
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-main { padding-bottom: 6rem; }
+}
+/* 註記欄不得超出表格（電腦版重補修標籤曾凸出卡片外） */
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-notes-cell { min-width: 0; overflow: hidden; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-notes { max-width: 100%; }
+[data-ui="student-v2"] body[data-page="learning-profile-review"] .course-notes .note-chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 720px) {
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-main > p.review-warning,
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-main > .notice { margin: 4px 0; font-size: var(--fs-xs); line-height: 1.45; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-filter-bar { padding: 8px 10px; gap: 6px; }
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] .review-filter-bar :is(button, select) { min-height: 2.25rem; padding: .2rem .7rem; font-size: var(--fs-sm); }
+}
+@media (max-width: 720px) {
+  [data-ui="student-v2"] body[data-page="learning-profile-review"] p.review-warning { margin: 4px 0; font-size: var(--fs-xs); line-height: 1.45; }
+}
+
+/* 11-13 上傳頁：選好檔案後要一眼看得出來（原本只有一行小字「已選擇」） */
+[data-ui="student-v2"] .dropzone.is-chosen { min-height: 96px; border-width: 2px; background: var(--accent-soft); }
+[data-ui="student-v2"] .dropzone.is-chosen .dropzone__hint b { font-size: 0; }
+[data-ui="student-v2"] .dropzone.is-chosen .dropzone__hint b::before { content: "✓"; font-size: 1.75rem; }
+[data-ui="student-v2"] .dropzone.is-chosen .dropzone__hint b::after { content: "檔案選好了"; font-size: var(--fs-md); }
+[data-ui="student-v2"] .dropzone.is-chosen .dropzone__hint small { font-size: 0; }
+[data-ui="student-v2"] .dropzone.is-chosen .dropzone__hint small::after { content: "要換檔案，點這裡再選一次"; font-size: var(--fs-sm); }
+[data-ui="student-v2"] .dropzone.is-chosen ~ .dropzone__status {
+  display: flex; align-items: center; gap: 10px; margin: 10px 0 0; padding: 12px 14px;
+  border: 2px solid var(--accent); border-radius: 14px; background: var(--surface);
+  color: var(--ink); font-size: var(--fs-base); font-weight: 800; overflow-wrap: anywhere;
+}
+[data-ui="student-v2"] .dropzone.is-chosen ~ .dropzone__status::before {
+  content: "✓"; flex: 0 0 auto; display: grid; place-items: center; width: 1.9rem; height: 1.9rem;
+  border-radius: 50%; background: var(--accent); color: #fff; font-weight: 900;
+}
+[data-ui="student-v2"][data-theme="dark"] .dropzone.is-chosen ~ .dropzone__status::before { color: #171411; }
+[data-ui="student-v2"] .dropzone.is-error ~ .dropzone__status { padding: 12px 14px; border: 2px solid var(--danger); border-radius: 14px; background: var(--danger-soft); color: var(--danger); font-weight: 800; }
+
+/* 11-13 上傳進度：送出後取代上傳框的位置（student-v2-drop.js），不跳出視窗 */
+[data-ui="student-v2"] .sv2-progress { margin: 0; }
+[data-ui="student-v2"] .sv2-progress__card {
+  padding: 18px 20px; border: 2px solid var(--accent); border-radius: 18px; background: var(--surface);
+}
+[data-ui="student-v2"] .sv2-progress__title { margin: 0 0 12px; color: var(--ink); font-size: var(--fs-md); font-weight: 900; overflow-wrap: anywhere; }
+[data-ui="student-v2"] .sv2-progress__file { color: var(--soft); font-size: var(--fs-sm); font-weight: 700; }
+[data-ui="student-v2"] .sv2-progress__bar { height: 12px; overflow: hidden; border-radius: 99px; background: var(--accent-soft); }
+[data-ui="student-v2"] .sv2-progress__bar i { display: block; width: 0; height: 100%; border-radius: inherit; background: var(--accent); transition: width .25s ease; }
+[data-ui="student-v2"] .sv2-progress.is-waiting .sv2-progress__bar i {
+  background: repeating-linear-gradient(-45deg, var(--accent) 0 12px, color-mix(in srgb, var(--accent) 70%, #fff) 12px 24px);
+  background-size: 34px 34px; animation: sv2-stripe 1s linear infinite;
+}
+@keyframes sv2-stripe { to { background-position: 34px 0; } }
+[data-ui="student-v2"] .sv2-progress.is-reduced .sv2-progress__bar i { animation: none; transition: none; }
+[data-ui="student-v2"] .sv2-progress__pct { margin: 6px 0 12px; color: var(--accent); font-size: var(--fs-sm); font-weight: 900; text-align: right; }
+[data-ui="student-v2"] .sv2-progress__steps { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+[data-ui="student-v2"] .sv2-progress__steps li { display: grid; grid-template-columns: 1.75rem 1fr auto; align-items: center; gap: 10px; padding: 9px 12px; color: var(--soft); font-size: var(--fs-sm); }
+[data-ui="student-v2"] .sv2-progress__steps li + li { border-top: 1px solid var(--line); }
+[data-ui="student-v2"] .sv2-progress__steps b { display: grid; place-items: center; width: 1.75rem; height: 1.75rem; border: 1.5px solid var(--line); border-radius: 50%; font-size: var(--fs-xs); }
+[data-ui="student-v2"] .sv2-progress__steps em { font-style: normal; font-size: var(--fs-xs); font-weight: 700; }
+[data-ui="student-v2"] .sv2-progress__steps li.is-now { background: var(--accent-soft); color: var(--ink); font-weight: 800; }
+[data-ui="student-v2"] .sv2-progress__steps li.is-now b { border-color: var(--accent); color: var(--accent); }
+[data-ui="student-v2"] .sv2-progress__steps li.is-now em { color: var(--accent); }
+[data-ui="student-v2"] .sv2-progress__steps li.is-done { color: var(--ink); }
+[data-ui="student-v2"] .sv2-progress__steps li.is-done b { border-color: var(--accent); background: var(--accent); color: #fff; font-size: 0; }
+[data-ui="student-v2"] .sv2-progress__steps li.is-done b::before { content: "✓"; font-size: var(--fs-sm); }
+[data-ui="student-v2"][data-theme="dark"] .sv2-progress__steps li.is-done b { color: #171411; }
+[data-ui="student-v2"] .sv2-progress__hint { margin: 12px 0 0; color: var(--soft); font-size: var(--fs-xs); }

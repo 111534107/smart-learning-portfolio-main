@@ -1,0 +1,24 @@
+%%{init: {'flowchart':{'wrappingWidth':260}}}%%
+flowchart TD
+  classDef admin fill:#FCE7F3,stroke:#9CA3AF,color:#111827;
+  classDef assist fill:#DCFCE7,stroke:#9CA3AF,color:#111827;
+  classDef chief fill:#FFEDD5,stroke:#9CA3AF,color:#111827;
+  classDef system fill:#E0F2FE,stroke:#9CA3AF,color:#111827;
+  A([開始：收到校方核定的轉科資料]) --> B[【管理員】開啟「轉科核對案件」<br/>輸入 9 碼學號查詢]:::admin
+  B --> C1{學號是 9 碼數字？}
+  C1 -->|否| C2[提示「學號請填 9 碼數字」]:::system --> B
+  C1 -->|是| D{這個學號已有帳號？}
+  D -->|是| E[【管理員】沿用原帳號與學習資料<br/>填轉入班級與入學學年度]:::admin
+  D -->|否| F[【管理員】建立新帳號<br/>填姓名、起始密碼、班級與學年度]:::admin
+  E --> S[【系統】建立案件，通知科助與主任<br/>通知只附連結，不含學號與密碼]:::system
+  F --> S
+  S --> J[【科助】核對班級與入學學年度]:::assist
+  J --> K{相符？}
+  K -->|是| M[【科主任或副主任】確認案件]:::chief
+  M --> N{相符？}
+  N -->|是| U[【系統】更新學生班級與入學學年度<br/>案件結案；每一步都留操作紀錄]:::system
+  U --> Z([結束：學生用原帳號或新帳號登入])
+  K -->|否| R[【管理員】看退回原因<br/>更正班級或學年度後重送]:::admin
+  N -->|否| R
+  R --> S
+  S -.-> W[【管理員】學號或帳號選錯時<br/>附原因撤回案件；帳號與資料保留]:::admin

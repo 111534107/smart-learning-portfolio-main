@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "staff-student-detail" %}
+{% set detail_title = "學習與畢業" if detail_page == "learning" else "升學與備審" %}
+{% block title %}{{ d.student.display_name }}｜{{ detail_title }}{% endblock %}
+{% block navigation %}{{ masthead(user, "全年級學生") }}{% endblock %}
+{% block content %}
+<section class="work-shell" data-work-role="staff">
+  <header class="work-heading">
+    <div>
+      <p class="small"><a href="{{ url_for('staff.chief_students', **filters) }}">← 全年級學生</a> · {{ d.profile.student_no }} · {{ d.profile.class_name or "未填班級" }} · {{ {1: "專一", 2: "專二", 3: "專三", 4: "專四", 5: "專五"}.get(d.grade, "—") }}</p>
+      <h1>{{ d.student.display_name }}</h1>
+      <p>唯讀。這一頁的檢視已寫入操作紀錄（只記學生編號與區塊，不記內容）。</p>
+    </div>
+  </header>
+
+  <nav class="subnav" aria-label="學生資料分頁">
+    <div class="subnav__inner">
+      <a href="{{ url_for('staff.chief_student_detail', student_id=d.student.id, **filters) }}"{% if detail_page == "learning" %} aria-current="page"{% endif %}>學習與畢業</a>
+      <a href="{{ url_for('staff.chief_student_admissions', student_id=d.student.id, **filters) }}"{% if detail_page == "admissions" %} aria-current="page"{% endif %}>升學與備審</a>
+    </div>
+  </nav>
+
+  {% if detail_page == "learning" %}
+  <section class="work-panel" id="grad" data-tour="查看學生的畢業門檻進度。" data-tour-order="1"><h2>畢業門檻</h2>
+    <p><span class="tag {{ {'ok': 'tag--ok', 'gap': 'tag--danger', 'check': 'tag--warn'}[d.status_key] }}">{{ d.status_label }}</span> {% if d.gaps %}缺口：{{ d.gaps|join("、") }}{% endif %}</p>
+    <ul>{% for row in d.grad_items %}<li><b>{{ row.label }}</b>：{{ row.status_label }}{% if row.reason %}（{{ row.reason }}）{% endif %}</li>{% endfor %}</ul>
+    <p class="small muted">只供提醒，正式畢業資格審查由教務處負責。</p></section>
+
+  <section class="work-panel" id="courses"><h2>成績（已確認，{{ d.courses|length }} 筆）</h2>
+    <div class="table-wrap"><table class="data-table"><thead><tr><th>學年</th><th>學期</th><th>科目</th><th>學分</th><th>成績</th></tr></thead><tbody>
+    {% for c in d.courses %}<tr><td>{{ c.school_year }}</td><td>{{ c.semester }}</td><td>{{ c.course_name }}</td><td>{{ c.credits }}</td><td>{{ c.score if c.score is not none else (c.status_mark or "—") }}</td></tr>{% else %}<tr class="empty-row"><td colspan="5">沒有已確認的成績。</td></tr>{% endfor %}
+    </tbody></table></div></section>
+
+  <section class="work-panel" id="credentials"><h2>證照（已確認，{{ d.credentials|length }} 張）</h2>
+    <ul>{% for c in d.credentials %}<li>{{ c.credential_name }}{% if c.level and c.level not in c.credential_name %} {{ c.level }}{% endif %}{% if c.issuing_organization %}・{{ c.issuing_organization }}{% endif %}{% if c.issue_date %}・{{ c.issue_date.isoformat() }}{% endif %}{% if c.source_document_id %} <a href="{{ url_for('staff.chief_document_view', document_id=c.source_document_id) }}" target="_blank" rel="noopener">看原檔</a>{% endif %}</li>{% else %}<li>沒有已確認的證照。</li>{% endfor %}</ul></section>
+
+  <section class="work-panel" id="attendance"><h2>缺曠合計（學期合計，學生自己確認）</h2>
+    {% if d.attendance %}<div class="table-wrap"><table class="data-table"><thead><tr><th>學期</th><th>合計</th></tr></thead><tbody>
+    {% for a in d.attendance %}<tr><td>{{ a.school_year }}{{ "上" if a.semester == 1 else "下" }}</td><td class="small">{% for key, value in a.totals.items() if key not in ("school_year", "semester") %}{{ key }} {{ value }}　{% endfor %}</td></tr>{% endfor %}
+    </tbody></table></div>{% else %}<p class="muted">學生還沒有輸入缺曠合計。</p>{% endif %}
+    <p class="small muted">只存合計，不存逐日明細，不送外部 AI。</p></section>
+
+  <section class="work-panel" id="awards"><h2>獎懲（{{ d.awards|length }} 筆）</h2>
+    <ul>{% for a in d.awards %}<li>{{ a.date or "" }}　{{ "獎勵" if a.record_type == "reward" else "懲處" }}　{{ a.name or "" }}{% if a.count %} {{ a.count }} 次{% endif %}　{{ a.reason }}</li>{% else %}<li>沒有獎懲記錄。</li>{% endfor %}</ul></section>
+
+  {% if d.transfer %}<section class="work-panel" id="transfer"><h2>轉學抵免進度</h2>
+    <p>狀態：{{ {"not_started": "尚未申請", "submitted": "已送出申請", "needs_documents": "需要補交資料", "completed": "本人記錄已完成"}.get(d.transfer.status, "未知") }}{% if d.transfer.teacher_confirmed %}　已由 {{ d.transfer.teacher.display_name if d.transfer.teacher else "科辦" }} 確認{% endif %}</p>
+    <p><a href="{{ url_for('staff.transfer_students') }}">到轉學生頁處理</a></p></section>{% endif %}
+
+  {% else %}
+  <section class="work-panel" id="targets" data-tour="查看學生的目標校系與備審狀態。" data-tour-order="1"><h2>目標校系與備審</h2>
+    {% for t in d.targets %}<h3>{{ t.program.school_name }} {{ t.program.department_name }}</h3>
+    <p class="small">導師確認狀態：{{ {"pending": "等待導師確認", "confirmed": "導師已確認", "needs_revision": "導師請學生修改"}.get(t.review.status, "") if t.review else "尚未送審" }}{% if t.review and t.review.status == "confirmed" and t.review.autobiography_viewed is not none %}（{{ "已檢視自傳" if t.review.autobiography_viewed else "未檢視自傳" }}）{% endif %}</p>
+    {% else %}<p class="muted">還沒有目標校系。</p>{% endfor %}</section>
+
+  <section class="work-panel" id="autobiography">
+    <h2>自傳</h2>
+    {% for t in d.targets if t.autobiography %}
+    <details class="source-doc mt-1" data-autobiography open>
+      <summary style="font-weight:700;">{{ t.program.school_name }} {{ t.program.department_name }}：第 {{ t.autobiography.version }} 版（共 {{ t.autobiography.versions }} 版）</summary>
+      
+      <!-- 自傳段落唯讀檢視 -->
+      <div style="margin-top:12px; display:flex; flex-direction:column; gap:16px;">
+        {% for p in t.autobiography.paragraphs %}
+        <div style="border:1px solid var(--line); border-radius:8px; padding:12px; background:var(--sheet);">
+          <h3 class="h3" style="margin:0 0 8px; font-size:var(--fs-sm); color:var(--theme);">{{ p.title }}</h3>
+          <p class="version-text" style="line-height:1.8; margin:0; font-family:'DFKai-SB', 'BiauKai', serif;">{{ p.text }}</p>
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- 導師建議修改狀態 -->
+      {% if t.suggestions %}
+      <div style="margin-top:16px; border-top:1px dashed var(--line); padding-top:12px;">
+        <h4 style="font-size:var(--fs-sm); margin:0 0 8px; color:var(--warn);">導師建議修改記錄（{{ t.suggestions|length }} 則）</h4>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          {% for s in t.suggestions %}
+          <div style="border:1px solid var(--line); border-radius:6px; padding:8px 12px; background:var(--surface);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <span class="small muted">第 {{ s.paragraph + 1 }} 段 · 由 {{ s.author.display_name if s.author else "導師" }} 提出</span>
+              <span class="tag {{ {'pending': 'tag--accent', 'accepted': 'tag--ok', 'rejected': 'tag--danger', 'stale': 'tag--warn'}.get(s.status, '') }}">
+                {{ {'pending': '待回覆', 'accepted': '已接受', 'rejected': '不接受', 'stale': '已過期'}.get(s.status, s.status) }}
+              </span>
+            </div>
+            <p style="margin:0; font-size:var(--fs-xs); line-height:1.6;">
+              <del style="color:var(--danger); background:rgba(194,65,45,0.08); padding:0 2px;">{{ s.original }}</del>
+              <span style="margin:0 4px;">→</span>
+              <ins style="color:var(--ok); background:rgba(31,138,122,0.08); text-decoration:none; font-weight:700; padding:0 2px;">{{ s.replacement }}</ins>
+            </p>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- 導師段落註解 -->
+      {% if t.comments %}
+      <div style="margin-top:16px; border-top:1px dashed var(--line); padding-top:12px;">
+        <h4 style="font-size:var(--fs-sm); margin:0 0 8px; color:var(--ink);">導師段落註解（{{ t.comments|length }} 則）</h4>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          {% for c in t.comments %}
+          <div style="border:1px solid var(--line); border-radius:6px; padding:8px 12px; background:var(--surface);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <span class="small muted">第 {{ c.paragraph + 1 }} 段 · {{ c.author.display_name if c.author else "導師" }}</span>
+              <span class="tag {{ 'tag--ok' if c.resolved_at else 'tag--warn' }}">{{ "已處理" if c.resolved_at else "待處理" }}</span>
+            </div>
+            <p style="margin:0; font-size:var(--fs-xs);">{{ c.text }}</p>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </details>
+    {% else %}
+    <p class="muted">學生還沒有自傳。</p>
+    {% endfor %}
+  </section>
+
+  <section class="work-panel" id="internship-resume">
+    <h2>實習履歷（學校格式）</h2>
+    {% if d.internship_resume and d.internship_resume.has_data %}
+      <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:12px; font-size:var(--fs-sm);">
+        <div><strong>實習期間：</strong>{{ d.internship_resume.period or "未填寫" }}</div>
+        {% if d.internship_resume.email %}<div><strong>聯絡信箱：</strong>{{ d.internship_resume.email }}</div>{% endif %}
+        {% if d.internship_resume.phone %}<div><strong>聯絡電話：</strong>{{ d.internship_resume.phone }}</div>{% endif %}
+      </div>
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <h3 style="font-size:var(--fs-sm); margin:0; color:var(--ink);">自傳四段內容</h3>
+        {% for sec in d.internship_resume.bio_sections %}
+        <div style="background:var(--sheet); border:1px solid var(--line); border-radius:8px; padding:12px;">
+          <h4 style="margin:0 0 6px; font-size:var(--fs-xs); color:var(--theme); font-weight:700;">{{ sec.title }}</h4>
+          <p style="margin:0; font-size:var(--fs-sm); line-height:1.7; white-space:pre-wrap;">{{ sec.text or "（尚未填寫）" }}</p>
+        </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="muted">學生尚未填寫實習履歷草稿。</p>
+    {% endif %}
+  </section>
+
+  {% endif %}
+</section>
+{% endblock %}

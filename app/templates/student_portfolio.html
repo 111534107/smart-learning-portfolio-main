@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% from "partials/status.html" import status_chip %}
+{% set page_name = "student-portfolio" %}
+{% set slot_colors = {"activity": "var(--year-3)", "competition": "var(--year-4)", "service": "var(--year-2)", "leadership": "var(--year-5)", "project": "var(--year-1)"} %}
+{% set semester_labels = {1: "上學期", 2: "下學期"} %}
+
+{% block title %}活動與經歷｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "活動與經歷") }}{% endblock %}
+
+{% block content %}
+{{ page_band("活動與經歷") }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/student-v2/portfolio.css') }}">
+<div class="page page--banded pf-page" data-pf-page>
+  <div class="list-head">
+    <p class="muted">填上年級的資料會放進「我的五年」。</p>
+    <div class="record-card__actions">
+      <a class="button button--line" href="{{ url_for('student.portfolio_new', category='project') }}" data-tour="要新增專題作品時按這裡。" data-tour-order="2">＋ 新增專題與作品集</a>
+      <a class="button button--line" href="{{ url_for('award.award_upload_page') }}" data-tour="從學校複製獎懲表格後，按這裡匯入。" data-tour-order="3">從學校獎懲記錄匯入</a>
+      <a class="button button--line" href="{{ url_for('attendance.records') }}" data-tour="要匯入單學期缺曠合計時按這裡。" data-tour-order="4">從學校缺曠記錄匯入</a>
+      <a class="button" href="{{ url_for('student.portfolio_new') }}" data-tour="活動、競賽、服務、幹部從這裡新增。" data-tour-order="1">＋ 新增一筆</a>
+    </div>
+  </div>
+  {% if request.args.get("imported") is not none %}<p class="notice mb-1" role="status">已從獎懲記錄匯入 {{ request.args.get("imported") }} 筆（已經匯入過的不會重複）。</p>{% endif %}
+  {% if request.args.get("deleted") %}<p class="notice mb-1" role="status">已刪除這筆經歷。</p>{% endif %}
+  {% if request.args.get("confirmed") %}<p class="notice mb-1" role="status">已確認，這筆經歷之後可以在小助手寫自傳時引用。</p>{% endif %}
+  {% if unconfirmed_count %}<p class="notice notice--warn mb-1">有 {{ unconfirmed_count }} 筆經歷還沒確認。<b>確認過的經歷才會被 AI 寫進自傳、送給導師確認。</b></p>{% endif %}
+  {% if request.args.get("added") %}<p class="notice mb-1" role="status">已新增一筆{{ category_labels.get(request.args.get("added"), "") }}。</p>{% endif %}
+
+  {# DEMO-03：活動適合學校。點學校，用得到的紀錄會亮起來 #}
+  <section class="fit-brief pf-fit" id="fit-brief" aria-labelledby="fit-brief-title" data-tour="點學校，查看哪些活動可能用得上。" data-tour-order="5">
+    {% if fit.summary %}
+    <h2 id="fit-brief-title" class="fit-brief__title">你的 {{ fit.record_count }} 筆活動，最能用在：{% for school in fit.summary_schools %}<span class="fit-brief__name">{{ school }}</span>{% if not loop.last %}、{% endif %}{% endfor %}</h2>
+    <ol class="fit-brief__list">
+      {% for row in fit.summary %}
+      <li>
+        <button type="button" class="fit-pick fit-brief__row" data-fit-pick="{{ row.program.id }}" data-fit-name="{{ row.name }}（{{ row.channel }}）" aria-pressed="false">
+          <span class="fit-brief__rank">{{ loop.index }}</span>
+          <span class="fit-brief__school">{{ row.name }} <small>{{ row.channel }}</small></span>
+          <span class="fit-brief__meta">幫得上 {{ row.count }} 筆；用得上的甄審項目最高占 {{ row.weight }}%</span>
+        </button>
+      </li>
+      {% endfor %}
+    </ol>
+    <p class="fit-brief__hint" id="fit-status" role="status">點一間學校，看你哪幾筆紀錄用得上。</p>
+    {% elif fit.record_count %}
+    <h2 id="fit-brief-title" class="fit-brief__title">你的 {{ fit.record_count }} 筆活動，{{ fit.empty_note }}。</h2>
+    {% else %}
+    <h2 id="fit-brief-title" class="fit-brief__title">新增第一筆活動後，這裡會告訴你它能用在哪些學校的甄審。</h2>
+    {% endif %}
+    <p class="fit-brief__scope muted small">
+      {% if fit.scope == "target" %}依你選的 {{ fit.programs|length }} 個目標校系的甄審加權比對。
+      {% elif fit.programs %}你還沒選目標校系，先用推薦排序裡前 {{ fit.programs|length }} 個可報、和你背景相關的校系比對。
+      {% else %}目前沒有可報的推薦校系可以比對。
+      {% endif %}
+      <a href="{{ url_for('student.target_list') }}">{{ "看目標校系" if fit.scope == "target" else "選目標校系" }}</a>
+    </p>
+  </section>
+
+  {# 學生端 v2：年級分頁＋四類篩選小膠囊（前端篩選，資料與連結不變） #}
+  {% set ns = namespace(rows=[]) %}
+  {% for key in categories %}{% for record in grouped[key] %}{% set ns.rows = ns.rows + [(key, record)] %}{% endfor %}{% endfor %}
+  {% set has_other = ns.rows|selectattr("1.school_year")|rejectattr("1.school_year", "le", 5)|list or ns.rows|rejectattr("1.school_year")|list %}
+  <section class="pf-cabinet" aria-labelledby="pf-cabinet-title" data-pf-cabinet>
+    <h2 id="pf-cabinet-title" class="visually-hidden">我的活動與經歷</h2>
+    <div class="pf-tabs" role="tablist" aria-label="依年級看" data-tour="依年級或類別篩選，找出想看的紀錄。" data-tour-order="6">
+      <button type="button" class="pf-tab" role="tab" data-pf-grade="all" aria-selected="true">全部<small>{{ ns.rows|length }}</small></button>
+      {% for n in range(1, 6) %}
+      <button type="button" class="pf-tab" role="tab" data-pf-grade="{{ n }}" aria-selected="false">專{{ "一二三四五"[n - 1] }}<small>{{ ns.rows|selectattr("1.school_year", "equalto", n)|list|length }}</small></button>
+      {% endfor %}
+      {% if has_other %}<button type="button" class="pf-tab" role="tab" data-pf-grade="0" aria-selected="false">未分年級<small>{{ has_other|length }}</small></button>{% endif %}
+    </div>
+    <div class="pf-cats" aria-label="依類別篩選">
+      {% for key in categories %}
+      <button type="button" class="pf-cat" data-pf-cat="{{ key }}" aria-pressed="false" style="--slot: {{ slot_colors[key] }};">{{ category_labels[key] }}<b>{{ grouped[key]|length }}</b></button>
+      {% endfor %}
+    </div>
+    <div class="pf-cards" id="pf-cards" data-tour="點紀錄卡片編輯，或拖入佐證檔案。" data-tour-order="7">
+      <a class="pf-add" href="{{ url_for('student.portfolio_new') }}" data-pf-add data-pf-add-base="{{ url_for('student.portfolio_new') }}">
+        <span class="pf-add__plus" aria-hidden="true">＋</span>
+        <b>新增一筆</b>
+        <small>佐證檔案可以直接拖到下面的卡片上</small>
+      </a>
+      {% for key, record in ns.rows %}
+      {% set fits = fit.by_record.get(record.id, []) %}
+      {% set g = record.school_year if record.school_year and record.school_year <= 5 else 0 %}
+      <div class="record-card-slot pf-card{{ ' is-draft' if record.status != 'confirmed' else '' }}{{ ' is-just-added' if request.args.get('added') == record.id|string else '' }}" id="record-{{ record.id }}" data-fit-programs="{% for entry in fits %}{{ entry.program.id }} {% endfor %}" data-pf-grade="{{ g }}" data-pf-cat="{{ key }}" style="--slot: {{ slot_colors[key] }}; --d: {{ (loop.index0 * 0.04)|round(2) }}s; --r: {{ ((loop.index0 * 37) % 9 - 4) * 0.35 }}deg;">
+      <a class="record-card record-card--link pf-card__body" href="{{ url_for('student.portfolio_edit', portfolio_id=record.id) }}">
+        <div class="pf-card__top"><span class="pf-card__kind">{{ category_labels[key] }}</span>{{ status_chip(record_state(record)) }}</div>
+        {% set photo = record.evidence_items|selectattr("preview_kind", "equalto", "image")|first %}
+        {% if photo %}<img class="record-card__photo" src="{{ url_for('student.evidence_view', evidence_id=photo.id) }}" alt="" loading="lazy">{% endif %}
+        <h3>{{ record.title }}</h3>
+        {% if record.description %}<p>{{ record.description }}</p>{% endif %}
+        <div class="record-card__meta">
+          {% if record.school_year %}<span class="tag tag--info">{% if record.school_year <= 5 %}專{{ "一二三四五"[record.school_year - 1] }}{% else %}{{ record.school_year }} 學年度{% endif %}</span>{% else %}<span class="tag tag--warn">未填年級</span>{% endif %}
+          {% if record.semester %}<span class="tag">{{ semester_labels.get(record.semester) }}</span>{% endif %}
+          {% if record.evidence_items %}<span class="tag">佐證 {{ record.evidence_items|length }}</span>{% endif %}
+          {% if record.source != "student" %}<span class="tag tag--source">{{ record.source_label }}</span>{% endif %}
+          {% if record.certificate and record.certificate.status == "approved" %}<span class="tag tag--ok">科辦電子獎狀</span>{% endif %}
+        </div>
+      </a>
+      {% if fits %}
+      <details class="fit-line">
+        <summary class="fit-line__label">查看適用校系（{{ fits|length }}）：對這些學校的甄審有幫助</summary>
+        <ul class="fit-line__list">
+          {% for entry in fits %}
+          <li>
+            <button type="button" class="fit-pick fit-line__school" data-fit-pick="{{ entry.program.id }}" data-fit-name="{{ entry.name }}（{{ entry.channel }}）" aria-pressed="false">
+              <span class="fit-line__name">{{ entry.name }} <small>{{ entry.channel }}</small></span>
+              <span class="fit-line__weight">可放進「{{ entry.item }}」（這個項目占 {{ entry.weight }}%）</span>
+              <span class="fit-bar" style="--w: {{ entry.weight }}%" aria-hidden="true"><i></i></span>
+            </button>
+          </li>
+          {% endfor %}
+        </ul>
+      </details>
+      {% else %}
+      <p class="fit-line fit-line--empty">{{ fit.empty_note }}。</p>
+      {% endif %}
+      {# 佐證拖到這張卡片上：用原本的上傳表單與路由（student.evidence_upload），送出後留在這頁、這張卡片閃一下（B27） #}
+      <form class="pf-drop" method="post" action="{{ url_for('student.evidence_upload', portfolio_id=record.id) }}" enctype="multipart/form-data" data-pf-drop hidden>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="return_to" value="list">
+        <input type="file" name="file" accept="image/png,image/jpeg,.pdf,.doc,.docx,.odt,.txt" tabindex="-1" aria-hidden="true">
+      </form>
+      {% if record.status != "confirmed" %}
+      <form class="pf-card__confirm" method="post" action="{{ url_for('student.portfolio_confirm', portfolio_id=record.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="button button--small button--accent" type="submit">確認內容正確</button>
+      </form>
+      {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <p class="pf-drop-hint" data-pf-drop-hint role="status" hidden>把檔案放在某一張卡片上，就會變成那一筆的佐證；新的活動請先按「新增一筆」。</p>
+    <p class="pf-empty" data-pf-empty {{ "" if not ns.rows else "hidden" }}>{{ "還沒有活動與經歷，按「新增一筆」開始。" if not ns.rows else "這個年級、類別還沒有資料。" }}</p>
+  </section>
+
+  {% if legacy %}
+  <section class="record-group" aria-labelledby="group-legacy">
+    <div class="record-group__head"><h2 id="group-legacy">舊的類別 <span class="muted small">{{ legacy|length }} 筆</span></h2></div>
+    <p class="muted mb-1">這些是舊版系統建立的資料。點進去選一個新類別，就會放進「我的五年」。</p>
+    <div class="record-cards">
+      {% for record in legacy %}
+      <a class="record-card record-card--link" href="{{ url_for('student.portfolio_edit', portfolio_id=record.id) }}"><div class="record-card__meta">{{ status_chip(record_state(record)) }}<span class="tag tag--warn">{{ record.category }}</span></div><h3>{{ record.title }}</h3></a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}
+
+{% block scripts %}
+<script>
+/* 學生端 v2：年級分頁、類別小膠囊、佐證拖到卡片上（走原本的上傳表單 student.evidence_upload） */
+(function () {
+  var cabinet = document.querySelector("[data-pf-cabinet]");
+  if (!cabinet) return;
+  var grade = "all", cat = new URLSearchParams(window.location.search).get("category") === "project" ? "project" : null;
+  var cards = [].slice.call(cabinet.querySelectorAll(".pf-card"));
+  var add = cabinet.querySelector("[data-pf-add]");
+  var empty = cabinet.querySelector("[data-pf-empty]");
+  function apply() {
+    var shown = 0;
+    cards.forEach(function (card) {
+      var on = (grade === "all" || card.dataset.pfGrade === grade) && (!cat || card.dataset.pfCat === cat);
+      card.hidden = !on;
+      if (on) { shown += 1; card.style.setProperty("--d", (shown * 0.04).toFixed(2) + "s"); }
+    });
+    cabinet.querySelectorAll("[data-pf-grade].pf-tab").forEach(function (tab) {
+      tab.setAttribute("aria-selected", String(tab.dataset.pfGrade === grade));
+    });
+    cabinet.querySelectorAll("[data-pf-cat].pf-cat").forEach(function (pill) {
+      pill.setAttribute("aria-pressed", String(pill.dataset.pfCat === cat));
+    });
+    // 選了類別：「新增一筆」直接帶那個類別
+    if (add) add.href = add.dataset.pfAddBase + (cat ? "?category=" + encodeURIComponent(cat) : "");
+    if (empty && cards.length) empty.hidden = shown > 0;
+    cabinet.classList.remove("is-dealt"); void cabinet.offsetWidth; cabinet.classList.add("is-dealt");
+  }
+  cabinet.addEventListener("click", function (event) {
+    var tab = event.target.closest(".pf-tab");
+    if (tab) { grade = tab.dataset.pfGrade; apply(); return; }
+    var pill = event.target.closest(".pf-cat");
+    if (pill) { cat = cat === pill.dataset.pfCat ? null : pill.dataset.pfCat; apply(); }
+  });
+  if (cat) apply(); else cabinet.classList.add("is-dealt");
+
+  /* 拖檔案：放在哪張卡片上，就當那一筆的佐證送出（原本的表單與路由） */
+  var page = document.querySelector("[data-pf-page]");
+  var depth = 0;
+  var hasFiles = function (event) { return event.dataTransfer && [].indexOf.call(event.dataTransfer.types || [], "Files") !== -1; };
+  document.addEventListener("dragenter", function (event) {
+    if (!hasFiles(event)) return;
+    depth += 1; page.classList.add("is-dropping");
+  });
+  document.addEventListener("dragleave", function () {
+    depth -= 1; if (depth <= 0) { depth = 0; page.classList.remove("is-dropping"); }
+  });
+  document.addEventListener("dragover", function (event) {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    cards.forEach(function (card) { card.classList.toggle("is-drop-target", card.contains(event.target)); });
+  });
+  document.addEventListener("drop", function (event) {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    depth = 0; page.classList.remove("is-dropping");
+    cards.forEach(function (card) { card.classList.remove("is-drop-target"); });
+    var card = event.target.closest && event.target.closest(".pf-card");
+    var files = event.dataTransfer.files;
+    if (!card || !files.length) {
+      if (add) { add.classList.add("is-nudge"); setTimeout(function () { add.classList.remove("is-nudge"); }, 1600); }
+      var hint = cabinet.querySelector("[data-pf-drop-hint]");
+      if (hint) { hint.hidden = false; }
+      return;
+    }
+    var form = card.querySelector("[data-pf-drop]");
+    var input = form.querySelector('input[type="file"]');
+    try {
+      var box = new DataTransfer();
+      box.items.add(files[0]);
+      input.files = box.files;
+    } catch (e) { input.files = files; }
+    card.classList.add("is-uploading");
+    form.submit();
+  });
+})();
+</script>
+<script>
+/* DEMO-03：點一間學校，用得到的紀錄亮起來；占比長條進到畫面時才長出來 */
+(function () {
+  var page = document.querySelector(".page--banded");
+  var status = document.getElementById("fit-status");
+  if (!page) return;
+  var picked = null;
+  function pick(id, name) {
+    picked = picked === id ? null : id;
+    page.classList.toggle("is-fit-picking", picked !== null);
+    var lit = 0;
+    page.querySelectorAll(".record-card-slot").forEach(function (slot) {
+      var on = picked !== null && (" " + slot.dataset.fitPrograms).indexOf(" " + picked + " ") !== -1;
+      slot.classList.toggle("is-fit-lit", on);
+      if (on) lit += 1;
+    });
+    page.querySelectorAll(".fit-pick").forEach(function (button) {
+      var on = button.dataset.fitPick === picked;
+      button.classList.toggle("is-fit-lit", on);
+      button.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    if (status) {
+      status.textContent = picked === null ? "點一間學校，看你哪幾筆紀錄用得上。"
+        : name + " 用得上你 " + lit + " 筆紀錄（再點一次取消）。";
+    }
+  }
+  page.addEventListener("click", function (event) {
+    var button = event.target.closest(".fit-pick");
+    if (button) pick(button.dataset.fitPick, button.dataset.fitName);
+  });
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape" && picked !== null) pick(picked, "");
+  });
+  if (!("IntersectionObserver" in window) || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  page.classList.add("fit-ready");
+  var observer = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (entry.isIntersecting) { entry.target.classList.add("is-shown"); observer.unobserve(entry.target); }
+    });
+  }, { threshold: 0.4 });
+  page.querySelectorAll(".fit-line, .fit-brief").forEach(function (el) { observer.observe(el); });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,1253 @@
+// 互動元件：五年資料夾分頁、可編輯表格。
+
+// ---------- 五年資料夾分頁 ----------
+document.querySelectorAll("[data-folders]").forEach((root) => {
+  const tabs = [...root.querySelectorAll('[role="tab"]')];
+  const panels = [...root.querySelectorAll('[role="tabpanel"]')];
+
+  const select = (tab, focus = false) => {
+    tabs.forEach((t) => {
+      const on = t === tab;
+      t.setAttribute("aria-selected", String(on));
+      t.tabIndex = on ? 0 : -1;
+    });
+    panels.forEach((p) => { p.hidden = p.id !== tab.getAttribute("aria-controls"); });
+    if (focus) tab.focus();
+  };
+
+  tabs.forEach((tab, index) => {
+    tab.addEventListener("click", () => select(tab));
+    tab.addEventListener("keydown", (event) => {
+      const step = { ArrowRight: 1, ArrowLeft: -1 }[event.key];
+      if (!step) return;
+      event.preventDefault();
+      select(tabs[(index + step + tabs.length) % tabs.length], true);
+    });
+  });
+
+  const initial = tabs.find((t) => t.dataset.initial === "true") || tabs[0];
+  if (initial) select(initial);
+});
+
+// ---------- 可編輯表格：送出時轉成 JSON 給後端 ----------
+document.querySelectorAll("[data-record-table]").forEach((table) => {
+  const body = table.querySelector("tbody");
+  const template = table.querySelector("template");
+  const fields = JSON.parse(table.dataset.fields);
+  const output = document.getElementById(table.dataset.output);
+  const form = table.closest("form");
+  const emptyRow = body.querySelector(".empty-row");
+
+  const refreshEmpty = () => {
+    if (emptyRow) emptyRow.hidden = body.querySelectorAll("tr[data-row]").length > 0;
+  };
+
+  const addRow = (values = {}) => {
+    const row = template.content.firstElementChild.cloneNode(true);
+    fields.forEach((name) => {
+      const input = row.querySelector(`[data-field="${name}"]`);
+      if (input && values[name] !== undefined && values[name] !== null) input.value = values[name];
+    });
+    row.querySelector("[data-remove]").addEventListener("click", () => { row.remove(); refreshEmpty(); });
+    body.appendChild(row);
+    refreshEmpty();
+    return row;
+  };
+
+  JSON.parse(table.dataset.initial || "[]").forEach((values) => addRow(values));
+  refreshEmpty();
+
+  document.querySelectorAll(`[data-add-row="${table.id}"]`).forEach((button) => {
+    button.addEventListener("click", () => {
+      const row = addRow();
+      const first = row.querySelector("input, select");
+      if (first) first.focus();
+    });
+  });
+
+  form.addEventListener("submit", () => {
+    const rows = [...body.querySelectorAll("tr[data-row]")].map((row) => {
+      const item = {};
+      fields.forEach((name) => {
+        const input = row.querySelector(`[data-field="${name}"]`);
+        item[name] = input ? input.value.trim() : "";
+      });
+      return item;
+    }).filter((item) => Object.values(item).some((value) => value !== ""));
+    output.value = JSON.stringify(rows);
+  });
+});
+
+// ---------- 缺件比對：容器依序裝滿、數字往上跳、點容器看細節 ----------
+document.querySelectorAll("[data-gap-board]").forEach((board) => {
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const vessels = [...board.querySelectorAll(".vessel")];
+  vessels.forEach((vessel, index) => vessel.style.setProperty("--delay", reduce ? "0s" : `${index * 0.18}s`));
+  requestAnimationFrame(() => vessels.forEach((vessel) => vessel.classList.add("is-filled")));
+
+  const panels = [...document.querySelectorAll("[data-gap-detail]")];
+  const open = (vessel) => {
+    vessels.forEach((v) => v.setAttribute("aria-expanded", String(v === vessel)));
+    panels.forEach((panel) => { panel.hidden = panel.id !== vessel.getAttribute("aria-controls"); });
+  };
+  vessels.forEach((vessel) => vessel.addEventListener("click", () => open(vessel)));
+  // 先打開「最需要補」的那一格：加權最大、還沒滿的項目
+  const first = vessels.find((v) => v.dataset.priority === "true") || vessels[0];
+  if (first) open(first);
+});
+
+document.querySelectorAll("[data-count]").forEach((el) => {
+  const target = Number(el.dataset.count);
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduce || Number.isNaN(target)) { el.textContent = target; return; }
+  const start = performance.now();
+  const step = (now) => {
+    const t = Math.min((now - start) / 1400, 1);
+    el.textContent = Math.round(target * (1 - Math.pow(1 - t, 3)));
+    if (t < 1) requestAnimationFrame(step);
+  };
+  el.textContent = "0";
+  requestAnimationFrame(step);
+});
+
+// 佐證照片：點縮圖放大（用瀏覽器內建的 <dialog>，按 Esc、× 或點旁邊都能關）
+const lightbox = document.querySelector("[data-lightbox-dialog]");
+if (lightbox) {
+  document.querySelectorAll("[data-lightbox]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const img = lightbox.querySelector("img");
+      img.src = button.dataset.lightbox;
+      img.alt = button.getAttribute("aria-label") || "";
+      lightbox.showModal();
+    });
+  });
+  lightbox.addEventListener("click", (event) => { if (event.target === lightbox) lightbox.close(); });
+}
+
+// 上傳框（partials/files.html 的 upload_field）：選好檔案先預覽；超過大小就清掉並提醒；照片可以旋轉
+document.querySelectorAll("[data-upload]").forEach((zone) => {
+  const field = zone.parentElement;
+  const input = zone.querySelector("input[type=file]");
+  const preview = zone.querySelector(".dropzone__preview");
+  const tools = field.querySelector(".dropzone__tools");
+  const status = field.querySelector(".dropzone__status");
+  const maxBytes = Number(zone.dataset.maxBytes);
+  const toMB = (bytes) => (bytes / 1024 / 1024).toFixed(1) + "MB";
+
+  const show = () => {
+    const file = input.files[0];
+    if (preview.src) URL.revokeObjectURL(preview.src);
+    preview.removeAttribute("src");
+    preview.hidden = true;
+    tools.hidden = true;
+    zone.classList.remove("is-chosen", "is-error");
+    status.textContent = "";
+    if (!file) return;
+    if (maxBytes && file.size > maxBytes) {
+      input.value = "";
+      zone.classList.add("is-error");
+      status.textContent = `「${file.name}」有 ${toMB(file.size)}，超過上限 ${toMB(maxBytes)}。請裁切或壓縮後再選一次。`;
+      return;
+    }
+    zone.classList.add("is-chosen");
+    status.textContent = `已選擇：${file.name}（${toMB(file.size)}）`;
+    if (file.type.startsWith("image/")) {
+      preview.src = URL.createObjectURL(file);
+      preview.hidden = false;
+      tools.hidden = false;
+    }
+  };
+
+  // 旋轉：把照片畫到畫布上轉 90 度，再換掉要上傳的檔案（上傳的就是轉正後的照片）
+  const rotate = (degrees) => {
+    const file = input.files[0];
+    if (!file || !preview.src) return;
+    const canvas = document.createElement("canvas");
+    const sideways = Math.abs(degrees) === 90;
+    canvas.width = sideways ? preview.naturalHeight : preview.naturalWidth;
+    canvas.height = sideways ? preview.naturalWidth : preview.naturalHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate((degrees * Math.PI) / 180);
+    ctx.drawImage(preview, -preview.naturalWidth / 2, -preview.naturalHeight / 2);
+    const type = file.type === "image/png" ? "image/png" : "image/jpeg";
+    canvas.toBlob((blob) => {
+      const files = new DataTransfer();
+      files.items.add(new File([blob], file.name, { type }));
+      input.files = files.files;
+      show();
+    }, type, 0.92);
+  };
+  tools.querySelectorAll("[data-rotate]").forEach((button) => {
+    button.addEventListener("click", () => rotate(Number(button.dataset.rotate)));
+  });
+
+  input.addEventListener("change", show);
+  // 拖檔案進來時框變色（真正接收檔案的是蓋在上面的 input）
+  input.addEventListener("dragenter", () => zone.classList.add("is-dragging"));
+  ["dragleave", "drop"].forEach((type) => input.addEventListener(type, () => zone.classList.remove("is-dragging")));
+});
+
+// 刪除前先問一次
+document.querySelectorAll("form[data-confirm]").forEach((form) => {
+  form.addEventListener("submit", (event) => {
+    if (!window.confirm(form.dataset.confirm)) event.preventDefault();
+  });
+});
+
+// 自傳小幫手：一次只顯示一題（沒有 JavaScript 時全部題目都會顯示）
+document.querySelectorAll("[data-steps]").forEach((form) => {
+  const steps = [...form.querySelectorAll("[data-step]")];
+  const progress = form.querySelector("[data-step-progress]");
+  const prev = form.querySelector("[data-step-prev]");
+  const next = form.querySelector("[data-step-next]");
+  const submit = form.querySelector("[data-step-submit]");
+  let current = 0;
+  const go = (index) => {
+    current = Math.max(0, Math.min(index, steps.length - 1));
+    steps.forEach((step, i) => { step.hidden = i !== current; });
+    progress.textContent = `第 ${current + 1} 題，共 ${steps.length} 題`;
+    prev.hidden = current === 0;
+    next.hidden = current === steps.length - 1;
+    submit.hidden = current !== steps.length - 1;
+    steps[current].querySelector("textarea").focus();
+  };
+  prev.addEventListener("click", () => go(current - 1));
+  next.addEventListener("click", () => go(current + 1));
+  go(0);
+});
+
+// 送出後按鈕改成「處理中」，避免重複按（AI 需要一點時間）
+document.querySelectorAll("[data-busy-text]").forEach((button) => {
+  button.form.addEventListener("submit", () => {
+    button.disabled = true;
+    button.textContent = button.dataset.busyText;
+  });
+});
+
+// 草稿段落：輸入框隨內容長高，並顯示總字數
+const charTotal = document.querySelector("[data-char-total]");
+const paragraphs = [...document.querySelectorAll("textarea[data-char]")];
+const refreshDraft = () => {
+  paragraphs.forEach((area) => { area.style.height = "auto"; area.style.height = area.scrollHeight + 4 + "px"; });
+  if (charTotal) charTotal.textContent = `　目前共 ${paragraphs.reduce((sum, area) => sum + area.value.replace(/\s/g, "").length, 0)} 字`;
+};
+paragraphs.forEach((area) => area.addEventListener("input", refreshDraft));
+refreshDraft();
+
+// 資管科小助手：右下角聊天視窗（partials/assistant.html）
+document.querySelectorAll("[data-assistant]").forEach((root) => {
+  const panel = root.querySelector(".assistant__panel");
+  const log = root.querySelector("[data-assistant-log]");
+  const form = root.querySelector("[data-assistant-form]");
+  const input = form.querySelector("textarea");
+  const send = form.querySelector("button[type=submit]");
+  const toggles = root.querySelectorAll("[data-assistant-toggle]");
+  // 對話只存在這個分頁，而且依帳號分開：同一分頁換人登入時，看不到也不會送出前一個人的對話。
+  const KEY = `assistant-history:${root.dataset.user || ""}`;
+  let history = [];
+  try {
+    for (let i = sessionStorage.length - 1; i >= 0; i -= 1) {
+      const name = sessionStorage.key(i);
+      if (name && name.startsWith("assistant-history") && name !== KEY) sessionStorage.removeItem(name);
+    }
+    history = JSON.parse(sessionStorage.getItem(KEY) || "[]");
+  } catch (e) { history = []; }
+
+  // 把 AI 回答的簡單 Markdown（粗體、條列）轉成畫面；先跳脫 HTML，避免被插入程式碼
+  const ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" };
+  const escape = (text) => text.replace(/[&<>"']/g, (c) => ESCAPES[c]);
+  const render = (text) => {
+    let html = "";
+    let inList = false;
+    escape(text).split("\n").forEach((line) => {
+      const item = line.match(/^\s*(?:[-*•]|\d+\.)\s+(.*)$/);
+      if (item && !inList) { html += "<ul>"; inList = true; }
+      if (!item && inList) { html += "</ul>"; inList = false; }
+      if (/^\s*(-{3,}|\*{3,})\s*$/.test(line)) return; // 分隔線不顯示
+      const body = (item ? item[1] : line).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\*(.+?)\*/g, "<i>$1</i>").replace(/^#+\s*/, "");
+      if (item) html += `<li>${body}</li>`;
+      else if (body.trim()) html += `<p>${body}</p>`;
+    });
+    return html + (inList ? "</ul>" : "");
+  };
+
+  const add = (role, text, extra = {}) => {
+    const box = document.createElement("div");
+    box.className = `assistant__msg assistant__msg--${role === "user" ? "me" : "bot"}`;
+    if (role === "user") box.textContent = text;
+    else box.innerHTML = render(text);
+    if (extra.steps && extra.steps.length) {
+      const steps = document.createElement("p");
+      steps.className = "assistant__steps";
+      steps.textContent = "查了：" + extra.steps.join("、");
+      box.prepend(steps);
+    }
+    if (extra.sources && extra.sources.length) {
+      const list = document.createElement("p");
+      list.className = "assistant__sources";
+      list.textContent = "來源：";
+      extra.sources.forEach((source) => {
+        const tag = document.createElement(source.url ? "a" : "span");
+        tag.className = "tag";
+        tag.textContent = source.title;
+        if (source.url) { tag.href = source.url; tag.target = "_blank"; tag.rel = "noopener noreferrer"; }
+        list.append(tag);
+      });
+      box.append(list);
+    }
+    // 站內導引連結（伺服器白名單產生；這裡再擋一次，只接受站內相對路徑）
+    const local = (url) => typeof url === "string" && url.startsWith("/") && !url.startsWith("//");
+    if (extra.links && extra.links.length) {
+      const links = document.createElement("div");
+      links.className = "assistant__links";
+      extra.links.forEach((link) => {
+        if (!link || !local(link.url)) return;
+        const anchor = document.createElement("a");
+        anchor.className = "button button--small button--line";
+        anchor.href = link.url;
+        anchor.textContent = `${link.label || "前往下一步"} →`;
+        links.append(anchor);
+      });
+      if (links.children.length) box.append(links);
+    }
+    if (extra.todos && extra.todos.length) {
+      const done = document.createElement("p");
+      done.className = "assistant__links";
+      const anchor = document.createElement("a");
+      anchor.className = "button button--small";
+      anchor.href = "/student/agent/issues";
+      anchor.textContent = `查看 ${extra.todos.length} 項待辦 →`;
+      done.append(anchor);
+      box.append(done);
+    }
+    // 組員版的同意式計畫：學生按「同意執行」才建立待辦
+    if (extra.plan && extra.plan.status === "pending") {
+      const plan = document.createElement("section");
+      plan.className = "assistant__plan";
+      const title = document.createElement("b");
+      title.textContent = `規劃提案 #${extra.plan.id}：${extra.plan.title}`;
+      const reason = document.createElement("p");
+      reason.textContent = extra.plan.reason || "";
+      const steps = document.createElement("ol");
+      (extra.plan.preview_todos || []).forEach((todo) => {
+        const item = document.createElement("li");
+        item.textContent = todo.title;
+        steps.append(item);
+      });
+      const hint = document.createElement("p");
+      hint.textContent = steps.children.length ? "同意後會建立這些待辦：" : "目前看不出需要新增的待辦。";
+      const actions = document.createElement("div");
+      actions.className = "assistant__plan-actions";
+      const decide = async (url, accepted) => {
+        const data = new FormData();
+        data.append("csrf_token", form.querySelector("[name=csrf_token]").value);
+        try {
+          const response = await fetch(url, { method: "POST", body: data, credentials: "same-origin" });
+          if (!response.ok) throw new Error(String(response.status));
+          const result = await response.json();
+          plan.remove();
+          add("bot", result.message || (accepted ? "計畫已完成。" : "計畫沒有執行。"), result);
+        } catch (error) {
+          add("bot", "這份計畫暫時無法處理，請稍後再試。");
+        }
+      };
+      const approve = document.createElement("button");
+      approve.type = "button";
+      approve.className = "button button--small";
+      approve.textContent = "同意執行";
+      approve.addEventListener("click", () => decide(extra.plan.action_url, true));
+      const reject = document.createElement("button");
+      reject.type = "button";
+      reject.className = "button button--small button--quiet";
+      reject.textContent = "不採用";
+      reject.addEventListener("click", () => decide(extra.plan.reject_url, false));
+      actions.append(approve, reject);
+      const open = document.createElement("a");
+      open.className = "assistant__plan-open";
+      open.href = `/student/agent/proposals/${Number(extra.plan.id)}`;
+      open.textContent = "在規劃頁查看完整提案 →";
+      plan.append(title, reason, hint, steps, actions, open);
+      box.append(plan);
+    }
+    log.append(box);
+    log.scrollTop = log.scrollHeight;
+    return box;
+  };
+
+  history.forEach((turn) => add(turn.role, turn.text));
+
+  const setOpen = (open) => {
+    panel.hidden = !open;
+    toggles[0].setAttribute("aria-expanded", String(open));
+    root.classList.toggle("is-open", open);
+    document.documentElement.classList.toggle("as-open", open);
+    panel.style.transform = "";
+    root.dispatchEvent(new CustomEvent("assistant-visibility", { detail: open }));
+    if (open) { log.scrollTop = log.scrollHeight; input.focus({ preventScroll: true }); }
+  };
+  root.addEventListener("assistant-set-open", (event) => setOpen(Boolean(event.detail)));
+  // 輸入框隨內容長高（最多 120px）
+  input.addEventListener("input", () => { input.style.height = "auto"; input.style.height = `${Math.min(input.scrollHeight, 120)}px`; });
+  toggles.forEach((button) => button.addEventListener("click", () => setOpen(panel.hidden)));
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !panel.hidden) setOpen(false); });
+
+  const submit = async (raw) => {
+    const text = raw.trim();
+    if (!text) return;
+    add("user", text);
+    input.value = "";
+    send.disabled = true;
+    input.style.height = "";
+    // 打字中的三個點（螢幕閱讀器念「正在查資料」）
+    const waiting = document.createElement("div");
+    waiting.className = "assistant__msg assistant__msg--bot as-typing is-waiting";
+    waiting.setAttribute("role", "status");
+    waiting.setAttribute("aria-label", "正在查資料");
+    waiting.innerHTML = "<i></i><i></i><i></i>";
+    log.append(waiting);
+    log.scrollTop = log.scrollHeight;
+    const data = new FormData();
+    data.append("csrf_token", form.querySelector("[name=csrf_token]").value);
+    data.append("message", text);
+    data.append("history", JSON.stringify(history.slice(-8)));
+    data.append("page", document.title);
+    try {
+      const response = await fetch(root.dataset.endpoint, { method: "POST", body: data, credentials: "same-origin" });
+      if (!response.ok) throw new Error(String(response.status));
+      const result = await response.json();
+      waiting.remove();
+      add("bot", result.answer, result);
+      if (result.fill) window.dispatchEvent(new CustomEvent("assistant-fill", { detail: result.fill }));  // 實習履歷頁：填進家庭生活
+      history.push({ role: "user", text }, { role: "assistant", text: result.answer });
+      try { sessionStorage.setItem(KEY, JSON.stringify(history.slice(-20))); } catch (e) { /* 存不了也沒關係 */ }
+    } catch (error) {
+      waiting.remove();
+      add("bot", "小助手暫時連不上，請稍後再試。");
+    } finally {
+      send.disabled = false;
+      input.focus();
+    }
+  };
+  form.addEventListener("submit", (event) => { event.preventDefault(); submit(input.value); });
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey && !event.isComposing) { event.preventDefault(); submit(input.value); }
+  });
+  root.querySelectorAll("[data-assistant-suggest]").forEach((chip) => {
+    chip.addEventListener("click", () => { setOpen(true); submit(chip.textContent); });
+  });
+});
+
+
+// 引導卡片「稍後再說」：不換頁，卡片淡出後移除
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll("[data-guide-snooze]").forEach((form) => {
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const card = form.closest("[data-guide-card]");
+      try {
+        const response = await fetch(form.action, {
+          method: "POST", body: new FormData(form), credentials: "same-origin",
+          headers: { "X-Requested-With": "fetch" },
+        });
+        if (!response.ok) throw new Error(String(response.status));
+        card.classList.add("is-leaving");
+        setTimeout(() => card.remove(), 300);
+      } catch (error) {
+        form.submit();
+      }
+    });
+  });
+});
+
+// 聚焦：捲到畫面時，先讓校系要求一張張堆滿，再淡出，只留最重要的 3 件
+document.querySelectorAll("[data-focus]").forEach((root) => {
+  const pieces = root.querySelectorAll(".focus__piece").length;
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let timer;
+  const play = () => {
+    clearTimeout(timer);
+    root.classList.remove("is-focused", "is-flood");
+    if (reduce) { root.classList.add("is-focused"); return; }
+    void root.offsetWidth; // 重新開始動畫
+    root.classList.add("is-flood");
+    timer = setTimeout(() => root.classList.add("is-focused"), pieces * 28 + 1400);
+  };
+  if ("IntersectionObserver" in window) {
+    const watch = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) { play(); watch.disconnect(); }
+    }, { threshold: 0.35 });
+    watch.observe(root);
+  } else {
+    root.classList.add("is-focused");
+  }
+  root.querySelector("[data-focus-replay]")?.addEventListener("click", play);
+});
+
+// 我的五年路線：點節點打開那一年的資料夾
+document.querySelectorAll("[data-open-year]").forEach((node) => {
+  node.addEventListener("click", (event) => {
+    const drawer = document.querySelector("[data-folders-drawer]");
+    const tab = document.getElementById(`tab-${node.dataset.openYear}`);
+    if (!drawer || !tab) return;
+    event.preventDefault();
+    drawer.open = true;
+    tab.click();
+    drawer.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+  });
+});
+
+// 好久不見：焦點留在對話框內；沒有鍵盤焦點在裡面時才自動淡出
+document.querySelectorAll("[data-return]").forEach((root) => {
+  const closeButton = root.querySelector("[data-return-close]");
+  let closing = false;
+  let autoClose = null;
+  const close = () => {
+    if (closing) return;
+    closing = true;
+    clearTimeout(autoClose);
+    root.classList.add("is-leaving");
+    document.querySelector("[data-journey-home]")?.classList.remove("is-waiting");
+    setTimeout(() => {
+      document.removeEventListener("keydown", onKey);
+      root.remove();
+      document.getElementById("route-title")?.focus();
+    }, 600);
+  };
+  function onKey(event) {
+    if (event.key === "Escape") { event.preventDefault(); close(); return; }
+    if (event.key === "Tab") {
+      const focusable = [...root.querySelectorAll("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])")]
+        .filter((node) => !node.hidden && !node.disabled);
+      if (!focusable.length) return;
+      const at = focusable.indexOf(document.activeElement);
+      event.preventDefault();
+      const next = event.shiftKey ? (at <= 0 ? focusable.length - 1 : at - 1) : (at + 1) % focusable.length;
+      focusable[next].focus();
+    }
+  }
+  const scheduleAutoClose = () => {
+    autoClose = setTimeout(() => {
+      if (root.contains(document.activeElement)) scheduleAutoClose();
+      else close();
+    }, 4500);
+  };
+  const number = root.querySelector("[data-count-to]");
+  const target = Number(number.dataset.countTo) || 0;
+  if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const start = performance.now();
+    const tick = (time) => {
+      const t = Math.min(1, (time - start) / 1000);
+      number.textContent = Math.round(target * (1 - Math.pow(1 - t, 3)));
+      if (t < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+  closeButton.addEventListener("click", close);
+  document.addEventListener("keydown", onKey);
+  root.querySelector("[data-return-close]").focus();
+  scheduleAutoClose();
+});
+
+// 小人物：沿著路線從專一走到今年；點路邊的地方，走過去再進入
+document.querySelectorAll("[data-walker]").forEach((walker) => {
+  const svg = walker.ownerSVGElement;
+  const notifyWalked = () => {
+    document.documentElement.dataset.journeyWalked = "true";
+    document.dispatchEvent(new CustomEvent("journey:walked"));
+  };
+  if (!svg) return;
+  if (svg.getBoundingClientRect().width === 0) { notifyWalked(); return; }  // 手機版不顯示這張圖
+  const route = svg.querySelector(".route-map__walked");
+  const home = walker.closest("[data-journey-home]");
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const grade = Number(walker.dataset.grade) || 1;
+  const stops = [100, 300, 500, 700, 900];
+  const total = route.getTotalLength();
+  // 路線上 x 最接近某個值的位置（二分搜尋）
+  const lengthAtX = (x) => {
+    let lo = 0, hi = total;
+    for (let i = 0; i < 30; i += 1) { const mid = (lo + hi) / 2; if (route.getPointAtLength(mid).x < x) lo = mid; else hi = mid; }
+    return lo;
+  };
+  const place = (point) => walker.setAttribute("transform", `translate(${point.x} ${point.y - 24})`);
+  let current = { x: 100, y: 140 };
+  place(current);
+
+  const end = lengthAtX(stops[grade - 1]);
+  let seen = false;
+  try { seen = sessionStorage.getItem("journey-walked") === "1"; } catch (e) { /* 讀不到就當沒看過 */ }
+  const finish = () => {
+    walker.classList.remove("is-walking");
+    current = route.getPointAtLength(end);
+    place(current);
+    notifyWalked();
+  };
+  const walk = () => {
+    if (reduce || seen || grade === 1) { finish(); return; }
+    walker.classList.add("is-walking");
+    const start = performance.now();
+    const duration = 900 + (grade - 1) * 450;
+    const step = (time) => {
+      const t = Math.min(1, (time - start) / duration);
+      const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      current = route.getPointAtLength(end * eased);
+      place(current);
+      if (t < 1) requestAnimationFrame(step); else finish();
+    };
+    requestAnimationFrame(step);
+    try { sessionStorage.setItem("journey-walked", "1"); } catch (e) { /* 存不了也沒關係 */ }
+  };
+  // 「好久不見」播放中就等它關掉再走
+  if (home && home.classList.contains("is-waiting")) {
+    const watch = new MutationObserver(() => { if (!home.classList.contains("is-waiting")) { watch.disconnect(); setTimeout(walk, 300); } });
+    watch.observe(home, { attributes: true, attributeFilter: ["class"] });
+  } else {
+    setTimeout(walk, 300);
+  }
+
+  svg.querySelectorAll("[data-place]").forEach((spot) => {
+    spot.addEventListener("click", (event) => {
+      if (reduce || event.metaKey || event.ctrlKey || event.shiftKey) return;
+      event.preventDefault();
+      spot.classList.add("is-target");
+      walker.classList.add("is-walking");
+      // 從現在的位置走到小島上（直線補間），到了再換頁
+      const from = { ...current };
+      const to = { x: Number(spot.dataset.x), y: Number(spot.dataset.y) };
+      const start = performance.now();
+      const step = (time) => {
+        const t = Math.min(1, (time - start) / 650);
+        const e = 1 - Math.pow(1 - t, 2);
+        current = { x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e };
+        place(current);
+        if (t < 1) requestAnimationFrame(step); else setTimeout(() => { window.location.href = spot.getAttribute("href"); }, 150);
+      };
+      requestAnimationFrame(step);
+    });
+  });
+});
+
+// ---------- 五年拼圖桌（試用版） ----------
+// 一筆資料＝一片拼圖，位置與角度由伺服器依資料 id 算好；這裡只負責：點一片看說明、新的片落下、
+// 「做拼圖」按鈕的動畫，以及小助手把所有片拼到中間再去自傳頁。
+(() => {
+  const table = document.querySelector("[data-ptable]");
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const plainClick = (event) => !(event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button > 0);
+
+  // 「做拼圖」：從按鈕彈出一片，轉正、放大飛向桌子，約 0.8 秒後才去填寫頁
+  const template = document.querySelector("[data-make-template]");
+  document.querySelectorAll("[data-make-piece]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      if (reduce || !template || !plainClick(event) || !button.animate) return;
+      event.preventDefault();
+      const href = button.getAttribute("href");
+      const fly = template.content.firstElementChild.cloneNode(true);
+      document.body.appendChild(fly);
+      const from = button.getBoundingClientRect();
+      const box = (table || button).getBoundingClientRect();
+      const size = 84;
+      const sx = from.left + from.width / 2 - size / 2;
+      const sy = from.top + from.height / 2 - size / 2;
+      // 目標：桌子中間（桌子不在畫面內就停在按鈕下方一點）
+      const visible = table && box.top < window.innerHeight && box.bottom > 0;
+      const ex = visible ? box.left + box.width / 2 - size / 2 : sx;
+      const ey = visible ? Math.min(box.top + box.height / 2, window.innerHeight - size) - size / 2 : sy + 120;
+      fly.animate([
+        { transform: `translate(${sx}px, ${sy}px) scale(.25) rotate(-35deg)`, opacity: 0 },
+        { transform: `translate(${sx}px, ${sy - 46}px) scale(.8) rotate(-12deg)`, opacity: 1, offset: 0.3 },
+        { transform: `translate(${ex}px, ${ey}px) scale(1.35) rotate(0deg)`, opacity: 1 },
+      ], { duration: 800, easing: "cubic-bezier(.3,.7,.2,1)", fill: "forwards" });
+      setTimeout(() => { window.location.href = href; }, 820);
+    });
+  });
+
+  if (!table) return;
+  const pieces = [...table.querySelectorAll("[data-table-piece]")];
+
+  // 點一片：小浮層顯示類別、年級、資料標題（不跳頁）
+  const tip = table.querySelector("[data-table-tip]");
+  let active = null;
+  const hideTip = () => {
+    if (active) active.classList.remove("is-active");
+    active = null;
+    if (tip) tip.hidden = true;
+  };
+  pieces.forEach((piece) => {
+    piece.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (!tip || table.classList.contains("is-assembling")) return;
+      if (active === piece) { hideTip(); return; }
+      hideTip();
+      active = piece;
+      piece.classList.add("is-active");
+      tip.innerHTML = "";
+      const head = document.createElement("small");
+      head.textContent = piece.dataset.tip;
+      const title = document.createElement("b");
+      title.textContent = piece.dataset.tipTitle || "（沒有標題）";
+      tip.append(head, title);
+      const t = table.getBoundingClientRect();
+      const p = piece.getBoundingClientRect();
+      tip.hidden = false;
+      // 依浮層實際寬度的一半夾住水平位置，才不會被桌邊切掉
+      const half = Math.min(tip.offsetWidth / 2 + 8, t.width / 2);
+      const x = Math.min(Math.max(p.left + p.width / 2 - t.left, half), t.width - half);
+      const below = p.top - t.top < t.height * 0.3;
+      tip.style.left = `${x}px`;
+      tip.style.top = `${(below ? p.bottom : p.top) - t.top}px`;
+      tip.classList.toggle("is-below", below);
+    });
+  });
+  document.addEventListener("click", hideTip);
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape") hideTip(); });
+
+  // 新的片落下：和這個分頁上次看到的 id 清單比對（第一次來不播，只記下來）
+  const KEY = "journey-table";
+  const ids = pieces.map((piece) => piece.dataset.tablePiece);
+  let before = null;
+  try { before = JSON.parse(sessionStorage.getItem(KEY) || "null"); } catch (e) { before = null; }
+  try { sessionStorage.setItem(KEY, JSON.stringify(ids)); } catch (e) { /* 存不了也沒關係 */ }
+  if (Array.isArray(before) && !reduce) {
+    const fresh = pieces.filter((piece) => !before.includes(piece.dataset.tablePiece));
+    if (fresh.length) {
+      // 一片一片落下，但全部最多約 1.5 秒播完（片很多時間隔縮短）
+      const step = Math.min(110, 1500 / fresh.length);
+      fresh.forEach((piece, n) => { piece.style.setProperty("--delay", `${Math.round(n * step)}ms`); piece.classList.add("is-waiting"); });
+      const drop = () => fresh.forEach((piece) => {
+        piece.classList.remove("is-waiting");
+        piece.classList.add("is-dropping");
+        piece.addEventListener("animationend", () => piece.classList.remove("is-dropping"), { once: true });
+      });
+      // 等桌子捲進畫面才落下，免得在看不到的地方播完
+      if ("IntersectionObserver" in window) {
+        const watch = new IntersectionObserver((entries) => {
+          if (entries.some((entry) => entry.isIntersecting)) { watch.disconnect(); setTimeout(drop, 150); }
+        }, { threshold: 0.35 });
+        watch.observe(table);
+      } else {
+        drop();
+      }
+    }
+  }
+
+  // 小助手拼好拼圖：所有片依序飛到桌子中央排成長方形，整塊發光，再去自傳頁
+  const assemble = document.querySelector("[data-assemble]");
+  if (!assemble) return;
+  // 按鈕本身是連到自傳頁的連結：沒有 JS、減少動態效果或動畫出錯時，照常換頁
+  const animateAssembly = (go) => {
+    try {
+      if (assemble.dataset.busy) return;
+      assemble.dataset.busy = "1";
+      assemble.setAttribute("aria-disabled", "true");
+      hideTip();
+      const helper = table.querySelector("[data-table-helper]");
+      if (helper) helper.hidden = false;
+      table.scrollIntoView({ block: "center", behavior: "smooth" });
+
+      const sceneW = Number(table.dataset.sceneW);
+      const sceneH = Number(table.dataset.sceneH);
+      const rect = table.getBoundingClientRect();
+      const unit = Math.min(rect.width * 0.64 / sceneW, rect.height * 0.62 / sceneH);  // 圖上 1 單位＝幾 px
+      if (!(unit > 0)) { go(); return; }
+      const ox = rect.width / 2 - sceneW * unit / 2;
+      const oy = rect.height / 2 - sceneH * unit / 2;
+      const frame = table.querySelector("[data-assembled-frame]");
+      if (frame) Object.assign(frame.style, { left: `${ox}px`, top: `${oy}px`, width: `${sceneW * unit}px`, height: `${sceneH * unit}px` });
+
+      // 全部片在 1.5～2.5 秒內飛完：片越多間隔越短
+      const move = 600;
+      const stagger = Math.min(160, Math.max(6, (1700 - move) / Math.max(pieces.length - 1, 1)));
+      setTimeout(() => {
+        try {
+          table.classList.add("is-assembling");
+          pieces.forEach((piece, i) => {
+            // 片的中心點在 left/top（CSS 用 translate(-50%,-50%) 置中），算出要移多少、放大幾倍
+            const dx = ox + Number(piece.dataset.cx) * unit - piece.offsetLeft;
+            const dy = oy + Number(piece.dataset.cy) * unit - piece.offsetTop;
+            const scale = Number(piece.dataset.bw) * unit / (piece.offsetWidth || 1);
+            piece.style.transitionDelay = `${i * stagger}ms`;
+            piece.style.zIndex = String(2 + Math.min(i, 97));  // 上限 99：整張圖（200）和小助手泡泡（210）永遠在最上面
+            piece.style.transform = `translate(${dx}px, ${dy}px) translate(-50%, -50%) scale(${scale}) rotate(0deg)`;
+            piece.classList.add("is-placed");
+          });
+          const done = 300 + (pieces.length - 1) * stagger + move;
+          setTimeout(() => table.classList.add("is-assembled"), done - 250);
+          setTimeout(go, done + 900);
+        } catch (error) {
+          go();
+        }
+      }, 350);
+    } catch (error) {
+      go();
+    }
+  };
+  assemble.addEventListener("journey:assemble", (event) => {
+    if (reduce || !pieces.length || assemble.dataset.busy) return;
+    event.preventDefault();
+    animateAssembly(event.detail.complete);
+  });
+  assemble.addEventListener("click", (event) => {
+    if (reduce || !pieces.length || !plainClick(event)) return;
+    event.preventDefault();
+    animateAssembly(() => window.location.assign(assemble.href));
+  });
+})();
+
+// 學期照片：選好檔案就直接上傳
+document.querySelectorAll("[data-photo-form]").forEach((form) => {
+  const input = form.querySelector("[data-photo-input]");
+  form.querySelector("[data-photo-submit]").hidden = true;
+  input.addEventListener("change", () => { if (input.files.length) form.submit(); });
+});
+
+// ---------- 網頁導覽：一步一步指出畫面上的功能 ----------
+// 頁面上有 data-tour="一句話" data-tour-order="1" 的元素就是步驟；看不到的元素（例如手機版隱藏）自動略過。
+// 第一次進一頁只在上方出現「看 30 秒導覽／不用」（不直接蓋住畫面），按上方「導覽」或從說明頁重看才播；Esc、點暗處結束，← → 換步。
+(() => {
+  const page = document.body.dataset.page || "page";
+  const steps = () => [...document.querySelectorAll("[data-tour]")]
+    .filter((el) => el.getClientRects().length && el.getBoundingClientRect().width > 0)
+    .sort((a, b) => (Number(a.dataset.tourOrder) || 99) - (Number(b.dataset.tourOrder) || 99));
+  const startButton = document.querySelector("[data-tour-start]");
+  if (startButton && steps().length) startButton.hidden = false;
+
+  let layer = null;
+  let index = 0;
+  let list = [];
+  let returnFocus = null;
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // 學生端 v2 導覽外觀（暗底加亮框、玻璃說明卡）：第一次用到時才載入 tour.css，老師頁也一樣
+  let styleReady;
+  const loadStyle = () => {
+    if (styleReady) return styleReady;
+    const self = document.querySelector('script[src*="js/components.js"]');
+    if (!self) return Promise.resolve(false);
+    const link = document.createElement("link");
+    link.id = "tour-v2-css";
+    link.rel = "stylesheet";
+    link.href = self.src.replace(/js\/components\.js.*$/, "css/student-v2/tour.css");
+    styleReady = new Promise((resolve) => {
+      link.addEventListener("load", () => resolve(true), { once: true });
+      link.addEventListener("error", () => {
+        link.remove();
+        styleReady = null;
+        resolve(false);
+      }, { once: true });
+    });
+    document.head.appendChild(link);
+    return styleReady;
+  };
+  const markSeen = () => { try { localStorage.setItem(`tour-seen-${page}`, "1"); } catch (e) { /* 存不了也沒關係 */ } };
+
+  const place = () => {
+    if (!layer) return;
+    const rect = list[index].getBoundingClientRect();
+    const pad = 8;
+    const spot = layer.querySelector(".tour__spot");
+    spot.style.top = `${rect.top - pad}px`;
+    spot.style.left = `${rect.left - pad}px`;
+    spot.style.width = `${rect.width + pad * 2}px`;
+    spot.style.height = `${rect.height + pad * 2}px`;
+    const card = layer.querySelector(".tour__card");
+    const below = rect.bottom + 16 + card.offsetHeight < window.innerHeight;
+    const top = below ? rect.bottom + 16 : rect.top - card.offsetHeight - 16;
+    card.style.top = `${Math.min(Math.max(12, top), window.innerHeight - card.offsetHeight - 12)}px`;
+    card.style.left = `${Math.min(Math.max(12, rect.left), window.innerWidth - card.offsetWidth - 12)}px`;
+  };
+  const close = () => {
+    if (!layer) return;
+    layer.remove();
+    layer = null;
+    document.removeEventListener("keydown", onKey);
+    window.removeEventListener("resize", place);
+    window.removeEventListener("scroll", place);
+    if (returnFocus && returnFocus.focus) returnFocus.focus();
+  };
+  const go = (next) => {
+    if (next < 0) return;
+    if (next >= list.length) { close(); return; }
+    index = next;
+    const target = list[index];
+    target.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" });
+    layer.querySelector(".tour__text").textContent = target.dataset.tour;
+    layer.querySelector(".tour__count").textContent = `${index + 1}／${list.length}`;
+    layer.querySelector("[data-tour-prev]").hidden = index === 0;
+    layer.querySelector("[data-tour-next]").textContent = index === list.length - 1 ? "完成" : "下一步 →";
+    place();
+    setTimeout(place, 400);
+    layer.querySelector("[data-tour-next]").focus();
+  };
+  function onKey(event) {
+    if (event.key === "Tab" && layer) {
+      // 焦點只在導覽卡片的按鈕之間循環，不會跑到被遮住的頁面
+      const buttons = [...layer.querySelectorAll("button")].filter((b) => !b.hidden);
+      const at = buttons.indexOf(document.activeElement);
+      event.preventDefault();
+      const next = event.shiftKey ? (at <= 0 ? buttons.length - 1 : at - 1) : (at + 1) % buttons.length;
+      buttons[next].focus();
+      return;
+    }
+    if (event.key === "Escape") close();
+    if (event.key === "ArrowRight") go(index + 1);
+    if (event.key === "ArrowLeft") go(index - 1);
+  }
+  const start = () => {
+    list = steps();
+    if (!list.length) return;
+    close();
+    removeInvite();
+    loadStyle();
+    returnFocus = document.activeElement;
+    layer = document.createElement("div");
+    layer.className = "tour";
+    layer.setAttribute("role", "dialog");
+    layer.setAttribute("aria-modal", "true");
+    layer.setAttribute("aria-label", "網頁導覽");
+    layer.innerHTML = '<div class="tour__spot"></div>'
+      + '<div class="tour__card"><p class="tour__count"></p><p class="tour__text" aria-live="polite"></p>'
+      + '<div class="tour__actions">'
+      + '<button type="button" class="tour__skip" data-tour-close>略過</button><span class="tour__gap"></span>'
+      + '<button type="button" class="tour__prev" data-tour-prev>← 上一步</button>'
+      + '<button type="button" class="tour__next" data-tour-next>下一步 →</button></div></div>';
+    document.body.appendChild(layer);
+    layer.querySelector("[data-tour-close]").addEventListener("click", close);
+    layer.querySelector("[data-tour-prev]").addEventListener("click", () => go(index - 1));
+    layer.querySelector("[data-tour-next]").addEventListener("click", () => go(index + 1));
+    // 點暗處（說明卡以外）就離開
+    layer.addEventListener("click", (event) => { if (!event.target.closest(".tour__card")) close(); });
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, { passive: true });
+    go(0);
+    markSeen();
+  };
+  // 第一次進這一頁：不直接蓋住畫面，上方出現一條小提示，要看才播
+  let invite = null;
+  function removeInvite() { if (invite) { invite.remove(); invite = null; } }
+  // 按過一次「不用」就整個系統都不再問（2026-11-17 使用者要求；原本每一頁各問一次）。要看導覽仍可按上方「導覽」或說明頁「重看導覽」
+  const declined = () => { try { return localStorage.getItem("tour-declined") === "1"; } catch (e) { return true; } };
+  const offer = async () => {
+    if (!steps().length || layer || invite || declined()) return;
+    if (!(await loadStyle()) || layer || invite || declined()) return;
+    invite = document.createElement("div");
+    invite.className = "tour-invite";
+    invite.setAttribute("role", "status");
+    invite.innerHTML = '<span>第一次來這頁？</span>'
+      + '<button type="button" class="tour-invite__go" data-tour-invite-go>看 30 秒導覽</button>'
+      + '<button type="button" class="tour-invite__no" data-tour-invite-no>不用</button>';
+    document.body.appendChild(invite);
+    invite.querySelector("[data-tour-invite-go]").addEventListener("click", start);
+    invite.querySelector("[data-tour-invite-no]").addEventListener("click", () => {
+      removeInvite();
+      markSeen();
+      try { localStorage.setItem("tour-declined", "1"); } catch (e) { /* 存不了也沒關係 */ }
+    });
+  };
+  if (startButton) startButton.addEventListener("click", start);
+  document.querySelectorAll("[data-tour-replay]").forEach((button) => button.addEventListener("click", () => {
+    try { localStorage.removeItem(`tour-seen-${button.dataset.tourReplay}`); } catch (e) { /* 沒關係 */ }
+    window.location.href = button.dataset.tourReplayUrl || "/student/dashboard";
+  }));
+  // 從「怎麼操作」按「重看導覽」（?tour=1）直接播；第一次來只出現邀請。首頁要等「好久不見」那一幕關掉、小人物走完
+  if (new URLSearchParams(window.location.search || "").get("tour") === "1") {
+    start();
+  } else if (page === "student-dashboard") {
+    let seen = false;
+    try { seen = localStorage.getItem(`tour-seen-${page}`) === "1"; } catch (e) { seen = true; }
+    if (!seen) {
+      const waitForWalker = () => {
+        if (document.documentElement.dataset.journeyWalked === "true") { offer(); return; }
+        let started = false;
+        let fallback = null;
+        const begin = () => {
+          if (started) return;
+          started = true;
+          clearTimeout(fallback);
+          document.removeEventListener("journey:walked", begin);
+          offer();
+        };
+        document.addEventListener("journey:walked", begin, { once: true });
+        fallback = setTimeout(begin, 6000);
+      };
+      const wait = () => {
+        if (document.querySelector("[data-return]")) setTimeout(wait, 500);
+        else waitForWalker();
+      };
+      wait();
+    }
+  } else if (page !== "help") {
+    let seen = false;
+    try { seen = localStorage.getItem(`tour-seen-${page}`) === "1"; } catch (e) { seen = true; }
+    if (!seen) setTimeout(offer, 900);
+  }
+})();
+
+// 字體大小切換（partials/nav.html 的 font_switch）：小／中／大，記在這台瀏覽器；「中」是預設，不另外存
+(() => {
+  const root = document.documentElement;
+  const current = () => root.getAttribute("data-font-size") || "md";
+  const sync = () => document.querySelectorAll("[data-font-size-set]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.fontSizeSet === current()));
+  });
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-font-size-set]");
+    if (!button) return;
+    const size = button.dataset.fontSizeSet;
+    if (size === "md") root.removeAttribute("data-font-size");
+    else root.setAttribute("data-font-size", size);
+    try {
+      if (size === "md") localStorage.removeItem("font-size");
+      else localStorage.setItem("font-size", size);
+    } catch (error) { /* 存不了也沒關係，這次瀏覽仍會套用 */ }
+    sync();
+  });
+  sync();
+})();
+
+// 學生頂端列的開合選單（partials/nav.html）：手機的「選單」和帳號選單。
+// 按鈕 data-menu-toggle＋aria-controls 指到面板；帳號面板用 hidden，主選單交給 CSS 看 aria-expanded。
+// Esc 關閉並回到按鈕、點外面或焦點離開就關；面板裡按了連結／導覽就關（字體大小可以連續調，不關）。
+(() => {
+  const toggles = [...document.querySelectorAll("[data-menu-toggle]")];
+  if (!toggles.length) return;
+  const panelOf = (toggle) => document.getElementById(toggle.getAttribute("aria-controls"));
+  const isOpen = (toggle) => toggle.getAttribute("aria-expanded") === "true";
+  const setOpen = (toggle, open) => {
+    toggle.setAttribute("aria-expanded", String(open));
+    const panel = panelOf(toggle);
+    if (panel && panel.classList.contains("account-menu__panel")) panel.hidden = !open;
+  };
+  const inside = (toggle, node) => toggle.contains(node) || (panelOf(toggle) && panelOf(toggle).contains(node));
+  toggles.forEach((toggle) => {
+    toggle.addEventListener("click", () => {
+      const open = !isOpen(toggle);
+      toggles.forEach((other) => { if (other !== toggle && isOpen(other)) setOpen(other, false); });
+      setOpen(toggle, open);
+    });
+    const panel = panelOf(toggle);
+    if (!panel) return;
+    panel.addEventListener("click", (event) => {
+      if (event.target.closest("a, [data-tour-start]")) setOpen(toggle, false);
+    });
+    panel.addEventListener("focusout", (event) => {
+      if (isOpen(toggle) && event.relatedTarget && !inside(toggle, event.relatedTarget)) setOpen(toggle, false);
+    });
+  });
+  document.addEventListener("click", (event) => {
+    toggles.forEach((toggle) => { if (isOpen(toggle) && !inside(toggle, event.target)) setOpen(toggle, false); });
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    toggles.forEach((toggle) => {
+      if (!isOpen(toggle)) return;
+      const hadFocus = inside(toggle, document.activeElement);
+      setOpen(toggle, false);
+      if (hadFocus) toggle.focus();
+    });
+  });
+})();
+
+// 獎懲記錄貼上（組員版）：從學校網頁複製表格時，剪貼簿有 HTML，轉成 Tab 分隔保留欄列；純文字照瀏覽器原本行為。
+document.querySelectorAll("[data-award-paste]").forEach((field) => {
+  field.addEventListener("paste", (event) => {
+    const html = event.clipboardData && event.clipboardData.getData("text/html");
+    if (!html) return;
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const rows = [...doc.querySelectorAll("tr")].map((row) =>
+      [...row.querySelectorAll(":scope > th, :scope > td")].map((cell) => (cell.textContent || "").replace(/\s+/g, " ").trim()));
+    const first = rows.findIndex((row) => row.map((cell) => cell.replace(/\s+/g, "")).includes("獎懲事由"));
+    if (first < 0) return;
+    const text = rows.slice(first).filter((row) => row.length).map((row) => row.join("\t")).join("\n");
+    event.preventDefault();
+    field.setRangeText(text, field.selectionStart, field.selectionEnd, "end");
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+});
+
+// ---------- 登入頁：密碼旁的眼睛，按一下顯示／隱藏 ----------
+document.querySelectorAll("[data-password-toggle]").forEach((button) => {
+  const input = button.parentElement.querySelector("input");
+  if (!input) return;
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    const show = input.type === "password";
+    input.type = show ? "text" : "password";
+    button.setAttribute("aria-pressed", String(show));
+    button.setAttribute("aria-label", show ? "隱藏密碼" : "顯示密碼");
+    button.title = show ? "隱藏密碼" : "顯示密碼";
+    input.focus();
+  });
+  // 送出前一定改回隱藏，瀏覽器才不會把密碼當一般文字記下來
+  input.form?.addEventListener("submit", () => { input.type = "password"; });
+});
+
+// ---------- 長說明收成「?」（2026-11-18 使用者要求：版面整潔，字太多的標題說明不要直接印出來）----------
+// 頁面最上面（標題區）的長說明超過 48 字，整段收進一個「?」圖示，不留半句文字：圖示接在前一段文字的句尾（沒有前一段就單獨一行放在說明原本的位置），
+// 點開才看完整說明；說明本身就是原本那個段落（只是先隱藏），所以文字、屬性（例如 data-registrar-note）都不變。點別處或按 Esc 收起；沒有 JavaScript 時仍然顯示完整文字。
+// 只處理頁首：.work-heading 裡的段落、畢業門檻 .g2-lead／.g2-registrar 一律處理；小助手頁 .hub-note 與頁首的淡色說明 .page／.work-shell 底下的 p.muted，
+// 必須出現在頁面最上方 600px 內才處理（頁面中段的備註不收，免得中間冒出孤單的圖示）。含按鈕、輸入框的段落、含連結的小字段落（麵包屑）不動；要保留完整的加 data-no-tip。
+(() => {
+  // 2026-11-19 使用者要求：點「?」改成跳出彈跳視窗（原本是在標題下面往下展開，手機上會把內容推下去或疊在卡片上）。
+  // 原本的段落仍留在原位但隱藏（沒有 JavaScript 時照常顯示完整文字）；視窗只放它的複本。Esc、點視窗外、按「關閉」都會收起並把焦點還給「?」。
+  const MAX = 48;
+  const TOP_LIMIT = 600;
+  const always = ".work-heading p, .g2-lead, .g2-registrar";
+  const nearTop = ".hub-note, .page > p.muted, .work-shell > p.muted";
+  let dialog = null;
+  let opener = null;
+  const pageTitle = () => {
+    const heading = document.querySelector("main h1, h1");
+    return heading ? `${heading.textContent.replace(/\?/g, "").trim()}：說明` : "說明";
+  };
+  const ensureDialog = () => {
+    if (dialog) return dialog;
+    dialog = document.createElement("dialog");
+    dialog.className = "info-tip-dialog";
+    dialog.setAttribute("aria-labelledby", "info-tip-dialog-title");
+    dialog.innerHTML = '<div class="info-tip-dialog__head"><h2 id="info-tip-dialog-title" class="info-tip-dialog__title"></h2>' +
+      '<button type="button" class="info-tip-dialog__close" aria-label="關閉說明">×</button></div><div class="info-tip-dialog__body"></div>';
+    document.body.append(dialog);
+    const close = () => { if (dialog.open) dialog.close(); };
+    dialog.querySelector(".info-tip-dialog__close").addEventListener("click", close);
+    // 點到視窗外面（::backdrop 的點擊會落在 dialog 本身）就關
+    dialog.addEventListener("click", (event) => {
+      if (event.target !== dialog) return;
+      const box = dialog.getBoundingClientRect();
+      const inside = event.clientX >= box.left && event.clientX <= box.right && event.clientY >= box.top && event.clientY <= box.bottom;
+      if (!inside) close();
+    });
+    dialog.addEventListener("close", () => {
+      if (opener) { opener.setAttribute("aria-expanded", "false"); opener.focus(); }
+      document.documentElement.classList.remove("info-tip-open");
+    });
+    return dialog;
+  };
+  const openWith = (button, sources) => {
+    const box = ensureDialog();
+    box.querySelector(".info-tip-dialog__title").textContent = pageTitle();
+    const body = box.querySelector(".info-tip-dialog__body");
+    body.textContent = "";
+    sources.forEach((source) => {
+      const copy = document.createElement("p");
+      copy.innerHTML = source.innerHTML;          // 伺服器輸出的原文，照原樣
+      body.append(copy);
+    });
+    opener = button;
+    button.setAttribute("aria-expanded", "true");
+    document.documentElement.classList.add("info-tip-open");
+    if (typeof box.showModal === "function") box.showModal(); else box.setAttribute("open", "");
+    box.querySelector(".info-tip-dialog__close").focus();
+  };
+
+  document.querySelectorAll(`${always}, ${nearTop}`).forEach((p, index) => {
+    if (p.dataset.tipDone || p.closest("[data-no-tip]")) return;
+    if (p.querySelector("button, input, form, select, textarea, time")) return;
+    if (p.classList.contains("small") && p.querySelector("a")) return;   // 麵包屑、返回連結那種小段落不動
+    if (p.matches(nearTop) && !p.matches(always) && p.getBoundingClientRect().top + window.scrollY > TOP_LIMIT) return;
+    const text = p.textContent.trim().replace(/\s+/g, " ");
+    if (text.length <= MAX) return;
+    p.dataset.tipDone = "1";
+    const id = p.id || `info-tip-${index}`;
+    p.id = id;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "info-tip__btn";
+    button.textContent = "?";
+    button.setAttribute("aria-label", "看說明");
+    button.title = "看說明";
+    button.setAttribute("aria-haspopup", "dialog");
+    button.setAttribute("aria-expanded", "false");
+    const previous = p.previousElementSibling;
+    if (previous && /^(H1|H2|P)$/.test(previous.tagName) && !previous.dataset.tipHolder) {
+      previous.append(" ", button);          // 接在標題或前一段句尾，不另佔一行
+    } else {
+      const row = document.createElement("p");
+      row.className = "info-tip__row";
+      row.append(button);
+      p.before(row);
+    }
+    p.classList.add("info-tip__body");
+    p.hidden = true;
+    button.addEventListener("click", (event) => { event.stopPropagation(); openWith(button, [p]); });
+  });
+
+  // 畢業門檻頁標題旁自己寫的 <details class="g2-help">：也改成彈跳視窗，不往下展開
+  document.querySelectorAll("details.g2-help").forEach((details) => {
+    const summary = details.querySelector("summary");
+    const sources = [...details.querySelectorAll(".info-tip__body > p")];
+    if (!summary || !sources.length) return;
+    summary.setAttribute("aria-haspopup", "dialog");
+    summary.addEventListener("click", (event) => {
+      event.preventDefault();
+      details.open = false;
+      openWith(summary, sources);
+    });
+  });
+})();
+
+
+// ---------- 手機上的教職員表格：一列一張卡（2026-11-19）----------
+// 老師、科辦、主任、管理員頁的表格在手機寬度時，後面的欄位（操作、對象…）會跑到畫面外，要左右滑才看得到，使用者以為少了欄位。
+// 這裡把每一格標上所屬欄名（data-label），CSS 在窄螢幕把每一列排成一張卡、每格前面印欄名。只處理單純的表格（沒有合併儲存格），要保留原樣的加 data-no-stack。
+(() => {
+  if (!document.documentElement.hasAttribute || !document.documentElement.hasAttribute("data-staff-ui")) return;
+  document.querySelectorAll("main table").forEach((table) => {
+    if (table.closest("[data-no-stack]") || table.querySelector("thead [colspan], [rowspan]")) return;
+    const heads = [...table.querySelectorAll("thead th")].map((th) => th.textContent.trim().replace(/\s+/g, " "));
+    if (heads.length < 3) return;
+    table.querySelectorAll("tbody tr").forEach((row) => {
+      if (row.querySelector("[colspan]")) return;   // 「還沒有資料」那種整列合併的不標欄名
+      [...row.children].forEach((cell, i) => { if (heads[i] && !cell.dataset.label) cell.dataset.label = heads[i]; });
+    });
+    table.classList.add("table--stack");
+  });
+})();
+
+// ---------- 手機上的長清單：一次先顯示 10 個（2026-11-20）----------
+// 目標校系頁在手機上有 96 個校系卡＋地圖下 31 間學校，整頁超過兩萬像素，捲動很卡。窄螢幕時只先畫前 10 個（篩選後還看得到的），
+// 下面放「再顯示 10 個」。篩選改變（項目被加上或拿掉 hidden）就重算；網址指定的校系（#target-program-編號 或已展開的）一定顯示。
+(() => {
+  if (!window.matchMedia || !document.querySelectorAll) return;
+  const narrow = window.matchMedia("(max-width: 760px)");
+  const STEP = 10;
+  document.querySelectorAll("[data-ranking-list], .school-list__items").forEach((list) => {
+    let shown = STEP;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "button button--small button--line list-more";
+    list.after(button);
+    const items = () => [...list.children].filter((li) => li.tagName === "LI" && !li.hidden);
+    const mustShow = () => {
+      const want = items().findIndex((li) => li.querySelector("details[open]") || (window.location.hash && li.querySelector(window.location.hash.replace(/[^#\w-]/g, ""))));
+      return want >= 0 ? want + 1 : 0;
+    };
+    const apply = () => {
+      const visible = items();
+      const limit = narrow.matches ? Math.max(shown, mustShow()) : Infinity;
+      [...list.children].forEach((li) => li.classList.remove("is-folded"));
+      visible.forEach((li, i) => { if (i >= limit) li.classList.add("is-folded"); });
+      const rest = Math.max(0, visible.length - limit);
+      button.hidden = !rest;
+      button.textContent = `再顯示 ${Math.min(STEP, rest)} 個（還有 ${rest} 個）`;
+    };
+    button.addEventListener("click", () => { shown += STEP; apply(); });
+    new MutationObserver(() => { shown = STEP; apply(); }).observe(list, { attributes: true, attributeFilter: ["hidden"], subtree: true });
+    if (narrow.addEventListener) narrow.addEventListener("change", apply);
+    apply();
+  });
+})();
+
+// 網址指到收合區塊裡的東西（例如儲存後回到 #program-12、#eligibility-rule-3）時，自動打開外面的 <details>（2026-11-20）
+(() => {
+  if (!document.querySelector || !window.location || !window.location.hash || window.location.hash.length < 2) return;
+  let target = null;
+  try { target = document.querySelector(window.location.hash); } catch (error) { return; }
+  if (!target) return;
+  const inner = target.querySelector && target.querySelector("details.program-body");
+  if (inner) inner.open = true;
+  for (let node = target.parentElement; node; node = node.parentElement) {
+    if (node.tagName === "DETAILS") node.open = true;
+  }
+})();

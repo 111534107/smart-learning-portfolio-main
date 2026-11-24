@@ -1,0 +1,929 @@
+from datetime import date, datetime, timezone
+import json
+import re
+from urllib.parse import urlparse
+
+from flask import Blueprint, abort, current_app, redirect, render_template, request, session, url_for
+
+from app.extensions import db
+from app.security import validate_upload_filename
+from app.models import (
+    AdmissionEligibilityRule,
+    AdmissionProgram,
+    AgentTask,
+    AuditLog,
+    PublicSource,
+    PublicSourceChange,
+    PublicSourceSnapshot,
+    AdmissionRequirementItem,
+    ClassAdvisor,
+    CourseRule,
+    MatchFilterOption,
+    ProjectType,
+    RequirementItem,
+    RequirementTemplate,
+    StudentProfile,
+    User,
+)
+from app.services import class_assignment_service
+from app.services import admission_agent_service as agent
+from app.services import audit_service, backup_email, email_notify
+from app.services.staff_accounts import STAFF_TITLES
+from app.services.admission_service import import_seed_programs, published_programs, refresh_seed_details
+from app.services.admission_eligibility_service import validate_eligibility_condition
+from app.services.gemini_client import ai_ready
+from app.services.gap_service import ALL_LABELS
+from app.services.journey_service import academic_year_of
+from app.models.match_filter import MATCH_FILTER_CATEGORIES
+from app.routes.main import get_current_user, role_required
+
+
+admin_bp = Blueprint("admin", __name__)
+
+
+def _normalise_course_name(value):
+    return "".join(value.split())
+
+
+@admin_bp.route("/admin/course-rules", methods=["GET", "POST"])
+@role_required("admin")
+def course_rules():
+    if request.method == "POST":
+        course_name = request.form.get("course_name", "").strip()
+        normalized_course_name = _normalise_course_name(course_name)
+        category = request.form.get("category", "").strip()
+        requirement_type = request.form.get("requirement_type", "").strip()
+        try:
+            school_year = int(request.form.get("school_year", ""))
+            credits_value = request.form.get("credits", "").strip()
+            credits = int(credits_value) if credits_value else None
+        except ValueError:
+            abort(400, description="學年度與學分要填數字。")
+        if not normalized_course_name or not category or requirement_type not in {"required", "elective"}:
+            abort(400, description="課程名稱、分類與必選修都要填。")
+        if CourseRule.query.filter_by(
+            school_year=school_year, normalized_course_name=normalized_course_name
+        ).first():
+            abort(400, description="這個學年度已經有同名課程的規則。")
+        db.session.add(CourseRule(
+            school_year=school_year,
+            course_name=course_name,
+            normalized_course_name=normalized_course_name,
+            category=category,
+            requirement_type=requirement_type,
+            credits=credits,
+            ability_domain=request.form.get("ability_domain", "").strip() or None,
+            is_active=True,
+        ))
+        db.session.commit()
+        return redirect(url_for("admin.course_rules"))
+    return render_template(
+        "admin_course_rules.html",
+        user=get_current_user(),
+        course_rules=CourseRule.query.order_by(CourseRule.school_year.desc(), CourseRule.course_name.asc()).all(),
+    )
+
+
+@admin_bp.post("/admin/course-rules/<int:rule_id>/toggle-active")
+@role_required("admin")
+def toggle_course_rule_active(rule_id):
+    rule = db.session.get(CourseRule, rule_id)
+    if not rule:
+        abort(404)
+    rule.is_active = not rule.is_active
+    db.session.commit()
+    return redirect(url_for("admin.course_rules"))
+
+
+MATCH_FILTER_CATEGORY_LABELS = {"department": "科系", "region": "地區（尚未啟用）", "level": "學制", "eligible": "是否可報"}
+
+
+MATCH_FILTER_ELIGIBLE_VALUES = {"eligible": "可報", "needs_check": "需確認", "ineligible": "不可報"}
+
+
+def _check_match_filter_label(label):
+    limit = MatchFilterOption.label.type.length
+    if len(label) > limit:
+        abort(400, description=f"顯示名稱不可超過 {limit} 個字")
+
+
+@admin_bp.route("/admin/match-filters", methods=["GET", "POST"])
+@role_required("admin")
+def match_filters():
+    if request.method == "POST":
+        category = request.form.get("category", "").strip()
+        label = request.form.get("label", "").strip()
+        value = request.form.get("value", "").strip()
+        try:
+            sort_order = int(request.form.get("sort_order", "").strip() or 0)
+        except ValueError:
+            abort(400, description="排序要填數字。")
+        if category not in MATCH_FILTER_CATEGORIES or not label or not value:
+            abort(400, description="類別、顯示名稱與值都要填。")
+        _check_match_filter_label(label)
+        if len(value) > MatchFilterOption.value.type.length:
+            abort(400, description=f"值不可超過 {MatchFilterOption.value.type.length} 個字")
+        if category == "eligible" and value not in MATCH_FILTER_ELIGIBLE_VALUES:
+            abort(400, description="「是否可報」的值只能是 eligible、needs_check、ineligible")
+        if MatchFilterOption.query.filter_by(category=category, value=value).first():
+            abort(400, description="這個篩選選項已經存在。")
+        db.session.add(MatchFilterOption(
+            category=category, label=label, value=value, sort_order=sort_order, is_active=True,
+        ))
+        db.session.commit()
+        return redirect(url_for("admin.match_filters"))
+    return render_template(
+        "admin_match_filters.html",
+        user=get_current_user(),
+        options=MatchFilterOption.query.order_by(
+            MatchFilterOption.category.asc(), MatchFilterOption.sort_order.asc(), MatchFilterOption.id.asc()
+        ).all(),
+        category_labels=MATCH_FILTER_CATEGORY_LABELS,
+        eligible_values=MATCH_FILTER_ELIGIBLE_VALUES,
+        level_values=sorted({p.admission_category for p in published_programs() if p.admission_category}),
+    )
+
+
+@admin_bp.post("/admin/match-filters/<int:option_id>/edit")
+@role_required("admin")
+def edit_match_filter(option_id):
+    option = db.session.get(MatchFilterOption, option_id)
+    if not option:
+        abort(404)
+    label = request.form.get("label", "").strip()
+    if not label:
+        abort(400, description="顯示名稱不可空白")
+    _check_match_filter_label(label)
+    try:
+        sort_order = int(request.form.get("sort_order", "").strip() or 0)
+    except ValueError:
+        abort(400, description="排序要填數字。")
+    option.label = label
+    option.sort_order = sort_order
+    db.session.commit()
+    return redirect(url_for("admin.match_filters"))
+
+
+@admin_bp.post("/admin/match-filters/<int:option_id>/toggle-active")
+@role_required("admin")
+def toggle_match_filter(option_id):
+    option = db.session.get(MatchFilterOption, option_id)
+    if not option:
+        abort(404)
+    option.is_active = not option.is_active
+    db.session.commit()
+    return redirect(url_for("admin.match_filters"))
+
+
+@admin_bp.get("/admin/accounts")
+@role_required("admin")
+def accounts():
+    from app.services import login_guard
+    return render_template(
+        "admin_accounts.html",
+        user=get_current_user(),
+        accounts=User.query.order_by(User.role.asc(), User.username.asc()).all(),
+        admission_import=session.pop("admission_import", None),
+        staff_result=session.pop("staff_account_result", None),
+        staff_titles=STAFF_TITLES,
+        staff_domain=_staff_domain(),
+        locked_usernames=login_guard.locked_usernames(),
+        backup_pending=backup_email.pending(),
+        backup_result=session.pop("backup_email_result", None),
+        mail_ready=email_notify.smtp_ready(),
+    )
+
+
+@admin_bp.post("/admin/accounts/<int:user_id>/backup-email/confirm")
+@role_required("admin")
+def confirm_backup_email(user_id):
+    """B30：沒有寄信帳號時，學生收不到確認信；管理員當面核對學生的備用信箱後代為確認。"""
+    account = db.session.get(User, user_id)
+    if account is None:
+        abort(404)
+    if backup_email.admin_confirm(get_current_user(), account, request.form.get("address")):
+        db.session.commit()
+        session["backup_email_result"] = {"ok": f"已確認 {account.display_name} 的備用信箱。"}
+    else:
+        db.session.rollback()
+        session["backup_email_result"] = {"error": f"{account.display_name} 的備用信箱剛剛換過或已經確認，請重新核對。"}
+    return redirect(url_for("admin.accounts") + "#backup-pending")
+
+
+def _staff_domain():
+    from app.services import google_workspace
+    return google_workspace.settings()["staff_domain"]
+
+
+@admin_bp.post("/admin/accounts/staff")
+@role_required("admin")
+def create_staff_account():
+    """新增老師、科辦、管理員帳號（不限人數）；科辦要選職稱。"""
+    from app.services import staff_accounts
+    try:
+        account = staff_accounts.create(get_current_user(), request.form, _staff_domain())
+    except ValueError as error:
+        db.session.rollback()
+        session["staff_account_result"] = {"error": str(error)}
+        return redirect(url_for("admin.accounts") + "#staff-create")
+    db.session.commit()
+    title = f"（{account.job_title}）" if account.job_title else ""
+    session["staff_account_result"] = {"created": f"已建立 {account.display_name}{title}，帳號 {account.username}。"}
+    return redirect(url_for("admin.accounts") + "#staff-create")
+
+
+@admin_bp.post("/admin/accounts/<int:user_id>/job-title")
+@role_required("admin")
+def set_job_title(user_id):
+    from app.services import staff_accounts
+    account = db.session.get(User, user_id)
+    if not account:
+        abort(404)
+    try:
+        staff_accounts.set_title(get_current_user(), account, request.form.get("job_title"),
+                                 request.form.get("job_title_other"))
+    except ValueError as error:
+        db.session.rollback()
+        abort(400, description=str(error))
+    db.session.commit()
+    return redirect(url_for("admin.accounts"))
+
+
+@admin_bp.post("/admin/accounts/admission-years")
+@role_required("admin")
+def import_admission_years():
+    """管理者匯入入學學年度：每行「學號,入學學年度」（逗號或空白分隔）。學生不能自己填（主持人 2026-10-10）。"""
+    actor = get_current_user()
+    current = academic_year_of(date.today())
+    updated, problems = 0, []
+    for number, line in enumerate(request.form.get("rows", "").splitlines(), start=1):
+        parts = line.replace(",", " ").replace("，", " ").split()
+        if not parts:
+            continue
+        if len(parts) != 2 or not parts[1].isdigit():
+            problems.append(f"第 {number} 行看不懂：{line.strip()[:40]}")
+            continue
+        student_no, year = parts[0], int(parts[1])
+        profile = StudentProfile.query.filter_by(student_no=student_no).first()
+        if not profile:
+            problems.append(f"第 {number} 行找不到學號 {student_no[:20]}")
+            continue
+        if not current - 7 <= year <= current:
+            problems.append(f"第 {number} 行入學學年度 {year} 不在最近 8 個學年度內")
+            continue
+        if profile.admission_year != year:
+            db.session.add(AuditLog(user_id=actor.id, action="student_profile.admission_year",
+                                    target_type="student_profile", target_id=profile.id,
+                                    detail_json={"from": profile.admission_year, "to": year}))
+            profile.admission_year = year
+            updated += 1
+    db.session.commit()
+    session["admission_import"] = {"updated": updated, "problems": problems[:50]}
+    return redirect(url_for("admin.accounts"))
+
+
+@admin_bp.post("/admin/accounts/<int:user_id>/toggle-active")
+@role_required("admin")
+def toggle_account_active(user_id):
+    actor = get_current_user()
+    account = db.session.get(User, user_id)
+    if not account:
+        abort(404)
+    if account.id == actor.id:
+        abort(400, description="不能停用自己正在使用的管理員帳號。")
+    account.is_active = not account.is_active
+    # 2026-11-18：停用、重新啟用會影響對方能不能登入，要留操作紀錄（原本沒記）
+    audit_service.record(actor, "account.activate" if account.is_active else "account.deactivate", "user", account.id)
+    db.session.commit()
+    return redirect(url_for("admin.accounts"))
+
+
+@admin_bp.post("/admin/accounts/<int:user_id>/reset-two-factor")
+@role_required("admin")
+def reset_two_factor(user_id):
+    """使用者手機遺失、又沒有備用碼時，管理員重設；對方下次登入要重新設定。管理員自己的請用 flask reset-2fa。"""
+    from app.services import two_factor
+    target = db.session.get(User, user_id)
+    if target is None:
+        abort(404)
+    two_factor.reset(target, get_current_user())
+    db.session.commit()
+    return redirect(url_for("admin.accounts"))
+
+
+@admin_bp.post("/admin/accounts/<int:user_id>/unlock-login")
+@role_required("admin")
+def unlock_login(user_id):
+    """密碼或驗證碼錯太多次被鎖住時，管理員確認是本人後解除；之前的錯誤次數歸零。"""
+    from app.services import login_guard
+    target = db.session.get(User, user_id)
+    if target is None:
+        abort(404)
+    login_guard.unlock(get_current_user(), target)
+    db.session.commit()
+    return redirect(url_for("admin.accounts"))
+
+
+@admin_bp.post("/admin/accounts/<int:user_id>/class-name")
+@role_required("admin")
+def set_student_class(user_id):
+    """學生班級：Google 登入自動建立的學生沒有班級，導師就看不到他們（2026-11-18 四角色實測）。"""
+    actor = get_current_user()
+    account = db.session.get(User, user_id)
+    if not account or account.role != "student" or not account.student_profile:
+        abort(404)
+    class_name = " ".join(request.form.get("class_name", "").split())
+    if not class_name:
+        abort(400, description="請填寫班級，例如「資管科三甲」。")
+    if len(class_name) > 50:
+        abort(400, description="班級名稱最多 50 個字。")
+    old_name = account.student_profile.class_name
+    if old_name != class_name:
+        account.student_profile.class_name = class_name
+        db.session.add(AuditLog(user_id=actor.id, action="student.class_name.update", target_type="user",
+                                target_id=account.id, detail_json={"from": old_name, "to": class_name}))
+        db.session.commit()
+    return redirect(url_for("admin.accounts") + f"#account-{account.id}")
+
+
+@admin_bp.post("/admin/accounts/<int:user_id>/school-email")
+@role_required("admin")
+def bind_school_email(user_id):
+    actor = get_current_user()
+    account = db.session.get(User, user_id)
+    if not account:
+        abort(404)
+    if account.role != "student":
+        return _bind_staff_email(actor, account)
+    school_account = request.form.get("school_account", "").strip().lower()
+    student_no = (account.student_profile.student_no if account.student_profile else account.username).lower()
+    if school_account and (not re.fullmatch(r"[a-z0-9._-]+", school_account) or school_account != student_no):
+        abort(400, description="學校信箱帳號須與此學生的學號相同。")
+    email = f"{school_account}@stu.ukn.edu.tw" if school_account else ""
+    if email and User.query.filter(db.func.lower(User.email) == email, User.id != account.id).first():
+        abort(400, description="此學校信箱已綁定其他帳號。")
+    if account.email != (email or None):
+        old_email = account.email
+        account.email = email or None
+        account.google_sub = None
+        db.session.add(AuditLog(user_id=actor.id, action="student.school_email.update",
+                                target_type="user", target_id=account.id,
+                                detail_json={"from": old_email, "to": account.email}))
+        db.session.commit()
+    return redirect(url_for("admin.accounts"))
+
+
+def _bind_staff_email(actor, account):
+    """老師、科辦、管理員：填完整的學校信箱，只接受「Google 登入設定」裡的教職員網域。"""
+    from app.services import google_workspace
+    domain = google_workspace.settings()["staff_domain"]
+    if "school_email" not in request.form:
+        abort(400, description="教職員請填完整的學校信箱（學號欄位只給學生用）。")
+    email = request.form.get("school_email", "").strip().lower()
+    if email and (not re.fullmatch(r"[a-z0-9._-]+@" + re.escape(domain), email)):
+        abort(400, description=f"教職員信箱須為 @{domain}（可在「Google 登入設定」修改網域）。")
+    if email and User.query.filter(db.func.lower(User.email) == email, User.id != account.id).first():
+        abort(400, description="此學校信箱已綁定其他帳號。")
+    if account.email != (email or None):
+        old_email = account.email
+        account.email = email or None
+        account.google_sub = None
+        db.session.add(AuditLog(user_id=actor.id, action="staff.school_email.update", target_type="user",
+                                target_id=account.id, detail_json={"from": old_email, "to": account.email}))
+        db.session.commit()
+    return redirect(url_for("admin.accounts"))
+
+
+@admin_bp.route("/admin/google-workspace", methods=["GET", "POST"])
+@role_required("admin")
+def google_workspace_page():
+    """學校 Google Workspace 一鍵登入：開關、學生第一次登入自動建帳號、教職員網域；看誰用 Google 登入過。"""
+    from app.services import google_workspace, school_google_login
+    error = None
+    if request.method == "POST":
+        try:
+            google_workspace.save_settings(request.form, get_current_user())
+            return redirect(url_for("admin.google_workspace_page", saved=1))
+        except ValueError as exc:
+            error = str(exc)
+    config = current_app.config
+    oauth = {"client_id": bool(config.get("GOOGLE_OAUTH_CLIENT_ID")),
+             "client_secret": bool(config.get("GOOGLE_OAUTH_CLIENT_SECRET")),
+             "redirect_uri": config.get("GOOGLE_LOGIN_REDIRECT_URI") or ""}
+    linked = (User.query.filter(User.google_sub.isnot(None)).order_by(User.updated_at.desc()).limit(50).all())
+    auto_created = {row.target_id for row in AuditLog.query.filter_by(action="user.google_auto_create").all()}
+    return render_template("admin_google_workspace.html", user=get_current_user(), settings=google_workspace.settings(),
+                           oauth=oauth, ready=school_google_login.configured(config), linked=linked,
+                           auto_created=auto_created, student_domain=school_google_login.DOMAIN,
+                           drive=_drive_status(), error=error), (400 if error else 200)
+
+
+def _drive_status():
+    """Google 登入設定頁也顯示雲端硬碟存放狀態，詳細設定與測試連線在「檔案存放設定」。"""
+    from app.services import storage_service
+    checks = storage_service.check_settings(current_app.config)
+    last = storage_service.last_check(current_app)
+    return {"active": storage_service.active_backend_name(),
+            "connected": storage_service.token_holder(current_app).connected,
+            "problems": sum(1 for item in checks if not item["ok"]),
+            "last_ok": None if last is None else last["ok"]}
+
+
+@admin_bp.route("/admin/project-types", methods=["GET", "POST"])
+@role_required("admin")
+def project_types():
+    if request.method == "POST":
+        code = request.form.get("code", "").strip().lower()
+        name = request.form.get("name", "").strip()
+        try:
+            school_year = int(request.form.get("school_year", ""))
+        except ValueError:
+            abort(400, description="學年度要填數字。")
+        if not code or not name or ProjectType.query.filter_by(code=code).first():
+            abort(400, description="專題類型的代碼與名稱都要填，而且不能和既有的重複。")
+        db.session.add(
+            ProjectType(code=code, name=name, school_year=school_year, is_active=True)
+        )
+        db.session.commit()
+        return redirect(url_for("admin.project_types"))
+    return render_template(
+        "admin_rules.html",
+        user=get_current_user(),
+        project_types=ProjectType.query.order_by(ProjectType.school_year.desc(), ProjectType.name.asc()).all(),
+    )
+
+
+@admin_bp.post("/admin/project-types/<int:project_type_id>/toggle-active")
+@role_required("admin")
+def toggle_project_type_active(project_type_id):
+    project_type = db.session.get(ProjectType, project_type_id)
+    if not project_type:
+        abort(404)
+    project_type.is_active = not project_type.is_active
+    db.session.commit()
+    return redirect(url_for("admin.project_types"))
+
+
+@admin_bp.post("/admin/project-types/<int:project_type_id>/templates")
+@role_required("admin")
+def create_requirement_template(project_type_id):
+    project_type = db.session.get(ProjectType, project_type_id)
+    if not project_type:
+        abort(404)
+    name = request.form.get("name", "").strip()
+    version = request.form.get("version", "").strip()
+    if not name or not version:
+        abort(400, description="模板名稱與版本都要填。")
+    db.session.add(
+        RequirementTemplate(
+            project_type_id=project_type.id,
+            name=name,
+            version=version,
+            is_active=True,
+        )
+    )
+    db.session.commit()
+    return redirect(url_for("admin.project_types"))
+
+
+@admin_bp.post("/admin/templates/<int:template_id>/toggle-active")
+@role_required("admin")
+def toggle_template_active(template_id):
+    template = db.session.get(RequirementTemplate, template_id)
+    if not template:
+        abort(404)
+    template.is_active = not template.is_active
+    db.session.commit()
+    return redirect(url_for("admin.project_types"))
+
+
+@admin_bp.post("/admin/templates/<int:template_id>/items")
+@role_required("admin")
+def create_requirement_item(template_id):
+    template = db.session.get(RequirementTemplate, template_id)
+    if not template:
+        abort(404)
+    title = request.form.get("title", "").strip()
+    if not title:
+        abort(400, description="要求項目的標題要填。")
+    try:
+        sort_order = int(request.form.get("sort_order", "0"))
+    except ValueError:
+        abort(400, description="排序要填數字。")
+    db.session.add(
+        RequirementItem(
+            template_id=template.id,
+            title=title,
+            description=request.form.get("description", "").strip() or None,
+            stage=request.form.get("stage", "midterm").strip() or "midterm",
+            is_required=request.form.get("is_required", "on") == "on",
+            sort_order=sort_order,
+        )
+    )
+    db.session.commit()
+    return redirect(url_for("admin.project_types"))
+
+
+# ---------- 校系備審要求（二技招生資料 Agent 第一階段：管理者維護） ----------
+
+@admin_bp.get("/admin/programs")
+@role_required("admin")
+def programs():
+    return render_template(
+        "admin_programs.html",
+        user=get_current_user(),
+        programs=AdmissionProgram.query.order_by(
+            AdmissionProgram.status, AdmissionProgram.admission_year.desc(), AdmissionProgram.program_code).all(),
+        mappable=list(ALL_LABELS.items()),
+        message=request.args.get("message"),
+        compare=agent.compare_with_published,
+    )
+
+
+@admin_bp.post("/admin/programs/import-seed")
+@role_required("admin")
+def programs_import_seed():
+    created = import_seed_programs()
+    updated = refresh_seed_details()
+    parts = [f"已匯入 {created} 個志願" if created else "沒有新的志願"]
+    if updated:
+        parts.append(f"依核對過的簡章更新 {updated} 個項目")
+    return redirect(url_for("admin.programs", message="，".join(parts)))
+
+
+@admin_bp.post("/admin/programs/<int:program_id>/toggle-status")
+@role_required("admin")
+def program_toggle_status(program_id):
+    program = db.session.get(AdmissionProgram, program_id)
+    if not program:
+        abort(404)
+    program.status = "candidate" if program.status == "published" else "published"
+    # 核准為正式後學生就看得到，要留操作紀錄（2026-11-18 補）
+    audit_service.record(get_current_user(), "program.publish" if program.status == "published" else "program.unpublish",
+                         "admission_program", program.id)
+    db.session.commit()
+    return redirect(url_for("admin.programs"))
+
+
+@admin_bp.post("/admin/program-items/<int:item_id>")
+@role_required("admin")
+def program_item_update(item_id):
+    item = db.session.get(AdmissionRequirementItem, item_id)
+    if not item:
+        abort(404)
+    categories = [key for key in request.form.getlist("categories") if key in ALL_LABELS]
+    if not categories:
+        abort(400, description="至少要對應一個資料類別")
+    status = request.form.get("mapping_status", "pending")
+    item.mapped_categories = ",".join(categories)
+    item.mapping_status = status if status in {"confirmed", "pending"} else "pending"
+    db.session.commit()
+    return redirect(url_for("admin.programs") + f"#program-{item.rule_version_id}")
+
+
+@admin_bp.post("/admin/eligibility-rules/<int:rule_id>")
+@role_required("admin")
+def admission_eligibility_rule_update(rule_id):
+    rule = db.session.get(AdmissionEligibilityRule, rule_id)
+    if not rule:
+        abort(404)
+    try:
+        rule_group = int(request.form.get("rule_group", ""))
+    except (TypeError, ValueError):
+        abort(400, description="資格條件群組必須是正整數。")
+    if rule_group < 1:
+        abort(400, description="資格條件群組必須是正整數。")
+
+    condition_type = request.form.get("condition_type", "").strip()
+    operator = request.form.get("operator", "").strip()
+    description = request.form.get("description", "").strip()
+    source_url = request.form.get("source_url", "").strip() or None
+    source_location = request.form.get("source_location", "").strip() or None
+    mapping_status = request.form.get("mapping_status", "pending")
+    if not description or len(description) > 2000:
+        abort(400, description="請填寫資格原文或清楚的待核對說明（最多 2000 字）。")
+    if mapping_status not in {"pending", "confirmed"}:
+        abort(400, description="資格規則狀態不正確。")
+    try:
+        value_json = json.loads(request.form.get("value_json", "").strip() or "null")
+    except (json.JSONDecodeError, TypeError):
+        abort(400, description="條件內容必須是有效的 JSON。")
+
+    if mapping_status == "confirmed":
+        validation_error = validate_eligibility_condition(condition_type, operator, value_json)
+        parsed_url = urlparse(source_url or "")
+        if validation_error:
+            abort(400, description=validation_error)
+        if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+            abort(400, description="確認資格規則前，請填寫官方簡章網址。")
+        if not source_location:
+            abort(400, description="確認資格規則前，請填寫頁碼或章節位置。")
+
+    before = {
+        "condition_type": rule.condition_type,
+        "operator": rule.operator,
+        "mapping_status": rule.mapping_status,
+        "source_url": rule.source_url,
+        "source_location": rule.source_location,
+    }
+    rule.rule_group = rule_group
+    rule.condition_type = condition_type or "unresolved"
+    rule.operator = operator or "unresolved"
+    rule.value_json = value_json
+    rule.description = description
+    rule.source_url = source_url
+    rule.source_location = source_location
+    rule.mapping_status = mapping_status
+    rule.is_required = request.form.get("is_required") == "on"
+    db.session.add(AuditLog(
+        user_id=get_current_user().id,
+        action="admission.eligibility_rule_updated",
+        target_type="admission_eligibility_rule",
+        target_id=rule.id,
+        detail_json={
+            "before": before,
+            "after": {
+                "condition_type": rule.condition_type,
+                "operator": rule.operator,
+                "mapping_status": rule.mapping_status,
+                "source_url": rule.source_url,
+                "source_location": rule.source_location,
+            },
+        },
+    ))
+    db.session.commit()
+    return redirect(url_for("admin.programs") + f"#eligibility-rule-{rule.id}")
+
+
+# ---------- 招生資料 Agent（系統亮點第二、三階段） ----------
+
+@admin_bp.get("/admin/agent")
+@role_required("admin")
+def agent_home():
+    sources = PublicSource.query.order_by(PublicSource.id).all()
+    latest = {}
+    for source in sources:
+        latest[source.id] = (PublicSourceSnapshot.query.filter_by(source_id=source.id)
+                             .order_by(PublicSourceSnapshot.id.desc()).first())
+    changes = (db.session.query(PublicSourceChange, PublicSourceSnapshot, PublicSource)
+               .join(PublicSourceSnapshot, PublicSourceChange.snapshot_id == PublicSourceSnapshot.id)
+               .join(PublicSource, PublicSourceSnapshot.source_id == PublicSource.id)
+               .order_by(PublicSourceChange.id.desc()).limit(20).all())
+    tasks = (AgentTask.query.filter(AgentTask.task_type.in_(["admission_source_search", "admission_source_check", "admission_extract", "agent_patrol"]))
+             .order_by(AgentTask.id.desc()).limit(15).all())
+    from app.services.admission_schedule import schedule_groups
+    from app.services.admin_todos import failed_source_ids
+    return render_template(
+        "admin_agent.html",
+        failed_sources=failed_source_ids(),
+        schedule_groups=schedule_groups(),
+        user=get_current_user(),
+        sources=sources,
+        latest=latest,
+        changes=changes,
+        tasks=tasks,
+        ai_ready=ai_ready(),
+        keywords=current_app.config["AGENT_PROGRAM_KEYWORDS"],
+        message=request.args.get("message"),
+        error=request.args.get("error"),
+    )
+
+
+@admin_bp.post("/admin/agent/sources")
+@role_required("admin")
+def agent_add_source():
+    uploaded = request.files.get("file")
+    try:
+        if uploaded and uploaded.filename:
+            safe_name = validate_upload_filename(uploaded.filename, {"pdf", "html", "htm"})
+            content = uploaded.read()
+            if not content:
+                raise ValueError("檔案是空的")
+            source = agent.add_source(request.form.get("name"), upload_name=safe_name)
+            content_type = "application/pdf" if safe_name.lower().endswith(".pdf") else "text/html"
+            agent.check_source(source, get_current_user(), content=content, content_type=content_type)
+            return redirect(url_for("admin.agent_home", message=f"已上傳「{source.name}」，可以按「擷取加權」"))
+        source = agent.add_source(request.form.get("name"), url=request.form.get("url", "").strip())
+    except ValueError as exc:
+        return redirect(url_for("admin.agent_home", error=str(exc)))
+    return redirect(url_for("admin.agent_home", message=f"已新增來源「{source.name}」，按「立即檢查」抓第一次"))
+
+
+@admin_bp.post("/admin/agent/sources/<int:source_id>/check")
+@role_required("admin")
+def agent_check_source(source_id):
+    source = db.session.get(PublicSource, source_id)
+    if not source or source.source_type != "url":
+        abort(404)
+    task = agent.check_source(source, get_current_user())
+    if task.status != "succeeded":
+        return redirect(url_for("admin.agent_home", error=task.error_message))
+    text = "內容有更新，已建立變更，可以擷取加權" if task.result_json["changed"] else "內容和上次一樣，沒有更新"
+    return redirect(url_for("admin.agent_home", message=f"「{source.name}」：{text}"))
+
+
+@admin_bp.post("/admin/agent/patrol")
+@role_required("admin")
+def agent_patrol():
+    from app.services.agent_patrol import run_patrol
+    result = run_patrol(get_current_user())
+    return redirect(url_for("admin.agent_home", message=result["summary"]))
+
+
+@admin_bp.post("/admin/agent/schedule/<channel>/<int:year>/<decision>")
+@role_required("admin")
+def agent_schedule_decide(channel, year, decision):
+    """候選日程整組核准（取代目前的日程）或退回。"""
+    from app.models import AdmissionScheduleEvent
+    if decision not in ("approve", "reject"):
+        abort(404)
+    candidates = AdmissionScheduleEvent.query.filter_by(channel=channel, admission_year=year, status="candidate").all()
+    if not candidates:
+        abort(404)
+    actor, now = get_current_user(), datetime.now(timezone.utc)
+    if decision == "approve":
+        retired = AdmissionScheduleEvent.query.filter_by(channel=channel, admission_year=year, status="published").all()
+        for event in retired:
+            event.status = "retired"
+    for event in candidates:
+        event.status = "published" if decision == "approve" else "rejected"
+        event.reviewed_by, event.reviewed_at = actor.id, now
+    db.session.add(AuditLog(user_id=actor.id, action=f"admission_schedule.{decision}", target_type="admission_schedule",
+                            target_id=year, detail_json={"channel": channel, "year": year, "count": len(candidates)}))
+    db.session.commit()
+    if decision == "approve":
+        # UC-25：核准後直接打開系統擬好的二技公告草稿，管理員改字後發布
+        from app.services.announcement_service import draft_from_schedule
+        draft = draft_from_schedule(channel, year, actor)
+        message = (f"{year} 學年度：已核准，招生時程頁改用這一組日程（{len(candidates)} 項）。"
+                   "公告草稿已擬好，確認內容後按「發布」。")
+        return redirect(url_for("announcement.admin_edit", announcement_id=draft.id, message=message))
+    text = "已退回這一組候選日程"
+    return redirect(url_for("admin.agent_home", message=f"{year} 學年度：{text}（{len(candidates)} 項）。"))
+
+
+@admin_bp.post("/admin/agent/changes/<int:change_id>/extract")
+@role_required("admin")
+def agent_extract(change_id):
+    change = db.session.get(PublicSourceChange, change_id)
+    if not change:
+        abort(404)
+    task = agent.extract_programs(change, get_current_user())
+    if task.status != "succeeded":
+        return redirect(url_for("admin.agent_home", error=task.error_message))
+    created = task.result_json["created"]
+    if not created:
+        return redirect(url_for("admin.agent_home", message="沒有新的校系（可能已擷取過，或沒有符合關鍵字的科系）"))
+    return redirect(url_for("admin.programs", message=f"Agent 建立了 {len(created)} 個候選校系，請核對加權與對應後再核准"))
+
+
+# ---------- 導師班級 ----------
+
+# ---------- 修業科目表代理（11-09）：抓 PDF、程式解析、管理員確認才生效 ----------
+
+@admin_bp.get("/admin/curriculum")
+@role_required("admin")
+def curriculum_home():
+    from app.models import CurriculumVersion
+    from app.services import curriculum_agent_service as curriculum
+    versions = (CurriculumVersion.query
+                .order_by(CurriculumVersion.admission_year.desc(), CurriculumVersion.id.desc()).all())
+    pending = [v for v in versions if v.status in ("candidate", "check_failed")]
+    published = {v.admission_year: v for v in versions if v.status == "published"}
+    return render_template("admin_curriculum.html", user=get_current_user(), pending=pending, published=published,
+                           history=[v for v in versions if v.status in ("superseded", "rejected")][:20],
+                           index_url=curriculum.INDEX_URL, min_year=curriculum.MIN_YEAR,
+                           message=request.args.get("message"), error=request.args.get("error"))
+
+
+@admin_bp.post("/admin/curriculum/check")
+@role_required("admin")
+def curriculum_check():
+    from app.services import curriculum_agent_service as curriculum
+    try:
+        outcome = curriculum.check_updates(get_current_user())
+    except Exception as exc:  # 網站連不上等
+        db.session.rollback()
+        return redirect(url_for("admin.curriculum_home", error=f"抓取失敗：{str(exc)[:120]}"))
+    parts = [f"新的候選版本 {len(outcome['created'])} 份", f"沒有變動 {len(outcome['unchanged'])} 份"]
+    if outcome["failed"]:
+        parts.append(f"檢查不通過 {len(outcome['failed'])} 份")
+    if outcome["errors"]:
+        parts.append(f"下載或讀取失敗 {len(outcome['errors'])} 份")
+    return redirect(url_for("admin.curriculum_home", message="、".join(parts) + "。"))
+
+
+@admin_bp.post("/admin/curriculum/<int:version_id>/<decision>")
+@role_required("admin")
+def curriculum_decide(version_id, decision):
+    from app.models import CurriculumVersion
+    from app.services import curriculum_agent_service as curriculum
+    version = db.session.get(CurriculumVersion, version_id)
+    if version is None or decision not in ("publish", "reject"):
+        abort(404)
+    try:
+        (curriculum.publish if decision == "publish" else curriculum.reject)(version, get_current_user())
+    except curriculum.CurriculumError as exc:
+        db.session.rollback()
+        return redirect(url_for("admin.curriculum_home", error=str(exc)))
+    db.session.commit()
+    done = "已確認，畢業門檻改用這一版" if decision == "publish" else "已設為不採用"
+    return redirect(url_for("admin.curriculum_home", message=f"{version.admission_year} 學年度：{done}。"))
+
+
+@admin_bp.get("/admin/classes")
+@admin_bp.post("/admin/classes")
+@role_required("admin")
+def classes():
+    error = None
+    if request.method == "POST":
+        try:
+            class_assignment_service.add(get_current_user(), request.form.get("teacher_id", type=int),
+                                         request.form.get("class_name"), request.form.get("school_year", type=int))
+            return redirect(url_for("admin.classes"))
+        except class_assignment_service.AssignmentError as exc:
+            error = str(exc)
+    return render_template(
+        "admin_classes.html",
+        user=get_current_user(),
+        error=error,
+        form_action=url_for("admin.classes"),
+        delete_endpoint="admin.class_delete",
+        **class_assignment_service.page_data(),
+    ), (400 if error else 200)
+
+
+@admin_bp.post("/admin/classes/<int:advisor_id>/delete")
+@role_required("admin")
+def class_delete(advisor_id):
+    class_assignment_service.remove(get_current_user(), advisor_id)
+    return redirect(url_for("admin.classes"))
+
+
+@admin_bp.get("/admin/ai")
+@admin_bp.post("/admin/ai")
+@role_required("admin")
+def ai_settings_page():
+    """選要用哪幾家 AI、模型、先後順序（11-11 使用者決定）。金鑰只放 .env，這裡只顯示有沒有設定。"""
+    from app.services import ai_gateway
+    message = None
+    if request.method == "POST":
+        rows = []
+        for name in ai_gateway.PROVIDERS:
+            if request.form.get(f"enabled_{name}"):
+                rows.append((request.form.get(f"order_{name}", type=int) or 99, name))
+        ai_gateway.save(get_current_user(), [name for _order, name in sorted(rows)],
+                        {name: request.form.get(f"model_{name}", "") for name in ai_gateway.PROVIDERS})
+        message = "已儲存。之後呼叫 AI 會照這個順序，前一家不能用就自動換下一家。"
+    return render_template("admin_ai.html", user=get_current_user(), providers=ai_gateway.status(), message=message)
+
+
+@admin_bp.get("/admin/ocr")
+@admin_bp.post("/admin/ocr")
+@role_required("admin")
+def ocr_settings_page():
+    """切換 OCR 用 CPU 或顯示卡（DirectML）辨識；設定存在資料庫，切換後不用重開網站。"""
+    from app.services import ocr_settings
+
+    error = None
+    if request.method == "POST":
+        try:
+            ocr_settings.save_device(request.form.get("device", ""),
+                                     request.form.get("dml_device_id", type=int, default=-1),
+                                     get_current_user())
+            return redirect(url_for("admin.ocr_settings_page", saved=1))
+        except ValueError as exc:
+            error = str(exc)
+    device, dml_device_id = ocr_settings.current_device()
+    return render_template(
+        "admin_ocr.html",
+        user=get_current_user(),
+        device=device,
+        dml_device_id=dml_device_id,
+        device_labels=ocr_settings.DEVICE_LABELS,
+        gpu_available=ocr_settings.directml_available(),
+        provider=current_app.config.get("DOCUMENT_ANALYSIS_PROVIDER"),
+        error=error,
+    ), (400 if error else 200)
+
+
+@admin_bp.get("/admin/audit-logs")
+@role_required("admin")
+def audit_logs():
+    """操作紀錄（規格 M11）：最近 200 筆，可依動作篩選。只顯示角色與使用者編號，不顯示姓名與學號。"""
+    from app.services import audit_service
+
+    action = request.args.get("action", "").strip()
+    query = AuditLog.query
+    if action:
+        query = query.filter_by(action=action)
+    logs = query.order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).limit(200).all()
+    known = {row[0] for row in db.session.query(AuditLog.action).distinct()}
+    return render_template(
+        "admin_audit_logs.html",
+        user=get_current_user(),
+        logs=logs,
+        action=action,
+        actions=sorted(known | set(audit_service.ACTION_LABELS)),
+        label=audit_service.label,
+    )

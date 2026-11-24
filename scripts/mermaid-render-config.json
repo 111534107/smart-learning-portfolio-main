@@ -1,0 +1,17 @@
+{
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "DFKai-SB, BiauKai, serif",
+    "fontSize": "18px",
+    "primaryTextColor": "#1f2937",
+    "lineColor": "#4b5563",
+    "primaryColor": "#f3f4f6",
+    "primaryBorderColor": "#6b7280"
+  },
+  "flowchart": {
+    "nodeSpacing": 18,
+    "rankSpacing": 18,
+    "padding": 8,
+    "wrappingWidth": 240
+  }
+}

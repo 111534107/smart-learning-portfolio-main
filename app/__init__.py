@@ -1,0 +1,192 @@
+import click
+from flask import Flask
+
+from app.config import Config
+from app.extensions import db, migrate
+from app.security import init_security
+
+
+def create_app(config_overrides=None):
+    app = Flask(__name__)
+    app.config.from_object(Config)
+    if config_overrides:
+        app.config.update(config_overrides)
+    # 自動化測試沒指定時在請求裡直接辨識，既有測試上傳後就能拿到辨識結果
+    # 雙重驗證：自動化測試與本機展示站（帳號密碼公開在登入頁）預設不強制，仍可自己到帳號選單開啟
+    if (app.config.get("TESTING") or app.config.get("LOCAL_DEMO_MODE")) and "TWO_FACTOR_REQUIRED" not in (config_overrides or {}):
+        app.config["TWO_FACTOR_REQUIRED"] = False
+    if (app.config.get("TESTING") or app.config.get("LOCAL_DEMO_MODE")) and "ADMIN_TWO_FACTOR_REQUIRED" not in (config_overrides or {}):
+        app.config["ADMIN_TWO_FACTOR_REQUIRED"] = False
+    if app.config.get("TESTING") and "OCR_QUEUE_MODE" not in (config_overrides or {}):
+        app.config["OCR_QUEUE_MODE"] = "inline"
+    if app.config.get("TESTING") and "AUTOBIOGRAPHY_BACKUP_MODE" not in (config_overrides or {}):
+        app.config["AUTOBIOGRAPHY_BACKUP_MODE"] = "inline"
+        app.config.setdefault("AUTOBIOGRAPHY_BACKUP_RETRY_DELAYS", (0,))
+    if app.config.get("DOCUMENT_OCR_ENGINE") == "rapidocr" and app.config.get("OCR_ENGINE") is None:
+        from app.services.document_analysis_service import RapidOcrEngine
+
+        app.config["OCR_ENGINE"] = RapidOcrEngine(
+            tier=app.config.get("OCR_MODEL_TIER", "server"),
+            device=app.config.get("OCR_DEVICE", "cpu"),
+            dml_device_id=app.config.get("OCR_DML_DEVICE_ID", 0),
+        )
+
+    db.init_app(app)
+    migrate.init_app(app, db)
+    init_security(app)
+
+    from app.services.credential_analysis import traditional_text
+    app.add_template_filter(traditional_text, "traditional_text")
+    from app.services.ocr_trace import describe_step
+    app.add_template_filter(describe_step, "ocr_step")
+    from app.services.agent_engine import taipei_time
+    app.add_template_filter(taipei_time, "taipei_time")
+    from app.content.portfolio_tips import tips_for as portfolio_tips_for
+    app.add_template_global(portfolio_tips_for, "portfolio_tips_for")
+
+    from app.routes.main import main_bp
+    from app.routes.admin import admin_bp
+    from app.routes.student import student_bp
+    from app.routes.review import review_bp
+    from app.routes.staff import staff_bp
+    from app.routes.teacher import teacher_bp
+    from app.routes.assistant import assistant_bp
+    from app.routes.award import award_bp
+    from app.routes.attendance import attendance_bp
+    from app.routes.certificate import certificate_bp
+    from app.routes.proposal_preview import proposal_preview_bp
+    from app.routes.transfer_credit import transfer_credit_bp
+    from app.routes.google_docs import google_docs_bp
+    from app.routes.storage import storage_bp
+    from app.routes.agent_plan import agent_plan_bp
+    from app.routes.graduation import graduation_bp
+    from app.routes.forms import forms_bp
+    from app.routes.announcement import announcement_bp
+    from app import models
+
+    from app.routes import transfer_review  # register case routes before blueprints
+
+    app.register_blueprint(main_bp)
+    app.register_blueprint(admin_bp)
+    app.register_blueprint(student_bp)
+    app.register_blueprint(review_bp)
+    app.register_blueprint(staff_bp)
+    app.register_blueprint(teacher_bp)
+    app.register_blueprint(assistant_bp)
+    app.register_blueprint(award_bp)
+    app.register_blueprint(attendance_bp)
+    app.register_blueprint(certificate_bp)
+    app.register_blueprint(proposal_preview_bp)
+    app.register_blueprint(transfer_credit_bp)
+    app.register_blueprint(google_docs_bp)
+    app.register_blueprint(storage_bp)
+    app.register_blueprint(agent_plan_bp)
+    app.register_blueprint(graduation_bp)
+    app.register_blueprint(forms_bp)
+    from app.routes.admin_schools import admin_schools_bp
+    app.register_blueprint(admin_schools_bp)
+    from app.routes.two_factor import two_factor_bp
+    app.register_blueprint(two_factor_bp)
+    from app.routes.account_password import account_password_bp
+    app.register_blueprint(account_password_bp)
+
+    @app.cli.command("reset-2fa")
+    @click.argument("username")
+    def reset_two_factor_command(username):
+        """手機遺失時重設某個帳號的雙重驗證（只有能登入伺服器的人能用）。"""
+        from app.models import User
+        from app.services import two_factor
+        user = User.query.filter_by(username=username).first()
+        if user is None:
+            print(f"找不到帳號 {username}。")
+            return
+        two_factor.reset(user, None, reason="cli")
+        db.session.commit()
+        print(f"已重設 {username} 的雙重驗證，下次登入要重新設定。")
+    app.register_blueprint(announcement_bp)
+
+    @app.cli.command("agent-check")
+    def agent_check_command():
+        """招生資料 Agent：檢查所有官方來源有沒有更新（給排程用）。"""
+        from app.models import User
+        from app.services.admission_agent_service import check_all
+        admin = User.query.filter_by(role="admin").order_by(User.id).first()
+        if not admin:
+            print("找不到管理者帳號，無法記錄執行者。")
+            return
+        for task in check_all(admin):
+            result = task.error_message or ("有更新" if task.result_json.get("changed") else "沒有更新")
+            print(f"來源 {task.target_id}：{result}")
+
+    @app.cli.command("agent-patrol")
+    def agent_patrol_command():
+        """升學 Agent 背景巡查：檢查官方來源、把更新擷取成候選校系（給排程用）。"""
+        from app.models import User
+        from app.services.agent_patrol import run_patrol
+        admin = User.query.filter_by(role="admin").order_by(User.id).first()
+        if not admin:
+            print("找不到管理者帳號，無法記錄執行者。")
+            return
+        result = run_patrol(admin)
+        mode = "AI 決定步驟" if result["mode"] == "ai" else "固定流程"
+        print(f"升學 Agent 巡查（{mode}）：{result['summary']}")
+
+    if app.config["OCR_QUEUE_MODE"] == "thread":
+        from app.services.ocr_queue import recover_on_startup
+        recover_on_startup(app)
+
+    error_texts = {
+        400: ("資料沒有存", "送出的資料有問題，這次沒有存。請回上一頁重新整理後再試一次。"),
+        401: ("請先登入", "這一頁要登入後才能看。可能是還沒登入，或太久沒操作被登出了。"),
+        403: ("沒有權限", "你的帳號不能看這一頁。如果你覺得應該可以，請洽導師或系統管理員。"),
+        404: ("找不到這一頁", "網址可能打錯了，或這筆資料不是你的、已經不存在。"),
+    }
+
+    def friendly_error(error):
+        """400、401、403、404 改成中文頁面（10-27 實測問題 5；400 為 11-18 補）；狀態碼不變，給程式讀的請求照樣回 JSON。"""
+        from flask import jsonify, render_template, request
+        from app.routes.main import get_current_user
+        title, message = error_texts[error.code]
+        back = None
+        if error.code == 400:
+            # 2026-11-18 四角色實走：表單填錯時原本跳出英文「Bad Request」空白頁。
+            # 程式寫的中文原因直接顯示；Flask 預設的英文說明（例如表單過期）改用通用說明。
+            description = getattr(error, "description", "") or ""
+            if any("\u4e00" <= char <= "\u9fff" for char in description):
+                message = description
+            referrer = request.referrer or ""
+            back = referrer if referrer.startswith(request.host_url) else None
+        if request.accept_mimetypes.best == "application/json":
+            return jsonify(error=title, message=message), error.code
+        from flask import session
+        from app.services.admin_guard import LOGGED_OUT
+        next_path = request.full_path.rstrip("?") if error.code == 401 and request.method == "GET" else None
+        user = get_current_user()
+        admin_logged_out = error.code == 401 and bool(session.pop(LOGGED_OUT, None))
+        return render_template("error_page.html", user=user, code=error.code, title=title,
+                               message=message, next_path=next_path, admin_logged_out=admin_logged_out,
+                               back=back), error.code
+
+    for code in error_texts:
+        app.register_error_handler(code, friendly_error)
+
+    @app.errorhandler(413)
+    def file_too_large(_error):
+        from flask import render_template, request
+        from app.routes.main import get_current_user
+        limit_mb = app.config["MAX_CONTENT_LENGTH"] // (1024 * 1024)
+        back = request.referrer if request.referrer and request.referrer.startswith(request.host_url) else None
+        return render_template("upload_too_large.html", user=get_current_user(), limit_mb=limit_mb, back=back), 413
+
+    @app.url_defaults
+    def static_version(endpoint, values):
+        """CSS、JS 網址自動加 ?v=檔案修改時間（2026-11-13）：改了樣式，手機瀏覽器不會還用舊的快取。"""
+        if endpoint != "static" or "v" in values or not str(values.get("filename", "")).endswith((".css", ".js")):
+            return
+        import os
+        try:
+            values["v"] = int(os.path.getmtime(os.path.join(app.static_folder, values["filename"])))
+        except OSError:
+            pass
+
+    return app

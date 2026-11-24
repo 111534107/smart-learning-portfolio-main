@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% set page_name = "student-package-exclusions" %}
+
+{% block title %}選擇放進備審的資料｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "備審資料") }}{% endblock %}
+
+{% block content %}
+{% set crumbs = [("備審資料", url_for('student.target_gap', program_id=back_program.id))] if back_program else [] %}
+{{ page_band("選擇放進備審的資料", crumbs) }}
+<div class="page page--banded">
+  <section class="sheet mb-1" data-tour="先看排除資料的影響與必備資料例外。" data-tour-order="1">
+    <p>每一筆成績、證照、經歷都可以選擇<b>不放進備審</b>。不放的資料不會出現在自傳小助手的資料、備審 Word，也不算進準備度；資料本身不會刪除，隨時可以放回來。</p>
+    <p class="small muted">例外：{{ reason }}的資料不能拿掉（例如校系把成績列入評分時，歷年成績單一定要附）。
+      {% if not targets %}你還沒選目標校系，選了之後這裡會標出哪些資料是必備的。{% endif %}</p>
+  </section>
+  {% if error %}<p class="alert mb-1" role="alert">{{ error }}</p>{% endif %}
+  {% if request.args.get("saved") %}<p class="notice mb-1" role="status">已更新。</p>{% endif %}
+
+  {% for group in groups %}
+  <section class="record-group" aria-labelledby="exclusion-{{ group.kind }}" data-tour="依資料狀態選擇不放進備審或放回。" data-tour-order="2">
+    <div class="record-group__head"><h2 id="exclusion-{{ group.kind }}">{{ group.label }}</h2><span class="muted small">{{ group.rows|length }} 筆已確認，{{ group.rows|selectattr("excluded")|list|length }} 筆不放</span></div>
+    {% if group.rows %}
+    <div class="table-wrap">
+      <table class="data-table sv2-table" data-exclusion-table>
+        <thead><tr><th>資料</th><th>目前</th><th>說明</th><th><span class="visually-hidden">操作</span></th></tr></thead>
+        <tbody>
+          {% for row in group.rows %}
+          {% set programs_text = row.lock.programs|map(attribute="school_name")|join("、") %}
+          <tr>
+            <td data-label="資料">{{ row.name }}{% if row.detail %} <small class="muted">{{ row.detail }}</small>{% endif %}</td>
+            <td data-label="目前">{% if row.excluded and not row.lock.locked %}<span class="tag tag--warn">不放進備審</span>{% else %}<span class="tag tag--ok">放進備審</span>{% endif %}</td>
+            <td data-label="說明" class="small">
+              {% if row.lock.locked %}{{ reason }}：{{ programs_text }}的簡章要求這類資料，不能排除。
+              {% elif row.lock.programs %}{{ programs_text }}{{ reason }}，就算選擇不放，仍會放進該校系的備審。
+              {% else %}<span class="muted">可以自己決定</span>{% endif %}
+            </td>
+            <td>
+              <form class="inline-form" method="post" action="{{ url_for('student.package_exclusions') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="kind" value="{{ group.kind }}">
+                <input type="hidden" name="record_id" value="{{ row.id }}">
+                {% if back_program %}<input type="hidden" name="program_id" value="{{ back_program.id }}">{% endif %}
+                {% if row.excluded %}
+                <input type="hidden" name="excluded" value="0">
+                <button class="button button--small" type="submit">放回備審</button>
+                {% else %}
+                <input type="hidden" name="excluded" value="1">
+                <button class="button button--small button--line" type="submit"{% if row.lock.locked %} disabled title="{{ reason }}，不能排除"{% endif %}>不放進備審</button>
+                {% endif %}
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="paper-empty">還沒有已確認的{{ group.label }}。</p>
+    {% endif %}
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

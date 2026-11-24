@@ -1,0 +1,27 @@
+%%{init: {'theme':'base','themeVariables': {'fontSize':'18px','fontFamily':'DFKai-SB, BiauKai, serif','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280','edgeLabelBackground':'#FFFFFF'},'flowchart':{'wrappingWidth':400}}}%%
+flowchart TD
+    classDef student fill:#DBEAFE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef staff fill:#EDE9FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef system fill:#E0F2FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef ai fill:#FFEDD5,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef alert fill:#FEE2E2,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef note fill:#FFFFFF,stroke:#9CA3AF,color:#6B7280,stroke-width:1px,stroke-dasharray:5 3;
+
+    Start([學生從學校系統下載獎懲記錄並上傳]):::student --> Read[AI 逐列讀出並分類<br/>例如「協助資管科麗山國中社團活動」→服務學習]:::ai
+    Read --> Pick[學生勾選科上派的服務<br/>申請電子獎狀]:::student
+    Other([學生申請 TA 證明<br/>系統從獎懲原文帶出課程與學期]):::student --> Draft
+    Club([經歷寫到科學會或社團]):::student --> Remind[系統提醒：科學會（社團）證明由學務處辦理<br/>填學務處表格，社團指導老師與學務處蓋章；科助與科主任都不開]:::note
+    Pick --> Draft[系統依範本自動帶入內文<br/>姓名、學號、學年度學期、服務內容、次數或時數]:::system
+    Draft --> Review[科助查看申請<br/>對照獎懲記錄或科辦自己的名單]:::staff
+    Review --> Valid{確有這筆服務？}
+    Valid -- 否 --> Return[科助或科主任退回<br/>並說明原因]:::alert
+    Return --> Pick
+    Valid -- 是 --> Edit[科助視需要修改內文<br/>建立成待核准]:::staff
+    Edit --> Approve[科主任（或副主任）按「核准」<br/>科助不能核准]:::staff
+    Approve --> Cert[系統產出電子獎狀網頁（瀏覽器列印或另存 PDF）<br/>證明類別：科上派的服務、TA（寫課程與學期，不寫時數）<br/>固定外框＋內文＋驗證碼與 QR code]:::system
+    Cert --> Student[學生下載；列入學習資料<br/>來源標示「科辦電子獎狀」]:::student
+    Cert --> Verify[任何人輸入驗證碼<br/>可在本系統驗證頁查到]:::system
+    Student --> Package([產出備審資料、AI 寫自傳時可引用])
+    Note1[現況：科辦找指導老師、指導老師找學生組隊；<br/>完成後記在學校統整的獎懲記錄（正式紀錄，可印 A4），<br/>但每件服務沒有個別獎狀。電子獎狀是補充，不取代獎懲記錄]:::note -.- Start
+    Note2[科主任只核准電子獎狀；科助審核內文；<br/>都不審備審資料（備審由導師確認）]:::note -.- Approve
+    Note3[外框參考學校電子證書：校名、證明類別、發證單位、<br/>民國日期、驗證碼位置固定；可否放學校 logo 待確認]:::note -.- Cert

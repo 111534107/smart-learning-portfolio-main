@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer with context %}
+{% from "partials/agent_hub.html" import hub_header, hub_footer, label_pill with context %}
+{% set page_name = "student-agent-hub" %}
+
+{% block title %}待辦｜小助手規劃{% endblock %}
+{% block navigation %}{{ masthead(user, "我的待辦") }}{% endblock %}
+
+{% block content %}
+{{ hub_header(tab, counts) }}
+
+<div class="hub-toolbar">
+  <div class="hub-switch" role="group" aria-label="狀態" data-tour="切換進行中或已完成的待辦。" data-tour-order="1">
+    <a href="{{ url_for('agent_plan.issues', state='open', label=label) }}"{% if state == 'open' %} aria-current="true"{% endif %}>進行中 {{ open_count }}</a>
+    <a href="{{ url_for('agent_plan.issues', state='closed', label=label) }}"{% if state == 'closed' %} aria-current="true"{% endif %}>已完成 {{ closed_count }}</a>
+  </div>
+  <div class="hub-filters" role="group" aria-label="依標籤篩選" data-tour="依標籤篩選待辦，快速找到事項。" data-tour-order="2">
+    <a class="hub-chip{% if not label %} is-on{% endif %}" href="{{ url_for('agent_plan.issues', state=state) }}">全部</a>
+    {% for key in labels %}
+    <a class="hub-chip hub-chip--{{ key }}{% if label == key %} is-on{% endif %}" href="{{ url_for('agent_plan.issues', state=state, label=key) }}">{{ labels[key].text }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+{% if rows %}
+<ol class="hub-issues">
+  {% for row in rows %}{% set todo = row.todo %}
+  <li class="hub-issue hub-issue--{{ row.label }}{% if row.closed %} is-done{% endif %}" style="--i: {{ loop.index0 }};">
+    <form method="post" {% if loop.first %}data-tour="按這裡標記完成或重新開啟待辦。" data-tour-order="3"{% endif %} action="{{ url_for('agent_plan.issue_action', plan_id=row.plan.id, index=row.index, action='reopen' if row.closed else 'close') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="next" value="{{ request.full_path }}">
+      <button class="hub-check" type="submit" aria-label="{{ '重新開啟' if row.closed else '標記完成' }}：{{ todo.title }}" title="{{ '重新開啟' if row.closed else '標記完成' }}">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12.5l4 4 8-9"/></svg>
+      </button>
+    </form>
+    <div class="hub-issue__main">
+      <p class="hub-issue__top">{{ label_pill(labels, row.label) }}<span class="hub-issue__num">#{{ row.plan.id }}-{{ row.index + 1 }}</span></p>
+      <h3 class="hub-issue__title"><a href="{{ todo.url }}">{{ todo.title }}</a></h3>
+      {% if todo.note %}<p class="hub-issue__note">{{ todo.note }}</p>{% endif %}
+      <p class="hub-issue__meta">來自 <a href="{{ url_for('agent_plan.proposal_page', plan_id=row.plan.id) }}">規劃提案 #{{ row.plan.id }}</a>
+        {% if row.created_at %}· {{ row.created_at|taipei_time }}{% endif %}
+        {% if row.closed and row.completed_at %}· {{ row.completed_at|taipei_time }} 完成{% elif row.closed %}· 資料已補齊，自動完成{% endif %}</p>
+    </div>
+    <a class="button button--small button--line hub-issue__go" href="{{ todo.url }}">{{ "再看看" if row.closed else "去處理" }} →</a>
+  </li>
+  {% endfor %}
+</ol>
+{% else %}
+<div class="hub-empty sheet">
+  {% if state == "open" and counts.total %}
+  <p class="hub-empty__big" aria-hidden="true">🎉</p>
+  <p><b>進行中的待辦都完成了。</b></p>
+  <p class="muted">資料有變動時，再請小助手規劃一次，它會找出新的缺口。</p>
+  {% elif state == "open" %}
+  <p class="hub-empty__big" aria-hidden="true">🧭</p>
+  <p><b>還沒有待辦。</b></p>
+  <p class="muted">按上方「幫我規劃下一步」，小助手會先列出要讀的資料和會建立的待辦，你按「同意執行」後才會建立。</p>
+  {% else %}
+  <p><b>還沒有完成的待辦。</b></p>
+  {% endif %}
+</div>
+{% endif %}
+
+{{ hub_footer() }}
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, page_band, footer with context %}
+{% set page_name = "forms-download" %}
+
+{% block title %}表單下載｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "表單下載") }}{% endblock %}
+
+{% block content %}
+<style>
+  .forms-group { border: 1px solid var(--line); border-radius: var(--radius); background: var(--sheet); margin-bottom: .75rem; }
+  .forms-group > summary { cursor: pointer; padding: .8rem 1rem; font-weight: 700; }
+  .forms-group > summary .muted { font-weight: 400; }
+  .forms-group ul { list-style: none; margin: 0; padding: 0 1rem .5rem; }
+  .forms-row { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; justify-content: space-between; padding: .7rem 0; border-top: 1px solid var(--line); }
+  .forms-row__text { min-width: 0; flex: 1 1 16rem; }
+  .forms-row__text p { margin: .2rem 0 0; }
+  .forms-search { display: flex; flex-wrap: wrap; gap: .5rem; align-items: end; margin-bottom: 1rem; }
+  .forms-search .field { flex: 1 1 14rem; margin: 0; }
+</style>
+<div class="page">
+  {{ page_band("表單下載") }}
+  <p class="muted">科辦上架的表單都在這裡，下載的一定是最新版。只列出開放給{{ "學生" if user.role == "student" else "老師" }}的表單。</p>
+
+  <form class="forms-search" method="get" role="search" data-tour="輸入名稱或用途，搜尋需要的表單。" data-tour-order="1">
+    <label class="field"><span class="field__label">找表單</span><input type="search" name="q" value="{{ q }}" placeholder="例如：請假、實習"></label>
+    <button class="button button--small" type="submit">搜尋</button>
+    {% if q %}<a class="button button--small button--line" href="{{ url_for('forms.form_list') }}">清除</a>{% endif %}
+  </form>
+
+  {% if groups %}
+    {% for category, items in groups %}
+    <details class="forms-group" open{% if loop.first %} data-tour="展開分類後，下載需要的最新版表單。" data-tour-order="2"{% endif %}>
+      <summary>{{ category.name }} <span class="muted">（{{ items|length }}）</span></summary>
+      <ul>
+        {% for item in items %}
+        {% set version = item.latest_version %}
+        <li class="forms-row">
+          <div class="forms-row__text">
+            <b>{{ item.title }}</b> {% if version %}<span class="tag">{{ extension(version.original_filename) }}</span>{% else %}<span class="tag">學校網站</span>{% endif %}
+            {% if item.description %}<p class="small">{{ item.description }}</p>{% endif %}
+            {% if version %}<p class="muted small">更新日期 {{ version.created_at|taipei_time("%Y-%m-%d") }}{% if version.version_no > 1 %} · 第 {{ version.version_no }} 版{% endif %}</p>{% endif %}
+            {% if item.source_url %}
+              {% if item.link_status == "broken" %}
+              <p class="small"><span class="tag tag--warn">連結可能已失效，請洽科辦</span> <span class="muted">學校網站上的這份表單目前打不開。</span></p>
+              {% else %}
+              <p class="small"><a href="{{ item.source_url }}" target="_blank" rel="noopener noreferrer">到學校網站看這份表單</a></p>
+              {% endif %}
+            {% endif %}
+          </div>
+          {% if version %}<a class="button button--small" href="{{ url_for('forms.form_download', item_id=item.id) }}">下載</a>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% endfor %}
+  {% elif q %}
+    <p class="notice notice--warn">找不到符合「{{ q }}」的表單，換個關鍵字試試。</p>
+  {% else %}
+    <p class="notice notice--warn">目前沒有開放給你的表單。</p>
+  {% endif %}
+  {# 2026-11-13 使用者決定：表單由系統從學校網站抓；學校網站上沒有的，請學生到科辦拿紙本 #}
+  <p class="notice mt-1" data-paper-forms>這裡的表單都是從學校與資管科網站整理來的。<b>找不到要用的表單，請到科辦拿紙本填寫。</b></p>
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

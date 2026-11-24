@@ -1,0 +1,403 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% set page_name = "student-internship-resume" %}
+
+{% block title %}實習履歷｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "我的五年") }}{% endblock %}
+
+{% block content %}
+{{ page_band("實習履歷", [("我的五年", url_for('main.student_dashboard'))]) }}
+<div class="page page--banded resume-page resume-page--editor" data-resume-page>
+  {% if locked %}
+  <section class="sheet">
+    <p><b>專四上學期才會用到實習履歷。</b>到時候首頁會多一個按鈕，把你這幾年確認過的資料填進學校的格式。</p>
+    <p class="small muted">現在先把成績單、證照、活動一筆一筆確認好，到時候就不用從零開始。</p>
+    <p><a class="button button--line" href="{{ url_for('main.student_dashboard') }}">回我的五年</a></p>
+  </section>
+  {% else %}
+  <section class="resume-lead">
+    <svg class="resume-lead__piece" viewBox="-30 -30 160 160" aria-hidden="true"><path d="{{ piece_d }}"/></svg>
+    <div>
+      <h2>整理你的學校格式實習履歷</h2>
+      <p>左邊是學校格式的履歷，右邊是你的資料：拖進去、貼圖，不想放的取消勾選，最後下載 Word。</p>
+    </div>
+  </section>
+
+  {% macro slot(name, label, ref="", student_id=0) %}
+  <div class="rz-slot" data-image-slot>
+    <input type="hidden" name="{{ name }}" value="{{ ref }}" data-slot-input>
+    <div class="rz-slot__view" data-slot-view>{% if ref %}<img src="{{ url_for('student.autobiography_image', student_id=user.id, image_id=ref) }}" alt="{{ label }}">{% else %}<span class="small muted">{{ label }}</span>{% endif %}</div>
+    <div class="rz-slot__actions">
+      <button type="button" class="button button--small button--line" data-slot-put>放選好的圖</button>
+      <label class="button button--small button--line">{{ '選圖片' if name == 'photo' else '選圖片或 PDF' }}<input type="file" accept="image/png,image/jpeg,image/webp{% if name != 'photo' %},application/pdf,.pdf{% endif %}" hidden data-slot-file></label>
+      <button type="button" class="button button--small button--quiet" data-slot-clear>不放</button>
+    </div>
+  </div>
+  {% endmacro %}
+  {% macro gridcell(kind, i, image, text, hint) %}
+  <td class="rz-gridcell" data-zone="name">
+    <button type="button" class="rz-cellremove" data-grid-remove title="拿掉這一格" aria-label="拿掉這一格">×</button>
+    {{ slot(kind ~ "_image_" ~ i, (("證照圖片 " if kind == "certimg" else "競賽圖片 ") ~ (i + 1)), image) }}
+    <input class="rz-input rz-input--wide rz-caption" name="{{ kind }}_{{ 'name' if kind == 'certimg' else 'caption' }}_{{ i }}" value="{{ text }}" placeholder="{{ hint }}" aria-label="{{ hint }} {{ i + 1 }}" maxlength="120" data-name-input>
+  </td>
+  {% endmacro %}
+  {% macro gridblock(kind, entries, hint) %}
+  <div data-grid="{{ kind }}" data-hint="{{ hint }}">
+    <input type="hidden" name="{{ kind }}_count" value="{{ entries|length }}" data-grid-count>
+    <div class="rz-frame rz-frame--double">
+    <table class="rz-table rz-grid2">
+      <tbody data-grid-body>
+      {% for entry in entries %}{% if loop.index0 is even %}<tr>{% endif %}
+        {{ gridcell(kind, loop.index0, entry.image, (entry.name if kind == "certimg" else entry.caption), hint) }}
+      {% if loop.index0 is odd or loop.last %}</tr>{% endif %}{% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <p class="rz-addbar"><button type="button" class="button button--small button--line" data-grid-add="1">＋ 新增一格</button>
+      <button type="button" class="button button--small button--line" data-grid-add="2">＋ 新增一列（兩格）</button></p>
+    <template data-grid-template>{{ gridcell(kind, 99999, "", "", hint) }}</template>
+  </div>
+  {% endmacro %}
+
+  {% set d = draft %}
+  {% if request.args.get("reset") %}<p class="notice" role="status">已清空，從空白重新填寫。之前存的版本仍保留，導師看得到的是最新這份。</p>{% endif %}
+  <form id="rz-reset-form" method="post" action="{{ url_for('student.internship_resume_reset') }}" class="rz-reset rz-reset--hidden" data-confirm="確定要清空整份實習履歷、從空白重新填寫嗎？之前存的版本會保留，但畫面會回到空白。">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  </form>
+  <form method="post" action="{{ url_for('student.internship_resume') }}" class="resume-form rz" data-resume-form data-import-url="{{ url_for('student.internship_resume_import', document_id=0) }}" data-family-url="{{ url_for('student.internship_resume_family') }}" data-bio-generate-url="{{ url_for('student.internship_resume_bio_generate') }}" data-upload-url="{{ url_for('student.autobiography_image_upload') }}" data-pdf-url="{{ url_for('student.internship_resume_pdf') }}" data-view-url="{{ url_for('student.autobiography_image', student_id=user.id, image_id='IMAGE_ID') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if cloud_state == "drive" %}<p class="notice" role="status">已把這一份實習履歷（Word）存到你的 Google 雲端硬碟。</p>
+    {% elif cloud_state == "local" %}<p class="notice notice--warn" role="status">你的 Google 雲端硬碟還沒連線，這一份先存在系統裡（本機）。連線後再按一次「存到我的雲端」就會存到雲端硬碟。</p>
+    {% elif cloud_state == "fail" %}<p class="alert" role="alert">這次沒存成功，草稿還在，請稍後再按一次。</p>{% endif %}
+    {% if just_saved %}<p class="notice" role="status">已儲存草稿。導師可以在你的學生頁看到這一份（唯讀）。</p>{% endif %}
+    <div class="rz-bar rz-editonly">
+      <p class="small muted" data-resume-count></p>
+      <button class="button button--line" type="submit" name="action" value="save">儲存草稿</button>
+      <button class="button button--line" type="submit" name="action" value="cloud" title="做好的 Word 存到你自己的雲端硬碟資料夾">存到我的雲端</button>
+      <button class="button" type="submit" name="action" value="download" data-tour="都放好了，從這裡下載 Word。" data-tour-order="5">下載學校格式的實習履歷（Word）</button>
+      <button class="rz-reset-button" type="submit" form="rz-reset-form" data-tour="想重來按這裡，會先問你確認。" data-tour-order="9" data-confirm="確定要清空整份實習履歷、從空白重新填寫嗎？之前存的版本會保留，但畫面會回到空白。">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zm-2 6h10l-1 10H8L7 9zm3 2v6h2v-6h-2zm4 0v6h2v-6h-2z"/></svg>
+        清空重填
+      </button>
+    </div>
+
+    <details class="rz-help">
+      <summary>怎麼用（點開看）</summary>
+      {% set passed = options.courses|selectattr("status", "equalto", "pass")|list %}
+      {% set failed = options.courses|selectattr("status", "equalto", "fail")|list %}
+      {% set assumed = options.courses|selectattr("status", "equalto", "assumed")|list %}
+      {% set unknown = options.courses|selectattr("status", "equalto", "unknown")|list %}
+      <ul class="rz-help__list">
+        <li>左邊是學校格式的履歷，空格直接填；右邊「我的資料」拖進格子，不想放就取消勾選。</li>
+        <li>圖片可以貼上、拖進來或選檔案；成績單橫的會自動轉直。缺曠記錄直接貼查詢截圖。</li>
+        <li>自傳可自由書寫，也可參考學校建議的段落。{% if options.bio %}參考格式已帶入你在系統裡的自傳第 {{ options.bio.version }} 版。{% else %}系統不會替你寫空白段落。{% endif %}</li>
+        <li>PDF 每份最多 8 頁、6 MB。成績單最多放 4 頁；其他格子先放第一頁，其餘頁面可從收納匣選用。</li>
+      </ul>
+      <ul class="resume-courses" data-core-courses>
+        <li class="resume-courses__pass"><b>及格，填學分 {{ passed|length }} 科</b>{% if passed %}<span>{{ passed|map(attribute="name")|join("、") }}</span>{% endif %}</li>
+        <li class="resume-courses__fail"><b>不及格，會刪掉 {{ failed|length }} 科</b>{% if failed %}<span>{{ failed|map(attribute="name")|join("、") }}</span>{% endif %}</li>
+        <li class="resume-courses__unknown"><b>還沒有成績，先照學校格式填學分 {{ assumed|length }} 科</b><span>上傳成績單後會核對，不及格的自動刪掉。</span></li>
+        {% if unknown %}<li class="resume-courses__unknown"><b>你的學年度科目表沒有這幾科，學分留白 {{ unknown|length }} 科</b><span>{{ unknown|map(attribute="name")|join("、") }}</span></li>{% endif %}
+      </ul>
+      <p class="small muted">核心科目依<a href="{{ fill_source[1] }}" target="_blank" rel="noopener">資管科實習申請表填寫說明</a>；格式出處：<a href="{{ form_source[1] }}" target="_blank" rel="noopener">{{ form_source[0] }}</a>。</p>
+    </details>
+
+    <div class="rz-layout">
+      <div class="rz-paper" data-paper data-tour="這是學校格式的履歷，空格直接填。" data-tour-order="1">
+        {# 版面照資管科「02_學生實習履歷」：封面、履歷表、自傳、成績單、證照、（競賽）、缺曠記錄，A4 直式、白底黑字、標楷體 #}
+        {% set ns = namespace(m={}) %}
+        {% for course in options.courses %}{% set _ = ns.m.update({ (course.row ~ "-" ~ course.pair): course }) %}{% endfor %}
+
+        <section class="rz-page rz-cover" data-focus-page="basic" aria-label="封面">
+          <p class="rz-cover__school">康寧學校財團法人康寧大學</p>
+          <p class="rz-cover__dept">資訊管理科</p>
+          <img class="rz-cover__logo" src="{{ url_for('static', filename='img/mis-logo.png') }}" alt="資管科標誌">
+          <h2 class="rz-cover__title">實習申請履歷</h2>
+          <p class="rz-cover__line"><span>學號：</span><b>{{ options.student_no }}</b></p>
+          <p class="rz-cover__line"><span>姓名：</span><b>{{ options.name }}</b></p>
+          <p class="rz-cover__period"><label>實習期間：中華民國 <input class="rz-input rz-input--wide" name="period" value="{{ d.period }}" placeholder="例如 115年2月23日至6月26日" maxlength="120"></label></p>
+        </section>
+
+        <section class="rz-page" data-focus-page="basic" aria-labelledby="resume-basic">
+          <p class="rz-head">康寧學校財團法人康寧大學</p>
+          <p class="rz-head">資訊管理科</p>
+          <h2 id="resume-basic" class="rz-head rz-head--title">實習生履歷表</h2>
+          <table class="rz-table rz-sheet">
+            <tr>
+              <td class="rz-cell-lg"><b>學號：</b>{{ options.student_no }}</td>
+              <td class="rz-cell-lg"><b>姓名：</b>{{ options.name }}</td>
+              <td colspan="2" class="rz-cell-lg"><b>出生日期：</b><input class="rz-input rz-input--s" name="birth_0" value="{{ d.birth[0] }}" inputmode="numeric" maxlength="3" aria-label="出生年"> 年 <input class="rz-input rz-input--s" name="birth_1" value="{{ d.birth[1] }}" inputmode="numeric" maxlength="2" aria-label="出生月"> 月 <input class="rz-input rz-input--s" name="birth_2" value="{{ d.birth[2] }}" inputmode="numeric" maxlength="2" aria-label="出生日"> 日</td>
+            </tr>
+            <tr>
+              <td colspan="3" class="rz-cell-contact">
+                <p><b>連絡電話：</b><input class="rz-input rz-input--wide" name="phone" value="{{ d.phone }}" inputmode="tel" maxlength="30" aria-label="連絡電話"></p>
+                <p class="rz-gender"><b>性別：</b><label><input type="radio" name="gender" value="男"{% if d.gender == "男" %} checked{% endif %}> 男</label>　<label><input type="radio" name="gender" value="女"{% if d.gender == "女" %} checked{% endif %}> 女</label></p>
+                <p><b>電子信箱：</b><input class="rz-input rz-input--wide" name="email" type="email" value="{{ d.email or options.email }}" maxlength="80" aria-label="電子信箱"></p>
+              </td>
+              <td class="rz-cell-photo"><b>照片</b>{{ slot("photo", "拖曳、貼上或選一張大頭照", d.photo) }}</td>
+            </tr>
+            <tr><td colspan="4"><b>地址：</b>
+              {% for kinds in drafts.ADDRESS_KINDS %}
+              {% set i = loop.index0 %}
+              <span class="rz-address-part"><input class="rz-input rz-input--s" name="addr_{{ i }}" value="{{ d.address[i] }}" aria-label="{{ '縣市名稱' if i == 0 else '區鄉鎮市名稱' }}">
+              <select name="addr_kind_{{ i }}" aria-label="{{ '選擇縣或市' if i == 0 else '選擇區、鄉、鎮或市' }}">
+                <option value="">{{ '縣／市' if i == 0 else '區／鄉／鎮／市' }}</option>
+                {% for kind in kinds %}<option{% if d.address_kinds[i] == kind %} selected{% endif %}>{{ kind }}</option>{% endfor %}
+              </select></span>
+              {% endfor %}
+              <input class="rz-input rz-input--mid" name="addr_2" value="{{ d.address[2] }}" aria-label="路街門牌">
+            </td></tr>
+            <tr><th colspan="4" class="rz-band">已修習專業核心科目</th></tr>
+          </table>
+          <table class="rz-table rz-courses" aria-label="已修習專業核心科目">
+            <thead><tr><th>科目名稱</th><th>學分</th><th>科目名稱</th><th>學分</th><th>科目名稱</th><th>學分</th></tr></thead>
+            <tbody>
+              {% for r in range(5, 15) %}
+              <tr>
+                {% for pair in range(3) %}{% set c = ns.m.get(r ~ "-" ~ pair) %}
+                <td{% if c and c.status == "fail" %} class="is-removed"{% endif %}>{% if c and c.status != "fail" %}{{ c.name }}{% endif %}</td>
+                <td class="rz-credit">{% if c and c.status in ("pass", "assumed") %}{{ c.credit }}{% endif %}</td>
+                {% endfor %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          <table class="rz-table rz-sheet">
+            <tr><th class="rz-band rz-label">操行平均成績</th><td class="rz-conduct">{% for c in drafts.CONDUCT %}<label><input type="radio" name="conduct" value="{{ c }}"{% if d.conduct == c %} checked{% endif %}> {{ c }}</label>{% endfor %}</td></tr>
+          </table>
+          <table class="rz-table rz-sheet">
+            <tr><th colspan="4" class="rz-band">相　關　證　照</th></tr>
+            <tr class="rz-cols-head">{% for key, label in options.columns %}<th>{{ label }}</th>{% endfor %}</tr>
+            {% set cert_rows = (d.certcells.labor|length if d.certcells else 6) %}
+            <input type="hidden" name="certcells_present" value="1">
+            <input type="hidden" name="certrows" value="{{ cert_rows }}" data-certrows>
+            {% for n in range(cert_rows) %}<tr>{% for key, label in options.columns %}{% set names = (d.certcells[key] if d.certcells else options.credentials|selectattr("column", "equalto", key)|map(attribute="name")|list) %}<td class="rz-zone rz-certcell" data-zone="col:{{ key }}" data-cert-cell="{{ key }}:{{ n }}"><input class="rz-input rz-cellinput" name="cert_{{ key }}_{{ n }}" value="{{ names[n] if n < names|length else '' }}" maxlength="120" data-cert-input aria-label="{{ label }} 第 {{ n + 1 }} 格"></td>{% endfor %}</tr>{% endfor %}
+            <tr>
+              <th class="rz-label">語文能力</th>
+              <td colspan="3" class="rz-langs">
+                <div class="rz-langgrid">
+                {% for key, label in drafts.LANGUAGES %}<span class="rz-lang">{{ label }}　{% for level in drafts.LEVELS %}<label><input type="radio" name="{{ key }}" value="{{ level }}"{% if d.langs[key] == level %} checked{% endif %}> {{ level }}</label>{% endfor %}</span>{% endfor %}
+                </div>
+              </td>
+            </tr>
+          </table>
+          <p class="rz-addbar rz-editonly"><button type="button" class="button button--small button--line" data-certrow-add>＋ 相關證照多一列</button>
+            <button type="button" class="button button--small button--line" data-certrow-remove>－ 少一列</button></p>
+        </section>
+
+        <section class="rz-page rz-framed rz-bio-page" data-focus-page="bio" aria-labelledby="resume-bio">
+          <div class="rz-frame">
+          <h2 id="resume-bio" class="rz-head rz-head--title">自傳</h2>
+          <div class="rz-bio-assist rz-editonly" data-bio-assist>
+            <button type="button" class="rz-bio-assist__button" data-bio-generate data-tour="填好資料後按這裡，小助手整理四段自傳。" data-tour-order="6">請小助手依我勾選的資料生成自傳</button>
+            <p class="rz-bio-assist__status" role="status" aria-live="polite" data-bio-status></p>
+            <p class="rz-bio-assist__note" role="status" aria-live="polite" data-bio-note></p>
+            <p class="rz-bio-assist__success" role="status" aria-live="polite" data-bio-success></p>
+          </div>
+          <label>撰寫方式 <select name="bio_mode" data-bio-mode>
+            <option value="guided"{% if not saved or saved.get("bio_mode", "guided") == "guided" %} selected{% endif %}>參考學校建議段落</option>
+            <option value="free"{% if saved and saved.get("bio_mode") == "free" %} selected{% endif %}>自由撰寫</option>
+          </select></label>
+          <div data-bio-format="guided">
+          {% for section in options.sections %}
+          <div class="resume-section rz-zone rz-bio{% if section.key == 'family' %} rz-bio--own{% endif %}" data-resume-section="{{ section.key }}" data-zone="sec:{{ section.key }}">
+            <label class="resume-section__title" for="text-{{ section.key }}">{{ section.title }}</label>
+            {% if section.key in ("family", "future") %}
+            <p class="rz-bio-field-note rz-editonly">這是學校格式固定的項目，內容只有你自己知道，小助手不會替你編；一兩句就可以，也可以先留白。</p>
+            {% endif %}
+            <button class="button rz-mobile-save" type="submit" name="action" value="save">儲存草稿</button>
+            <textarea id="text-{{ section.key }}" name="text_{{ section.key }}" rows="5" maxlength="3000" data-bio-area{% if section.key != "family" %} placeholder="把右邊的卡片拖進來"{% endif %}>{{ saved.texts.get(section.key, section.text) if saved else section.text }}</textarea>
+            {% if section.key in ("family", "future") %}<p class="rz-bio-hint rz-editonly" data-bio-hint="{{ section.key }}" aria-live="polite"></p>{% endif %}
+            <ul class="rz-lines" data-zone-list="sec:{{ section.key }}"></ul>
+            <div class="resume-section__preview" data-section-preview="{{ section.key }}" aria-live="polite"></div>
+          </div>
+          {% endfor %}
+          </div>
+                    <label class="resume-section rz-bio" data-bio-format="free">自傳內容
+            <button class="button rz-mobile-save" type="submit" name="action" value="save">儲存草稿</button>
+            <textarea name="text_free" rows="10" maxlength="3000">{{ saved.texts.get("free", "") if saved else "" }}</textarea>
+          </label>
+          <div class="resume-section__preview rz-free-preview rz-editonly" data-free-preview aria-live="polite"></div>
+          </div>
+        </section>
+
+        <input type="hidden" name="inc_present" value="1">
+        <div class="rz-pagewrap" data-page="transcript">
+          <label class="rz-pagebar"><input type="checkbox" name="inc_transcript" value="1" data-include="transcript"{% if d.include.transcript %} checked{% endif %}> 這一頁放進履歷（成績單）；不放就取消勾選，下載時整頁拿掉</label>
+        <section class="rz-page rz-framed rz-transcript" data-focus-page="transcript" aria-labelledby="resume-transcript">
+          <div class="rz-frame">
+          <h2 id="resume-transcript" class="rz-head rz-head--title">成績單</h2>
+          <div class="rz-multi" data-multi="transcript_image" data-max="{{ drafts.TRANSCRIPT_MAX }}" data-rotate-url="{{ url_for('student.autobiography_image_rotate', image_id='IMAGE_ID') }}">
+            {% for ref in d.transcript %}<figure class="rz-multi__item"><img src="{{ url_for('student.autobiography_image', student_id=user.id, image_id=ref) }}" alt="成績單"><input type="hidden" name="transcript_image" value="{{ ref }}"><span class="rz-multi__tools"><button type="button" class="button button--small button--line" data-multi-rotate>轉 90 度</button><button type="button" class="button button--small button--quiet" data-multi-remove>不放</button></span></figure>{% endfor %}
+          </div>
+          <p class="rz-actions"><button type="button" class="button button--small button--line" data-multi-put="transcript_image">放選好的圖</button>
+            <label class="button button--small button--line">選圖片或 PDF<input type="file" accept="image/png,image/jpeg,image/webp,application/pdf,.pdf" hidden multiple data-multi-file="transcript_image"></label>
+            <span class="rz-actions__hint">橫的成績單會自動轉成直的</span></p>
+          </div>
+        </section>
+        </div>
+
+        <div class="rz-pagewrap" data-page="cert">
+          <label class="rz-pagebar"><input type="checkbox" name="inc_cert" value="1" data-include="cert"{% if d.include.cert %} checked{% endif %}> 這一頁放進履歷（證照）；不放就取消勾選，下載時整頁拿掉</label>
+        <section class="rz-page rz-framed rz-bio-page" data-focus-page="cert" aria-labelledby="resume-certimg">
+          <h2 id="resume-certimg" class="rz-head rz-head--title">證照</h2>
+          {{ gridblock("certimg", d.certimg, "證照名稱（可拖右邊的證照進來）") }}
+        </section>
+        </div>
+
+        <div class="rz-pagewrap" data-page="contest">
+          <label class="rz-pagebar"><input type="checkbox" name="inc_contest" value="1" data-include="contest"{% if d.include.contest %} checked{% endif %}> 這一頁放進履歷（競賽）；不放就取消勾選，下載時整頁拿掉</label>
+        <section class="rz-page rz-framed rz-bio-page" data-focus-page="contest" aria-labelledby="resume-contest">
+          <h2 id="resume-contest" class="rz-head rz-head--title">競賽</h2>
+          {{ gridblock("contest", d.contest, "競賽名稱與獎項（可拖右邊的競賽進來）") }}
+        </section>
+        </div>
+
+        <div class="rz-pagewrap" data-page="absence">
+          <label class="rz-pagebar"><input type="checkbox" name="inc_absence" value="1" data-include="absence"{% if d.include.absence %} checked{% endif %}> 這一頁放進履歷（缺曠記錄）；不放就取消勾選，下載時整頁拿掉</label>
+        <section class="rz-page rz-absence" data-focus-page="absence" aria-labelledby="resume-abs">
+          <h2 id="resume-abs" class="rz-head rz-head--title">缺曠記錄</h2>
+          <div class="rz-absence__tools rz-editonly" data-absence-tools>
+            <label class="button button--line rz-absence__button" for="absence-read-file" data-tour="上傳缺曠截圖，自動填好各項時數。" data-tour-order="7">從截圖自動填入</label>
+            <input id="absence-read-file" class="rz-visually-hidden-file visually-hidden" type="file" accept="image/*,application/pdf" data-absence-file aria-hidden="true" tabindex="-1">
+            <button type="button" class="button button--line rz-absence__button" data-absence-saved data-tour="或用已登錄的缺曠合計填入。" data-tour-order="8">用我已登錄的缺曠合計填入</button>
+          </div>
+          <p class="rz-absence__status rz-editonly" role="status" aria-live="polite" data-absence-status></p>
+          <table class="rz-table rz-abs-table" aria-label="缺曠記錄時數表">
+            <tr><th>項目</th><th>時數</th></tr>
+            {% for label in drafts.ABSENCE_ROWS %}
+            <tr>
+              <td>{{ label }}{% if loop.last %}<span class="rz-abs-total-wrap"><button type="button" class="rz-abs-total-help" aria-label="總計說明" aria-describedby="rz-abs-total-tip">?</button><span id="rz-abs-total-tip" class="rz-abs-total-tip" role="tooltip">總計是學校查詢畫面的『至今缺課總時數』，不是上面各項相加</span></span>{% endif %}</td>
+              <td><input class="rz-abs-hour" type="text" name="abs_{{ loop.index0 }}" value="{{ d.absence.rows[loop.index0] }}" inputmode="numeric" pattern="[0-9]*" maxlength="6" aria-label="{{ label }}時數" data-absence-hour></td>
+            </tr>
+            {% endfor %}
+          </table>
+          <p class="rz-absence__success rz-editonly" role="status" aria-live="polite" data-absence-success></p>
+          <p class="rz-abs__caption">登錄學生資訊服務系統→缺曠記錄查詢截圖 (如下)<br>（查詢區間：<input class="rz-input" name="abs_range" value="{{ d.absence.range }}" placeholder="例如 1132至1141" maxlength="40" aria-label="查詢區間">學期）</p>
+          <p class="rz-absence__note rz-editonly">這行是學校格式的固定文字；查詢區間會在貼截圖後自動帶入，請核對</p>
+          <div class="rz-shot">{{ slot("abs_image", "貼上缺曠記錄查詢截圖或上傳 PDF", d.absence.image) }}</div>
+        </section>
+        </div>
+      </div>
+
+      <aside class="rz-side" data-side data-tour="右邊是你的資料，拖進左邊的格子就好。" data-tour-order="2" aria-label="我的資料">
+        <button type="button" class="rz-side__handle" data-side-toggle aria-expanded="false" aria-controls="rz-side-body">我的資料<span class="rz-side__handle-hint" data-side-hint></span><span aria-hidden="true" class="rz-side__chev">▲</span></button>
+        <h2 class="rz-side__title">我的資料</h2>
+        <p class="small muted">拖到左邊的格子，或用卡片上的選單與按鈕；<b>不想放的就取消勾選</b>。</p>
+
+        <section data-for="bio" class="rz-side__block rz-assist" data-tour="不知道家庭生活怎麼寫？說給小助手聽，它幫你整理。" data-tour-order="3">
+          <h3>家庭生活與未來生涯規劃</h3>
+          <p class="small muted">這是學校格式固定的項目，內容只有你自己知道，小助手不會替你編；一兩句就可以，也可以先留白。</p>
+        </section>
+
+        <section data-for="basic cert" class="rz-side__block">
+          <h3>證照（{{ options.credentials|length }}）</h3>
+          {% if options.credentials %}
+          <ul class="resume-picks">
+            {% for item in options.credentials %}
+            <li class="resume-pick" data-pick draggable="true" data-card="cred" data-label="{{ item.name }}" data-cred-id="{{ item.id }}">
+              <label class="resume-pick__main">
+                <input type="checkbox" name="cred" value="{{ item.id }}"{% if not saved or item.id in saved.credentials|map(attribute="id") %} checked{% endif %} data-pick-box data-line="證照：{{ item.name }}" data-section="skill">
+                <span>{{ item.name }}</span>
+              </label>
+              {% if item.doc_id %}<button type="button" class="button button--small button--line" data-cred-doc="{{ item.doc_id }}">放進證照圖片（附原檔）</button>{% endif %}
+              <label class="resume-pick__col"><span class="visually-hidden">{{ item.name }}填在哪一欄</span>
+                <select name="col_{{ item.id }}" data-col-select>
+                  {% for key, label in options.columns %}<option value="{{ key }}"{% if key == item.column %} selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+              </label>
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="muted">還沒有確認過的證照。<a href="{{ url_for('student.learning_profile_upload_page', type='credential') }}">上傳證照</a>後這裡就會出現。</p>
+          {% endif %}
+        </section>
+
+        <section data-for="bio contest" class="rz-side__block">
+          <h3>經歷與競賽（{{ options.experiences|length }}）</h3>
+          {% if options.experiences %}
+          <ul class="resume-picks">
+            {% for item in options.experiences %}
+            <li class="resume-pick" data-pick draggable="true" data-card="exp" data-label="{{ item.title }}">
+              <label class="resume-pick__main">
+                <input type="checkbox" name="exp" value="{{ item.id }}"{% if not saved or item.id in saved.experiences|map(attribute="id") %} checked{% endif %} data-pick-box data-line="{{ item.line }}" data-section="{{ item.section }}">
+                <span><small>{{ item.grade_label }}・{{ item.kind }}</small>{{ item.title }}</span>
+              </label>
+              <label class="resume-pick__col"><span class="visually-hidden">{{ item.title }}放在哪一段自傳</span>
+                <select name="expsec_{{ item.id }}" data-sec-select>
+                  {% for section in options.sections %}<option value="{{ section.key }}"{% if section.key == item.section %} selected{% endif %}>{{ section.title }}</option>{% endfor %}
+                </select>
+              </label>
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}<p class="muted">還沒有確認過的經歷。</p>{% endif %}
+        </section>
+
+        {% if options.bio_paragraphs %}
+        <section data-for="bio" class="rz-side__block">
+          <h3>系統裡的自傳（第 {{ options.bio.version }} 版）</h3>
+          <p class="small muted">每一段是一張卡，拖到左邊的自傳格子（求學、專長、未來規劃），或用卡片上的選單與按鈕放進去。</p>
+          <ul class="resume-picks">
+            {% for para in options.bio_paragraphs %}
+            <li class="resume-pick" data-pick draggable="true" data-card="para" data-label="{{ para.title }}" data-text="{{ para.text }}">
+              <span class="resume-pick__main"><span><small>{{ para.title or "自傳段落" }}</small>{{ para.text[:60] }}{% if para.text|length > 60 %}…{% endif %}</span></span>
+              <label class="resume-pick__col"><span class="visually-hidden">放在哪一項</span>
+                <select data-para-select>
+                  {% for section in options.sections %}<option value="{{ section.key }}"{% if section.key == para.section %} selected{% endif %}>{{ section.title }}</option>{% endfor %}
+                </select>
+              </label>
+              <button type="button" class="button button--small button--line" data-para-put>放進去</button>
+            </li>
+            {% endfor %}
+          </ul>
+        </section>
+        {% endif %}
+
+                {% if options.documents %}
+        <section data-for="transcript cert basic" class="rz-side__block">
+          <h3>我上傳的原始檔（{{ options.documents|length }}）</h3>
+          <p class="small muted">按「加到收納匣」，再拖進左邊的成績單或證照圖片格子。</p>
+          <ul class="resume-picks">
+            {% for doc in options.documents %}
+            <li class="resume-pick"><span class="resume-pick__main"><span><small>{{ doc.kind }}</small>{{ doc.name }}</span></span>
+              <button type="button" class="button button--small button--line" data-doc-import="{{ doc.id }}">加到收納匣</button></li>
+            {% endfor %}
+          </ul>
+        </section>
+        {% endif %}
+
+        <section data-for="basic transcript cert contest absence" class="rz-side__block" data-tour="圖片先放這裡，再拖到格子；也可以直接貼上。" data-tour-order="4">
+          <h3>圖片收納匣</h3>
+          <p class="small muted">把圖片拖進來、貼上（Ctrl+V）或選檔案；點一張選起來，再按左邊格子的「放選好的圖」，或直接把圖拖到格子上。</p>
+          <div class="rz-tray" data-tray tabindex="0" aria-label="圖片收納匣，可貼上或拖入圖片"></div>
+          <label class="button button--small button--line">選檔案<input type="file" accept="image/png,image/jpeg,image/webp" hidden multiple data-tray-file></label>
+          <p class="small" role="status" data-tray-status></p>
+        </section>
+      </aside>
+    </div>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}
+
+{% block scripts %}<script src="{{ url_for('static', filename='js/home-desk.js') }}" defer></script><script src="{{ url_for('static', filename='js/resume-editor.js') }}" defer></script>
+<script>
+  (function () {
+    var mobile = window.matchMedia("(max-width: 899px)");
+    document.addEventListener("focusin", function (e) {
+      if (!mobile.matches || !e.target || !e.target.matches) return;
+      if (e.target.matches("textarea[name^=text_]")) {
+        window.setTimeout(function () {
+          var rect = e.target.getBoundingClientRect();
+          var absTop = window.scrollY + rect.top;
+          window.scrollTo({ top: Math.max(0, absTop - 90), behavior: "instant" });
+        }, 80);
+      }
+    });
+  })();
+</script>{% endblock %}

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "teacher-targets" %}
+{% set nav_active = "目標校系" %}
+
+{% block title %}{{ title }}｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, nav_active) }}{% endblock %}
+
+{% block content %}
+<section class="work-shell work-shell--wide" data-work-role="teacher">
+  <header class="work-heading" data-tour="這一頁看本班學生選了哪些目標學校與科系。" data-tour-order="1">
+    <div><h1>目標校系</h1><p>{% if classes %}負責班級：{{ classes|join("、") }}。{% endif %}只代表有意願，不等於報名。</p></div>
+  </header>
+  {% include "partials/teacher_class_filter.html" %}
+  {% if class_rows %}
+  <section class="work-panel" id="target-statistics" data-target-statistics>
+    <div class="work-panel__head"><div><h2>本班目標學校統計</h2><p>依學生目前選的目標校系統計，只代表有意願，不等於報名。同一位學生選同一所學校的好幾個科系，學校只算一次；一人可選多校，加總可能超過班級人數。</p></div></div>
+    {% if target_statistics %}
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>學校</th><th>選的人數</th><th>科系（人數）</th></tr></thead>
+        <tbody>
+          {% for school in target_statistics %}
+          <tr><td><b>{{ school.school }}</b></td><td>{{ school.count }} 人</td><td class="small">{% for d in school.departments %}{{ d.name }}（{{ d.count }}）{% if not loop.last %}、{% endif %}{% endfor %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="muted">本班學生還沒有選目標校系。</p>
+    {% endif %}
+  </section>
+  {% else %}
+  <p class="work-empty"><strong>還沒有負責的班級。</strong><span>請系統管理者在「導師班級」設定。</span></p>
+  {% endif %}
+</section>
+{% endblock %}

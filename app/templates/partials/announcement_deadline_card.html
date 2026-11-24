@@ -1,0 +1,5 @@
+{# 二技公告（UC-25）：科辦數字卡。截止日由 Agent 核准的日程帶出，抓不到寫「簡章未載明」；截止過後不顯示。 #}
+{% set _deadline = announcement_home(user).deadline %}
+{% if _deadline %}
+<a class="work-metric work-metric--link" data-admission-deadline href="{{ url_for('certificate.staff_list') }}"><span>二技截止前未核准的電子獎狀</span><strong>{{ staff_pending_certificates }}</strong><small>{% if _deadline.deadline %}寄送備審 {{ _deadline.label }} 截止{% else %}截止日：{{ _deadline.label }}{% endif %}</small></a>
+{% endif %}

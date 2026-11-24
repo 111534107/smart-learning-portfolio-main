@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% from "partials/record_fields.html" import record_fields %}
+{% from "partials/files.html" import upload_field, evidence_grid, lightbox with context %}
+{# 新增和編輯共用這一頁：portfolio 是 None 就是新增。 #}
+{% set page_name = "student-portfolio-edit" if portfolio else "student-portfolio-new" %}
+{% set page_title = "編輯經歷" if portfolio else "新增經歷" %}
+
+{% block title %}{{ page_title }}｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "活動與經歷") }}{% endblock %}
+
+{% block content %}
+{{ page_band(page_title, [("活動與經歷", url_for('student.portfolio_list'))], note=portfolio.title if portfolio else "") }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/student-v2/portfolio.css') }}">
+<div class="page narrow page--banded pf-form" data-pf-form>
+  <section class="sheet">
+    <p class="pf-form__lead small muted"><span class="sv2-editable"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>可直接修改</span> 有框的地方點進去就能打字{% if portfolio %}；佐證檔案可以直接拖進這一頁{% endif %}。</p>
+    {% if request.args.get("locked") %}<p class="alert mb-1" role="alert">{{ locked_message }}</p>{% endif %}
+    {% if error %}
+    <div class="mb-1">
+      <p class="alert" role="alert">{{ error }}</p>
+      <div class="record-card__actions"><a class="button button--small" href="#record-form">回到必填欄位</a></div>
+    </div>
+    {% endif %}
+  <form id="record-form" method="post" class="form-stack" action="{{ url_for('student.portfolio_edit', portfolio_id=portfolio.id) if portfolio else url_for('student.portfolio_list') }}" data-tour="填寫這筆活動的類型、時間與內容。" data-tour-order="1">
+      {% if not portfolio %}{% if next_path %}<input type="hidden" name="next" value="{{ next_path }}">{% endif %}{% endif %}
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {{ record_fields(categories, category_labels, values) }}
+      <p class="small muted">確認過的經歷才會被 AI 寫進自傳；之後再修改，要重新確認。</p>
+      <div class="record-card__actions">
+      <button class="button" type="submit" name="confirm" value="1" data-tour="資料核對無誤後，確認並儲存。" data-tour-order="2">確認並儲存</button>
+      <button class="button button--line" type="submit" data-tour="還沒寫完時，先存成草稿。" data-tour-order="3">先存成草稿</button>
+        <a class="button button--line" href="{{ url_for('student.portfolio_list') }}">取消</a>
+      </div>
+    </form>
+  </section>
+
+  {% set cert_kinds = certificate_kinds(portfolio) if portfolio else [] %}
+  {% set club_note = certificate_club_reminder(portfolio) if portfolio else None %}
+  {% if portfolio and (portfolio.certificate or cert_kinds or club_note) %}
+  {% set cert = portfolio.certificate %}
+  <section class="sheet mt-1" aria-labelledby="certificate-title">
+    <div class="sheet__head"><h2 id="certificate-title">電子獎狀</h2></div>
+    {% if club_note and not (cert and cert.kind == "club" and cert.status != "returned") %}<p class="muted small mb-1" data-club-reminder>{{ club_note }}</p>{% endif %}
+    {% if cert and cert.status == "approved" %}
+    <p class="mb-1">科辦已核准，驗證碼 <span class="mono">{{ cert.verify_code }}</span>。</p>
+    <a class="button button--small" href="{{ url_for('certificate.certificate_view', cert_id=cert.id) }}" target="_blank" rel="noopener">查看與列印獎狀</a>
+    {% elif cert and cert.status == "pending" %}
+    <p class="muted">已送出申請，等科辦核准。</p>
+    {% else %}
+    {% if cert and cert.status == "returned" %}<p class="alert mb-1">科辦退回：{{ cert.return_reason }}</p>{% endif %}
+    {% if cert_kinds %}
+    <form method="post" action="{{ url_for('certificate.certificate_apply', portfolio_id=portfolio.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% if cert_kinds|length == 1 %}
+      {% set only = cert_kinds[0] %}
+      <p class="muted small mb-1">這筆是{{ only[2] }}，可以請科辦開一張「{{ only[1] }}」（補充個別證明，不取代學校的獎懲記錄）。</p>
+      <input type="hidden" name="kind" value="{{ only[0] }}">
+      {% else %}
+      {% set picked = cert.kind if cert and cert.kind in cert_kinds|map(attribute=0)|list else cert_kinds[0][0] %}
+      <fieldset class="field mb-1">
+        <legend class="field__label">要申請哪一種證明？<small>補充個別證明，不取代學校的獎懲記錄</small></legend>
+        <div class="check-row">
+          {% for kind, title, hint in cert_kinds %}
+          <label><input type="radio" name="kind" value="{{ kind }}" {{ "checked" if kind == picked else "" }}> {{ title }}<span class="muted small">（{{ hint }}）</span></label>
+          {% endfor %}
+        </div>
+      </fieldset>
+      {% endif %}
+      <button class="button button--small" type="submit">{{ "重新申請" if cert else "申請電子獎狀" }}</button>
+    </form>
+    {% endif %}
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {% if portfolio and portfolio.category == "project" %}
+  <section class="sheet mt-1" aria-labelledby="project-links-title">
+    <h2 id="project-links-title">作品連結</h2>
+    <p>可逐一加入 GitHub、Canva 或其他作品網址；不會上傳作品檔案。</p>
+    <ul data-project-links>{% for item in portfolio.evidence_items if item.external_url and item.is_available %}<li><a href="{{ item.external_url }}" target="_blank" rel="noopener noreferrer">{{ item.display_name }}</a>：{{ item.external_url }}
+      <form method="post" action="{{ url_for('student.evidence_delete', evidence_id=item.id) }}" data-confirm="確定要移除「{{ item.display_name }}」這個連結嗎？" style="display:inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="button button--small button--line" type="submit">移除連結</button>
+      </form></li>{% else %}<li>尚未加入連結。</li>{% endfor %}</ul>
+    <form method="post" action="{{ url_for('student.evidence_upload', portfolio_id=portfolio.id) }}" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="field">連結名稱<input name="link_name" maxlength="150"></label>
+      <label class="field">作品網址<input type="url" name="external_url" maxlength="500" required></label>
+      <button class="button button--small" type="submit">新增連結</button>
+    </form>
+    <p class="small muted">新增連結後請重新確認作品內容。</p>
+    <a class="button button--line" href="{{ url_for('student.project_analyze', portfolio_id=portfolio.id) }}">請小助手分析</a>
+  </section>
+  {% endif %}
+  {% if portfolio %}
+  <section class="sheet mt-1" aria-labelledby="evidence-title">
+    <div class="sheet__head"><h2 id="evidence-title">佐證（照片、證明）</h2></div>
+    {% set shown_evidence = portfolio.evidence_items|selectattr("file_path")|list if portfolio.category == "project" else portfolio.evidence_items %}
+    {% if shown_evidence %}
+    <div class="mb-1">{{ evidence_grid(shown_evidence, "student.evidence_view", download_endpoint="student.evidence_download", delete_endpoint="student.evidence_delete") }}</div>
+    {% endif %}
+    <form method="post" action="{{ url_for('student.evidence_upload', portfolio_id=portfolio.id) }}" enctype="multipart/form-data" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {{ upload_field(label="新增佐證", hint="PNG、JPG、PDF 可以直接預覽", accept="image/png,image/jpeg,.pdf,.doc,.docx,.odt,.txt") }}
+      <div><button class="button button--small" type="submit">上傳佐證</button></div>
+    </form>
+  </section>
+  {{ lightbox() }}
+  <form class="mt-1" method="post" action="{{ url_for('student.portfolio_delete', portfolio_id=portfolio.id) }}" data-confirm="確定要刪除「{{ portfolio.title }}」嗎？已送導師確認的經歷不能刪除。">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="link-button" type="submit">刪除這筆經歷</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}
+
+{% block scripts %}
+{% if portfolio %}
+<script>
+/* 學生端 v2：把檔案拖進這一頁任何地方，都放進下方「新增佐證」（原本的上傳表單），確認後按「上傳佐證」 */
+(function () {
+  var page = document.querySelector("[data-pf-form]");
+  var input = page && page.querySelector('.dropzone__input');
+  if (!input) return;
+  var depth = 0;
+  var hasFiles = function (event) { return event.dataTransfer && [].indexOf.call(event.dataTransfer.types || [], "Files") !== -1; };
+  document.addEventListener("dragenter", function (event) { if (hasFiles(event)) { depth += 1; page.classList.add("is-dropping"); } });
+  document.addEventListener("dragleave", function () { depth -= 1; if (depth <= 0) { depth = 0; page.classList.remove("is-dropping"); } });
+  document.addEventListener("dragover", function (event) { if (hasFiles(event)) event.preventDefault(); });
+  document.addEventListener("drop", function (event) {
+    if (!hasFiles(event)) return;
+    depth = 0; page.classList.remove("is-dropping");
+    if (event.target.closest && event.target.closest(".dropzone")) return; // 拖在框裡交給原本的元件
+    event.preventDefault();
+    var files = event.dataTransfer.files;
+    if (!files.length) return;
+    try { var box = new DataTransfer(); box.items.add(files[0]); input.files = box.files; } catch (e) { input.files = files; }
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    input.closest(".sheet").scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

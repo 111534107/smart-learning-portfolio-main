@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% import "partials/login_parts.html" as parts with context %}
+{% set page_name = "login" %}
+
+{% block title %}管理員登入｜資管科智慧學習歷程系統{% endblock %}
+
+{# 管理員頁不放網站導覽，也沒有其他登入頁的連結（2026-11-10 使用者決定）。 #}
+{% block navigation %}{% endblock %}
+
+{% block content %}
+<section class="auth auth--admin">
+  <div class="auth__form">
+    <div class="auth__card" data-motion="reveal">
+      <p class="auth__portal auth__portal--admin">系統管理</p>
+      <h2>管理員登入</h2>
+      {% if blocked %}
+      <p class="alert" role="alert">管理員只能從學校網路登入。你現在的位置不在允許的網段裡。</p>
+      {% else %}
+      {{ parts.error_box(error) }}
+      {{ parts.password_form(url_for('main.admin_login'), next_path) }}
+      <ul class="auth__rules small">
+        {% if config.get('ADMIN_TWO_FACTOR_REQUIRED') %}<li>密碼正確後，還要輸入手機 Authenticator 的六位數驗證碼。</li>{% else %}<li>展示站沒有強制六位數驗證碼；正式主機一定要。</li>{% endif %}
+        <li>密碼錯 5 次會鎖住 15 分鐘。</li>
+        <li>閒置 15 分鐘會自動登出。</li>
+      </ul>
+      {% endif %}
+    </div>
+    {% if not blocked %}{{ parts.demo_accounts(url_for('main.admin_login'), ["admin"]) }}{% endif %}
+  </div>
+</section>
+{% endblock %}

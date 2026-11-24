@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "admin-accounts" %}
+
+{% block title %}帳號管理｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "帳號管理") }}{% endblock %}
+
+{% block content %}
+<section class="work-shell work-shell--wide" data-work-role="admin">
+  <header class="work-heading"><div><h1>帳號管理</h1><p>匯入學生入學學年度、新增老師與科辦帳號、設定職稱與學校 Google 信箱，以及停用、解鎖或重設雙重驗證。這些操作都不會刪除學生歷程。</p></div></header>
+  <p><a href="{{ url_for('admin.transfer_reviews') }}">轉科帳號查詢與核對案件</a></p>
+  {% if backup_pending or backup_result %}
+  <section class="work-panel" id="backup-pending" aria-labelledby="backup-pending-title" data-backup-pending data-tour="核對本人後，可代為確認備用信箱。" data-tour-order="1">
+    <div class="work-panel__head"><div><h2 id="backup-pending-title">等待確認的備用信箱（{{ backup_pending|length }}）</h2>
+      <p>學生綁定備用信箱是為了收備審打包，裡面有成績與個人資料。{% if not mail_ready %}<b>系統目前沒有設定寄信帳號，學生收不到確認信</b>，{% else %}學生通常會自己收信確認；收不到時，{% endif %}請學生當面或用學校信箱告訴你信箱，<b>逐字核對一樣</b>再按確認。</p></div></div>
+    {% if backup_result and backup_result.ok %}<p class="notice mb-1" role="status">{{ backup_result.ok }}</p>{% endif %}
+    {% if backup_result and backup_result.error %}<p class="alert mb-1" role="alert">{{ backup_result.error }}</p>{% endif %}
+    {% if backup_pending %}
+    <ul class="work-list">
+      {% for account in backup_pending %}
+      <li><span class="work-list__index">{{ loop.index }}</span>
+        <div><strong>{{ account.display_name }}</strong><span>{{ account.username }} · 填的備用信箱：<b data-backup-address>{{ account.backup_email }}</b></span></div>
+        <div class="admin-action"><form method="post" action="{{ url_for('admin.confirm_backup_email', user_id=account.id) }}" data-ask="已經和 {{ account.display_name }} 本人核對過信箱 {{ account.backup_email }} 一字不差了嗎？" onsubmit="return confirm(this.dataset.ask)">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="address" value="{{ account.backup_email }}">
+          <button class="button button--quiet" type="submit">核對無誤，代為確認</button></form></div></li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="small muted">目前沒有等待確認的備用信箱。</p>{% endif %}
+  </section>
+  {% endif %}
+  <section class="work-panel" aria-labelledby="admission-title" data-tour="學生缺少入學學年度時，貼上清單匯入。" data-tour-order="2">
+    <div class="work-panel__head"><div><h2 id="admission-title">匯入入學學年度</h2><p>系統用入學學年度判斷學生幾年級（決定能不能填高年級資料、送導師確認、用 AI 寫自傳）。學生不能自己填，由管理者匯入。</p></div></div>
+    {% if admission_import %}
+    <p class="notice mb-1" role="status">已更新 {{ admission_import.updated }} 位學生的入學學年度。</p>
+    {% if admission_import.problems %}<ul class="alert mb-1">{% for problem in admission_import.problems %}<li>{{ problem }}</li>{% endfor %}</ul>{% endif %}
+    {% endif %}
+    <form method="post" action="{{ url_for('admin.import_admission_years') }}" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="field">每行一位：學號,入學學年度（可以從學校名單的 Excel 直接複製兩欄貼上）
+        <textarea name="rows" rows="5" placeholder="113534901,113&#10;113534902,113"></textarea></label>
+      <div><button class="button" type="submit">匯入</button></div>
+    </form>
+  </section>
+  <section class="work-panel" id="staff-create" aria-labelledby="staff-create-title" data-staff-create data-tour="新增教職員時，填資料並建立帳號。" data-tour-order="3">
+    <div class="work-panel__head"><div><h2 id="staff-create-title">新增教職員帳號</h2><p>老師、科辦、管理員的帳號由這裡建立，不限人數。科辦請選職稱（主任、副主任、科助、其他行政人員），像大學系辦一樣可以有很多位。</p></div></div>
+    {% if staff_result and staff_result.error %}<p class="alert mb-1" role="alert">{{ staff_result.error }}</p>{% endif %}
+    {% if staff_result and staff_result.created %}<p class="notice mb-1" role="status">{{ staff_result.created }}</p>{% endif %}
+    <form method="post" action="{{ url_for('admin.create_staff_account') }}" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem;">
+        <label class="field">身分
+          <select name="role" data-staff-role><option value="staff">科辦</option><option value="teacher">老師</option><option value="admin">管理員</option></select></label>
+        <label class="field">職稱
+          <select name="job_title"><option value="">（老師、管理員可不填）</option>{% for title in staff_titles %}<option value="{{ title }}"{% if title == "科助" %} selected{% endif %}>{{ title }}</option>{% endfor %}</select></label>
+        <label class="field">其他職稱 <small>選「其他行政人員」時可自填</small>
+          <input name="job_title_other" maxlength="30" placeholder="例如：行政助理"></label>
+        <label class="field">姓名<input name="display_name" required maxlength="100"></label>
+        <label class="field">登入帳號<input name="username" required maxlength="50" autocomplete="off" placeholder="英文或數字"></label>
+        <label class="field">學校信箱<input name="school_email" type="email" autocomplete="off" placeholder="name@{{ staff_domain }}"></label>
+      </div>
+      <fieldset class="form-stack" style="border: 0; padding: 0; margin: 0;">
+        <legend class="small">登入方式</legend>
+        <label class="small"><input type="radio" name="login" value="password" checked style="width: auto;"> 設初始密碼（請對方登入後到「修改密碼」換掉）</label>
+        <label class="small"><input type="radio" name="login" value="google" style="width: auto;"> 只用學校 Google 登入（要填學校信箱）</label>
+      </fieldset>
+      <label class="field">初始密碼 <small>至少 10 個字元，英文字母與數字都要有</small>
+        <input name="password" type="password" autocomplete="new-password" maxlength="128"></label>
+      <div><button class="button" type="submit">建立帳號</button></div>
+    </form>
+  </section>
+  <section class="work-panel" data-tour="在帳號清單修改班級、信箱或登入狀態。" data-tour-order="4"><div class="work-panel__head"><div><h2>全部帳號</h2><p>停用後帳號無法登入，但資料會保留。</p></div></div><ul class="work-list admin-account-list">
+    {% for account in accounts %}
+    <li id="account-{{ account.id }}"><span class="work-list__index">{{ loop.index }}</span><div><strong>{{ account.display_name }}</strong><span>{{ account.username }} · {{ {"student": "學生", "teacher": "老師", "staff": "科辦", "admin": "管理員"}.get(account.role, account.role) }}{% if account.job_title %} · <b data-job-title>{{ account.job_title }}</b>{% endif %}{% if account.role == "student" %} · {% if account.student_profile and account.student_profile.admission_year %}{{ account.student_profile.admission_year }} 學年度入學{% else %}<b class="tag tag--warn">未填入學學年度</b>{% endif %}{% endif %}</span>{% if account.role == "student" %}{% if account.student_profile %}<form method="post" action="{{ url_for('admin.set_student_class', user_id=account.id) }}" class="form-stack" data-student-class><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label class="field">班級{% if not account.student_profile.class_name %} <b class="tag tag--warn">未填班級，導師看不到</b>{% endif %}<input name="class_name" value="{{ account.student_profile.class_name or '' }}" maxlength="50" placeholder="例如 資管科三甲" autocomplete="off" required></label><button class="button button--quiet" type="submit">儲存班級</button></form>{% endif %}<form method="post" action="{{ url_for('admin.bind_school_email', user_id=account.id) }}" class="form-stack"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label class="field">學校 Google 信箱（學號）<input name="school_account" value="{{ account.email.split('@')[0] if account.email and account.email.endswith('@stu.ukn.edu.tw') else '' }}" placeholder="{{ account.student_profile.student_no if account.student_profile else account.username }}" autocomplete="off">@stu.ukn.edu.tw</label><button class="button button--quiet" type="submit">儲存信箱</button></form>{% else %}<form method="post" action="{{ url_for('admin.bind_school_email', user_id=account.id) }}" class="form-stack"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label class="field">學校 Google 信箱（教職員，完整信箱）<input name="school_email" type="email" value="{{ account.email or '' }}" placeholder="例如 name@ukn.edu.tw" autocomplete="off"></label><button class="button button--quiet" type="submit">儲存信箱</button></form><form method="post" action="{{ url_for('admin.set_job_title', user_id=account.id) }}" class="form-stack"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label class="field">職稱<select name="job_title">{% if account.role != "staff" %}<option value="">（不填）</option>{% endif %}{% for title in staff_titles %}<option value="{{ title }}"{% if account.job_title == title or (title == "其他行政人員" and account.job_title and account.job_title not in staff_titles) %} selected{% endif %}>{{ title }}</option>{% endfor %}</select></label><label class="field">其他職稱<input name="job_title_other" maxlength="30" value="{{ account.job_title if account.job_title and account.job_title not in staff_titles else '' }}"></label><button class="button button--quiet" type="submit">儲存職稱</button></form>{% endif %}</div><div class="admin-action"><span class="queue-badge {% if account.is_active %}queue-badge--strong{% endif %}">{{ "啟用中" if account.is_active else "已停用" }}</span><span class="tag {{ 'tag--ok' if account.two_factor_enabled else 'tag--warn' }}" data-two-factor-status>{{ "雙重驗證已開" if account.two_factor_enabled else "雙重驗證未設定" }}</span>{% if account.username in locked_usernames %}<span class="tag tag--warn" data-login-locked>登入已鎖定</span><form method="post" action="{{ url_for('admin.unlock_login', user_id=account.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--quiet" type="submit">解除鎖定</button></form>{% endif %}{% if account.two_factor_enabled and account.id != user.id %}<form method="post" action="{{ url_for('admin.reset_two_factor', user_id=account.id) }}" onsubmit="return confirm('確定要重設 {{ account.username }} 的雙重驗證嗎？對方下次登入要重新掃 QR code。')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--quiet" type="submit">重設雙重驗證</button></form>{% endif %}{% if account.id == user.id %}<span class="muted">目前登入帳號</span>{% else %}<form method="post" action="{{ url_for('admin.toggle_account_active', user_id=account.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--quiet" type="submit">{{ "停用" if account.is_active else "重新啟用" }}</button></form>{% endif %}</div></li>
+    {% endfor %}
+  </ul></section>
+</section>
+{% endblock %}

@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% set page_name = "student-pathways" %}
+
+{% block title %}升學路線比較｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "目標校系") }}{% endblock %}
+
+{% block content %}
+{{ page_band("升學路線比較") }}
+<div class="page page--banded pathways">
+  <p class="muted mb-1">五專畢業後常見三條路：二技、插大（轉學考）、考統測進四技。先選你現在的狀況，看哪條路現在能走。</p>
+
+  <fieldset class="pathways__status" data-pathway-status data-tour="選擇目前身分，查看各路線的資格。" data-tour-order="1">
+    <legend>我現在是</legend>
+    {% for value, label in [("y1to3", "五專一到三年級"), ("y4", "五專四年級"), ("y5", "五專五年級"), ("grad", "已畢業"), ("leave", "修滿三年級下學期後，休學或退學滿一年")] %}
+    <label class="pathways__chip"><input type="radio" name="pathway-status" value="{{ value }}"{% if value == default_status %} checked{% endif %}> {{ label }}</label>
+    {% endfor %}
+  </fieldset>
+
+  <div class="pathways__grid" role="list" data-tour="比較升學路線，並點來源查看規定。" data-tour-order="2">
+    {% for path in pathways %}
+    <article class="pathway-card" role="listitem" data-pathway="{{ path.key }}" data-open="{{ path.open_when | join(' ') }}" data-soon="{{ path.soon_when | join(' ') }}">
+      <header class="pathway-card__head">
+        <h2>{{ path.title }}</h2>
+        <p class="pathway-card__verdict" data-verdict aria-live="polite"></p>
+      </header>
+      <dl class="pathway-card__facts">
+        {% for label, text in path.facts %}
+        <div><dt>{{ label }}</dt><dd>{{ text }}</dd></div>
+        {% endfor %}
+      </dl>
+      {% if path.dates %}
+      <ul class="pathway-card__dates">
+        {% for label, day in path.dates %}
+        <li><strong>{{ label }}</strong> {{ day.strftime("%Y-%m-%d") }}（民國 {{ day.year - 1911 }} 年）{% set left = (day - today).days %}{% if left >= 0 %} · <span class="tag tag--info">還有 {{ left }} 天</span>{% else %} · <span class="muted">已過</span>{% endif %}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      {% if path.warning %}<p class="alert" role="note">{{ path.warning }}</p>{% endif %}
+      <p class="small muted">出處：{% for name, url in path.sources %}<a href="{{ url }}" target="_blank" rel="noopener">{{ name }}</a>{% if not loop.last %}、{% endif %}{% endfor %}（查詢日期 {{ checked_on }}）</p>
+      {% if path.link %}<div class="record-card__actions"><a class="button button--small" href="{{ path.link[1] }}">{{ path.link[0] }}</a></div>{% endif %}
+    </article>
+    {% endfor %}
+  </div>
+
+  <p class="small muted mt-1">本頁只整理官方規定的重點，日期與考科以當年度簡章為準；招生資料每年會改，報名前請再看一次簡章。</p>
+</div>
+<script>
+(function () {
+  var box = document.querySelector("[data-pathway-status]");
+  if (!box) return;
+  var cards = document.querySelectorAll("[data-pathway]");
+  function show(status) {
+    cards.forEach(function (card) {
+      var open = card.dataset.open.split(" ").indexOf(status) >= 0;
+      var soon = !open && card.dataset.soon.split(" ").indexOf(status) >= 0;
+      card.classList.toggle("is-open", open);
+      card.classList.toggle("is-soon", soon);
+      card.classList.toggle("is-closed", !open && !soon);
+      card.querySelector("[data-verdict]").textContent = open ? "現在就能準備報考" : (soon ? "快了：畢業後可以報考；部分學校讓應屆畢業生先報考，看簡章" :"目前還不符合報考資格");
+    });
+  }
+  box.addEventListener("change", function (event) { if (event.target.name === "pathway-status") show(event.target.value); });
+  var checked = box.querySelector("input:checked");
+  if (checked) show(checked.value);
+})();
+</script>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

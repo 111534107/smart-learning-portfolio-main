@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% set page_name = "student-targets" %}
+
+{% block title %}目標校系｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "目標校系") }}{% endblock %}
+
+{% block content %}
+{{ page_band("目標校系") }}
+<div class="page page--banded">
+  {% if config.LOCAL_DEMO_MODE %}<p class="small muted">本機展示使用示範校系資料，學年度與招生條件請以當年度官方簡章確認。</p>{% endif %}
+  <p class="muted mb-1">目標校系不限所數，隨時可以換；報名條件與所需資料請依各校簡章確認。</p>
+  <nav class="match-tabs mb-1" aria-label="升學管道" data-tour="切換二技或插大，查看不同招生管道。" data-tour-order="1">
+    <a class="button button--small {{ '' if track == 'twotech' else 'button--line' }}" href="{{ url_for('student.target_list', track='twotech') }}" aria-current="{{ 'page' if track == 'twotech' else 'false' }}">二技（{{ track_counts.twotech }}）</a>
+    <a class="button button--small {{ '' if track == 'transfer' else 'button--line' }}" href="{{ url_for('student.target_list', track='transfer') }}" aria-current="{{ 'page' if track == 'transfer' else 'false' }}">插大（{{ track_counts.transfer }}）</a>
+  </nav>
+  <p class="mb-1"><span class="tag tag--info">{{ '插大' if track == 'transfer' else '二技' }}已選 {{ selected_programs|length }} 所</span></p>
+  {% if focus %}{% include "partials/focus.html" %}{% endif %}
+  <div class="record-card__actions mb-1"><a class="button button--small button--quiet" href="{{ url_for('student.schedule') }}">招生時程</a><a class="button button--small button--quiet" href="{{ url_for('student.pathways') }}">二技、插大、四技差在哪</a>{% if track == 'transfer' %}<a class="button button--small" href="{{ url_for('student.transfer_plans') }}">我的插大準備（自填簡章與考科）</a>{% endif %}</div>
+  {% if error %}
+  <div class="mb-1">
+    <p class="alert" role="alert">{{ error }}</p>
+    <div class="record-card__actions"><a class="button button--small" href="#my-targets">查看已選目標校系</a></div>
+  </div>
+  {% endif %}
+
+  <section class="target-ranking my-targets" id="my-targets" aria-labelledby="my-targets-title" data-tour="點已選校系查看缺件，或探索其他校系。" data-tour-order="3">
+    <div class="target-ranking__head">
+      <h2 id="my-targets-title">我的目標 <span class="muted small">{{ selected_programs|length }} 所</span></h2>
+      <a class="button button--small button--line" href="#target-programs">探索其他校系 →</a>
+    </div>
+    {% if selected_programs %}
+    <p class="small muted">已選校系依準備度排列；點校系可看採計項目與待補資料。百分比是資料準備度，並非錄取機率。</p>
+    {% if selected_programs|length >= 2 %}
+    <div class="my-targets__batch-action mt-1 mb-1">
+      <a class="button button--small button--accent" href="{{ url_for('student.autobiography_batch') }}" style="min-height: 44px; display: inline-flex; align-items: center; gap: 0.35rem;">
+        <span aria-hidden="true">🪄</span>
+        <span>一次替所有校系生成自傳</span>
+      </a>
+    </div>
+    {% endif %}
+    <ol class="target-ranking__list">
+      {% for program in selected_programs %}
+      {% set gap = gaps[program.id] %}
+      <li>
+        <a class="target-ranking__row" href="{{ url_for('student.target_gap', program_id=program.id) }}">
+          <span class="target-ranking__name"><span class="target-ranking__number">{{ loop.index }}.</span> {{ program.school_name }} {{ program.department_name }} <span class="target-ranking__channel">{{ channels[program.id] }}{% if program.admission_category and program.admission_category != channels[program.id] %} · {{ program.admission_category }}{% endif %}{% if entry_grades[program.id] %} · {{ entry_grades[program.id] }}{% endif %}</span></span>
+          <strong class="target-ranking__value">{{ gap.readiness ~ '%' if gap.readiness is not none else '無法計算' }}</strong>
+          <span class="target-ranking__bar" role="img" aria-label="{{ program.school_name }} {{ program.department_name }}準備度 {{ gap.readiness ~ '%' if gap.readiness is not none else '無法計算' }}"><span style="width: {{ gap.readiness or 0 }}%"></span></span>
+        </a>
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <p>還沒有選目標校系。從下方排行挑一所，加入後就會顯示在這裡。</p>
+    {% endif %}
+  </section>
+
+  {% if old_targets %}
+  <section class="sheet mb-1" aria-labelledby="old-targets">
+    <div class="sheet__head"><h2 id="old-targets">舊學年度的目標校系</h2></div>
+    <p class="small muted mb-1">新的簡章已經公布，這些是舊學年度的校系。之前的送審紀錄會保留。</p>
+    <ul class="plain-list">
+      {% for target in old_targets %}
+      <li class="record-card__actions">
+        <span>{{ target.program.school_name }} {{ target.program.department_name }}（{{ target.program.admission_year }} 學年度）</span>
+        <form method="post" action="{{ url_for('student.target_remove', program_id=target.rule_version_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small button--quiet" type="submit">刪除</button></form>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% include "partials/target_explorer.html" %}
+  {% if cancelled_programs %}
+  <section class="sheet mt-1" aria-labelledby="cancelled-title">
+    <div class="sheet__head"><h2 id="cancelled-title">已取消的目標校系（自傳紀錄保留）</h2></div>
+    <ul class="plain-list">
+      {% for program in cancelled_programs %}
+      <li><a href="{{ url_for('student.autobiography_versions', program_id=program.id) }}">{{ program.school_name }} {{ program.department_name }}（{{ program.admission_year }} 學年度）：看自傳版本紀錄 →</a></li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+  <p class="muted small mt-1">校系資料整理自各校招生簡章，學年度標在校系展開明細中；正式規定以當年度簡章與各校系分則為準。準備度只依你已確認的資料計算，不代表錄取機率。</p>
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

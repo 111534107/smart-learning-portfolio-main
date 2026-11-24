@@ -1,0 +1,34 @@
+erDiagram
+  direction LR
+  USERS ||--o{ TRANSFER_REVIEW_CASES : "學生（student_id）"
+  USERS |o--o{ TRANSFER_REVIEW_CASES : "核對科助（assistant_id）"
+  USERS |o--o{ TRANSFER_REVIEW_CASES : "確認主任（chief_id）"
+  TRANSFER_REVIEW_CASES |o--o{ TRANSFER_REVIEW_CASES : "前一案（previous_case_id）"
+  TRANSFER_REVIEW_CASES ||--o{ TRANSFER_REVIEW_EVENTS : "處理紀錄（case_id）"
+  USERS ||--o{ TRANSFER_REVIEW_EVENTS : "處理人（actor_id）"
+  USERS["使用者帳號"] {
+    int id PK "帳號編號"
+  }
+  TRANSFER_REVIEW_CASES["轉科核對案件"] {
+    int id PK "案件編號"
+    int student_id FK "學生帳號"
+    string status "待科助核對／待主任確認／已退回／已結案／已撤回"
+    int version "版本（同時操作時防重複）"
+    int open_key UK "未結案時等於學生編號，一人只能有一件未結案"
+    string class_name "轉入班級"
+    int admission_year "入學學年度"
+    int assistant_id FK "核對的科助"
+    int chief_id FK "確認的主任"
+    int previous_case_id FK "前一件已結案案件"
+    datetime created_at "建立時間"
+  }
+  TRANSFER_REVIEW_EVENTS["轉科案件處理紀錄"] {
+    int id PK "紀錄編號"
+    int case_id FK "案件"
+    int actor_id FK "處理人"
+    string action "送核／確認／退回／更正重送／撤回"
+    text reason "退回或撤回原因"
+    string class_name "當時的班級"
+    int admission_year "當時的學年度"
+    datetime created_at "時間"
+  }

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "announcement-detail" %}
+{% block title %}{{ announcement.title }}｜資管科學習歷程{% endblock %}
+{% block navigation %}{{ masthead(user, "二技公告") }}{% endblock %}
+{% block content %}
+<section class="work-shell">
+  <header class="work-heading">
+    <div>
+      <p class="small" data-tour="看完後可回公告清單。" data-tour-order="1"><a href="{{ url_for('announcement.index') }}">← 二技公告</a>　發布於 {{ announcement.published_at|taipei_time("%Y-%m-%d") }}</p>
+      <h1>{{ announcement.title }}</h1>
+    </div>
+  </header>
+  {% if message %}<p class="flash flash--success" role="status">{{ message }}</p>{% endif %}
+  <section class="work-panel">
+    <p style="white-space: pre-line" data-tour="閱讀公告內容與下方重要日期。" data-tour-order="2">{{ announcement.body }}</p>
+  </section>
+
+  {% if dates %}
+  <section class="work-panel mt-1" data-key-dates>
+    <h2>重要日期</h2>
+    <p class="small muted">由招生資料 Agent 從官方簡章擷取、管理員核准。</p>
+    <ul class="key-dates">
+      {% for row in dates %}
+      <li{% if row.is_send_review %} data-send-review{% endif %}>
+        {% if row.is_send_review %}<strong>{{ row.name }}：{{ row.span }}</strong> <span class="tag tag--warn">寄送備審</span>
+        {% else %}{{ row.name }}：{{ row.span }}{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% if not (dates|selectattr("is_send_review")|list) %}<p class="small">寄送備審資料：簡章未載明</p>{% endif %}
+  </section>
+  {% endif %}
+
+  {% if targets is not none %}
+  <section class="work-panel mt-1" data-teacher-targets>
+    <h2>您帶的四、五年級學生</h2>
+    {% if targets %}
+    <p class="small">五年級是今年要申請的，四年級提早準備。按下按鈕，這些學生的通知會出現您的提醒。</p>
+    <div class="table-wrap">
+    <table class="data-table">
+      <thead><tr><th>學生</th><th>年級</th><th>目標校系</th></tr></thead>
+      <tbody>
+        {% for row in targets %}
+        <tr><td>{{ row.student.display_name }}</td><td>{{ row.grade }} 年級</td><td>{{ row.target_count }} 所</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <form method="post" action="{{ url_for('announcement.remind', announcement_id=announcement.id) }}" data-tour="導師核對名單後，可通知這些學生。" data-tour-order="3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="button" type="submit">提醒這些學生</button>
+    </form>
+    {% else %}
+    <p class="muted">目前沒有您帶的四、五年級學生。</p>
+    {% endif %}
+  </section>
+  {% endif %}
+</section>
+{% endblock %}

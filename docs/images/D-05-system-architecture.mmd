@@ -1,0 +1,32 @@
+%%{init: {'theme':'base','themeVariables': {'fontSize':'18px','fontFamily':'DFKai-SB, BiauKai, serif','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280','edgeLabelBackground':'#FFFFFF'},'flowchart':{'wrappingWidth':400}}}%%
+flowchart LR
+    classDef student fill:#DBEAFE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef teacher fill:#DCFCE7,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef admin fill:#EDE9FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef backend fill:#E0F2FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef db fill:#F3F4F6,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef ai fill:#FFEDD5,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef external fill:#FFFFFF,stroke:#9CA3AF,color:#6B7280,stroke-width:1px,stroke-dasharray:5 3;
+
+    School[學校的學生資訊系統<br/>成績、獎懲、缺曠（本系統不連線）]:::external
+    Campus[資管科官網、資圖中心、教務處行事曆<br/>（只抓管理員登記的頁面）]:::external
+    Official[二技招生官方網站與簡章<br/>（只抓管理員登記的來源）]:::external
+    Student[學生]:::student
+    Teacher[老師]:::teacher
+    Staff[科辦／科助]:::admin
+    Admin[系統管理者（開發者）]:::admin
+
+    School -. 學生自己複製貼上或下載 .-> Student
+    Student --> UI
+    Teacher --> UI
+    Staff --> UI
+    Admin --> UI
+
+    UI[瀏覽器前端<br/>HTML／CSS／少量原生 JavaScript]:::backend
+    UI --> App[Flask 後端<br/>登入與權限、檔案上傳、資料整理、<br/>成績貼上解析、缺件比對、畢業學分檢查、<br/>備審資料產出、二技公告與提醒、<br/>資料分類、資料來源維護、表單下載區、操作紀錄]:::backend
+    App --> DB[(MySQL 8.0<br/>帳號、學習資料、缺曠合計、校系備審要求、<br/>公告、資料來源與分類、表單、確認與註解、操作紀錄)]:::db
+    App --> Files[(上傳檔案儲存區)]:::db
+    App -. 推薦校系理由、文件辨識與註記、證照初判、<br/>自傳小幫手、限定範圍的提問、招生資料擷取與資料分類<br/>（缺曠資料不送給 AI） .-> Gemini[Google Gemini API]:::ai
+    App -. AI 代理下載簡章（每個來源只留最新一份） .-> Official
+    App -. AI 代理定期檢查、只存文字與連結 .-> Campus
+    App --> Doc[Word 備審資料<br/>（可列印）]:::backend

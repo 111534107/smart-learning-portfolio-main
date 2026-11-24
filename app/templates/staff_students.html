@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "staff-students" %}
+{% block title %}全年級學生｜科主任{% endblock %}
+{% block navigation %}{{ masthead(user, "全年級學生") }}{% endblock %}
+{% block content %}
+<section class="work-shell" data-work-role="staff">
+  <header class="work-heading"><div><h1>全年級學生</h1><p>科主任可以查看全年級學生的證照、成績、缺曠合計、獎懲、畢業狀況與自傳（唯讀）。每次打開學生的詳細頁都會留下操作紀錄；缺曠只存合計、不送外部 AI。</p></div></header>
+  <section class="work-panel">
+    <form method="get" class="admin-inline-form" role="search" data-tour="選年級、班級或輸入姓名後篩選。" data-tour-order="1">
+      <label>年級<select name="grade"><option value="">全部</option>{% for key, label in grades.items() %}<option value="{{ key }}"{% if grade == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+      <label>班級<select name="class_name"><option value="">全部</option>{% for name in classes %}<option value="{{ name }}"{% if class_name == name %} selected{% endif %}>{{ name }}</option>{% endfor %}</select></label>
+      <label>畢業狀態<select name="status"><option value="">全部</option>{% for key, label in statuses.items() %}<option value="{{ key }}"{% if status == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+      <label>學號或姓名<input name="q" value="{{ query }}" maxlength="40"></label>
+      <button class="button" type="submit">篩選</button>
+    </form>
+  </section>
+  <section class="work-panel" data-tour="點學生姓名查看唯讀資料與畢業狀態。" data-tour-order="2">
+    <p class="small muted" data-student-count>共 {{ rows|length }} 位</p>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>學號</th><th>姓名</th><th>班級</th><th>年級</th><th>畢業狀態</th><th>缺口</th><th>目標校系</th><th>自傳狀態</th><th>已確認證照</th><th>轉學生</th></tr></thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td class="mono">{{ row.profile.student_no }}</td>
+            <td><a href="{{ url_for('staff.chief_student_detail', student_id=row.student.id, **filters) }}">{{ row.student.display_name }}</a></td>
+            <td>{{ row.profile.class_name or "—" }}</td><td>{{ row.grade_label }}</td>
+            <td><span class="tag {{ {'ok': 'tag--ok', 'gap': 'tag--danger', 'check': 'tag--warn'}[row.status_key] }}">{{ row.status_label }}</span></td>
+            <td class="small">{{ row.gaps|join("、") or "—" }}</td>
+            <td class="small">{{ row.target_summary }}</td>
+            <td><span class="tag {{ row.bio_status_tag }}">{{ row.bio_status_label }}</span></td>
+            <td>{{ row.certificates }}</td><td>{{ "是" if row.transfer else "" }}</td>
+          </tr>
+          {% else %}
+          <tr class="empty-row"><td colspan="10">沒有符合條件的學生。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</section>
+{% endblock %}

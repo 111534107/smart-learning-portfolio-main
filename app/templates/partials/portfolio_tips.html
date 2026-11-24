@@ -1,0 +1,17 @@
+{# 這所學校建議備審怎麼準備（2026-11-20）。內容在 app/content/portfolio_tips.py，只收簡章寫明的規定。 #}
+{% set tips = portfolio_tips_for(program) %}
+{% if tips %}
+<section class="sheet portfolio-tips" data-portfolio-tips aria-labelledby="portfolio-tips-{{ program.id }}">
+  <div class="sheet__head">
+    <h3 id="portfolio-tips-{{ program.id }}">{{ tips.heading or "這所學校的備審，簡章這樣說" }}</h3>
+  </div>
+  {% if tips.notice_url %}<p class="notice">{{ tips.notice }} <a href="{{ tips.notice_url }}" target="_blank" rel="noopener">查看停止開班公告</a></p>{% endif %}
+  <p><strong>{{ tips.summary }}</strong></p>
+  <ul class="portfolio-tips__list">
+    {% for tip in tips.tips %}
+    <li>{{ tip.text }}{% if tip.page %}<small class="muted">（{{ tip.page }}）</small>{% endif %}</li>
+    {% endfor %}
+  </ul>
+  <p class="small muted">出處：<a href="{{ tips.source_url }}" target="_blank" rel="noopener">{{ tips.source }}</a>（{{ tips.channel }}，{{ tips.checked }} 核對）。新學年度簡章公告後，以新簡章為準。</p>
+</section>
+{% endif %}

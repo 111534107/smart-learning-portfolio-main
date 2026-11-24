@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer with context %}
+{% set page_name = "error-page" %}
+
+{% block title %}{{ title }}｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user) }}{% endblock %}
+
+{% block content %}
+<div class="page narrow">
+  <section class="sheet">
+    <h1 class="sheet__head">{{ title }}</h1>
+    <p class="mb-1" data-tour="先查看發生的問題與說明。" data-tour-order="1">{{ message }}</p>
+    <div class="record-card__actions" data-tour="依情況登入、退回前一頁或回首頁。" data-tour-order="2">
+      {% if code == 401 %}
+      {% set login_endpoint = 'main.admin_login' if admin_logged_out else 'main.login' %}
+      {% if admin_logged_out %}<p class="small">管理員閒置 15 分鐘或不在允許的網路，已自動登出。</p>{% endif %}
+      <a class="button" href="{{ url_for(login_endpoint, next=next_path) if next_path else url_for(login_endpoint) }}">去登入</a>
+      {% endif %}
+      {% if back %}<a class="button" href="{{ back }}">回上一頁</a>{% endif %}
+      <a class="button button--line" href="{{ url_for('main.index') }}">回首頁</a>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

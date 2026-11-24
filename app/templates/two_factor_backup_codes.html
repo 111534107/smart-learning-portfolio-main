@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "two-factor-backup" %}
+
+{% block title %}備用碼｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "雙重驗證") }}{% endblock %}
+
+{% block content %}
+<section class="work-shell">
+  <header class="work-heading">
+    <div><h1>雙重驗證已開啟，請收好備用碼</h1>
+      <p>手機遺失或換手機時，可以在輸入驗證碼的地方改輸入下面任一組。<b>每組只能用一次，這個畫面只會出現這一次。</b>請抄下來、拍照存在別的地方，或按「列印」。</p></div>
+  </header>
+  <section class="work-panel">
+    <ol class="backup-code-list" data-tour="先妥善保存備用碼，每組只能用一次。" data-tour-order="1">
+      {% for code in codes %}<li><span class="backup-code">{{ code }}</span></li>{% endfor %}
+    </ol>
+    <div class="mt-1">
+      <button class="button button--line" type="button" onclick="window.print()">列印備用碼</button>
+      <a class="button" href="{{ continue_url }}" data-tour="收好備用碼後按此繼續。" data-tour-order="2">我收好了，繼續 →</a>
+    </div>
+  </section>
+</section>
+<style>
+  .backup-code-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: .4rem 1.2rem; padding-left: 1.6em; }
+  .backup-code { font-family: Consolas, "Courier New", monospace; font-size: 1.1rem; letter-spacing: .06em; }
+</style>
+{% endblock %}

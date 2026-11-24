@@ -1,0 +1,57 @@
+{
+  "verdict": "REVISE",
+  "summary": "規劃案雖然精確捕捉了使用者（老師與學長姐）的核心需求，但在技術細節與既有程式架構的對接上存在三個關鍵缺陷：自傳與學習計畫的資料儲存衝突、AI 額度消耗風險、以及遺漏了專題「個人負責部分」的重要事實引用。",
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "high",
+      "path": "app/services/autobiography_service.py",
+      "evidence": "程式第 19 行固定了 `OUTPUT_TYPE = \"autobiography_ai\"`。新規劃步驟 ④ 欲產出「未來學習計畫」並沿用此服務，若未定義新類型或整合結構，將會導致學習計畫覆蓋掉學生已產出的自傳草稿，違反規格書附錄三「章節 04 自傳」與「章節 05 讀書計畫」應為獨立項目的要求。",
+      "fix": "在 `LearningProfileOutput` 中新增 `study_plan_ai` 類型，或重構 `generate_draft` 函式以支援多種產出類型並存。"
+    },
+    {
+      "id": "F2",
+      "severity": "medium",
+      "path": "docs/02_需求與設計/AI_設計規格_資管科小助手_引導式Agent_2026-10-09.md",
+      "evidence": "規劃案步驟 ⑤ 預計在導師開啟學生詳情頁時顯示「備審摘要」，且包含「找不到依據的句子」等耗能任務。配合風險 8.2 提到的免費額度限制（每日 20 次），若採即時生成（on-the-fly），導師查閱全班學生時將瞬間耗盡額度。",
+      "fix": "明確規定摘要產出的觸發時機（例如：學生點擊「送導師確認」時才產出一次並快取結果），而非每次導師進入頁面都重新呼叫 AI。"
+    },
+    {
+      "id": "F3",
+      "severity": "medium",
+      "path": "app/services/autobiography_service.py",
+      "evidence": "正式規格書（10-08 表格第八項第 5 點）與學長姐痛點（N8）皆強調需加入專題「我負責的部分」。目前的 `build_facts` 與規劃案步驟 ④ ⑤ 皆未提及如何擷取並引用此新欄位，會導致 AI 產出的計畫與摘要無法區分團隊成果與個人貢獻。",
+      "fix": "在 `autobiography_service.build_facts` 中加入對專題「負責部分」欄位的讀取，並在 AI 提示詞中要求優先呈現該部分的具體事蹟。"
+    },
+    {
+      "id": "F4",
+      "severity": "low",
+      "path": "app/services/gemini_client.py",
+      "evidence": "規則 4.7 要求將 AI 呼叫集中在 `generate_json`，但該函式目前不支援 `assistant_service.py` 所需的多步工具呼叫（Tool Calling）。這會導致步驟 ③ 的「查科上規定」功能無法像現有 Agent 一樣進行複雜的關鍵字檢索與推理。",
+      "fix": "在規劃中明確保留 `assistant_service.ask` 的 Agent 邏輯供嵌入式卡片呼叫，或擴充 `generate_json` 支援傳遞工具定義。"
+    }
+  ],
+  "coverage": [
+    "app/services/assistant_service.py",
+    "app/services/assistant_tools.py",
+    "app/services/knowledge_service.py",
+    "app/services/gemini_client.py",
+    "app/services/award_record_service.py",
+    "app/services/document_analysis_service.py",
+    "app/services/autobiography_service.py",
+    "app/services/gap_service.py",
+    "app/services/teacher_scope.py",
+    "app/routes/assistant.py",
+    "app/routes/student.py",
+    "app/routes/teacher.py",
+    "app/templates/base.html",
+    "tests/test_assistant.py",
+    "docs/01_正式規格/資管科智慧學習歷程系統-系統規格設計書-開發閱讀版.md",
+    "docs/07_表單回覆/AI_檢查報告_學長姐痛點問卷分析與需求功能對照_2026-10-09.md"
+  ],
+  "limitations": [
+    "無法驗證 D1 提到的 10-09 訪談截圖內容。",
+    "無法驗證 10-07 錄音檔的原始音訊。",
+    "尚未看到組員完成的 OCR 整合程式碼（如規格書 10-08 所述待整合）。"
+  ]
+}

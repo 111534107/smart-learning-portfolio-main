@@ -1,0 +1,6 @@
+<div class="graduation-policy" data-graduation-policy data-endpoint="{{ url_for('assistant.graduation_policy') }}" data-csrf="{{ csrf_token() }}">
+  <strong>證照補救方式：</strong>
+  <p data-policy-summary>{{ graduation_policy_fallback }}</p>
+  <a href="{{ graduation_policy_source }}" target="_blank" rel="noopener noreferrer">查看校方實施要點第五點 ↗</a>
+  <small class="muted" data-policy-basis>依校方原文整理</small>
+</div>

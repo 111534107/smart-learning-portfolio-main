@@ -1,0 +1,23 @@
+%%{init: {'theme':'base','themeVariables': {'fontFamily':'Microsoft JhengHei, Noto Sans TC, Arial, sans-serif','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280','edgeLabelBackground':'#FFFFFF'},'flowchart':{'wrappingWidth':400}}}%%
+flowchart TD
+    classDef student fill:#DBEAFE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef teacher fill:#DCFCE7,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef admin fill:#EDE9FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef system fill:#E0F2FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef store fill:#F3F4F6,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef ai fill:#FFEDD5,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef alert fill:#FEE2E2,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef pending fill:#FFFFFF,stroke:#9CA3AF,color:#6B7280,stroke-width:1px,stroke-dasharray:5 3;
+
+    Start([教師登入]) --> Publish[上傳已核准空白表單<br/>設定年度、版本、對象、截止日與附件]:::teacher
+    Publish --> Download[學生下載指定版本並離線填寫]:::student
+    Download --> Submit[回傳填妥表單與佐證]:::student
+    Submit --> RuleCheck[系統檢查格式、版本與必備附件]:::system
+    RuleCheck --> TeacherView[教師初檢]:::teacher
+    RuleCheck -. 選用：缺件／空白提示 .-> AI[AI 候選提示，不直接定案]:::ai
+    AI -.-> TeacherView
+    TeacherView --> NeedFix{需要補件？}
+    NeedFix -- 是 --> StudentFix[學生補件；保留舊版本]:::student
+    StudentFix --> RuleCheck
+    NeedFix -- 否 --> StaffResult[科辦登錄正式行政狀態]:::pending
+    StaffResult --> End([學生查看結果])

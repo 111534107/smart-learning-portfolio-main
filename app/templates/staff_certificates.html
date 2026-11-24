@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer with context %}
+{% set page_name = "staff-certificates" %}
+{% set status_labels = {"pending": "待核准", "approved": "已核准", "returned": "已退回"} %}
+{% set kind_labels = {"service": "服務證明", "ta": "TA 證明", "club": "科學會證明", "activity": "活動證明"} %}
+
+{% block title %}電子獎狀｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "電子獎狀") }}{% endblock %}
+
+{% block content %}
+<div class="page">
+  <h1 class="visually-hidden">電子獎狀</h1>
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>待核准的電子獎狀</h2><p>學生從學校獎懲記錄匯入的服務、TA 紀錄。點「審核」對照獎懲記錄、修改內文或退回；核准要由主任或副主任按。科上要主動開證明時，按「開立電子獎狀」；辦活動要一次開很多張，按「批量開立」匯入名單。</p></div><div class="check-row"><a class="button" href="{{ url_for('certificate.staff_issue') }}">開立電子獎狀</a><a class="button button--line" href="{{ url_for('certificate.staff_batch') }}">批量開立</a></div></div>
+    {% if can_approve %}<p class="notice mb-1">你是{{ user.job_title }}，可以核准。科助建立的獎狀可以勾選後一次核准。</p>
+    {% else %}<p class="notice notice--warn mb-1">核准電子獎狀要由主任或副主任按。你可以審核內容、修改內文、退回，或建立獎狀等核准。</p>{% endif %}
+    {% if pending %}
+    <form method="post" action="{{ url_for('certificate.staff_approve_selected') }}" id="approve-selected" data-tour="核對待審獎狀，主任可勾選後批次核准。" data-tour-order="2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    </form>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr>{% if can_approve %}<th><span class="visually-hidden">勾選</span></th>{% endif %}<th>學生</th><th>類別</th><th>獎懲事由</th><th>來源</th><th>申請日期</th><th><span class="visually-hidden">操作</span></th></tr></thead>
+        <tbody>
+          {% for cert in pending %}
+          <tr>
+            {% if can_approve %}<td><input type="checkbox" name="ids" value="{{ cert.id }}" form="approve-selected" aria-label="勾選 {{ cert.student.display_name }} {{ cert.portfolio.title }}"{% if cert.portfolio.source == "department_certificate" %} checked{% endif %}></td>{% endif %}
+            <td>{{ cert.student.display_name }} <span class="muted small mono">{{ cert.student.student_profile.student_no if cert.student.student_profile else "" }}</span></td>
+            <td><span class="tag">{{ kind_labels.get(cert.kind, cert.kind) }}</span></td>
+            <td>{{ cert.portfolio.title }}</td>
+            <td class="small">{{ "科辦建立" if cert.portfolio.source == "department_certificate" else "學生申請" }}</td>
+            <td class="small">{{ cert.created_at|taipei_time("%Y-%m-%d") }}</td>
+            <td><a class="button button--small" href="{{ url_for('certificate.staff_review', cert_id=cert.id) }}">審核</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if can_approve %}<p class="mt-1"><button class="button" type="submit" form="approve-selected">核准勾選的獎狀</button>
+      <span class="muted small">科辦建立的已先勾好；學生申請的請點「審核」對照獎懲記錄後再核准。</span></p>{% endif %}
+    {% else %}
+    <p class="muted">目前沒有待核准的申請。</p>
+    {% endif %}
+  </section>
+
+  {% if done %}
+  <section class="work-panel mt-1">
+    <div class="work-panel__head" data-tour="查看最近處理過的獎狀。" data-tour-order="3"><div><h2>最近處理過的</h2></div></div>
+    <ul class="plain-list">
+      {% for cert in done %}
+      <li><a href="{{ url_for('certificate.staff_review', cert_id=cert.id) }}">{{ cert.student.display_name }}：{{ kind_labels.get(cert.kind, cert.kind) }}｜{{ cert.portfolio.title }}</a>
+        <span class="tag {{ 'tag--ok' if cert.status == 'approved' else 'tag--warn' }}">{{ status_labels[cert.status] }}</span>
+        {% if cert.verify_code %}<span class="muted small mono">{{ cert.verify_code }}</span>{% endif %}</li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

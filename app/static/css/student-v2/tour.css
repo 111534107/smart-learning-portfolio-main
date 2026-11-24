@@ -1,0 +1,124 @@
+/* 網頁導覽（data-tour）學生端 v2 外觀（2026-11-11，照設計示範 _design-demo/student-v2/common.css 的「導覽」）
+   - 全角色共用：components.js 第一次用到導覽時才載入本檔，老師、科辦頁沒有 tokens.css，所以變數都寫預設值。
+   - 暗底加亮框、玻璃說明卡（上一步／下一步／略過），點暗處離開。
+   - 第一次進頁面不蓋住畫面：上方一條「第一次來這頁？看 30 秒導覽／不用」。 */
+
+.tour { position: fixed; inset: 0; z-index: 900; }
+.tour .tour__spot {
+  position: fixed;
+  border-radius: 18px;
+  outline: 0;
+  box-shadow: 0 0 0 2px var(--accent, #2f6672), 0 0 0 9999px rgb(20 16 12 / .55);
+  transition: all .35s cubic-bezier(.3, 1.2, .4, 1);
+  pointer-events: none;
+}
+.tour .tour__card {
+  position: fixed;
+  width: min(340px, calc(100vw - 24px));
+  padding: 16px 18px;
+  border: 1px solid var(--glass-line, rgb(255 252 247 / .8));
+  border-radius: 22px;
+  background: var(--glass, rgb(248 244 238 / .9));
+  -webkit-backdrop-filter: blur(var(--gblur, 24px)) saturate(var(--gsat, 180%));
+  backdrop-filter: blur(var(--gblur, 24px)) saturate(var(--gsat, 180%));
+  box-shadow: 0 24px 48px -20px rgb(20 16 12 / .5);
+  color: var(--ink, #2b2622);
+  font-family: var(--font, inherit);
+  transition: top .35s, left .35s;
+}
+.tour .tour__count { margin: 0; color: var(--accent, #2f6672); font-size: .8125rem; font-weight: 700; }
+.tour .tour__text { margin: 6px 0 14px; font-size: 1rem; font-weight: 700; line-height: 1.7; }
+.tour .tour__actions { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
+.tour .tour__gap { flex: 1; }
+.tour .tour__skip,
+.tour .tour__prev {
+  padding: 8px;
+  border: 0;
+  background: none;
+  color: var(--soft, #574e45);
+  font: inherit;
+  font-size: .875rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+.tour .tour__next {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ctl-h, 2.5rem);
+  padding: 0 18px;
+  border: 1px solid var(--ink, #2b2622);
+  border-radius: 999px;
+  background: var(--ink, #2b2622);
+  color: var(--on, #fff);
+  font: inherit;
+  font-size: .9375rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.tour button:focus-visible { outline: 3px solid var(--accent, #2f6672); outline-offset: 2px; }
+.tour [hidden] { display: none !important; }
+
+/* 第一次進頁面的小提示：不擋畫面 */
+.tour-invite {
+  position: fixed;
+  z-index: 880;
+  /* 2026-11-17：原本在頂端列下方（top: 84px），會蓋住管理員、教職員的下拉選單；改放畫面底部中間 */
+  bottom: 24px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100vw - 24px);
+  padding: 6px 6px 6px 16px;
+  border: 1px solid var(--glass-line, rgb(255 252 247 / .8));
+  border-radius: 999px;
+  background: var(--glass, rgb(248 244 238 / .92));
+  -webkit-backdrop-filter: blur(var(--gblur, 24px)) saturate(var(--gsat, 180%));
+  backdrop-filter: blur(var(--gblur, 24px)) saturate(var(--gsat, 180%));
+  box-shadow: var(--shadow, 0 12px 28px -16px rgb(70 50 30 / .5));
+  color: var(--ink, #2b2622);
+  font-family: var(--font, inherit);
+  font-size: .9375rem;
+  font-weight: 700;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  animation: tour-invite-in .4s cubic-bezier(.25, 1.4, .35, 1);
+}
+.tour-invite button { font: inherit; cursor: pointer; }
+.tour-invite__go {
+  min-height: 2.25rem;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ink, #2b2622);
+  color: var(--on, #fff);
+}
+.tour-invite__no { padding: 8px 10px; border: 0; background: none; color: var(--soft, #574e45); }
+@keyframes tour-invite-in { from { opacity: 0; translate: 0 10px; } }
+body[data-page^="student-"] .tour-invite {
+  position: static;
+  left: auto;
+  bottom: auto;
+  width: fit-content;
+  max-width: calc(100% - 24px);
+  margin: 12px auto;
+  transform: none;
+  white-space: normal;
+}
+@media (max-width: 720px) {
+  .tour-invite { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 88px); font-size: .875rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tour .tour__spot, .tour .tour__card { transition: none; }
+  .tour-invite { animation: none; }
+}
+
+
+/* 導覽邀請氣泡按鈕觸控高度至少 44px */
+.tour-invite__go,
+.tour-invite__no {
+  min-height: 44px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+}

@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer with context %}
+{% set page_name = "staff-certificate-batch" %}
+
+{% block title %}批量開立電子獎狀｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "電子獎狀") }}{% endblock %}
+
+{% block content %}
+<style>
+  .batch-rows { font-family: Consolas, "Noto Sans Mono", monospace; white-space: pre; overflow-x: auto; }
+  .batch-error td { background: color-mix(in srgb, var(--warn, #b7791f) 10%, transparent); }
+  .batch-sample { margin: .3rem 0 0; padding: .6rem .8rem; border: 1px dashed var(--line); border-radius: var(--radius); overflow-x: auto; font-size: .85rem; }
+</style>
+<div class="page">
+  <p class="small"><a href="{{ url_for('certificate.staff_list') }}">← 回電子獎狀清單</a></p>
+  <h1 class="h2">批量開立電子獎狀</h1>
+  {% if error %}<p class="alert mb-1" role="alert">{{ error }}</p>{% endif %}
+
+  {% if created is defined %}
+  <section class="work-panel mb-1">
+    {% if approved %}
+    <div class="work-panel__head"><div><h2>已建立 {{ created|length }} 張</h2><p>每一張都已核准、有驗證碼，學生已收到通知，經歷裡也多了一筆「科辦電子獎狀」。</p></div>
+      <a class="button" href="{{ url_for('certificate.staff_print') }}?ids={{ print_ids }}" target="_blank" rel="noopener">整批列印（{{ created|length }} 張）</a></div>
+    {% else %}
+    <div class="work-panel__head"><div><h2>已建立 {{ created|length }} 張，等主任或副主任核准</h2><p>核准後才會有驗證碼、通知學生，也才能列印。主任、副主任到「電子獎狀」的待核准清單就看得到。</p></div>
+      <a class="button button--line" href="{{ url_for('certificate.staff_list') }}">看待核准清單</a></div>
+    {% endif %}
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>學生</th><th>內容</th><th>驗證碼</th><th><span class="visually-hidden">操作</span></th></tr></thead>
+        <tbody>
+          {% for cert in created %}
+          <tr>
+            <td>{{ cert.student.display_name }} <span class="muted small mono">{{ cert.student.student_profile.student_no }}</span></td>
+            <td>{{ cert.portfolio.title }}</td>
+            <td class="mono">{{ cert.verify_code or "待核准" }}</td>
+            <td><a class="button button--small button--line" href="{{ url_for('certificate.certificate_view', cert_id=cert.id) }}">查看</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if bad %}
+    <h3 class="h3 mt-1">沒有建立的 {{ bad|length }} 列</h3>
+    <ul class="plain-list">
+      {% for row in bad %}<li>第 {{ row.line_no }} 列（{{ row.student_no or "沒有學號" }}）：{{ row.error }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    <p class="mt-1"><a class="button button--line" href="{{ url_for('certificate.staff_batch') }}">再匯入一份名單</a></p>
+  </section>
+  {% else %}
+
+  {% if rows is defined %}
+  <section class="work-panel mb-1">
+    <div class="work-panel__head"><div><h2>預覽：可以建立 {{ good|length }} 張{% if bad %}，{{ bad|length }} 列有問題{% endif %}</h2>
+      <p>還沒有建立任何獎狀。有問題的列不會建立；要一起開的話，請在下方名單修正後重新預覽。</p></div></div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>列</th><th>學號</th><th>學生</th><th>活動名稱</th><th>獎項或服務內容</th><th>日期</th><th>結果</th></tr></thead>
+        <tbody>
+          {% for row in rows %}
+          <tr{% if not row.ok %} class="batch-error"{% endif %}>
+            <td>{{ row.line_no }}</td>
+            <td class="mono">{{ row.student_no }}</td>
+            <td>{{ row.student.display_name if row.student else "—" }}</td>
+            <td>{{ row.activity }}</td>
+            <td>{{ row.content }}</td>
+            <td class="small">{{ row.day.isoformat() if row.day else row.date_text }}</td>
+            <td>{% if row.ok %}<span class="tag tag--ok">可以建立</span>{% else %}<span class="tag tag--warn">不會建立</span> {{ row.error }}{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if good %}
+    <form method="post" class="mt-1" data-tour="核對可建立的名單，確認後才建立。" data-tour-order="3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="title" value="{{ title }}">
+      <textarea name="rows" hidden>{{ text }}</textarea>
+      <button class="button" type="submit" name="action" value="confirm">確認建立 {{ good|length }} 張「{{ title }}」{% if bad %}（略過 {{ bad|length }} 列）{% endif %}</button>
+    </form>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  <section class="sheet">
+    <h2 class="h3">{{ "修改名單" if rows is defined else "匯入名單" }}</h2>
+    <p class="muted">科上辦活動後，一次開多張「活動證明」。一列一位學生，四欄依序是學號、活動名稱、獎項或服務內容、日期，用逗號或 Tab 分隔（從 Excel 複製貼上即可）。一次最多 {{ max_rows }} 列。</p>
+    <pre class="batch-sample">{{ sample }}</pre>
+    <form method="post" enctype="multipart/form-data" class="form-stack mt-1" data-tour="貼上名單或上傳 CSV，填好獎狀標題。" data-tour-order="1">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="field">名單
+        <textarea class="batch-rows" name="rows" rows="8" placeholder="{{ sample }}">{{ text }}</textarea>
+      </label>
+      <label class="field">或上傳 CSV 檔 <small>選了檔案就以檔案為準；Excel 請另存成「CSV（逗號分隔）」</small>
+        <input type="file" name="file" accept=".csv,.txt,text/csv,text/plain">
+      </label>
+      <label class="field">獎狀標題 <small>印在獎狀最上面，整批相同</small>
+        <input name="title" value="{{ title }}" maxlength="50">
+      </label>
+      <p class="muted small">內文會寫成：茲證明 本校五專資訊管理科 姓名（學號）同學，於民國某年某月某日參加「活動名稱」，獎項或服務內容，特此證明。</p>
+      <div><button class="button{% if rows is defined %} button--line{% endif %}" type="submit" name="action" value="preview" data-tour="先預覽名單，核對錯誤再建立獎狀。" data-tour-order="2">預覽名單</button></div>
+    </form>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

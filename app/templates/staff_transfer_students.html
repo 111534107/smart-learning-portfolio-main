@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "staff-transfer-students" %}
+{% block title %}轉學生｜科辦{% endblock %}
+{% block navigation %}{{ masthead(user, "轉學生") }}{% endblock %}
+{% block content %}
+<section class="work-shell" data-work-role="staff">
+  <header class="work-heading" data-tour="先了解抵免進度不等於正式審核結果。" data-tour-order="1"><div><h1>轉學生</h1><p>轉學生抵免進度由科辦與主任確認。轉學抵免不代表學校正式審核結果。</p></div></header>
+  {% if user.job_title in ("科助", "主任", "副主任") %}<p><a href="{{ url_for('staff.transfer_reviews') }}">轉科待核案件</a></p>{% endif %}
+  <section class="work-panel">
+    <div class="table-wrap" data-tour="核對學生抵免進度後，確認或取消確認。" data-tour-order="2"><table class="data-table">
+      <thead><tr><th>學號</th><th>姓名</th><th>班級</th><th>抵免進度</th><th>確認</th></tr></thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td class="mono">{{ row.profile.student_no if row.profile else row.student.username }}</td><td>{{ row.student.display_name }}</td><td>{{ row.profile.class_name if row.profile else "—" }}</td>
+          <td>{{ status_labels.get(row.record.status, row.record.status) }}{% if row.record.missing_documents %}<br><span class="small muted">待補：{{ row.record.missing_documents }}</span>{% endif %}</td>
+          <td>{% if row.record.teacher_confirmed %}<span class="tag tag--ok">{{ row.confirmer.display_name if row.confirmer else "已確認" }} 已確認</span>
+            <form method="post" action="{{ url_for('staff.transfer_confirm', student_id=row.student.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small button--quiet" type="submit" name="confirmed" value="0">取消確認</button></form>
+            {% else %}<form method="post" action="{{ url_for('staff.transfer_confirm', student_id=row.student.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small" type="submit" name="confirmed" value="1">確認</button></form>{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr class="empty-row"><td colspan="5">還沒有轉學生。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  </section>
+</section>
+{% endblock %}

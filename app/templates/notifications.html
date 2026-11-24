@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "notifications" %}
+{% block title %}通知｜資管科學習歷程{% endblock %}
+{% block navigation %}{{ masthead(user, "通知") }}{% endblock %}
+{% block content %}
+<section class="work-shell">
+  <header class="work-heading" data-tour="查看送審、獎狀與案件的提醒。" data-tour-order="1">
+    <div>
+      <p class="small">畢業缺口案件、備審送審、電子獎狀與二技公告</p>
+      <h1>通知</h1>
+      <p>只做提醒與追蹤。點通知可開啟相關資料，開啟後會標為已讀。</p>
+    </div>
+  </header>
+  {% if user.role == "staff" %}
+  <section class="work-panel">
+    <h2>重新檢核</h2>
+    <p>依目前資料重新同步所有學生的案件（開啟頁面不會自動執行）。</p>
+    <form method="post" action="{{ url_for('graduation.recheck') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="button button--small" type="submit">重新檢核全部學生</button>
+    </form>
+  </section>
+  {% endif %}
+  <section class="work-panel mt-1" data-tour="點通知開啟相關資料，開啟後標為已讀。" data-tour-order="2">
+    {% if rows %}
+    <ul>
+      {% for row in rows %}
+      <li>
+        {% if row.case_id %}
+        <a href="{{ url_for('graduation.case_detail', case_id=row.case_id) }}">{{ row.case.number }}</a>
+        {{ row.message }}
+        {% else %}
+        <a href="{{ url_for('graduation.notification_open', notification_id=row.id) }}">{{ row.message }}</a>
+        {% endif %}
+        <span class="small muted">{{ row.created_at|taipei_time("%Y-%m-%d %H:%M") }}</span>
+        {% if not row.read_at %}<span class="tag tag--warn">未讀</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">目前沒有通知。</p>
+    {% endif %}
+  </section>
+  <p class="small muted">{{ "僅供提醒，本系統只幫你先對照。正式畢業資格審查由教務處負責（專四下、專五上教務處會請學生填寫自評表），以學校審核結果為準。" }}</p>
+</section>
+{% endblock %}

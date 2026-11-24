@@ -1,0 +1,20 @@
+%%{init: {'theme':'base','themeVariables': {'fontSize':'18px','fontFamily':'DFKai-SB, BiauKai, serif','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280','edgeLabelBackground':'#FFFFFF'},'flowchart':{'wrappingWidth':400}}}%%
+flowchart TD
+    classDef student fill:#DBEAFE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef teacher fill:#DCFCE7,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef staff fill:#EDE9FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef ai fill:#FEF3C7,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef alert fill:#FEE2E2,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+
+    Student[學生]:::student --> S1[上傳或貼上成績、獎懲、缺曠<br/>校正與確認本人資料]:::student
+    Student --> S2[產出並下載完整備審資料]:::student
+    Student --> S3[看引導卡片與二技公告<br/>選想去的學校、回覆老師的註解<br/>依分類瀏覽學校資訊、下載表單]:::student
+    Teacher[老師<br/>導師、專任教師、指導老師]:::teacher --> T1[查看與自己有關的學生資料<br/>收到二技公告並提醒學生]:::teacher
+    Teacher --> T2[段落註解、修改自傳<br/>導師確認學生送審的那一版]:::teacher
+    Staff[科辦／科助]:::staff --> F1[審核電子獎狀申請<br/>科上派的服務、TA 證明、社團證明]:::staff
+    Staff --> F2[編輯內文後核准<br/>系統產出含驗證碼的電子獎狀]:::staff
+    Staff --> F3[收到二技公告與寄送備審日期<br/>管理表單下載區：上架、改版、下架]:::staff
+    Staff -.不審備審資料.-> T2
+    Admin[系統管理者（開發者）]:::staff --> A1[管理帳號、班級導師與校系備審要求<br/>核對 AI 查到的招生資料並發布二技公告<br/>資料來源維護、核對資料分類、查詢操作紀錄]:::staff
+    Agent[AI Agent]:::ai --> G1[查二技招生資料（候選）、寫推薦校系理由、<br/>辨識文件並在旁註記修改建議、判斷證照真偽、<br/>讀獎懲記錄並分類、依確認過的資料協助寫自傳、<br/>回答限定範圍的提問（操作、科上規定、個人進度）、<br/>官網資料擬分類（候選）；不讀缺曠資料]:::ai
+    G1 -.不直接定案.-> Block[必須經學生或人工確認]:::alert

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% import "partials/login_parts.html" as parts with context %}
+{% set page_name = "login" %}
+
+{% block title %}教職員登入｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(active="login") }}{% endblock %}
+
+{% block content %}
+<section class="auth">
+  <div class="auth__side">
+    {% with bg_panel = true %}{% include "partials/bg_squares.html" %}{% endwith %}
+    <div>
+      <h1>班上同學的進度，<br>一頁看清楚。</h1>
+    </div>
+    <div class="auth__years" aria-hidden="true">
+      {% for n in range(1, 6) %}<span style="--y: var(--year-{{ n }});"></span>{% endfor %}
+    </div>
+  </div>
+  <div class="auth__form">
+    <div class="auth__card" data-motion="reveal">
+      <p class="auth__portal">老師與科辦</p>
+      <h2>教職員登入</h2>
+      {{ parts.error_box(error, wrong_page) }}
+      {{ parts.google_button(google_login_enabled, url_for('main.google_login', next=next_path, who='staff'), "使用學校教職員 Google Workspace 帳號登入") }}
+      {% if google_login_enabled %}<p class="small" data-google-staff-login>帳號要先由管理員建立並填好學校信箱，系統不會自動給教職員權限。</p>{% endif %}
+      <p class="auth__divider"><span>或用帳號密碼登入</span></p>
+      {{ parts.password_form(url_for('main.staff_login'), next_path) }}
+      <p class="auth__switch small">學生請到 <a href="{{ url_for('main.login') }}">學生登入</a></p>
+    </div>
+    {{ parts.demo_accounts(url_for('main.staff_login'), ["teacher", "staff"]) }}
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% set page_name = "student-autobiography-batch" %}
+
+{% block title %}小助手批次寫自傳｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "備審資料") }}{% endblock %}
+
+{% block content %}
+{% set crumbs = [("備審資料", url_for('student.autobiography'))] %}
+{{ page_band("一次替所有校系生成自傳", crumbs, note="資管科桌寵小助手施法中") }}
+{% from "partials/workbench_shell.html" import workbench_shell %}
+{% if workbench %}<div class="page wb-page">{{ workbench_shell(workbench) }}</div>{% endif %}
+
+<div class="page page--banded batch-container"
+     data-batch-container
+     data-start-url="{{ start_url }}"
+     data-status-url="{{ status_url }}"
+     data-retry-url="{{ retry_url }}"
+     data-done-url="{{ done_url }}"
+     data-csrf-token="{{ csrf_token() }}">
+
+  <!-- 頁面功能說明（依規範收摺於 details） -->
+  <details class="page-intro mb-2">
+    <summary>關於桌寵小助手批次生成自傳</summary>
+    <div class="page-intro__body">
+      <p>小助手會根據你所選擇的每個目標校系評分重點與修課紀錄，依序替各校系生成專屬的自傳初稿。生成完成後，你隨時可以進入編輯器逐段微調或加入素材佐證。</p>
+      <p class="muted small">提示：此頁面維持開啟即可即時觀察小助手施法進度；若網路中斷亦支援單校重試。</p>
+    </div>
+  </details>
+
+  <!-- 無 JavaScript 降級提示（依規範提供清晰退路） -->
+  <noscript>
+    <section class="sheet narrow mb-2 batch-noscript" role="alert">
+      <h2>需要啟用 JavaScript</h2>
+      <p class="muted">批次動畫與即時狀態輪詢需要 JavaScript 支援。請開啟瀏覽器 JavaScript，或點擊下方按鈕回到自傳頁一校一校產生。</p>
+      <div class="mt-2">
+        <a class="button button--secondary" href="{{ url_for('student.autobiography') }}">回自傳頁一校一校產生 →</a>
+      </div>
+    </section>
+  </noscript>
+
+  <!-- 頂部進度看板與彩蛋控制列（非 fixed 浮動，完全處於文檔流） -->
+  <section class="sheet batch-status-board mb-2">
+    <div class="batch-status-board__main">
+      <div class="batch-status-info">
+        <h2 class="batch-status-title" data-batch-headline>小助手待命就緒</h2>
+        <p class="batch-status-sub" data-batch-status-text role="status" aria-live="polite">
+          已選定 {{ targets|length }} 所目標校系。請點擊「請小助手開始」，桌寵小助手將依序為各校施法生成自傳初稿。
+        </p>
+      </div>
+
+      <div class="batch-status-tools" aria-hidden="true"></div>
+    </div>
+
+    <!-- 待機模式啟動操作區（載入時顯示，點擊後啟動） -->
+    <div class="batch-status-action-row" data-batch-start-panel>
+      <button type="button" class="button button--accent batch-start-btn" data-batch-start-btn>
+        請小助手開始
+      </button>
+      <span class="small muted" data-batch-start-note>點擊後將開始排隊生成，不點擊不會消耗你的 AI 額度。</span>
+    </div>
+
+    <!-- 進度條（尊重減少動態效果，無動態時直接顯示數字進度） -->
+    <div class="batch-progress-wrapper" aria-hidden="true">
+      <div class="batch-progress-bar">
+        <div class="batch-progress-fill" data-batch-progress-fill style="width: 0%;"></div>
+      </div>
+      <div class="batch-progress-count">
+        <span data-batch-done-count>0</span> / <span>{{ targets|length }}</span> 校完成
+      </div>
+    </div>
+  </section>
+
+  <!-- 小助手動畫舞台與 A4 紙張陳列區 -->
+  <section class="batch-stage-section" aria-label="自傳紙張與生成舞台">
+
+    <!-- A4 紙張陳列軌道（支援桌機排列與手機 375px 橫向/縱向順暢滑動） -->
+    <div class="batch-papers-deck" data-batch-deck tabindex="0" aria-label="目標校系自傳草稿紙列表，使用方向鍵或滑動切換校系">
+      {% for target in targets %}
+      <article class="batch-paper"
+               data-program-id="{{ target.program_id }}"
+               data-index="{{ loop.index0 }}"
+               data-status="pending"
+               data-school="{{ target.school_name }}"
+               data-department="{{ target.department_name }}"
+               id="paper-{{ target.program_id }}"
+               aria-label="{{ target.school_name }} {{ target.department_name }} 自傳草稿紙（等待生成）">
+
+        <!-- 紙張頂部抬頭 -->
+        <header class="batch-paper__header">
+          <div class="batch-paper__badge">A4 備審自傳</div>
+          <h3 class="batch-paper__school">{{ target.school_name }}</h3>
+          <p class="batch-paper__dept">{{ target.department_name }}</p>
+          <div class="batch-paper__divider" aria-hidden="true"></div>
+        </header>
+
+        <!-- 紙張中央內容：逐行浮現的自傳佔位假線條 -->
+        <div class="batch-paper__content" aria-hidden="true">
+          <div class="batch-paper__line batch-paper__line--h1"></div>
+          <div class="batch-paper__line batch-paper__line--p1"></div>
+          <div class="batch-paper__line batch-paper__line--p2"></div>
+          <div class="batch-paper__line batch-paper__line--p3"></div>
+          <div class="batch-paper__line batch-paper__line--p4"></div>
+          <div class="batch-paper__line batch-paper__line--h2"></div>
+          <div class="batch-paper__line batch-paper__line--p5"></div>
+          <div class="batch-paper__line batch-paper__line--p6"></div>
+          <div class="batch-paper__line batch-paper__line--p7"></div>
+        </div>
+
+        <!-- 尚未開始前的中性待機提示：不出現失敗按鈕 -->
+        <div class="batch-paper__pending-box" data-paper-pending-box>
+          <p class="batch-paper__pending-title">等待小助手</p>
+          <p class="batch-paper__pending-note">尚未送出生成任務，點擊上方「請小助手開始」後才會進行。</p>
+        </div>
+
+        <!-- 魔法星星粒子層（CSS 粒子，施法時灑落） -->
+        <div class="batch-paper__stars" aria-hidden="true">
+          <span class="batch-star batch-star--1">✦</span>
+          <span class="batch-star batch-star--2">★</span>
+          <span class="batch-star batch-star--3">✦</span>
+          <span class="batch-star batch-star--4">✧</span>
+          <span class="batch-star batch-star--5">★</span>
+        </div>
+
+        <!-- 紙張蓋印與狀態層：完成印章 -->
+        <div class="batch-paper__stamp" aria-hidden="true">
+          <div class="batch-paper__stamp-inner">
+            <span class="batch-paper__stamp-dept">{{ target.department_name }}</span>
+            <strong class="batch-paper__stamp-word">完成</strong>
+            <span class="batch-paper__stamp-check">✓</span>
+          </div>
+        </div>
+
+        <!-- 失敗狀態重試 / 引導面板 -->
+        <div class="batch-paper__fail-box" hidden>
+          <p class="batch-paper__fail-title">生成遇到狀況</p>
+          <p class="batch-paper__fail-note small" data-fail-note>這所學校的重點分析暫時中斷，點擊重試讓小助手再試一次！</p>
+          <div class="batch-paper__fail-actions" data-fail-actions>
+            <button type="button" class="button button--accent batch-retry-btn" data-retry-btn data-program-id="{{ target.program_id }}">
+              重試此校
+            </button>
+            <a class="button button--accent batch-guide-link" data-guide-link data-program-id="{{ target.program_id }}" href="{{ url_for('student.autobiography', program_id=target.program_id, redo=1) }}" hidden>
+              去回答引導題
+            </a>
+          </div>
+        </div>
+
+        <!-- 紙張底部頁碼標記 -->
+        <footer class="batch-paper__footer">
+          <span class="batch-paper__status-text" data-paper-status-text>排隊等待中</span>
+          <span class="batch-paper__page-num">{{ loop.index }} / {{ targets|length }}</span>
+        </footer>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- 全部完成後的引導行動區（非 position: fixed，確保手機上不遮擋任何內容） -->
+  <section class="sheet batch-completion-box mt-3" data-batch-completion hidden>
+    <div class="batch-completion-content">
+      <div class="batch-completion-icon" aria-hidden="true">🎉</div>
+      <div class="batch-completion-text">
+        <h2 class="batch-completion-title">各校自傳草稿已全數生成！</h2>
+        <p class="batch-completion-desc muted">
+          小助手已經為你整理好各校自傳重點草稿。點擊下方按鈕即可進入自傳編輯器，檢視各校成果並微調文字。
+        </p>
+      </div>
+    </div>
+    <div class="batch-completion-actions mt-2">
+      <a class="button button--accent batch-done-btn" href="{{ done_url }}">
+        前往檢視各校自傳 →
+      </a>
+      <a class="button button--secondary" href="{{ url_for('student.autobiography') }}">
+        回自傳總覽
+      </a>
+    </div>
+  </section>
+
+</div>
+{% endblock %}
+
+{% block footer %}
+{{ footer() }}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/pet-batch.js') }}" defer></script>
+{% endblock %}

@@ -1,0 +1,20 @@
+你是 GitHub Copilot。全程正體中文（臺灣用語）。工作目錄就是目前資料夾（只改這裡；不要執行 git、不要跑測試、不要安裝東西、不要執行終端機指令；只讀檔和改檔）。
+先讀：AGENTS.md 第 9 節、docs/05_交接與專案管理/過關標準_畫面與動線_2026-11-20.md、docs/05_交接與專案管理/畫面檢查報告_ux3.md（第一輪修完後的檢查結果：60 組過 22 組）、docs/05_交接與專案管理/Copilot_過關修正_第一輪.md（你上一輪做了什麼）、scripts/check_layout_widths.py（檢查規則，只讀）。
+
+## 第二輪：把剩下的問題修完（每項都要深色與淺色外觀、手機／平板／電腦都通過）
+1. 平板（700–1099px）頁首導覽連結「我的五年、我的資料、畢業門檻、目標與備審」40px → min-height: 44px（平板與手機都要）。
+2. 「我的資料」頁的分頁標籤（成績單、證照、活動與經歷、專題與作品集）40px → 44px（手機與平板）。
+3. 目標校系頁（/student/targets）：每個學校清單項目目前只有 12px 高（是 summary、label 或連結，請在 app/templates/student_targets.html 與 student-v2 樣式找出來）→ 可點區域至少 44px 高；手機與平板。
+4. 學生首頁與寫自傳頁的字級切換按鈕「A」27px → 44×44。
+5. 實習履歷頁手機與平板：性別「男」「女」選項（14px）、縣市下拉、區鄉鎮市下拉（40px）、其他小輸入框與選項：可點高度 ≥44px（紙面上外觀可保持，但 label 或 select 的可點區域要撐到 44px，例如 label 加 min-height:44px; display:inline-flex; align-items:center，select 加 min-height:44px）。
+6. 實習履歷頁 .rz-side 與 .rz-side__handle 在手機與平板仍被判定為 fixed／sticky 橫條：在 <1100px 改成頁面最底部、文件流中的一般區塊（position: static），預設用 <details> 或既有切換收合；打字時（body.is-typing）隱藏。
+7. 批次生成頁（/student/autobiography/batch）電腦版 document.documentElement.scrollWidth = 2485 > 1280（A1 左右捲動）：找出把橫向撐到 2485px 的元素（多半是動畫用的 transform／translateX 或 position 的元件，例如 .batch-assistant-bubble、粒子、.batch-pet-*），用 overflow-x: clip 包住容器或限制它在視窗內，讓 scrollWidth <= innerWidth；手機與平板也要檢查。
+8. 寫自傳頁深色外觀對比：「← 上一段」「主張」對比 1.27、「149／200 字」「第 1 / 5 段」2.20，是深底配深字：改成使用主題文字變數（深色外觀＝淺字）。你上一輪新增的段落上方小工具列（上一段、儲存、位置）也一併檢查深色外觀。
+9. 寫自傳頁電腦版段落標題「未來規劃：補強資料分析，成為懂需求的開發者」被切（A5）：允許換行，或用省略號並加 title。
+10. B2：手機版寫自傳頁，鍵盤開著（可視高度 406px）時，檢查腳本找不到可見的「儲存」按鈕：確認你上一輪在每段 textarea 正上方加的小工具列的儲存按鈕可見、文字就是「儲存」（按鈕文字必須含「儲存」二字），且在 body.is-typing 時不被隱藏；工具列位置要在 textarea 之前（DOM 順序）且在 .draft__paragraph 內，不使用 sticky／fixed。實習履歷頁的「儲存草稿」同樣要通過（按鈕文字含「儲存」）。
+11. 對比：學生首頁淺色數字「5」（4.49，差一點）、深色「你在這裡」（2.21）。
+12. 不要動已經通過的頁面與電腦版版面。
+
+## 限制
+樣式寫在對應檔案結尾（全站共用的寫在 app/static/css/design-system.css 結尾「過關修正第二輪」一節）；字級只用 var(--fs-xs/sm/base/md/lg/xl)，不要寫 rem 數值；顏色用既有變數；不改 Python；不改表單欄位 name、data-* 屬性與 data-tour；不加套件；尊重 prefers-reduced-motion。
+完成時把每一項怎麼修的與改了哪些檔案寫進 docs/05_交接與專案管理/Copilot_過關修正_第二輪.md。

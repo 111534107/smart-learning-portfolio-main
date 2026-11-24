@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "two-factor-account" %}
+
+{% block title %}雙重驗證｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "雙重驗證") }}{% endblock %}
+
+{% block content %}
+<section class="work-shell">
+  <header class="work-heading" data-tour="先了解登入時需要手機上的驗證碼。" data-tour-order="1">
+    <div><h1>雙重驗證</h1>
+      <p>登入時除了密碼，還要輸入手機 Authenticator App 上的六位數。密碼被別人知道了，沒有你的手機還是登不進來。</p></div>
+  </header>
+  {% if error %}<p class="alert mb-1" role="alert">{{ error }}</p>{% endif %}
+
+  {% if user.two_factor_enabled %}
+  <section class="work-panel">
+    <p><span class="tag tag--ok">已開啟</span>　{{ user.two_factor_enabled_at|taipei_time("%Y-%m-%d") }} 設定。剩下 {{ remaining }} 組可用的備用碼。</p>
+    <form method="post" action="{{ url_for('two_factor.account_backup_codes') }}" class="mt-1" data-tour="需要新備用碼時可重新產生，舊碼會失效。" data-tour-order="2"
+          onsubmit="return confirm('重新產生後，舊的備用碼全部失效。確定嗎？')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="button button--line" type="submit">重新產生備用碼</button>
+    </form>
+    <p class="small muted mt-1">換手機時：用舊手機登入後，請管理員重設，再用新手機重新掃描。手機遺失時：用備用碼登入，或請管理員重設。</p>
+    {% if not required %}
+    <form method="post" action="{{ url_for('two_factor.account_disable') }}" class="mt-1"
+          onsubmit="return confirm('確定要關閉雙重驗證嗎？')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="button button--quiet" type="submit">關閉雙重驗證</button>
+    </form>
+    {% endif %}
+  </section>
+  {% else %}
+  <section class="work-panel">
+    <p><span class="tag tag--warn">還沒開啟</span>{% if required %}　學校信箱帳號規定要開，下次登入時也會要求設定。{% endif %}</p>
+    {% include "partials/two_factor_setup_steps.html" %}
+    <form method="post" action="{{ url_for('two_factor.account_enable') }}" class="form-stack" data-tour="掃描後輸入手機驗證碼，確認開啟。" data-tour-order="2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="field">③ 輸入 App 上現在的六位數
+        <input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required placeholder="123456">
+      </label>
+      <button class="button" type="submit">確認並開啟</button>
+    </form>
+  </section>
+  {% endif %}
+</section>
+{% endblock %}

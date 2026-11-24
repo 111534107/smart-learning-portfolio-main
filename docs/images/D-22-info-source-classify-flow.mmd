@@ -1,0 +1,31 @@
+%%{init: {'theme':'base','themeVariables': {'fontSize':'18px','fontFamily':'DFKai-SB, BiauKai, serif','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280','edgeLabelBackground':'#FFFFFF'},'flowchart':{'wrappingWidth':400}}}%%
+flowchart TD
+    classDef student fill:#DBEAFE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef teacher fill:#DCFCE7,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef admin fill:#EDE9FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef system fill:#E0F2FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef ai fill:#FFEDD5,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef alert fill:#FEE2E2,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef note fill:#FFFFFF,stroke:#9CA3AF,color:#6B7280,stroke-width:1px,stroke-dasharray:5 3;
+
+    Register([管理員登記資料來源<br/>資管科官網、資圖中心、教務處行事曆<br/>（二技招生來源見圖 11、圖 12）]):::admin --> Check[AI 代理定期檢查<br/>每天或每週一次，每頁間隔幾秒<br/>只抓登記的頁面，不整站下載]:::ai
+    Check --> Health{抓得到內容？}
+    Health -- 否：網址失效、404、<br/>格式和上次差很多 --> Red[資料來源維護頁標紅提醒<br/>寫出原因與建議的替代來源]:::alert
+    Red --> Fix{管理員處理}
+    Fix -- 換網址 --> Check
+    Fix -- 停用來源 --> Off[來源停用，資料保留不刪除]:::admin
+    Fix -- 手動輸入 --> Manual[管理員手動輸入<br/>例如本學期考試週、成績上網登錄期間]:::admin
+    Health -- 是 --> Changed{內容有變？}
+    Changed -- 否 --> Wait[不動作，下次再檢查]:::system
+    Changed -- 是 --> Extract[只存文字與連結<br/>每個來源只留最新一份原始頁面<br/>名單類公告只存標題、日期、連結]:::ai
+    Extract --> Classify[AI 先擬分類<br/>主題、適用年級、類型、有效期間、來源]:::ai
+    Classify --> Verify{管理員核對<br/>內容與分類正確？}
+    Verify -- 否 --> Edit[管理員修改分類或退回]:::admin
+    Edit --> Verify
+    Verify -- 是 --> Publish[核准後才給學生看]:::admin
+    Manual --> Publish
+    Publish --> Browse[學生依分類瀏覽與搜尋<br/>像 Discord 一樣點分類<br/>過期的自動收起，不刪除]:::student
+    Publish --> Cards[引導卡片依「年級＋主題＋還沒過期」挑選<br/>例如：資訊盃開始報名（你是低年級組）]:::system
+    Publish --> Helper[小助手回答「科上規定」時引用<br/>答案附出處連結]:::system
+    Publish --> Dates[考試與成績上網登錄日期<br/>給網路成績提醒卡片使用（見圖 7）]:::system
+    Fix -.- Log[換網址、停用、手動輸入、核准<br/>都寫進操作紀錄]:::note

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ cert.title }}｜{% if certs|length > 1 %}共 {{ certs|length }} 張{% else %}{{ cert.student.display_name }}{% endif %}</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M2 8h11l3 3h14v17H2z' fill='%232448c9'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;500;700&display=swap">
+  <style>
+    :root { --green: #596b3e; --gold: #a68b47; --red: #9c343b; --ink: #25251f; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #e9e6df; color: var(--ink); font-family: "Noto Serif TC", "PMingLiU", "Microsoft JhengHei", serif; }
+    .toolbar { display: flex; gap: .6rem; justify-content: center; align-items: center; padding: 1rem; }
+    .toolbar button, .toolbar a { font: inherit; padding: .5rem 1rem; border: 1px solid #555; background: #fff; color: #222; border-radius: 6px; cursor: pointer; text-decoration: none; }
+    .toolbar .status { color: #956b22; font-weight: 700; }
+    .sheet { width: min(210mm, calc(100% - 2rem)); aspect-ratio: 210 / 297; margin: 0 auto 2rem; padding: 6mm; background: #fdfbf3; box-shadow: 0 10px 30px -15px #0008; }
+    .frame { position: relative; height: 100%; padding: 5.8% 7.2% 4.8%; display: flex; flex-direction: column; overflow: hidden; }
+    .pattern { position: absolute; z-index: 0; pointer-events: none; background-image: url("{{ url_for('static', filename='img/certificate-border.svg') }}"); background-size: 20px 20px; }
+    .pattern--top,.pattern--bottom { left: 0; right: 0; height: 20px; }
+    .pattern--top { top: 7.5%; }
+    .pattern--bottom { bottom: 0; }
+    .pattern--left,.pattern--right { top: 7.5%; bottom: 0; width: 20px; }
+    .pattern--left { left: 0; }
+    .pattern--right { right: 0; }
+    .content { position: relative; z-index: 1; display: flex; flex-direction: column; height: 100%; padding: 0 4.5%; }
+    .masthead { height: 23%; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
+    .emblem { width: 22%; height: 64%; object-fit: contain; }
+    .title { font-size: clamp(2rem, 5.4vw, 3.25rem); letter-spacing: .55em; margin: .08em 0 0; padding-left: .55em; line-height: 1.2; font-weight: 500; }
+    .number { text-align: right; font-size: clamp(.72rem, 1.6vw, 1rem); min-height: 6%; }
+    .body { white-space: pre-wrap; text-align: left; font-size: clamp(1rem, 2.7vw, 1.65rem); line-height: 1.9; letter-spacing: .06em; margin: 0; flex: 1; padding: 1% 0; }
+    .signatures { min-height: 13%; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: .1em; color: #183f80; font-size: clamp(1.3rem, 4.5vw, 2.75rem); font-weight: 700; letter-spacing: .15em; }
+    .signature { display: flex; align-items: baseline; gap: .6em; }
+    .signature small { font-size: .45em; letter-spacing: .15em; }
+    .seal { position: relative; z-index: 2; align-self: center; width: 29%; aspect-ratio: 1; margin: 1% auto; background: #a43c40; color: #f7e9d1; display: grid; place-items: center; font-family: "Noto Serif TC", serif; font-size: clamp(.65rem, 1.8vw, 1.1rem); line-height: 1.2; text-align: center; opacity: .94; }
+    .seal::before { content: "康寧大學\A 資訊管理科\A 獎狀專用"; white-space: pre; border: 2px solid #f7e9d1; outline: 1px solid #f7e9d1; outline-offset: 4px; padding: 8%; }
+    .date { position: relative; z-index: 3; margin: 0 0 2.7%; padding-top: 2%; text-align: center; font-size: clamp(.8rem, 2.2vw, 1.35rem); letter-spacing: .2em; }
+    .verify { position: relative; z-index: 3; border-top: 1px solid #b9ad8b; padding-top: .45rem; display: flex; justify-content: space-between; gap: .4rem; font-family: sans-serif; font-size: clamp(.48rem, .9vw, .65rem); color: #5d5b53; overflow-wrap: anywhere; }
+    .verify b { font-family: Consolas, monospace; color: #292821; letter-spacing: .08em; white-space: nowrap; }
+    @media screen and (max-width: 640px) { .sheet { aspect-ratio: auto; min-height: 297mm; padding: 4mm; } .frame { min-height: 275mm; } .pattern--left,.pattern--right { width: 10px; } }
+    @media print { @page { size: A4 portrait; margin: 0; } body { background: #fff; print-color-adjust: exact; -webkit-print-color-adjust: exact; } .toolbar { display: none; } .sheet { width: 210mm; height: 297mm; margin: 0; padding: 6mm; box-shadow: none; break-after: page; } .sheet:last-of-type { break-after: auto; } }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    {% if cert.status != "approved" %}<span class="status">預覽（尚未核准，沒有驗證碼）</span>{% endif %}
+    {% if certs|length > 1 %}<span>共 {{ certs|length }} 張，一張一頁</span>{% endif %}
+    <button type="button" onclick="window.print()">列印／存成 PDF</button>
+  </div>
+  {% for cert in certs %}
+  <article class="sheet" aria-label="{{ cert.title }}">
+    <div class="frame">
+      <span class="pattern pattern--top" aria-hidden="true"></span><span class="pattern pattern--bottom" aria-hidden="true"></span>
+      <span class="pattern pattern--left" aria-hidden="true"></span><span class="pattern pattern--right" aria-hidden="true"></span>
+      <div class="content">
+        <header class="masthead">
+          <img class="emblem" src="{{ url_for('static', filename='img/ukn-school-emblem.jfif') }}" alt="康寧大學校徽">
+          <h1 class="title">{{ cert.title }}</h1>
+        </header>
+        <div class="number">康寧大學資訊管理科</div>
+        <p class="body">{{ cert.body }}</p>
+        <div class="signatures" aria-label="核發簽章">
+          <div class="signature"><small>董事長</small><span>＿＿＿＿＿＿</span></div>
+          <div class="signature"><small>校長</small><span>＿＿＿＿＿＿</span></div>
+        </div>
+        <div class="seal" aria-label="電子用印"></div>
+        <p class="date">{{ roc_date(cert.issued_on or today) }}　謹頒</p>
+        <div class="verify">
+          <span>康寧大學資訊管理科 電子獎狀<br>驗證網址：{{ verify_url }}</span>
+          <span>驗證碼：<b>{{ cert.verify_code or "（核准後產生）" }}</b></span>
+        </div>
+      </div>
+    </div>
+  </article>
+  {% endfor %}
+</body>
+</html>

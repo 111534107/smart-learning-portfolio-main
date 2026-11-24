@@ -1,0 +1,452 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, guide_deck, next_card with context %}
+{% set page_name = "student-dashboard" %}
+{% set add_links = {"grades": url_for("student.learning_profile_upload_page", type="transcript"), "credential": url_for("student.learning_profile_upload_page", type="credential")} %}
+{# 五個節點的位置（viewBox 0 0 1000 390）。2026-11-17 換成設計示範那種彎來彎去、不規則的路（使用者要求）：
+   每一段都由左往右（x 只增不減），components.js 的小人物才找得到每一站。走過的路只畫到今年那一站。 #}
+{% set route_h = 390 %}
+{% set stop_xy = [(100, 280), (300, 150), (500, 290), (700, 140), (900, 275)] %}
+{% set route_segs = [
+  "C150 380 210 60 300 150",
+  "C350 195 360 400 420 360 C460 330 470 270 500 290",
+  "C560 330 590 40 650 80 C675 95 690 150 700 140",
+  "C760 80 800 410 850 360 C880 330 875 265 900 275",
+] %}
+{% set route_d = "M100 280 " ~ route_segs|join(" ") %}
+{% set walked_d = "M100 280 " ~ route_segs[:home.grade - 1]|join(" ") %}
+{# 路邊的四個地方＝四個主要功能。點了小人物走過去再進入。 #}
+{% set review_href = url_for('student.target_gap', program_id=student_progress.program.id) if student_progress is defined and student_progress.program else url_for('student.target_list') %}
+{% set places = [
+  ("grades", "成績與證照", url_for("student.learning_profile"), 190, 278, "var(--year-1)"),
+  ("records", "活動與經歷", url_for("student.portfolio_list"), 410, 288, "var(--year-3)"),
+  ("targets", "目標校系", url_for("student.target_list"), 630, 278, "var(--year-4)"),
+  ("review", "備審資料", review_href, 850, 288, "var(--year-5)"),
+] %}
+
+{% block title %}我的五年｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "我的五年") }}{% endblock %}
+
+{% block content %}
+{# 好久不見：隔 60 天以上才登入時播一次。規格：AI_設計規格_我的五年路線首頁 #}
+{% if show_return %}
+<div class="return" data-return role="dialog" aria-modal="true" aria-label="好久不見">
+  <p class="return__days"><b data-count-to="{{ home.away_days }}">{{ home.away_days }}</b> 天沒見了。</p>
+  {% if home.previous and home.previous.count %}<p class="return__note">{{ home.previous.label }}留下了 {{ home.previous.count }} 件。</p>{% endif %}
+  <button type="button" class="return__go" data-return-close>繼續 →</button>
+</div>
+{% endif %}
+
+<div class="page journey-home{% if show_return %} is-waiting{% endif %}" data-journey-home>
+  {# 第一屏（2026-11-17 改版）：散落的紙張。一筆已確認的資料一張紙，可以拖、可以點開；
+     「今天先完成哪一步」縮成紙張下面的一條。來源：設計示範 _design-demo/student-v2/index.html（當時沒搬進正式系統）。 #}
+  {% include "partials/announcement_home.html" %}{# 二技公告（UC-25）：一行最新公告，沒有公告不顯示 #}
+  {% set maker_icons = {
+    "grades": "M5 2.5h7l3 3v12H5z M8 9h5 M8 12h5 M8 15h3",
+    "credential": "M10 2.5a5 5 0 1 1 0 10a5 5 0 1 1 0-10z M7 11.5l-1.5 6l4.5-2l4.5 2l-1.5-6",
+    "activity": "M5 18V2.5 M5 3.5h10l-2.5 3.5l2.5 3.5H5",
+    "competition": "M6 3h8v4a4 4 0 0 1-8 0z M6 5H3.5a2.5 2.5 0 0 0 2.5 3 M14 5h2.5a2.5 2.5 0 0 1-2.5 3 M10 11v4 M6.5 17.5h7",
+    "service": "M10 17s-6-3.6-6-8a3.2 3.2 0 0 1 6-1.6a3.2 3.2 0 0 1 6 1.6c0 4.4-6 8-6 8z",
+    "leadership": "M10 3a3 3 0 1 1 0 6a3 3 0 1 1 0-6z M4 17.5c.5-3.5 3-5.5 6-5.5s5.5 2 6 5.5",
+  } %}
+  {% set desk = home.desk %}
+  <section class="today" aria-labelledby="today-title">
+    <h1 id="route-title" class="route-map__title" tabindex="-1">{% if user.display_name %}<span class="route-map__name">{{ user.display_name }}</span>・{% endif %}{{ home.grade_label }}，你在這裡。</h1>
+
+    <div class="desk{% if not desk.count %} is-empty{% endif %}" data-desk data-desk-owner="{{ user.id }}" role="group" aria-label="散落的紙張，共 {{ desk.count }} 筆資料"
+         data-tour="這些紙是你五年留下的資料，拖拖看，或點一張打開。" data-tour-order="1">
+      {# 中間站著的火柴人：和下面五年路線上走路的小人物同一個造型（使用者 2026-11-17 指定） #}
+      <svg class="desk__me" viewBox="-22 -58 44 62" aria-hidden="true" focusable="false">
+        <g class="jwalker__body">
+          <circle cx="0" cy="-44" r="8"/>
+          <path d="M-7 -34 H7 V-14 H-7 Z"/>
+          <line class="jwalker__leg" x1="-3" y1="-14" x2="-3" y2="0"/>
+          <line class="jwalker__leg" x1="3" y1="-14" x2="3" y2="0"/>
+          <line class="jwalker__arm desk__me-arm desk__me-arm--l" x1="-7" y1="-32" x2="-11" y2="-20"/>
+          <line class="jwalker__arm desk__me-arm desk__me-arm--r" x1="7" y1="-32" x2="11" y2="-20"/>
+        </g>
+      </svg>
+      <p class="desk__center">
+        {% if desk.count %}<b class="mono">{{ desk.count }}</b> 筆資料・拖拖看，或點一張打開
+        {% else %}<b>還沒有資料</b>・用下面的按鈕留下第一筆{% endif %}
+      </p>
+      {% for sheet in desk.sheets %}
+      <button type="button" class="dsheet{% if sheet.thick %} dsheet--thick{% endif %}{% if sheet.note %} dsheet--note{% endif %}{% if not sheet.phone %} dsheet--wide-only{% endif %}" data-sheet="{{ sheet.id }}" data-kind="{{ sheet.label }}・{{ sheet.grade_label }}"
+              data-title="{{ sheet.title }}" data-detail="{{ sheet.detail }}" data-href="{{ sheet.href }}"
+              style="--x: {{ sheet.x }}%; --y: {{ sheet.y }}%; --mx: {{ sheet.mx }}%; --my: {{ sheet.my }}%; --r: {{ sheet.turn }}deg; --p: {{ sheet.pages }}; --d: {{ (loop.index0 * 0.05) | round(2) }}s; --cat: var(--cat-{{ sheet.key }});"
+              aria-label="{{ sheet.label }}，{{ sheet.grade_label }}：{{ sheet.title }}，按下打開">
+        <span class="dsheet__tag">{{ sheet.title }}</span>
+      </button>
+      {% endfor %}
+      <button type="button" class="desk__reset" data-desk-reset hidden>整理回原位</button>
+    </div>
+    {% if desk.more %}<p class="small muted desk__more">桌上放最新的 {{ desk.sheets|length }} 張，另外 {{ desk.more }} 筆在下面的五年資料夾。</p>{% endif %}
+
+    {# 兩個會把紙變成拼圖的按鈕：沒有 JS 或減少動態效果時就是一般連結 #}
+    {% set resume_icon %}<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 6V4h8v2M3 7h18v13H3zM3 12l7 2m4 0 7-2M10 12h4v4h-4z"/></svg>{% endset %}
+    {% set puzzle_icon %}<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 8h5V6a3 3 0 0 1 6 0v2h5v4h-2a2 2 0 0 0 0 4h2v4h-6v-2a2 2 0 0 0-4 0v2H4z"/></svg>{% endset %}
+    <div class="desk-actions">
+      {% if home.resume_open %}
+      <a class="button" href="{{ url_for('student.internship_resume') }}" data-stage-go>{{ resume_icon }}<span>產生學校格式的實習履歷</span></a>
+      {% else %}
+      <div class="desk-action-locked">
+        <button class="button button--line" type="button" aria-disabled="true" aria-describedby="desk-resume-note">{{ resume_icon }}<span>產生學校格式的實習履歷</span></button>
+        <span class="desk-action-tip" role="tooltip" id="desk-resume-note" data-resume-later>專四上學期開放</span>
+      </div>
+      {% endif %}
+      {% if not autobiography_note and desk.count %}
+      <a class="button button--line" href="{{ url_for('student.autobiography') }}" data-stage-go>{{ puzzle_icon }}<span>拼好拼圖、生成自傳</span></a>
+      {% else %}
+      <div class="desk-action-locked">
+        <button class="button button--line" type="button" aria-disabled="true" aria-describedby="desk-autobiography-note">{{ puzzle_icon }}<span>拼好拼圖、生成自傳</span></button>
+        <span class="desk-action-tip" role="tooltip" id="desk-autobiography-note">{{ autobiography_note or "先新增一筆學習資料，就能開始整理自傳。" }}</span>
+      </div>
+      {% endif %}
+    </div>
+
+    <nav class="maker-row" aria-label="做一片新的拼圖" data-tour="每留下一筆資料，桌上就多一張紙。" data-tour-order="2">
+      {% for maker in home.makers %}
+      <a class="button button--line button--small maker" href="{{ maker.href }}" data-make-piece="{{ maker.key }}" style="--cat: var(--cat-{{ maker.key }});">
+        <svg class="maker__icon" viewBox="0 0 20 20" aria-hidden="true"><path d="{{ maker_icons[maker.key] }}"/></svg>
+        <span>＋{{ maker.label }}</span>
+      </a>
+      {% endfor %}
+    </nav>
+
+    <h2 id="today-title" class="today__title" data-tour="不知道做什麼？看這一條，照著做就好。" data-tour-order="3">今天先完成哪一步</h2>
+    {% if guide %}{{ guide_deck(guide) }}{% else %}{{ next_card() }}{% endif %}
+    <p class="today__stats">
+      <span>五年累積 <b>{{ home.summary.percent }}%</b> <small>只是累積比例，不是錄取機率</small></span>
+      <span>待處理 <b>{{ home.summary.pending }}</b></span>
+      <span>最近成果 <b>{{ home.summary.latest or "還沒有" }}</b></span>
+    </p>
+  </section>
+
+  {# 點一張紙打開看內容 #}
+  <dialog class="sheet-doc" data-sheet-doc aria-labelledby="sheet-doc-title">
+    <article>
+      <button type="button" class="sheet-doc__close" data-sheet-close aria-label="關閉">×</button>
+      <p class="sheet-doc__meta" data-sheet-meta></p>
+      <h3 id="sheet-doc-title" data-sheet-title></h3>
+      <p class="sheet-doc__detail" data-sheet-detail></p>
+      <a class="button button--small" href="#" data-sheet-link>到這筆資料 →</a>
+    </article>
+  </dialog>
+
+  {# 2026-11-17：拼圖桌平常收起來（home-desk.js 加 is-stowed），按上面兩個按鈕才整頁攤開、拼起來；沒有 JS 時照常顯示。
+     五年桌板（試用版）：一筆資料＝一片拼圖，散在桌子四邊；六片以上的每一片都是同一張圖（學期照片或預設風景）的一部分。
+     上面六個按鈕做新的一片；回到首頁時新的片從上面落到桌上；按「請小助手拼好拼圖」所有片飛到中間拼成整張圖，再去自傳頁。 #}
+  {% set table = home.table %}
+  <section class="year-puzzle" aria-labelledby="puzzle-title" data-year-puzzle>
+    <h2 id="puzzle-title" class="year-puzzle__title">五年拼圖桌</h2>
+
+    {# 拼好後的整張圖：只定義一次，每一片用 <use> 取自己那一塊 #}
+    <svg class="table-defs" width="0" height="0" aria-hidden="true" focusable="false">
+      <defs>
+        <linearGradient id="ts-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7f90a3"/><stop offset=".55" stop-color="#bfc0bc"/><stop offset="1" stop-color="#ddd2bf"/></linearGradient>
+        <radialGradient id="ts-sun" cx=".7" cy=".42" r=".45"><stop offset="0" stop-color="#f3e2c4" stop-opacity=".95"/><stop offset="1" stop-color="#f1e6d2" stop-opacity="0"/></radialGradient>
+        <linearGradient id="ts-far" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7d8a99"/><stop offset="1" stop-color="#a2a9ae"/></linearGradient>
+        <linearGradient id="ts-mid" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#55626e"/><stop offset="1" stop-color="#6e7a7c"/></linearGradient>
+        <linearGradient id="ts-near" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4f5c55"/><stop offset="1" stop-color="#353e3b"/></linearGradient>
+        <linearGradient id="ts-lake" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9aa6ad"/><stop offset="1" stop-color="#56636c"/></linearGradient>
+        <radialGradient id="ts-vignette" cx=".5" cy=".5" r=".75"><stop offset=".6" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".28"/></radialGradient>
+        <filter id="ts-grain" x="0" y="0" width="100%" height="100%">
+          <feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" stitchTiles="stitch"/>
+          <feColorMatrix values="0 0 0 0 .5  0 0 0 0 .5  0 0 0 0 .5  0 0 0 .16 0"/>
+        </filter>
+        <clipPath id="ts-whole"><rect x="0" y="0" width="{{ table.scene_w }}" height="{{ table.scene_h }}"/></clipPath>
+        <g id="year-scene">
+          {% if photo_url %}
+          {# 學生自己上傳的這學期照片：拼好就是這張 #}
+          <rect x="-40" y="-40" width="{{ table.scene_w + 80 }}" height="{{ table.scene_h + 80 }}" fill="#6f7479"/>
+          <image href="{{ photo_url }}" x="-30" y="-30" width="{{ table.scene_w + 60 }}" height="{{ table.scene_h + 60 }}" preserveAspectRatio="xMidYMid slice"/>
+          {% else %}
+          {# 預設的圖：低飽和的湖邊校園風景，加細噪點，像一張照片 #}
+          <svg x="-30" y="-30" width="{{ table.scene_w + 60 }}" height="{{ table.scene_h + 60 }}" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice" overflow="hidden">
+            <rect width="1600" height="1000" fill="url(#ts-sky)"/>
+            <rect width="1600" height="1000" fill="url(#ts-sun)"/>
+            <path d="M0 520 L140 430 L260 470 L420 360 L560 450 L700 390 L860 470 L1010 380 L1160 455 L1320 400 L1460 460 L1600 420 V700 H0Z" fill="url(#ts-far)" opacity=".85"/>
+            <path d="M0 600 C160 520 300 560 420 520 S700 470 820 540 S1100 500 1240 545 S1480 520 1600 560 V720 H0Z" fill="url(#ts-mid)"/>
+            {# 湖邊的校舍 #}
+            <g fill="#5d676c">
+              <rect x="980" y="520" width="300" height="80"/><rect x="1040" y="480" width="150" height="40"/>
+              <rect x="1300" y="545" width="120" height="55"/><rect x="1232" y="470" width="4" height="60" fill="#4b5458"/>
+            </g>
+            <g fill="#c9c6bd" opacity=".55">
+              {% for wx in range(995, 1270, 26) %}<rect x="{{ wx }}" y="538" width="12" height="9"/><rect x="{{ wx }}" y="562" width="12" height="9"/>{% endfor %}
+              {% for wx in range(1055, 1185, 26) %}<rect x="{{ wx }}" y="492" width="12" height="9"/>{% endfor %}
+            </g>
+            <rect y="600" width="1600" height="400" fill="url(#ts-lake)"/>
+            <g fill="#e6e2d8" opacity=".35">
+              <rect x="1050" y="640" width="260" height="3"/><rect x="980" y="680" width="380" height="2"/><rect x="1100" y="730" width="200" height="3"/>
+              <rect x="300" y="660" width="220" height="2"/><rect x="200" y="760" width="160" height="2"/><rect x="1180" y="800" width="120" height="2"/>
+            </g>
+            <path d="M0 640 C180 610 300 660 460 700 S760 820 900 1000 H0Z" fill="url(#ts-near)"/>
+            <g fill="#3c4644">
+              {% for tx, th in [(40, 210), (110, 260), (180, 200), (250, 240), (330, 180), (400, 150), (90, 170), (470, 120)] %}
+              <path d="M{{ tx }} {{ 720 - th }} L{{ tx - 34 }} {{ 730 }} H{{ tx + 34 }}Z"/>
+              {% endfor %}
+            </g>
+            <path d="M1600 760 C1460 780 1380 840 1340 1000 H1600Z" fill="#4a5452"/>
+            <rect width="1600" height="1000" fill="url(#ts-vignette)"/>
+          </svg>
+          {% endif %}
+        </g>
+      </defs>
+    </svg>
+
+    {# 桌子：深灰毛氈；片的位置是伺服器依每筆資料的 id 算好的（重新整理不會亂跳） #}
+    <div class="ptable{% if not table.count %} is-empty{% endif %}" data-ptable
+         data-scene-w="{{ table.scene_w }}" data-scene-h="{{ table.scene_h }}"
+         data-tour="五年的資料都在桌上，點一片看它是什麼。" data-tour-order="6"
+         role="group" aria-label="五年拼圖桌，已收集 {{ table.count }} 片">
+      {% for piece in table.pieces %}
+      <button type="button" class="tp" data-table-piece="{{ piece.id }}" data-cx="{{ piece.cx }}" data-cy="{{ piece.cy }}" data-bw="{{ piece.box_w }}"
+              data-tip="{{ piece.label }}・{{ piece.grade_label }}" data-tip-title="{{ piece.title }}"
+              style="--x: {{ piece.x }}%; --y: {{ piece.y }}%; --mx: {{ piece.mx }}%; --my: {{ piece.my }}%; --r: {{ piece.turn }}deg; --kw: {{ (piece.box_w / 160) | round(3) }}; --cat: var(--cat-{{ piece.key }});"
+              aria-label="{{ piece.label }}，{{ piece.grade_label }}：{{ piece.title }}">
+        <svg class="tp__svg" viewBox="{{ piece.box }}" aria-hidden="true" focusable="false">
+          <clipPath id="tp-{{ loop.index0 }}"><path d="{{ piece.d }}"/></clipPath>
+          <g clip-path="url(#tp-{{ loop.index0 }})">
+            <use href="#year-scene"/>
+            <path class="tp__light" d="{{ piece.d }}" transform="translate(-1.6 -1.6)"/>
+            <path class="tp__dark" d="{{ piece.d }}" transform="translate(1.6 1.6)"/>
+            <path class="tp__cat" d="{{ piece.d }}"/>
+          </g>
+          <path class="tp__edge" d="{{ piece.d }}"/>
+        </svg>
+      </button>
+      {% endfor %}
+
+      {% if not table.count %}<p class="ptable__empty">按上面的按鈕，做出第一片拼圖</p>{% endif %}
+      <p class="ptable__count">已收集 <b class="mono">{{ table.count }}</b> 片</p>
+      <div class="ptable__tip" data-table-tip role="status" hidden></div>
+      <div class="ptable__frame" data-assembled-frame aria-hidden="true">
+        <svg viewBox="0 0 {{ table.scene_w }} {{ table.scene_h }}" preserveAspectRatio="none"><g clip-path="url(#ts-whole)"><use href="#year-scene"/></g><rect width="{{ table.scene_w }}" height="{{ table.scene_h }}" filter="url(#ts-grain)"/></svg>
+      </div>
+      <p class="ptable__helper" data-table-helper hidden><span class="assistant__dot" aria-hidden="true"></span>資管科小助手：我來幫你拼！</p>
+    </div>
+
+    <div class="ptable-actions">
+      {% if autobiography_note %}
+      {% if home.resume_open and table.count %}<a class="button" href="{{ url_for('student.internship_resume') }}" data-assemble>拼好拼圖、整理實習履歷</a>{% endif %}
+      <span class="button is-disabled" role="link" aria-disabled="true">請小助手拼好拼圖、生成自傳</span>
+      <p class="small muted" data-autobiography-locked>{{ autobiography_note }}</p>
+      {% elif not table.count %}
+      <span class="button is-disabled" role="link" aria-disabled="true">請小助手拼好拼圖、生成自傳</span>
+      <p class="small muted">先做出至少一片拼圖，小助手才能幫你拼。</p>
+      {% else %}
+      <a class="button" href="{{ url_for('student.autobiography') }}" data-assemble>請小助手拼好拼圖、生成自傳</a>
+      {% endif %}
+    </div>
+
+    {# 「做拼圖」按鈕飛出來的那一片（components.js 複製來用） #}
+    <template data-make-template>
+      <svg class="make-fly" viewBox="-30 -30 160 160" aria-hidden="true">
+        <clipPath id="make-fly-clip"><path d="{{ home.sample_piece }}"/></clipPath>
+        <g clip-path="url(#make-fly-clip)"><use href="#year-scene"/><path class="tp__light" d="{{ home.sample_piece }}" transform="translate(-1.6 -1.6)"/><path class="tp__dark" d="{{ home.sample_piece }}" transform="translate(1.6 1.6)"/></g>
+        <path class="tp__edge" d="{{ home.sample_piece }}"/>
+      </svg>
+    </template>
+
+    {# 換成自己的照片：拼好的圖就是這張；只有自己看得到 #}
+    <form class="jig-photo" method="post" action="{{ url_for('main.semester_photo_upload') }}" enctype="multipart/form-data" data-photo-form>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="jig-photo__pick">
+        <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" required data-photo-input>
+        <span>{% if photo_url %}換一張{{ semester_label }}的照片{% else %}放上{{ semester_label }}最快樂的照片{% endif %}</span>
+      </label>
+      <button class="button button--small" type="submit" data-photo-submit>上傳</button>
+      <small>拼好的圖會換成這張，只有你自己看得到。</small>
+    </form>
+  </section>
+  {# 五年路線：畫到「你在這裡」。2026-11-17 移到頁面最底下，點一站，下面的五年資料夾就打開那一年。 #}
+  <section class="route-map" aria-label="我的五年路線，目前在{{ home.grade_label }}" data-tour="這條路是你的五年，小人物站在今年。" data-tour-order="4">
+    <h2 class="route-map__heading">你走到{{ home.grade_label }}了。<small>點選年級或規劃卡，查看校方出處和你的佐證。</small></h2>
+    <ul class="route-legend" aria-label="路線圖例">
+      <li><span class="route-legend__past" aria-hidden="true"></span>已走過</li>
+      <li><span class="route-legend__now" aria-hidden="true"></span>目前年級</li>
+      <li><span class="route-legend__future" aria-hidden="true"></span>接下來</li>
+    </ul>
+    <div class="route-board" style="--route-h: {{ route_h }};">
+    <svg class="route-map__svg" viewBox="0 0 1000 {{ route_h }}" role="group" aria-label="專一到專五的路線，目前在{{ home.grade_label }}">
+      {% for key, label, href, cx, cy, color in places %}
+      <a href="{{ href }}" class="place" data-place="{{ key }}" data-x="{{ cx }}" data-y="{{ cy - 6 }}" style="--c: {{ color }}; --p: {{ loop.index0 }};">
+        <line class="place__branch" x1="{{ cx }}" y1="{{ cy - 30 }}" x2="{{ cx }}" y2="{{ 150 if loop.index0 % 2 == 0 else 120 }}"/>
+        <polygon class="place__side" points="{{ cx - 70 }},{{ cy }} {{ cx }},{{ cy + 28 }} {{ cx + 70 }},{{ cy }} {{ cx + 70 }},{{ cy + 14 }} {{ cx }},{{ cy + 42 }} {{ cx - 70 }},{{ cy + 14 }}"/>
+        <polygon class="place__top" points="{{ cx - 70 }},{{ cy }} {{ cx }},{{ cy - 28 }} {{ cx + 70 }},{{ cy }} {{ cx }},{{ cy + 28 }}"/>
+        <g class="place__icon" transform="translate({{ cx }} {{ cy - 4 }})">
+          {% if key == "grades" %}<rect x="-14" y="-12" width="28" height="20" rx="2"/><circle cx="8" cy="6" r="6"/>
+          {% elif key == "records" %}<line x1="-8" y1="12" x2="-8" y2="-16"/><path d="M-8 -16 L12 -10 L-8 -4 Z"/>
+          {% elif key == "targets" %}<path d="M-16 -4 L0 -16 L16 -4 Z"/><rect x="-12" y="-4" width="24" height="16"/>
+          {% else %}<path d="M-15 -10 H-4 L0 -6 H15 V12 H-15 Z"/>{% endif %}
+        </g>
+        <text class="place__label" x="{{ cx }}" y="{{ cy + 66 }}" text-anchor="middle">{{ label }}</text>
+      </a>
+      {% endfor %}
+      <path class="route-map__ghost" d="{{ route_d }}" pathLength="100"/>
+      <path class="route-map__walked" d="{{ walked_d }}" pathLength="100" style="--walked: 0;"/>
+      {% for stop in home.stops %}
+      {% set x, y = stop_xy[loop.index0] %}
+      {% if stop.plan %}
+      <line class="route-note-stem" x1="{{ x }}" x2="{{ x }}" y1="{{ y }}" y2="{{ y - 34 if y < 200 else y + 66 }}"
+            style="--year: var(--year-{{ stop.grade }});" aria-hidden="true"/>
+      {% endif %}
+      <a href="#folders" data-stop="{{ stop.grade }}" data-open-year="{{ stop.grade }}" class="stop-node stop-node--{{ stop.state }}"
+         style="--year: var(--year-{{ stop.grade }}); --d: {{ loop.index0 * 0.35 }}s;"{% if stop.state == "now" %} aria-current="step"{% endif %}>
+        {% if stop.state == "past" %}
+        {% for n in range([stop.count, 6]|min) %}
+        <rect class="stop-node__bit" x="{{ x - 9 }}" y="{{ y - 9 }}" width="18" height="18" rx="3"
+              style="--from-x: {{ ((n * 47) % 120) - 60 }}px; --from-y: {{ ((n * 31) % 80) - 90 }}px; --b: {{ loop.index0 * 0.35 + 0.15 + n * 0.08 }}s;"/>
+        {% endfor %}
+        {% endif %}
+        {% if stop.state == "now" %}<circle class="stop-node__pulse" cx="{{ x }}" cy="{{ y }}" r="30"/>{% endif %}
+        <circle class="stop-node__dot" cx="{{ x }}" cy="{{ y }}" r="24"/>
+        <text class="stop-node__count" x="{{ x }}" y="{{ y + 7 }}" text-anchor="middle">{{ stop.count if stop.state != "future" else "" }}</text>
+        <text class="stop-node__label" x="{{ x }}" y="{{ y + 52 }}" text-anchor="middle">{{ stop.label }}<tspan class="stop-node__word"> {{ stop.word }}</tspan></text>
+        <title>{{ stop.label }}：{{ stop.count }} 筆</title>
+      </a>
+      {% endfor %}
+      {# 窄版切回寬版或動畫未執行時，小人物也應停在目前的年級。 #}
+      {% set current_x, current_y = stop_xy[home.grade - 1] %}
+      <g class="jwalker" data-walker data-grade="{{ home.grade }}" transform="translate({{ current_x }} {{ current_y - 24 }})" aria-hidden="true">
+        <g class="jwalker__body">
+          <circle cx="0" cy="-44" r="8"/>
+          <path d="M-7 -34 H7 V-14 H-7 Z"/>
+          <line class="jwalker__leg jwalker__leg--a" x1="-3" y1="-14" x2="-3" y2="0"/>
+          <line class="jwalker__leg jwalker__leg--b" x1="3" y1="-14" x2="3" y2="0"/>
+          <line class="jwalker__arm" x1="-7" y1="-32" x2="-11" y2="-20"/>
+          <line class="jwalker__arm" x1="7" y1="-32" x2="11" y2="-20"/>
+        </g>
+      </g>
+    </svg>
+    {# 插在路上的學校規劃：上面那排的站寫在站的上方，下面那排的寫在站名下方 #}
+    {% for stop in home.stops %}
+    {% set x, y = stop_xy[loop.index0] %}
+    {% if stop.plan %}
+    <a href="#folders" data-open-year="{{ stop.grade }}" class="route-note route-note--{{ 'up' if y < 200 else 'down' }} route-note--{{ stop.state }}"
+       style="--year: var(--year-{{ stop.grade }}); left: {{ x / 10 }}%; {% if y < 200 %}bottom: {{ ((route_h - y + 34) / route_h * 100) | round(2) }}%{% else %}top: {{ ((y + 66) / route_h * 100) | round(2) }}%{% endif %};">
+      <b>學校{{ stop.label }}的規劃</b>
+      <span>{{ stop.plan.todo }}</span>
+
+    </a>
+    {% endif %}
+    {% endfor %}
+    </div>
+    <p class="route-map__source small muted">路上的規劃出處：{% for name, url in plan_sources %}<a href="{{ url }}" target="_blank" rel="noopener">{{ name }}</a>{% if not loop.last %}、{% endif %}{% endfor %}。各屆開課學年可能不同，以自己那一屆的科目表為準。</p>
+
+    {# 手機版：橫的路線太小看不清楚，改成直的年級列表和四個大按鈕（CSS 依螢幕寬度切換） #}
+    <ol class="route-list">
+      {% for stop in home.stops %}
+      <li class="route-list__stop route-list__stop--{{ stop.state }}" style="--year: var(--year-{{ stop.grade }}); --n: {{ loop.index0 }};"{% if stop.state == "now" %} aria-current="step"{% endif %}>
+        <a href="#folders" data-open-year="{{ stop.grade }}">
+          <span class="route-list__dot">{{ stop.count if stop.state != "future" else "" }}</span>
+          <b>{{ stop.label }}</b><span class="route-list__word">{{ stop.word }}</span>
+          {% if stop.state == "now" %}<span class="route-list__here">你在這裡</span>{% endif %}
+          {% if stop.plan %}<span class="route-list__plan">{{ stop.plan.todo }}</span>{% endif %}
+        </a>
+      </li>
+      {% endfor %}
+    </ol>
+    <nav class="place-grid" aria-label="主要功能">
+      {% for key, label, href, cx, cy, color in places %}
+      <a class="place-grid__item" href="{{ href }}" style="--c: {{ color }};">{{ label }}</a>
+      {% endfor %}
+    </nav>
+  </section>
+
+  {# 五年資料夾：收起來，點路線上的節點才打開；放在拼圖前面，不用捲過拼圖才找得到 #}
+  <details class="folders-drawer" id="folders" data-folders-drawer data-tour="五年所有資料都收在這裡。" data-tour-order="5">
+    <summary>五年資料夾</summary>
+    <div class="split mt-1">
+      <section class="folders" data-folders aria-label="五年資料夾">
+        <div class="folder-tabs" role="tablist" aria-label="選擇年級">
+          {% for year in journey.years %}
+          <button class="folder-tab" type="button" role="tab" id="tab-{{ year.grade }}" aria-controls="year-{{ year.grade }}"
+                  style="--year: var(--year-{{ year.grade }});"
+                  data-initial="{{ 'true' if year.grade == (journey.current_grade or 1) else 'false' }}">
+            <span class="mono">0{{ year.grade }}</span>{{ year.label }}{% if year.grade == journey.current_grade %}<span class="folder-tab__now">目前</span>{% endif %}
+            <span class="folder-tab__count">{{ year.count }}</span>
+          </button>
+          {% endfor %}
+        </div>
+        {% for year in journey.years %}
+        <div class="folder-panel" role="tabpanel" id="year-{{ year.grade }}" aria-labelledby="tab-{{ year.grade }}"
+             style="--year: var(--year-{{ year.grade }});" data-year-folder="{{ year.grade }}">
+          <div class="folder-panel__head">
+            <h2>{{ year.label }}</h2>
+            <span class="muted small">{{ year.count }} 筆</span>
+          </div>
+          {% set stop = home.stops[loop.index0] %}
+          {% if stop.plan %}
+          <div class="year-guide">
+            <section class="year-guide__card" aria-label="校方規劃與出處">
+              <h3>學校{{ year.label }}的規劃：{{ stop.plan.todo }}</h3>
+              <details>
+                <summary>課程、證照與準備事項</summary>
+                <p>課程：{{ stop.plan.courses|join("、") }}</p>
+                {% if stop.plan.certs %}<p>可以考：{{ stop.plan.certs|join("、") }}</p>{% endif %}
+                <p>{{ stop.plan.tip }}</p>
+              </details>
+              <p class="small muted">打開科目表，找「{{ year.label }}」的欄位。請比對自己的入學年度。</p>
+              {% for name, url in stop.plan.sources %}
+              <a class="year-guide__source" href="{{ url }}" target="_blank" rel="noopener">{{ name }} ↗</a>
+              {% endfor %}
+            </section>
+            <section class="year-guide__card" aria-label="查看這一年的佐證">
+              <h3>查看{{ year.label }}佐證</h3>
+              <p>在下方找成績、證照或經歷。已附檔的項目會顯示「看原始檔」或檔名。</p>
+              <a class="year-guide__source" href="{{ url_for('student.my_files') }}">到我的檔案找上傳紀錄 →</a>
+            </section>
+          </div>
+          {% endif %}
+          <div class="drawer">
+            {% for key in category_keys %}
+            {% set items = year.categories[key] %}
+            <div class="drawer__col">
+              <h3>{{ category_labels[key] }} <span class="mono">{{ items|length }}</span></h3>
+              {% for item in items %}
+              <div class="paper-item">
+                <b>{{ item.title }}</b>{% if item.detail %}<small>{{ item.detail }}</small>{% endif %}
+                {% if item.document_id %}
+                <a href="{{ url_for('student.learning_profile_document_view', document_id=item.document_id) }}" aria-label="看{{ item.title }}的原始檔">看原始檔 →</a>
+                {% endif %}
+                {% for evidence_id, name, preview_kind in item.attachments %}
+                <a href="{{ url_for('student.evidence_view' if preview_kind else 'student.evidence_download', evidence_id=evidence_id) }}">{{ name }} →</a>
+                {% endfor %}
+              </div>
+              {% else %}
+              <a class="paper-empty" href="{{ add_links.get(key, url_for('student.portfolio_new', category=key)) }}">＋ 新增{{ category_labels[key] }}</a>
+              {% endfor %}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+        {% if journey.unsorted_count %}
+        <p class="notice mt-1">有 {{ journey.unsorted_count }} 筆資料還沒填年級，補上年級就會放進資料夾。</p>
+        {% endif %}
+      </section>
+
+      <aside class="sticky form-stack">
+        <section class="sheet target-mini">
+          <div class="sheet__head"><h2>目標校系</h2></div>
+          {% for target in targets %}
+          <a class="paper-item" href="{{ url_for('student.target_gap', program_id=target.program.id) }}">
+            <b>{{ target.program.school_name|replace("國立", "") }} {{ target.program.department_name }}</b>
+            <small>準備度 {{ target.readiness if target.readiness is not none else "—" }}%</small>
+          </a>
+          {% else %}
+          <a class="paper-item" href="{{ url_for('student.target_list') }}"><b>還沒選</b><small>去看學校 →</small></a>
+          {% endfor %}
+        </section>
+      </aside>
+    </div>
+  </details>
+
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}
+
+{% block scripts %}<script src="{{ url_for('static', filename='js/home-desk.js') }}" defer></script>{% endblock %}

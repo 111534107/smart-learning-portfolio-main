@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer with context %}
+{% set page_name = "staff-form-links" %}
+
+{% block title %}檢查表單連結｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "表單下載區") }}{% endblock %}
+
+{% block content %}
+<div class="page">
+  {% if user.role == "staff" %}<p class="small"><a href="{{ url_for('forms.staff_forms') }}">← 回表單下載區</a></p>{% endif %}
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h1 class="h2">檢查表單連結</h1>
+      <p>學校網站改版後，表單的連結常會失效。按「檢查連結」會逐一連到每個連結看還開不開得了（每個最多等 {{ timeout }} 秒），只記錄結果，不會下載或自動換成新版；失效的要請科辦手動換成最新的連結。</p></div>
+      <form method="post" action="{{ url_for('forms.staff_links_check') }}" data-tour="按檢查連結，逐一確認學校網址狀態。" data-tour-order="1">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="button" type="submit"{% if not items %} disabled{% endif %}>檢查連結</button>
+      </form></div>
+    {% if broken %}<p class="alert mb-1" role="alert">有 {{ broken|length }} 個連結失效，請更新成最新的連結。學生端這幾份表單目前顯示「連結可能已失效，請洽科辦」。</p>{% endif %}
+    {% if items %}
+    <div class="table-wrap" data-tour="查看檢查結果，失效時進入管理更新。" data-tour-order="2">
+      <table class="data-table">
+        <thead><tr><th>表單</th><th>連結</th><th>狀態</th><th>最後檢查</th>{% if user.role == "staff" %}<th><span class="visually-hidden">操作</span></th>{% endif %}</tr></thead>
+        <tbody>
+          {% for item in items %}
+          <tr>
+            <td>{{ item.title }}<br><span class="muted small">{{ item.category.name }}{% if not item.is_published %} · 已下架{% endif %}</span></td>
+            <td class="small" style="overflow-wrap:anywhere"><a href="{{ item.source_url }}" target="_blank" rel="noopener noreferrer">{{ item.source_url }}</a></td>
+            <td>{% if item.link_status %}<span class="tag {{ 'tag--ok' if item.link_status == 'ok' else 'tag--warn' }}">{{ link_labels[item.link_status] }}</span><br><span class="muted small">{{ item.link_detail or "" }}</span>{% else %}<span class="muted">還沒檢查</span>{% endif %}</td>
+            <td class="small">{{ item.link_checked_at|taipei_time("%Y-%m-%d %H:%M") if item.link_checked_at else "—" }}</td>
+            {% if user.role == "staff" %}<td><a class="button button--small{% if item.link_status != 'broken' %} button--line{% endif %}" href="{{ url_for('forms.staff_detail', item_id=item.id) }}">{{ "更新連結" if item.link_status == "broken" else "管理" }}</a></td>{% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="muted small mt-1">「無法確認」表示網站拒絕自動檢查（例如要登入），不一定壞掉，請自己點開看一次；這種不會對學生顯示警告。</p>
+    {% else %}
+    <p class="muted">目前沒有任何表單填了學校網站連結。到表單的「管理」頁可以填。</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

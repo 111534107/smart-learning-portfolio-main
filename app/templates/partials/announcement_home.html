@@ -1,0 +1,9 @@
+{# 二技公告（UC-25）：首頁一行最新公告。學生、導師、科辦共用；沒有公告就不顯示。 #}
+{% set _ann = announcement_home(user) %}
+{% if _ann.latest %}
+<p class="notice mt-1" data-latest-announcement>
+  <b>二技公告</b>　<a href="{{ url_for('announcement.detail', announcement_id=_ann.latest.id) }}">{{ _ann.latest.title }}</a>
+  {% if _ann.unread %}<span class="tag tag--warn">未讀</span>{% endif %}
+  <a class="small" href="{{ url_for('announcement.index') }}">全部公告 →</a>
+</p>
+{% endif %}

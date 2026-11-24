@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "admin-announcements" %}
+{% set status_labels = {"draft": ("草稿", "tag"), "published": ("已發布", "tag--ok"), "withdrawn": ("已下架", "tag--warn")} %}
+{% block title %}二技公告管理｜資管科智慧學習歷程系統{% endblock %}
+{% block navigation %}{{ masthead(user, "招生資料 Agent") }}{% endblock %}
+{% block content %}
+<section class="work-shell" data-work-role="admin">
+  <header class="work-heading">
+    <div>
+      <p class="small"><a href="{{ url_for('admin.agent_home') }}">← 招生資料 Agent</a></p>
+      <h1>二技公告管理</h1>
+      <p>核准招生日程後系統會擬好草稿；你改字後發布，學生、老師、科辦會收到通知。公告不能刪除，只能下架。</p>
+    </div>
+    <a class="button" href="{{ url_for('announcement.admin_new') }}" data-tour="要手動撰寫公告時，先建立草稿。" data-tour-order="1">手動新增公告</a>
+  </header>
+  {% if message %}<p class="notice mb-1" role="status">{{ message }}</p>{% endif %}
+  {% if error %}<p class="alert mb-1" role="alert">{{ error }}</p>{% endif %}
+  {% for status in ("draft", "published", "withdrawn") %}
+  <section class="work-panel mt-1" data-status="{{ status }}"{% if loop.first %} data-tour="依狀態查看公告；草稿可編輯發布。" data-tour-order="2"{% endif %}>
+    <h2>{{ status_labels[status][0] }}（{{ groups[status]|length }}）</h2>
+    {% if groups[status] %}
+    <ul class="work-list">
+      {% for row in groups[status] %}
+      <li>
+        <strong>{{ row.title }}</strong> <span class="tag {{ status_labels[status][1] }}">{{ status_labels[status][0] }}</span>
+        {% if row.published_at %}<span class="small muted">發布 {{ row.published_at|taipei_time("%Y-%m-%d %H:%M") }}</span>{% endif %}
+        {% if row.withdrawn_at %}<span class="small muted">下架 {{ row.withdrawn_at|taipei_time("%Y-%m-%d %H:%M") }}</span>{% endif %}
+        {% if status == "draft" %}<a class="button button--small" href="{{ url_for('announcement.admin_edit', announcement_id=row.id) }}">編輯與發布</a>{% endif %}
+        {% if status == "published" %}
+        <form method="post" action="{{ url_for('announcement.admin_withdraw', announcement_id=row.id) }}" style="display:inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="button button--small button--quiet" type="submit">下架</button>
+        </form>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="muted small">沒有。</p>{% endif %}
+  </section>
+  {% endfor %}
+</section>
+{% endblock %}

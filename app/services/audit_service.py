@@ -1,0 +1,135 @@
+"""操作紀錄（規格 M11）：登入、確認、送審、刪除、上傳、目標校系、自傳都寫進 audit_logs。
+
+只記「誰、做了什麼、對哪一類的第幾筆」。不記內容與個資：不放學生姓名、學號、經歷標題、
+檔名或自傳文字；detail 只放代碼（例如文件種類），不放使用者打的字。
+"""
+
+from flask import has_request_context, request
+
+from app.extensions import db
+from app.models import AuditLog
+
+# 管理者「操作紀錄」頁顯示的中文名稱；新動作記得補一筆
+ACTION_LABELS = {
+    "transfer_plan.add": "新增插大目標",
+    "transfer_plan.update": "修改插大目標",
+    "transfer_plan.archive": "封存插大目標",
+    "transfer_plan.teacher_update": "導師修正插大目標",
+    "student.login": "學生登入",
+    "user.login": "教職員登入",
+    "admin.login_failed": "管理員登入密碼錯誤",
+    "student.login_failed": "學生登入密碼錯誤",
+    "staff.login_failed": "教職員登入密碼錯誤",
+    "account.locked": "帳號因錯誤太多次被鎖定",
+    "account.unlocked": "管理員解除帳號鎖定",
+    "admin.login_security": "設定管理員登入網段",
+    "ai.settings": "調整 AI 設定",
+    "student.welcome_done": "看完歡迎頁",
+    "portfolio.confirm": "確認經歷",
+    "attendance.import": "匯入缺曠合計",
+    "attendance.view": "班導查看缺曠合計",
+    "certificate.issue": "科辦開立電子獎狀",
+    "certificate.approve": "主任或副主任核准電子獎狀",
+    "certificate.edit": "科辦修改待核准獎狀內文",
+    "certificate.return": "科辦退回電子獎狀申請",
+    "form.agent_sync": "從學校網站更新表單",
+    "form.approve": "主任或副主任核准表單上架",
+    "school.update": "修改學校資料",
+    "school.create": "新增學校",
+    "school.department_link": "修改科系網址",
+    "school.import": "匯入學校資料",
+    "school.check_links": "檢查學校網址",
+    "certificate.batch_issue": "科辦批量開立電子獎狀",
+    "user.password_change": "修改密碼",
+    "staff.account.create": "新增教職員帳號",
+    "staff.job_title.update": "修改職稱",
+    "admin.transfer_student.create": "管理員建立轉科／轉學生帳號",
+    "transfer_review.submitted": "轉科案件送核",
+    "transfer_review.confirm": "轉科案件確認",
+    "transfer_review.return": "轉科案件退回",
+    "transfer_review.resubmit": "轉科案件更正重送",
+    "transfer_review.withdraw": "轉科案件撤回",
+    "account.deactivate": "停用帳號",
+    "account.activate": "重新啟用帳號",
+    "program.publish": "校系核准為正式",
+    "program.unpublish": "校系改回候選",
+    "class_advisor.add": "指派導師班級",
+    "class_advisor.remove": "移除導師班級",
+    "staff.student_view": "科主任檢視學生詳細資料",
+    "staff.student_document_view": "科主任查看學生原始檔",
+    "staff.transfer_student.create": "建立轉學生帳號",
+    "staff.transfer_credit.confirm": "確認轉學抵免進度",
+    "student.journey_docx": "匯出五年資料 Word",
+    "graduation.check_dates": "設定畢業檢核日期",
+    "graduation.course_unknown": "成績有找不到對應科目的課",
+    "email.notify": "電子郵件通知",
+    "calendar.reset": "重設行事曆訂閱網址",
+    "email.settings": "設定電子郵件通知（全域）",
+    "user.email_notify": "修改自己的電子郵件通知開關",
+    "portfolio.delete": "刪除經歷",
+    "portfolio.delete_blocked": "刪除經歷被擋下（已送審）",
+    "evidence.upload": "上傳佐證",
+    "evidence.delete": "刪除佐證",
+    "document.delete": "刪除還沒確認的上傳檔",
+    "student.internship_resume_reset": "實習履歷清空重填",
+    "student.internship_resume_bio_generate": "實習履歷自傳一鍵生成",
+    "autobiography.delete": "刪除從沒送審的自傳草稿",
+    "autobiography.delete_blocked": "刪除自傳被擋下（已送審）",
+    "document.delete_blocked": "刪除上傳檔被擋下（已確認或辨識中）",
+    "evidence.delete_blocked": "刪除佐證被擋下（已送審）",
+    "learning_profile.document_upload": "上傳成績單或證照",
+    "learning_profile.document_confirm": "確認 OCR 擷取結果",
+    "student_target.add": "設定目標校系",
+    "student_target.remove": "取消目標校系",
+    "package_review.request": "送導師確認",
+    "package_review.confirm": "導師確認",
+    "package_review.needs_revision": "導師請學生修改",
+    "package_review.withdraw": "導師撤回確認",
+    "autobiography.generate": "產生自傳",
+    "autobiography.suggest": "導師建議修改",
+    "autobiography.suggestion_accept": "接受建議修改",
+    "autobiography.suggestion_reject": "不接受建議修改",
+    "autobiography.batch_start": "批次產生自傳",
+    "autobiography.save": "儲存自傳",
+    "autobiography.teacher_edit": "導師修改自傳",
+    "autobiography.comment": "導師新增自傳段落註解",
+    "autobiography.comment_reply": "回覆自傳段落註解",
+    "autobiography.comment_resolve": "自傳段落註解標記已處理",
+    "autobiography.comment_reopen": "自傳段落註解改回待處理",
+    "target.teacher_reminder": "導師提醒學生準備備審",
+    "teacher.class_overview_export": "匯出班級總覽 Excel",
+    "form.publish": "上架表單",
+    "form.new_version": "表單改版",
+    "form.update": "修改表單資料",
+    "form.unpublish": "下架表單",
+    "form.republish": "重新上架表單",
+    "form.check_links": "檢查表單連結",
+    "form_category.create": "新增表單分類",
+    "form_category.update": "修改表單分類",
+    "curriculum.check": "檢查修業科目表更新",
+    "curriculum.publish": "確認修業科目表",
+    "curriculum.reject": "不採用修業科目表",
+    "two_factor.enable": "開啟雙重驗證",
+    "two_factor.reset": "重設雙重驗證",
+    "two_factor.failed": "雙重驗證碼錯誤",
+    "two_factor.backup_code": "使用雙重驗證備用碼",
+    "two_factor.backup_regenerate": "重新產生備用碼",
+}
+
+
+def record(actor, action, target_type=None, target_id=None, detail=None, commit=False):
+    """加一筆操作紀錄。commit=False 時跟著呼叫端的交易一起存。"""
+    db.session.add(AuditLog(
+        user_id=actor.id if actor else None,
+        action=action,
+        target_type=target_type,
+        target_id=target_id,
+        ip_address=request.remote_addr if has_request_context() else None,
+        detail_json=detail,
+    ))
+    if commit:
+        db.session.commit()
+
+
+def label(action):
+    return ACTION_LABELS.get(action, action)
