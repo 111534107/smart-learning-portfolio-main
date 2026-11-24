@@ -16,6 +16,6 @@ flowchart TD
     Recommend --> Choose[學生自己選，隨時可以換<br/>畫面提醒：只是幫你找方向]:::student
     Choose --> Grade5{五年級開始做備審？}
     Grade5 -- 否 --> Choose
-    Grade5 -- 是 --> Limit[準備報名時顯示各招生管道當年度簡章的規定<br/>（可報幾個志願、各校是否限報一系、期限），附出處<br/>系統不限制想去的學校數量；換學校時提醒自傳要調整]:::student
+    Grade5 -- 是 --> Limit[目標校系同時最多 5 所<br/>換學校時提醒：自傳要重寫]:::student
     Teacher --> Remind[學生首頁出現老師的提醒]:::system
     Staff -.- NotStaff[學生自己漏傳的獎狀<br/>科辦不處理]:::pending

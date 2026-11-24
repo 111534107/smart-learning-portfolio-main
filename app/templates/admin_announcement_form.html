@@ -17,7 +17,7 @@
   {% if error %}<p class="alert mb-1" role="alert">{{ error }}</p>{% endif %}
   <form class="work-panel" method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label class="field"><span class="field__label">標題</span><input name="title" maxlength="200" required value="{{ values.title }}"></label>
+    <label class="field" data-tour="填寫標題與內容，並選擇公告對象。" data-tour-order="1"><span class="field__label">標題</span><input name="title" maxlength="200" required value="{{ values.title }}"></label>
     <label class="field"><span class="field__label">內容 <small>學生、老師、科辦看到的文字</small></span><textarea name="body" rows="10">{{ values.body }}</textarea></label>
     <fieldset class="field"><legend class="field__label">給誰看（至少勾一個）</legend>
       <div class="check-row">
@@ -34,7 +34,7 @@
       {% if not (dates|selectattr("is_send_review")|list) %}<p class="small">寄送備審資料：簡章未載明</p>{% endif %}
     </div>
     {% endif %}
-    <div class="mt-1">
+    <div class="mt-1" data-tour="核對後發布，或先儲存草稿。" data-tour-order="2">
       {% if announcement %}
       <button class="button" type="submit" name="action" value="publish">發布</button>
       <button class="button button--line" type="submit" name="action" value="save">先存草稿</button>

@@ -58,6 +58,17 @@ def _columns(html):
     return have, missing
 
 
+def test_matching_tours_explain_search_and_target_selection(site):
+    client = _login(site)
+    listing = client.get('/student/matching').get_data(as_text=True)
+    detail = client.get(f"/student/matching/{site.config['_ids']['program']}").get_data(as_text=True)
+    assert 'data-tour="選二技或插大，切換招生管道。"' in listing
+    assert 'data-tour="輸入學校或科系，篩選推薦清單。"' in listing
+    assert 'data-tour="點校系名稱，查看資格與缺少項目。"' in listing
+    assert 'data-tour="核對資格與已符合、缺少的項目。"' in detail
+    assert 'data-tour="想追蹤這個校系時，設為目標。"' in detail
+
+
 def test_matching_detail_shows_have_and_missing(site):
     pid = site.config["_ids"]["program"]
     html = _login(site).get(f"/student/matching/{pid}").get_data(as_text=True)

@@ -12,7 +12,7 @@
 <div class="page page--banded my-files">
   <p class="muted mb-1">你上傳過的所有原始檔案都在這裡：成績單、證照、活動與經歷的佐證。確認過的資料，備審打包時會一起放進去；不想放的檔案，可以到目標校系的「選擇放進備審的資料」拿掉。</p>
 
-  <section class="record-group" aria-labelledby="files-docs-title">
+  <section class="record-group" aria-labelledby="files-docs-title" data-tour="在這裡開啟上傳過的成績單與證照。" data-tour-order="1">
     <div class="record-group__head"><h2 id="files-docs-title">成績單與證照</h2><span class="muted small">{{ documents|length }} 份</span></div>
     {% if documents %}
     <div class="table-wrap">
@@ -22,12 +22,13 @@
           {% for document in documents %}
           <tr>
             <td>{{ document.display_name }}<br><span class="muted small">{{ document.created_at|taipei_time("%Y-%m-%d") }} 上傳</span></td>
-            <td data-label="種類">{{ "成績單" if document.document_type == "transcript" else "證照" }}</td>
+            <td data-label="種類">{{ {"transcript": "成績單", "credential": "證照", "award_record": "獎懲記錄"}.get(document.document_type, "其他") }}</td>
             <td data-label="狀態">{{ status_chip(record_state(document)) }}</td>
             <td data-label="存在哪">{{ where(document.file_path) }}</td>
             <td data-label="備審">{{ "會放進備審打包" if document.status == "confirmed" else "確認後才會放進備審" }}</td>
             <td><a class="button button--small button--line" href="{{ url_for('student.learning_profile_document_view', document_id=document.id) }}" target="_blank" rel="noopener">看檔案</a>
-              {% if document.status not in ("queued", "processing") %}<a class="button button--small{{ ' button--line' if document.status == 'confirmed' else '' }}" href="{{ url_for('student.learning_profile_document_review', document_id=document.id) }}">{{ "修改" if document.status == "confirmed" else "去確認" }}</a>{% endif %}</td>
+              {% if document.status not in ("queued", "processing") %}<a class="button button--small{{ ' button--line' if document.status == 'confirmed' else '' }}" href="{{ url_for('student.learning_profile_document_review', document_id=document.id) }}">{{ "修改" if document.status == "confirmed" else "去確認" }}</a>{% endif %}
+              {% if document.status in ("uploaded", "extracted", "analysis_failed", "failed") %}<form method="post" action="{{ url_for('student.learning_profile_document_delete', document_id=document.id) }}" data-confirm="確定要刪除「{{ document.display_name }}」嗎？還沒確認的檔案刪除後不能復原；已確認的檔案不能刪。" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small button--line" type="submit">刪除</button></form>{% endif %}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -38,7 +39,7 @@
     {% endif %}
   </section>
 
-  <section class="record-group mt-1" aria-labelledby="files-evidence-title">
+  <section class="record-group mt-1" aria-labelledby="files-evidence-title" data-tour="在這裡查看活動與經歷的佐證。" data-tour-order="2">
     <div class="record-group__head"><h2 id="files-evidence-title">活動與經歷的佐證</h2><span class="muted small">{{ evidence|length }} 個</span></div>
     {% if evidence %}
     <div class="table-wrap">

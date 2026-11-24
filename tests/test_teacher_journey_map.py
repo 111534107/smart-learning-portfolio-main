@@ -109,8 +109,8 @@ def test_teacher_sees_each_student_record_and_attachment_confirmation_state():
     for name, state in [("草稿活動測試", "草稿"), ("確認活動測試", "學生已確認")]:
         assert any(name in heading and state in heading for heading in re.findall(r"<h3\b[^>]*>.*?</h3>", html, re.S))
     assert "以下是學生已確認的資料" not in html
-    dashboard = client.get("/teacher/dashboard").get_data(as_text=True)
-    assert "各類資料筆數包含草稿與學生已確認資料" in dashboard
+    roster = client.get("/teacher/roster").get_data(as_text=True)   # 2026-11-21 工作台拆頁：這段說明在學生名單頁
+    assert "各類資料筆數包含草稿與學生已確認資料" in roster
 
 
 def test_teacher_can_filter_visible_year_records_and_use_quick_links():
@@ -141,3 +141,77 @@ def test_teacher_can_filter_visible_year_records_and_use_quick_links():
     assert "已確認項目測試" in confirmed_records
     assert "專一活動" not in confirmed_records
 
+
+
+def test_teacher_dashboard_filters_only_assigned_classes():
+    app, first_id = teacher_journey_app()
+    with app.app_context():
+        teacher = User.query.filter_by(username="journey-teacher").one()
+        second = User(username="other-class", display_name="另一班學生", role="student")
+        second.set_password("pw")
+        db.session.add(second)
+        db.session.flush()
+        db.session.add(StudentProfile(user_id=second.id, student_no="J0002", class_name="資管科三乙"))
+        db.session.add(ClassAdvisor(teacher_id=teacher.id, class_name="資管科三乙", school_year=115))
+        db.session.commit()
+    client = app.test_client()
+    client.post("/login", data={"username": "journey-teacher", "password": "pw"})
+    # 2026-11-21 工作台拆頁：學生列在「學生名單」頁；四個分頁都有班級篩選，不是負責的班級一律 400
+    page = client.get("/teacher/roster?class_name=資管科三乙").get_data(as_text=True)
+    assert "另一班學生" in page
+    assert "J0001" not in page
+    assert "班級篩選" in page
+    assert "班級篩選" in client.get("/teacher/dashboard?class_name=資管科三乙").get_data(as_text=True)
+    for path in ("/teacher/dashboard", "/teacher/graduation", "/teacher/roster", "/teacher/targets"):
+        assert client.get(f"{path}?class_name=非負責班級").status_code == 400, path
+
+
+def test_student_search_only_shows_own_records_and_function_links():
+    app, student_id = teacher_journey_app()
+    with app.app_context():
+        other = User(username="other-search", display_name="另一位", role="student")
+        other.set_password("pw")
+        db.session.add(other)
+        db.session.flush()
+        db.session.add_all([
+            Portfolio(student_id=student_id, title="獨有搜尋活動", category="activity", school_year=1),
+            Portfolio(student_id=other.id, title="他人搜尋活動", category="activity", school_year=1),
+        ])
+        db.session.commit()
+    client = app.test_client()
+    client.post("/login", data={"username": "journey-student", "password": "pw"})
+    response = client.get("/student/search?q=搜尋活動")
+    assert response.status_code == 200
+    assert "獨有搜尋活動" in response.get_data(as_text=True)
+    assert "他人搜尋活動" not in response.get_data(as_text=True)
+    assert "畢業門檻" in client.get("/student/search?q=畢業").get_data(as_text=True)
+    assert client.get("/student/search", query_string={"q": "搜尋活動", "kind": "證照", "format": "json"}).json == {"results": []}
+    response = client.get("/student/search", query_string={"q": "搜尋活動", "kind": "經歷", "format": "json"})
+    assert [(kind, title) for kind, title, _ in response.json["results"]] == [("經歷", "獨有搜尋活動")]
+
+
+def test_teacher_summary_rejects_class_outside_teacher_scope():
+    app, _ = teacher_journey_app()
+    client = app.test_client()
+    client.post("/login", data={"username": "journey-teacher", "password": "pw"})
+    assert client.post("/teacher/class-summary", data={"class_name": "不是負責的班"}).status_code == 403
+    response = client.post("/teacher/class-summary", data={"class_name": "資管科三甲"})
+    assert response.status_code == 200
+    assert "人數較少" in response.get_data(as_text=True)
+
+def test_teacher_student_summary_only_for_own_student():
+    app, student_id = teacher_journey_app()
+    with app.app_context():
+        outsider = User(username="other-summary", display_name="別班學生", role="student")
+        outsider.set_password("pw")
+        db.session.add(outsider)
+        db.session.flush()
+        db.session.add(StudentProfile(user_id=outsider.id, student_no="OTHER", class_name="別班"))
+        db.session.commit()
+        outsider_id = outsider.id
+    client = app.test_client()
+    client.post("/login", data={"username": "journey-teacher", "password": "pw"})
+    assert client.post(f"/teacher/students/{outsider_id}/summary").status_code == 403
+    response = client.post(f"/teacher/students/{student_id}/summary")
+    assert response.status_code == 200
+    assert "本機統計" in response.get_data(as_text=True)

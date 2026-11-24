@@ -16,7 +16,7 @@
 <div class="welcome" data-welcome>
   <form class="welcome__skip" method="post" action="{{ url_for('main.student_welcome_done') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <button type="submit" data-welcome-skip>跳過</button>
+    <button type="submit" data-welcome-skip data-tour="不看歡迎介紹時，可按這裡跳過。" data-tour-order="1">跳過</button>
   </form>
 
   <div class="welcome__stage">
@@ -86,10 +86,10 @@
       <p>選一個開始，之後隨時可以換。</p>
       <form class="welcome__choices" method="post" action="{{ url_for('main.student_welcome_done') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="choice" name="to" value="upload"><b>上傳成績單</b><small>最快的第一片</small></button>
-        <button class="choice" name="to" value="activity"><b>記下一件活動</b><small>社團、幹部、志工都可以</small></button>
-        <button class="choice" name="to" value="schools"><b>先看目標校系</b><small>想去哪裡？</small></button>
-        <button class="choice choice--quiet" name="to" value="home"><b>先逛逛</b></button>
+        <button class="choice" name="to" value="upload" aria-label="上傳成績單"><b>上傳成績單</b><small>最快的第一片</small></button>
+        <button class="choice" name="to" value="activity" aria-label="記下一件活動"><b>記下一件活動</b><small>社團、幹部、志工都可以</small></button>
+        <button class="choice" name="to" value="schools" aria-label="先看目標校系"><b>先看目標校系</b><small>想去哪裡？</small></button>
+        <button class="choice choice--quiet" name="to" value="home" aria-label="先逛逛"><b>先逛逛</b></button>
       </form>
     </section>
   </div>
@@ -97,7 +97,7 @@
   <nav class="welcome__nav" aria-label="歡迎步驟">
     <button type="button" class="welcome__back" data-welcome-back>上一步</button>
     <ol class="welcome__dots" data-welcome-dots>{% for n in range(5) %}<li></li>{% endfor %}</ol>
-    <button type="button" class="button" data-welcome-next>繼續 →</button>
+    <button type="button" class="button" data-welcome-next data-tour="按繼續閱讀下一段歡迎介紹。" data-tour-order="2">繼續 →</button>
   </nav>
 </div>
 {% endblock %}

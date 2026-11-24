@@ -11,9 +11,9 @@
 {{ page_band("怎麼進這所學校") }}
 <div class="page page--banded">
   <div class="record-card__actions mb-1">
-    <a class="button button--small button--quiet" href="{{ url_for('student.matching') }}">← 回推薦排序</a>
+    <a class="button button--small button--quiet" href="{{ url_for('student.matching') }}" data-tour="比較完後，可回推薦排序看其他校系。" data-tour-order="3">← 回推薦排序</a>
   </div>
-  <div class="sheet mb-1">
+  <div class="sheet mb-1" data-tour="核對資格與已符合、缺少的項目。" data-tour-order="1">
     <div class="sheet__head">
       <h2>{{ row.program.school_name }} {{ row.program.department_name }}</h2>
       <span class="tag">{{ row.channel_label }}</span>
@@ -48,7 +48,7 @@
     <p class="small mt-1">招生資訊：{% for link in row.links %}<a href="{{ link.url }}" target="_blank" rel="noopener noreferrer">{{ link.label }}</a>{% if not loop.last %}／{% endif %}{% endfor %}</p>
     {% endif %}
     {% if row.status != "ineligible" %}
-    <div class="record-card__actions mt-1">
+    <div class="record-card__actions mt-1" data-tour="{{ '點這裡查看目標校系還缺什麼。' if row.program.id in selected else '想追蹤這個校系時，設為目標。' }}" data-tour-order="2">
       {% if row.program.id in selected %}
       <a class="button button--small" href="{{ url_for('student.target_gap', program_id=row.program.id) }}">已是目標校系，看還缺什麼 →</a>
       {% else %}

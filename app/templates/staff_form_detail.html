@@ -17,7 +17,7 @@
       {% if item.origin == "agent" %}<span class="tag">學校網站自動抓取</span>{% endif %}
       {% if not item.category.is_active %}<span class="tag tag--warn">分類已停用</span>{% endif %}</h1>
     <p class="muted small">{% if item.review_state == "published" %}學生與老師可以在「表單下載」看到並下載最新版（依開放對象）。{% if item.approved_by %}由{{ item.approved_by.display_name }}核准。{% endif %}{% elif item.review_state == "pending" %}還沒上架：主任或副主任核准後，學生與老師才看得到。{% else %}已下架：學生與老師看不到，也不能用網址下載；檔案仍保留。{% endif %}</p>
-    <form method="post" action="{{ url_for('forms.staff_toggle_publish', item_id=item.id) }}">
+    <form method="post" action="{{ url_for('forms.staff_toggle_publish', item_id=item.id) }}" data-tour="依權限核准、重新上架或下架表單。" data-tour-order="1">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       {% if item.is_published %}
       <button class="button button--line" type="submit" name="action" value="unpublish">下架</button>
@@ -32,7 +32,7 @@
   <section class="sheet mb-1">
     <h2 class="h3">上傳新版本</h2>
     <p class="muted small">新版本上架後，大家下載的就是新版；舊版保留在下方紀錄，不會被覆蓋。</p>
-    <form method="post" action="{{ url_for('forms.staff_new_version', item_id=item.id) }}" enctype="multipart/form-data" class="form-stack">
+    <form method="post" action="{{ url_for('forms.staff_new_version', item_id=item.id) }}" enctype="multipart/form-data" class="form-stack" data-tour="檔案有更新時上傳新版，舊版仍保留。" data-tour-order="2">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label class="field"><span class="field__label">檔案 <small>PDF、Word、Excel、ODT、ODS，單檔 10 MB 以內</small></span>
         <input type="file" name="file" required accept=".pdf,.doc,.docx,.xls,.xlsx,.odt,.ods"></label>
@@ -63,7 +63,7 @@
 
   <section class="sheet">
     <h2 class="h3">表單資料</h2>
-    <form method="post" action="{{ url_for('forms.staff_update', item_id=item.id) }}" class="form-stack">
+    <form method="post" action="{{ url_for('forms.staff_update', item_id=item.id) }}" class="form-stack" data-tour="修改名稱、連結或開放對象後儲存。" data-tour-order="3">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label class="field"><span class="field__label">分類</span>
         <select name="category_id" required>

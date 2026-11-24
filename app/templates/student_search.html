@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% set page_name = "student-search" %}
+{% block title %}搜尋｜資管科智慧學習歷程系統{% endblock %}
+{% block navigation %}{{ masthead(user, "") }}{% endblock %}
+{% block content %}{{ page_band("搜尋", [("我的五年", url_for("main.student_dashboard"))]) }}<div class="page page--banded"><section class="sheet"><h1>搜尋功能與我的資料</h1>
+<form data-tour="輸入關鍵字並選擇要搜尋的資料類型。" data-tour-order="1" action="{{ url_for('main.student_search') }}" method="get" role="search">
+  <label for="student-search-query">搜尋關鍵字</label>
+  <input id="student-search-query" type="search" name="q" maxlength="60" value="{{ q }}" placeholder="例如：畢業門檻、網頁設計" required>
+  <label for="student-search-kind">資料類型</label>
+  <select id="student-search-kind" name="kind">
+    {% for key, label in kinds.items() %}<option value="{{ key }}"{% if kind == key %} selected{% endif %}>{{ label }}</option>{% endfor %}
+  </select>
+  <button type="submit" class="button" data-tour="填好條件後按搜尋，查看符合的資料。" data-tour-order="2">搜尋</button>
+</form>
+{% if q %}<p data-tour="查看符合的結果，點名稱開啟資料。" data-tour-order="3">「{{ q }}」找到 {{ results|length }} 筆。</p><ul>{% for kind, title, href in results %}<li><span>{{ kind }}</span> <a href="{{ href }}">{{ title }}</a></li>{% else %}<li>沒有找到符合的功能或資料。</li>{% endfor %}</ul>{% endif %}</section></div>{% endblock %}
+{% block footer %}{{ footer() }}{% endblock %}

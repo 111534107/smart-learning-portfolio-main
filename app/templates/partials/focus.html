@@ -1,6 +1,6 @@
 {# 聚焦：先把所有校系要的東西堆滿畫面，再淡出，只留最重要的 3 件。資料來自 focus_service。
    用語界線（UI-01 審查 R1、R2）：沒有推薦≠全部準備好；分類待確認要寫出來；不說成校方配分。 #}
-<section class="focus" data-focus aria-labelledby="focus-title" data-tour="選很多校系時，這裡告訴你先做哪幾件。" data-tour-order="1">
+<section class="focus" data-focus aria-labelledby="focus-title" data-tour="選很多校系時，這裡告訴你先做哪幾件。" data-tour-order="2">
   <div class="focus__pile" aria-hidden="true">
     {% for piece in focus.pieces %}
     <span class="focus__piece" style="--i: {{ loop.index0 }}; --x: {{ (loop.index0 * 37) % 92 }}%; --y: {{ (loop.index0 * 53) % 84 }}%; --r: {{ ((loop.index0 * 29) % 21) - 10 }}deg;">

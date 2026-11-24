@@ -52,7 +52,105 @@ class DriveError(Exception):
 
 
 class DriveAuthExpired(DriveError):
-    """授權過期或被撤銷（401／403）。"""
+    """授權過期或被撤銷（401、invalid_grant）。"""
+
+    user_message = "Google 授權已過期或被撤銷，請按「連上 Google 雲端硬碟」重新連線。"
+
+
+class DriveCredentialError(DriveError):
+    """用戶端 ID 或密鑰錯（Google 回 invalid_client／unauthorized_client）。"""
+
+    user_message = ("Google 不認得這組用戶端 ID 或密鑰。請核對 .env 的 GOOGLE_OAUTH_CLIENT_ID、"
+                    "GOOGLE_OAUTH_CLIENT_SECRET 是否從同一個 OAuth 用戶端複製、沒有多空白，改完重開網站。")
+
+
+class DriveRedirectMismatch(DriveError):
+    """重新導向網址和 Google Cloud 上登記的不一致。"""
+
+    user_message = ("重新導向網址不一致：.env 的 GOOGLE_STORAGE_REDIRECT_URI 要和 Google Cloud「已授權的重新導向 URI」"
+                    "逐字相同（含 http、主機、埠號、結尾路徑）。")
+
+
+class DrivePermissionDenied(DriveAuthExpired):
+    """權限不足（403 insufficientPermissions 等）：多半是同意畫面沒勾 drive.file，或帳號不在測試使用者名單。"""
+
+    user_message = ("Google 回應權限不足。請確認同意畫面有勾選 drive.file、連線的帳號在「測試使用者」名單裡，"
+                    "然後重新連線。")
+
+
+class DriveApiDisabled(DriveError):
+    """專案沒啟用 Google Drive API（403 accessNotConfigured）。"""
+
+    user_message = "這個 Google Cloud 專案還沒啟用 Google Drive API。請到「API 和服務 → 程式庫」啟用後等幾分鐘再試。"
+
+
+class DriveQuotaExceeded(DriveError):
+    """雲端硬碟空間滿了（403 storageQuotaExceeded）。"""
+
+    user_message = "這個 Google 帳號的雲端硬碟空間已滿，新上傳的檔案先存本機。請清出空間或改用學校帳號。"
+
+
+class DriveRateLimited(DriveError):
+    """短時間呼叫太多次（403／429 rateLimitExceeded）。"""
+
+    user_message = "Google 暫時限制呼叫次數，請等一分鐘再試。"
+
+
+class DriveNotFound(DriveError):
+    """檔案或資料夾不存在（404），可能被人從雲端硬碟手動刪掉。"""
+
+    user_message = "雲端上找不到這個檔案或資料夾，可能被人從 Google 雲端硬碟手動刪除或移到垃圾桶。"
+
+
+DriveError.user_message = "連不上 Google 或 Google 回應異常，請稍後再試；一直失敗請看伺服器日誌。"
+
+_TOKEN_ERRORS = {"invalid_client": DriveCredentialError, "unauthorized_client": DriveCredentialError,
+                 "invalid_grant": DriveAuthExpired, "redirect_uri_mismatch": DriveRedirectMismatch}
+_REASON_ERRORS = {
+    "storageQuotaExceeded": DriveQuotaExceeded, "quotaExceeded": DriveQuotaExceeded,
+    "userRateLimitExceeded": DriveRateLimited, "rateLimitExceeded": DriveRateLimited,
+    "accessNotConfigured": DriveApiDisabled, "SERVICE_DISABLED": DriveApiDisabled,
+    "insufficientPermissions": DrivePermissionDenied, "insufficientFilePermissions": DrivePermissionDenied,
+    "ACCESS_TOKEN_SCOPE_INSUFFICIENT": DrivePermissionDenied, "appNotAuthorizedToFile": DrivePermissionDenied,
+}
+
+
+def classify_http_error(status, body):
+    """把 Google 的錯誤回應（狀態碼＋JSON 內文）換成上面其中一種例外類別。內文不會被記錄或顯示。"""
+    try:
+        payload = json.loads(body.decode("utf-8") if isinstance(body, bytes) else (body or ""))
+    except (UnicodeDecodeError, json.JSONDecodeError, AttributeError):
+        payload = {}
+    payload = payload if isinstance(payload, dict) else {}
+    error = payload.get("error")
+    if isinstance(error, str) and error in _TOKEN_ERRORS:
+        return _TOKEN_ERRORS[error]
+    reasons = []
+    if isinstance(error, dict):
+        reasons += [item.get("reason") for item in error.get("errors") or [] if isinstance(item, dict)]
+        reasons += [item.get("reason") for item in error.get("details") or [] if isinstance(item, dict)]
+        reasons.append(error.get("status"))
+    for reason in reasons:
+        if reason in _REASON_ERRORS:
+            return _REASON_ERRORS[reason]
+    if status == 401:
+        return DriveAuthExpired
+    if status == 403:
+        return DrivePermissionDenied
+    if status == 404:
+        return DriveNotFound
+    if status == 429:
+        return DriveRateLimited
+    return DriveError
+
+
+def explain(error):
+    """給管理員看的中文說明；不是 DriveError 就用通用說法。"""
+    if isinstance(error, DriveError):
+        return type(error).user_message
+    if isinstance(error, StorageUnavailable):
+        return str(error)
+    return DriveError.user_message
 
 
 UNAVAILABLE_MESSAGE = "雲端檔案暫時拿不到，請稍後再試；如果一直這樣，請通知系統管理員重新連結 Google 雲端硬碟。"
@@ -84,6 +182,7 @@ class TokenHolder:
         self.child_folders = {}
 
     def clear(self):
+        self.last_error = None  # 最近一次存雲端失敗：{"at": 時間, "message": 中文說明}；只給管理員頁看
         self._access = self._refresh = self.folder_id = None
         self.child_folders = {}  # (上層資料夾, 用途) → 資料夾編號；換帳號或重新連線就清掉
         self._expires_at = 0
@@ -205,6 +304,11 @@ class HttpDriveClient:
         self._json(Request(f"{self.API}/{quote(self._file_id(file_id), safe='')}?fields=id", data=body,
                            method="PATCH", headers=self._auth(access_token, "application/json")))
 
+    def about(self, access_token):
+        """測試連線用：連上的是哪個帳號、空間用了多少。drive.file 權限就能讀。"""
+        return self._json(Request("https://www.googleapis.com/drive/v3/about?fields=user(emailAddress),storageQuota",
+                                  headers=self._auth(access_token)))
+
     def _token_request(self, fields):
         body = urlencode({**fields, "client_id": self._config["GOOGLE_OAUTH_CLIENT_ID"],
                           "client_secret": self._config["GOOGLE_OAUTH_CLIENT_SECRET"]}).encode()
@@ -232,9 +336,12 @@ class HttpDriveClient:
             with urlopen(request, timeout=self._timeout) as response:
                 return response.read()
         except HTTPError as error:
-            if error.code in (401, 403):
-                raise DriveAuthExpired(f"Google 回應 {error.code}") from error
-            raise DriveError(f"Google 回應 {error.code}") from error
+            try:
+                body = error.read()
+            except Exception:  # 讀不到錯誤內文就只看狀態碼
+                body = b""
+            kind = classify_http_error(error.code, body)
+            raise kind(f"Google 回應 {error.code}（{kind.__name__}）") from error
         except (URLError, TimeoutError, OSError) as error:
             raise DriveError("連不上 Google") from error
 
@@ -437,6 +544,7 @@ def save(data, owner_id, folder, filename):
             return _drive(app).save(data, owner_id, folder, filename)
         except (DriveError, StorageUnavailable) as error:
             app.logger.warning("存到 Google 雲端硬碟失敗，這次改存本機：%s", error)
+            token_holder(app).last_error = {"at": datetime.now(timezone.utc), "message": explain(error)}
     return _local(app).save(data, owner_id, folder, filename)
 
 
@@ -489,3 +597,98 @@ def discard(location):
         backend_for(location).discard(location)
     except (DriveError, StorageUnavailable) as error:
         current_app.logger.warning("丟棄孤兒檔失敗：%s", error)
+
+
+# ---------- 給管理員看的設定檢查與測試連線（不顯示任何金鑰內容） ----------
+
+CALLBACK_PATH = "/admin/storage/google/callback"
+
+
+def check_settings(config):
+    """逐項檢查 .env 的雲端硬碟設定，回傳 [{"label", "ok", "hint"}]。只看格式，不連網路、不回傳金鑰。"""
+    from urllib.parse import urlparse
+
+    backend = (config.get("STORAGE_BACKEND") or "local").strip().lower()
+    client_id = (config.get("GOOGLE_OAUTH_CLIENT_ID") or "").strip()
+    raw_secret = config.get("GOOGLE_OAUTH_CLIENT_SECRET") or ""
+    secret_ok = bool(raw_secret.strip()) and raw_secret == raw_secret.strip()
+    redirect = (config.get("GOOGLE_STORAGE_REDIRECT_URI") or "").strip()
+    parsed = urlparse(redirect) if redirect else None
+    checks = [
+        {"label": "存放方式 STORAGE_BACKEND", "ok": backend == "google_drive",
+         "hint": "已設為 google_drive。" if backend == "google_drive" else
+         ("目前是 local（存本機）。要改存雲端請填 google_drive。" if backend == "local"
+          else f"「{backend}」不是可用的值，只能填 local 或 google_drive。")},
+        {"label": "用戶端 ID GOOGLE_OAUTH_CLIENT_ID", "ok": client_id.endswith(".apps.googleusercontent.com"),
+         "hint": "格式正確。" if client_id.endswith(".apps.googleusercontent.com") else
+         ("沒填。" if not client_id else "格式不像 Google 用戶端 ID（應以 .apps.googleusercontent.com 結尾）。")},
+        {"label": "用戶端密鑰 GOOGLE_OAUTH_CLIENT_SECRET", "ok": secret_ok,
+         "hint": "已填（不顯示內容）。" if secret_ok else ("沒填。" if not raw_secret.strip() else "前後有空白，請刪掉。")},
+    ]
+    if not redirect:
+        redirect_ok, redirect_hint = False, "沒填。"
+    elif parsed.scheme not in ("http", "https") or not parsed.netloc:
+        redirect_ok, redirect_hint = False, "要是完整網址，例如 http://localhost:5019" + CALLBACK_PATH + "。"
+    elif parsed.path != CALLBACK_PATH:
+        redirect_ok, redirect_hint = False, f"結尾路徑要是 {CALLBACK_PATH}。"
+    elif parsed.scheme == "http" and parsed.hostname not in ("localhost", "127.0.0.1"):
+        redirect_ok, redirect_hint = False, "Google 只允許 localhost 用 http，其他主機要用 https。"
+    else:
+        redirect_ok, redirect_hint = True, f"{redirect}（要和 Google Cloud 登記的完全一樣，且用同一個主機與埠號開網站）"
+    checks.append({"label": "重新導向網址 GOOGLE_STORAGE_REDIRECT_URI", "ok": redirect_ok, "hint": redirect_hint})
+    return checks
+
+
+def last_check(app):
+    return app.extensions.get("google_storage_last_check")
+
+
+def test_connection(app):
+    """管理員按「測試連線」：依序檢查設定 → 權杖 → 帳號 → 系統資料夾。不上傳、不刪任何檔案。
+
+    回傳 {"ok", "steps": [{"label","ok","message"}], "account", "quota", "at"}，同時記在記憶體給頁面顯示。
+    """
+    steps = []
+    result = {"ok": False, "steps": steps, "account": None, "quota": None, "at": datetime.now(timezone.utc)}
+    app.extensions["google_storage_last_check"] = result
+
+    bad = [item for item in check_settings(app.config) if not item["ok"]]
+    steps.append({"label": ".env 設定", "ok": not bad,
+                  "message": "都填好了。" if not bad else "；".join(f"{i['label']}：{i['hint']}" for i in bad)})
+    if bad:
+        return result
+    holder = token_holder(app)
+    if not holder.connected:
+        steps.append({"label": "Google 授權", "ok": False, "message": "還沒連線，請先按「連上 Google 雲端硬碟」。"})
+        return result
+    client = client_for(app)
+    stage = "Google 授權"
+    try:
+        token = holder.access_token(client)
+        if not token:
+            raise DriveAuthExpired("沒有可用的權杖")
+        steps.append({"label": stage, "ok": True, "message": "權杖有效。"})
+        if hasattr(client, "about"):
+            stage = "帳號與空間"
+            about = client.about(token) or {}
+            result["account"] = ((about.get("user") or {}).get("emailAddress")) or None
+            quota = about.get("storageQuota") or {}
+            if quota.get("limit"):
+                used, limit = int(quota.get("usage") or 0), int(quota["limit"])
+                result["quota"] = {"used": used, "limit": limit, "percent": round(used * 100 / limit, 1)}
+                if result["quota"]["percent"] >= 95:
+                    raise DriveQuotaExceeded("空間已用 95% 以上")
+            message = f"連上的帳號：{result['account'] or '（Google 沒提供）'}"
+            if result["quota"]:
+                message += f"；空間已用 {result['quota']['percent']}%"
+            steps.append({"label": stage, "ok": True, "message": message + "。"})
+        stage = "系統資料夾"
+        if not holder.folder_id:
+            holder.folder_id = client.ensure_folder(token, FOLDER_NAME)
+        steps.append({"label": stage, "ok": True, "message": f"「{FOLDER_NAME}」可以使用。"})
+    except (DriveError, StorageUnavailable) as error:
+        current_app.logger.warning("Google 雲端硬碟測試連線失敗：%s", error)
+        steps.append({"label": stage, "ok": False, "message": explain(error)})
+        return result
+    result["ok"] = True
+    return result

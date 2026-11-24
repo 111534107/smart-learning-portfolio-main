@@ -15,12 +15,12 @@
 {% for card in lineup %}{% if card.tools|select("in", order)|list %}{% set groups.used = groups.used + 1 %}{% endif %}{% endfor %}
 {{ page_band("小助手升學規劃") }}
 <div class="page page--banded">
-  <div class="record-card__actions mb-1">
+  <div class="record-card__actions mb-1" data-tour="回推薦排序，或在完成後重新規劃。" data-tour-order="1">
     <a class="button button--small button--quiet" href="{{ url_for('student.matching') }}">← 回推薦排序</a>
     <form method="post" action="{{ url_for('student.agent_advise') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small button--line" type="submit" data-busy-text="小助手正在規劃…（約 30 秒～1 分鐘）"{% if running %} disabled{% endif %}>再請小助手規劃一次</button></form>
   </div>
 
-  <section class="agent-board mb-1{% if not running %} is-replay{% endif %}" aria-labelledby="board-title"
+  <section class="agent-board mb-1{% if not running %} is-replay{% endif %}" aria-labelledby="board-title" data-tour="查看小助手使用的工具與執行狀態。" data-tour-order="2"
            data-status="{{ task.status }}" data-progress-url="{{ url_for('student.agent_run_progress', task_id=task.id) }}">
     <div class="agent-board__brain">
       <span class="agent-board__pulse" aria-hidden="true"></span>
@@ -53,7 +53,7 @@
   </section>
 
   {% if not running %}
-  <section class="sheet mb-1" aria-labelledby="advice-title">
+  <section class="sheet mb-1" aria-labelledby="advice-title" data-tour="讀完建議後，可點連結前往相關功能。" data-tour-order="3">
     <div class="sheet__head">
       <h2 id="advice-title">小助手的建議</h2>
       <span class="tag {{ 'tag--info' if run.mode == 'ai' else '' }}">{{ "AI 決定步驟" if run.mode == "ai" else "固定流程" }}</span>

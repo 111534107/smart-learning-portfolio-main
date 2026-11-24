@@ -113,8 +113,9 @@ def test_teacher_sees_own_class_and_can_confirm(app):
 
     teacher = login(app.test_client(), "teacher")
     dashboard = teacher.get("/teacher/dashboard").get_data(as_text=True)
-    assert "111534100" in dashboard
-    assert "111534200" not in dashboard
+    roster = teacher.get("/teacher/roster").get_data(as_text=True)   # 工作台拆頁後，學生名單在「學生名單」頁
+    assert "111534100" in roster
+    assert "111534200" not in roster and "111534200" not in dashboard
     # 只有一位學生等確認：數字卡直接連到那位學生的頁面
     assert f'href="/teacher/students/{stu_id}" data-pending-link' in dashboard
     assert teacher.get(f"/teacher/students/{stu_id}").status_code == 200

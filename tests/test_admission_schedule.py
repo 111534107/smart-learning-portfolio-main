@@ -137,6 +137,12 @@ def test_schedule_page_tells_school_application_targets_to_check_the_school(site
     assert "依各校簡章" in html
 
 
+def test_schedule_tour_explains_subscription_and_target_dates(site):
+    html = login(site).get('/student/schedule').get_data(as_text=True)
+    assert 'data-tour="複製私人網址，可訂閱日曆；外流時重設。"' in html
+    assert 'data-tour="查看目標校系時程與官方招生網站。"' in html
+
+
 def test_matching_page_cards_show_a_schedule_line(site):
     html = login(site).get("/student/matching").get_data(as_text=True)
 

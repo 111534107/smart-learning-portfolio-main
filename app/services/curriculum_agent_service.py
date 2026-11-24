@@ -175,7 +175,7 @@ def credit_rule(year):
         return None
     return {"total": version.total_credits, "required": version.required_credits,
             "elective": version.elective_credits,
-            "source": f"{year} 學年度入學五專修業科目表（管理員確認版）"}
+            "source": f"{year} 學年度入學五專修業科目表（管理員確認版）", "source_url": version.source_url}
 
 
 def pending_count():

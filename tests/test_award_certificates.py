@@ -166,15 +166,17 @@ def test_certificate_page_visible_to_owner_staff_and_own_class_teacher(tmp_path)
     assert client_for(app, "other").get(url).status_code == 403
 
 
-def test_certificate_uses_school_emblem_name_and_green_frame(tmp_path):
-    # 11-09 使用者：外觀比照學校數位證明系統（校徽、全銜、綠色外框）；獎狀種類多，先放校徽與外框
+def test_certificate_uses_school_emblem_name_and_pattern_border(tmp_path):
+    # 11-16 新版型（校徽、系名、圖樣邊框）；舊版是 11-09 的綠色外框
     app = cert_app(tmp_path)
     cert = _approved(app)
-    html = client_for(app, "stu").get(f"/certificates/{cert.id}").get_data(as_text=True)
-    assert 'src="/static/img/ukn-emblem.png"' in html
-    assert "康寧學校財團法人康寧大學" in html
-    assert 'class="frame-corner' in html
-    assert client_for(app, "stu").get("/static/img/ukn-emblem.png").status_code == 200
+    client = client_for(app, "stu")
+    html = client.get(f"/certificates/{cert.id}").get_data(as_text=True)
+    assert 'src="/static/img/ukn-school-emblem.jfif"' in html
+    assert "康寧大學資訊管理科" in html
+    assert 'class="pattern pattern--top"' in html and "certificate-border.svg" in html
+    assert client.get("/static/img/ukn-school-emblem.jfif").status_code == 200
+    assert client.get("/static/img/certificate-border.svg").status_code == 200
 
 
 def test_pending_certificate_cannot_be_viewed_by_student(tmp_path):

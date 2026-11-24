@@ -383,28 +383,10 @@ document.querySelectorAll("[data-assistant]").forEach((root) => {
     root.classList.toggle("is-open", open);
     document.documentElement.classList.toggle("as-open", open);
     panel.style.transform = "";
+    root.dispatchEvent(new CustomEvent("assistant-visibility", { detail: open }));
     if (open) { log.scrollTop = log.scrollHeight; input.focus({ preventScroll: true }); }
   };
-  // 手機：往下拉把手關閉
-  const grab = root.querySelector("[data-assistant-grab]");
-  if (grab) {
-    let startY = null;
-    grab.addEventListener("pointerdown", (event) => { startY = event.clientY; grab.setPointerCapture(event.pointerId); panel.classList.add("is-dragging"); });
-    grab.addEventListener("pointermove", (event) => {
-      if (startY === null) return;
-      panel.style.transform = `translateY(${Math.max(0, event.clientY - startY)}px)`;
-    });
-    const release = (event) => {
-      if (startY === null) return;
-      const moved = event.clientY - startY;
-      startY = null;
-      panel.classList.remove("is-dragging");
-      panel.style.transform = "";
-      if (moved > 80) setOpen(false);
-    };
-    grab.addEventListener("pointerup", release);
-    grab.addEventListener("pointercancel", release);
-  }
+  root.addEventListener("assistant-set-open", (event) => setOpen(Boolean(event.detail)));
   // 輸入框隨內容長高（最多 120px）
   input.addEventListener("input", () => { input.style.height = "auto"; input.style.height = `${Math.min(input.scrollHeight, 120)}px`; });
   toggles.forEach((button) => button.addEventListener("click", () => setOpen(panel.hidden)));
@@ -436,6 +418,7 @@ document.querySelectorAll("[data-assistant]").forEach((root) => {
       const result = await response.json();
       waiting.remove();
       add("bot", result.answer, result);
+      if (result.fill) window.dispatchEvent(new CustomEvent("assistant-fill", { detail: result.fill }));  // 實習履歷頁：填進家庭生活
       history.push({ role: "user", text }, { role: "assistant", text: result.answer });
       try { sessionStorage.setItem(KEY, JSON.stringify(history.slice(-20))); } catch (e) { /* 存不了也沒關係 */ }
     } catch (error) {
@@ -753,11 +736,7 @@ document.querySelectorAll("[data-walker]").forEach((walker) => {
   const assemble = document.querySelector("[data-assemble]");
   if (!assemble) return;
   // 按鈕本身是連到自傳頁的連結：沒有 JS、減少動態效果或動畫出錯時，照常換頁
-  assemble.addEventListener("click", (event) => {
-    if (reduce || !pieces.length || !plainClick(event)) return;
-    event.preventDefault();
-    const href = assemble.getAttribute("href");
-    const go = () => { window.location.href = href; };
+  const animateAssembly = (go) => {
     try {
       if (assemble.dataset.busy) return;
       assemble.dataset.busy = "1";
@@ -803,6 +782,16 @@ document.querySelectorAll("[data-walker]").forEach((walker) => {
     } catch (error) {
       go();
     }
+  };
+  assemble.addEventListener("journey:assemble", (event) => {
+    if (reduce || !pieces.length || assemble.dataset.busy) return;
+    event.preventDefault();
+    animateAssembly(event.detail.complete);
+  });
+  assemble.addEventListener("click", (event) => {
+    if (reduce || !pieces.length || !plainClick(event)) return;
+    event.preventDefault();
+    animateAssembly(() => window.location.assign(assemble.href));
   });
 })();
 
@@ -830,15 +819,25 @@ document.querySelectorAll("[data-photo-form]").forEach((form) => {
   let returnFocus = null;
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   // 學生端 v2 導覽外觀（暗底加亮框、玻璃說明卡）：第一次用到時才載入 tour.css，老師頁也一樣
+  let styleReady;
   const loadStyle = () => {
-    if (document.getElementById("tour-v2-css")) return;
+    if (styleReady) return styleReady;
     const self = document.querySelector('script[src*="js/components.js"]');
-    if (!self) return;
+    if (!self) return Promise.resolve(false);
     const link = document.createElement("link");
     link.id = "tour-v2-css";
     link.rel = "stylesheet";
     link.href = self.src.replace(/js\/components\.js.*$/, "css/student-v2/tour.css");
+    styleReady = new Promise((resolve) => {
+      link.addEventListener("load", () => resolve(true), { once: true });
+      link.addEventListener("error", () => {
+        link.remove();
+        styleReady = null;
+        resolve(false);
+      }, { once: true });
+    });
     document.head.appendChild(link);
+    return styleReady;
   };
   const markSeen = () => { try { localStorage.setItem(`tour-seen-${page}`, "1"); } catch (e) { /* 存不了也沒關係 */ } };
 
@@ -927,9 +926,11 @@ document.querySelectorAll("[data-photo-form]").forEach((form) => {
   // 第一次進這一頁：不直接蓋住畫面，上方出現一條小提示，要看才播
   let invite = null;
   function removeInvite() { if (invite) { invite.remove(); invite = null; } }
-  const offer = () => {
-    if (!steps().length || layer || invite) return;
-    loadStyle();
+  // 按過一次「不用」就整個系統都不再問（2026-11-17 使用者要求；原本每一頁各問一次）。要看導覽仍可按上方「導覽」或說明頁「重看導覽」
+  const declined = () => { try { return localStorage.getItem("tour-declined") === "1"; } catch (e) { return true; } };
+  const offer = async () => {
+    if (!steps().length || layer || invite || declined()) return;
+    if (!(await loadStyle()) || layer || invite || declined()) return;
     invite = document.createElement("div");
     invite.className = "tour-invite";
     invite.setAttribute("role", "status");
@@ -938,7 +939,11 @@ document.querySelectorAll("[data-photo-form]").forEach((form) => {
       + '<button type="button" class="tour-invite__no" data-tour-invite-no>不用</button>';
     document.body.appendChild(invite);
     invite.querySelector("[data-tour-invite-go]").addEventListener("click", start);
-    invite.querySelector("[data-tour-invite-no]").addEventListener("click", () => { removeInvite(); markSeen(); });
+    invite.querySelector("[data-tour-invite-no]").addEventListener("click", () => {
+      removeInvite();
+      markSeen();
+      try { localStorage.setItem("tour-declined", "1"); } catch (e) { /* 存不了也沒關係 */ }
+    });
   };
   if (startButton) startButton.addEventListener("click", start);
   document.querySelectorAll("[data-tour-replay]").forEach((button) => button.addEventListener("click", () => {
@@ -1077,3 +1082,172 @@ document.querySelectorAll("[data-password-toggle]").forEach((button) => {
   // 送出前一定改回隱藏，瀏覽器才不會把密碼當一般文字記下來
   input.form?.addEventListener("submit", () => { input.type = "password"; });
 });
+
+// ---------- 長說明收成「?」（2026-11-18 使用者要求：版面整潔，字太多的標題說明不要直接印出來）----------
+// 頁面最上面（標題區）的長說明超過 48 字，整段收進一個「?」圖示，不留半句文字：圖示接在前一段文字的句尾（沒有前一段就單獨一行放在說明原本的位置），
+// 點開才看完整說明；說明本身就是原本那個段落（只是先隱藏），所以文字、屬性（例如 data-registrar-note）都不變。點別處或按 Esc 收起；沒有 JavaScript 時仍然顯示完整文字。
+// 只處理頁首：.work-heading 裡的段落、畢業門檻 .g2-lead／.g2-registrar 一律處理；小助手頁 .hub-note 與頁首的淡色說明 .page／.work-shell 底下的 p.muted，
+// 必須出現在頁面最上方 600px 內才處理（頁面中段的備註不收，免得中間冒出孤單的圖示）。含按鈕、輸入框的段落、含連結的小字段落（麵包屑）不動；要保留完整的加 data-no-tip。
+(() => {
+  // 2026-11-19 使用者要求：點「?」改成跳出彈跳視窗（原本是在標題下面往下展開，手機上會把內容推下去或疊在卡片上）。
+  // 原本的段落仍留在原位但隱藏（沒有 JavaScript 時照常顯示完整文字）；視窗只放它的複本。Esc、點視窗外、按「關閉」都會收起並把焦點還給「?」。
+  const MAX = 48;
+  const TOP_LIMIT = 600;
+  const always = ".work-heading p, .g2-lead, .g2-registrar";
+  const nearTop = ".hub-note, .page > p.muted, .work-shell > p.muted";
+  let dialog = null;
+  let opener = null;
+  const pageTitle = () => {
+    const heading = document.querySelector("main h1, h1");
+    return heading ? `${heading.textContent.replace(/\?/g, "").trim()}：說明` : "說明";
+  };
+  const ensureDialog = () => {
+    if (dialog) return dialog;
+    dialog = document.createElement("dialog");
+    dialog.className = "info-tip-dialog";
+    dialog.setAttribute("aria-labelledby", "info-tip-dialog-title");
+    dialog.innerHTML = '<div class="info-tip-dialog__head"><h2 id="info-tip-dialog-title" class="info-tip-dialog__title"></h2>' +
+      '<button type="button" class="info-tip-dialog__close" aria-label="關閉說明">×</button></div><div class="info-tip-dialog__body"></div>';
+    document.body.append(dialog);
+    const close = () => { if (dialog.open) dialog.close(); };
+    dialog.querySelector(".info-tip-dialog__close").addEventListener("click", close);
+    // 點到視窗外面（::backdrop 的點擊會落在 dialog 本身）就關
+    dialog.addEventListener("click", (event) => {
+      if (event.target !== dialog) return;
+      const box = dialog.getBoundingClientRect();
+      const inside = event.clientX >= box.left && event.clientX <= box.right && event.clientY >= box.top && event.clientY <= box.bottom;
+      if (!inside) close();
+    });
+    dialog.addEventListener("close", () => {
+      if (opener) { opener.setAttribute("aria-expanded", "false"); opener.focus(); }
+      document.documentElement.classList.remove("info-tip-open");
+    });
+    return dialog;
+  };
+  const openWith = (button, sources) => {
+    const box = ensureDialog();
+    box.querySelector(".info-tip-dialog__title").textContent = pageTitle();
+    const body = box.querySelector(".info-tip-dialog__body");
+    body.textContent = "";
+    sources.forEach((source) => {
+      const copy = document.createElement("p");
+      copy.innerHTML = source.innerHTML;          // 伺服器輸出的原文，照原樣
+      body.append(copy);
+    });
+    opener = button;
+    button.setAttribute("aria-expanded", "true");
+    document.documentElement.classList.add("info-tip-open");
+    if (typeof box.showModal === "function") box.showModal(); else box.setAttribute("open", "");
+    box.querySelector(".info-tip-dialog__close").focus();
+  };
+
+  document.querySelectorAll(`${always}, ${nearTop}`).forEach((p, index) => {
+    if (p.dataset.tipDone || p.closest("[data-no-tip]")) return;
+    if (p.querySelector("button, input, form, select, textarea, time")) return;
+    if (p.classList.contains("small") && p.querySelector("a")) return;   // 麵包屑、返回連結那種小段落不動
+    if (p.matches(nearTop) && !p.matches(always) && p.getBoundingClientRect().top + window.scrollY > TOP_LIMIT) return;
+    const text = p.textContent.trim().replace(/\s+/g, " ");
+    if (text.length <= MAX) return;
+    p.dataset.tipDone = "1";
+    const id = p.id || `info-tip-${index}`;
+    p.id = id;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "info-tip__btn";
+    button.textContent = "?";
+    button.setAttribute("aria-label", "看說明");
+    button.title = "看說明";
+    button.setAttribute("aria-haspopup", "dialog");
+    button.setAttribute("aria-expanded", "false");
+    const previous = p.previousElementSibling;
+    if (previous && /^(H1|H2|P)$/.test(previous.tagName) && !previous.dataset.tipHolder) {
+      previous.append(" ", button);          // 接在標題或前一段句尾，不另佔一行
+    } else {
+      const row = document.createElement("p");
+      row.className = "info-tip__row";
+      row.append(button);
+      p.before(row);
+    }
+    p.classList.add("info-tip__body");
+    p.hidden = true;
+    button.addEventListener("click", (event) => { event.stopPropagation(); openWith(button, [p]); });
+  });
+
+  // 畢業門檻頁標題旁自己寫的 <details class="g2-help">：也改成彈跳視窗，不往下展開
+  document.querySelectorAll("details.g2-help").forEach((details) => {
+    const summary = details.querySelector("summary");
+    const sources = [...details.querySelectorAll(".info-tip__body > p")];
+    if (!summary || !sources.length) return;
+    summary.setAttribute("aria-haspopup", "dialog");
+    summary.addEventListener("click", (event) => {
+      event.preventDefault();
+      details.open = false;
+      openWith(summary, sources);
+    });
+  });
+})();
+
+
+// ---------- 手機上的教職員表格：一列一張卡（2026-11-19）----------
+// 老師、科辦、主任、管理員頁的表格在手機寬度時，後面的欄位（操作、對象…）會跑到畫面外，要左右滑才看得到，使用者以為少了欄位。
+// 這裡把每一格標上所屬欄名（data-label），CSS 在窄螢幕把每一列排成一張卡、每格前面印欄名。只處理單純的表格（沒有合併儲存格），要保留原樣的加 data-no-stack。
+(() => {
+  if (!document.documentElement.hasAttribute || !document.documentElement.hasAttribute("data-staff-ui")) return;
+  document.querySelectorAll("main table").forEach((table) => {
+    if (table.closest("[data-no-stack]") || table.querySelector("thead [colspan], [rowspan]")) return;
+    const heads = [...table.querySelectorAll("thead th")].map((th) => th.textContent.trim().replace(/\s+/g, " "));
+    if (heads.length < 3) return;
+    table.querySelectorAll("tbody tr").forEach((row) => {
+      if (row.querySelector("[colspan]")) return;   // 「還沒有資料」那種整列合併的不標欄名
+      [...row.children].forEach((cell, i) => { if (heads[i] && !cell.dataset.label) cell.dataset.label = heads[i]; });
+    });
+    table.classList.add("table--stack");
+  });
+})();
+
+// ---------- 手機上的長清單：一次先顯示 10 個（2026-11-20）----------
+// 目標校系頁在手機上有 96 個校系卡＋地圖下 31 間學校，整頁超過兩萬像素，捲動很卡。窄螢幕時只先畫前 10 個（篩選後還看得到的），
+// 下面放「再顯示 10 個」。篩選改變（項目被加上或拿掉 hidden）就重算；網址指定的校系（#target-program-編號 或已展開的）一定顯示。
+(() => {
+  if (!window.matchMedia || !document.querySelectorAll) return;
+  const narrow = window.matchMedia("(max-width: 760px)");
+  const STEP = 10;
+  document.querySelectorAll("[data-ranking-list], .school-list__items").forEach((list) => {
+    let shown = STEP;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "button button--small button--line list-more";
+    list.after(button);
+    const items = () => [...list.children].filter((li) => li.tagName === "LI" && !li.hidden);
+    const mustShow = () => {
+      const want = items().findIndex((li) => li.querySelector("details[open]") || (window.location.hash && li.querySelector(window.location.hash.replace(/[^#\w-]/g, ""))));
+      return want >= 0 ? want + 1 : 0;
+    };
+    const apply = () => {
+      const visible = items();
+      const limit = narrow.matches ? Math.max(shown, mustShow()) : Infinity;
+      [...list.children].forEach((li) => li.classList.remove("is-folded"));
+      visible.forEach((li, i) => { if (i >= limit) li.classList.add("is-folded"); });
+      const rest = Math.max(0, visible.length - limit);
+      button.hidden = !rest;
+      button.textContent = `再顯示 ${Math.min(STEP, rest)} 個（還有 ${rest} 個）`;
+    };
+    button.addEventListener("click", () => { shown += STEP; apply(); });
+    new MutationObserver(() => { shown = STEP; apply(); }).observe(list, { attributes: true, attributeFilter: ["hidden"], subtree: true });
+    if (narrow.addEventListener) narrow.addEventListener("change", apply);
+    apply();
+  });
+})();
+
+// 網址指到收合區塊裡的東西（例如儲存後回到 #program-12、#eligibility-rule-3）時，自動打開外面的 <details>（2026-11-20）
+(() => {
+  if (!document.querySelector || !window.location || !window.location.hash || window.location.hash.length < 2) return;
+  let target = null;
+  try { target = document.querySelector(window.location.hash); } catch (error) { return; }
+  if (!target) return;
+  const inner = target.querySelector && target.querySelector("details.program-body");
+  if (inner) inner.open = true;
+  for (let node = target.parentElement; node; node = node.parentElement) {
+    if (node.tagName === "DETAILS") node.open = true;
+  }
+})();

@@ -22,7 +22,7 @@
       <form method="post" action="{{ url_for('admin_schools.check_links') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit" data-busy-text="正在檢查所有網址…">檢查連結</button></form>
       <form method="post" action="{{ url_for('admin_schools.load_defaults') }}" onsubmit="return confirm('載入預設資料會用專案附的資料更新同名學校，你改過的欄位會被覆蓋。確定嗎？')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--quiet" type="submit">載入預設資料</button></form>
     </div>
-    <form class="admin-inline-form mt-1" method="post" action="{{ url_for('admin_schools.import_csv') }}" enctype="multipart/form-data">
+    <form class="admin-inline-form mt-1" method="post" action="{{ url_for('admin_schools.import_csv') }}" enctype="multipart/form-data" data-tour="批次更新時選擇 CSV 匯入學校資料。" data-tour-order="1">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label>匯入種類<select name="kind"><option value="schools">學校</option><option value="departments">科系網址</option></select></label>
       <label>CSV 檔<input type="file" name="file" accept=".csv" required></label>
@@ -83,7 +83,7 @@
 
   <section class="work-panel">
     <div class="work-panel__head"><div><h2>新增學校</h2></div></div>
-    <form class="admin-inline-form" method="post" action="{{ url_for('admin_schools.school_create') }}">
+    <form class="admin-inline-form" method="post" action="{{ url_for('admin_schools.school_create') }}" data-tour="缺少學校時填寫資料並新增。" data-tour-order="2">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label>學校（和簡章校名一樣）<input name="name" maxlength="100" required></label>
       <label>地區<select name="region">{% for region in regions %}<option>{{ region }}</option>{% endfor %}</select></label>

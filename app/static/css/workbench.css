@@ -1,0 +1,48 @@
+/* 備審工作台外框（2026-11-20 動線重設計，設計稿：備審動線設計稿）
+   手機 <700：校系清單收在 <details>，四階段是可橫向捲動的標籤，不黏住。
+   平板 700–1099、電腦 ≥1100：備齊資料、預覽 A4、批次頁的外框變成左側欄（內容在右）；寫自傳頁維持頂部橫列（自傳本身已有三欄）。
+   顏色只用既有變數；字級只用 var(--fs-*)。 */
+
+.wb { display: flex; flex-direction: column; gap: .5rem; margin: 0 0 1rem; }
+.wb__school { margin: 0; font-weight: 700; }
+.wb__schools summary { min-height: 44px; display: flex; align-items: center; gap: .4rem; font-weight: 700; cursor: pointer; }
+.wb__schools ul { margin: .25rem 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.wb__schools a { min-height: 44px; display: flex; align-items: center; padding: 0 .75rem; border-radius: 8px; text-decoration: none; color: inherit; }
+.wb__schools a[aria-current="page"] { font-weight: 700; background: var(--paper-deep, rgba(127, 127, 127, .15)); }
+.wb__batch { color: var(--accent, currentColor) !important; border: 1px dashed currentColor; }
+
+.wb__stages ol { margin: 0; padding: 0; list-style: none; display: flex; gap: .4rem; overflow-x: auto; scrollbar-width: thin; }
+.wb__stage a { min-height: 44px; display: flex; align-items: center; gap: .35rem; padding: 0 .8rem; border-radius: 8px;
+  border: 1px solid var(--line, rgba(127, 127, 127, .4)); color: inherit; text-decoration: none; white-space: nowrap; font-size: var(--fs-sm); }
+.wb__stage a[aria-current="step"] { background: var(--ink, #2b2622); color: var(--paper, #fff); border-color: var(--ink, #2b2622); font-weight: 700; }
+.wb__stage--update .wb__mark { color: var(--warn, #9b3d36); }
+.wb__stage--done .wb__mark { color: var(--accent, currentColor); }
+
+.wb__next { margin: 1.5rem 0 0; display: flex; justify-content: flex-end; }
+.wb__next .button { min-height: 48px; padding: 0 1.25rem; display: inline-flex; align-items: center; }
+@media (max-width: 699px) { .wb__next .button { width: 100%; justify-content: center; } }
+
+/* 深色外觀：目前階段反白用淺字深底的相反色，維持對比 */
+:root[data-theme="dark"] .wb__stage a[aria-current="step"] { background: var(--ink, #ece3d6); color: var(--paper, #1f1b17); }
+
+/* 平板與電腦：有獨立外框區塊的頁面（.wb-page）改成左側欄 */
+@media (min-width: 700px) {
+  main#main-content:has(> .wb-page) { display: grid; grid-template-columns: 220px minmax(0, 1fr); column-gap: 1.25rem; align-items: start; }
+  main#main-content:has(> .wb-page) > * { grid-column: 1 / -1; }
+  main#main-content:has(> .wb-page) > .wb-page { grid-column: 1; grid-row: span 50; margin: 0; padding-right: 0; }
+  main#main-content:has(> .wb-page) > .page:not(.wb-page),
+  main#main-content:has(> .wb-page) > .wb-next-page { grid-column: 2; min-width: 0; }
+  main#main-content:has(> .wb-page) > .band { grid-column: 1 / -1; }
+  .wb-page .wb__stages ol { flex-direction: column; overflow: visible; }
+  .wb-page .wb__stage a { white-space: normal; }
+  .wb-page .wb__schools { order: 0; }
+}
+@media (min-width: 1100px) {
+  main#main-content:has(> .wb-page) { grid-template-columns: 260px minmax(0, 1fr); }
+}
+@media (min-width: 700px) {
+  main#main-content:has(> .wb-page) > .wb-page { padding-left: 16px; }
+}
+@media (max-width: 699px) {
+  .wb-page { padding-top: .5rem; }
+}

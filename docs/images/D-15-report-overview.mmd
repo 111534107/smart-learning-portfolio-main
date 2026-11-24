@@ -7,13 +7,13 @@ flowchart LR
     classDef ai fill:#FFEDD5,stroke:#9CA3AF,color:#111827,stroke-width:1px;
 
     Notice[二技公告<br/>管理員核對後發布]:::system --> Recommend
-    Recommend[校系排行<br/>準備度建議值、篩選、已符合與缺少]:::system --> Target[學生選擇目標校系]:::student
+    Recommend[AI 推薦校系]:::ai --> Target[學生選擇目標校系]:::student
     Target --> Upload[上傳六類資料<br/>成績、獎懲、缺曠可貼上匯入]:::student
-    Upload --> Check[本機 OCR → 系統整理欄位<br/>核對頁左圖右表；學生確認才生效]:::system
-    Check --> Confirm[學生確認並補齊資料<br/>確認後才去識別化交給 AI]:::student
+    Upload --> Check[AI 辨識並註記修改建議<br/>證照初判]:::ai
+    Check --> Confirm[學生確認並補齊資料]:::student
     Confirm -.科上派的服務.-> Staff[科辦核准<br/>電子獎狀]:::staff
     Staff -.-> Core
     Confirm --> Core[系統比對缺件]:::system
     Core --> Teacher
-    Teacher[班導師確認送審版本（V1 僅班導）<br/>可加段落註解]:::teacher
+    Teacher[導師確認送審版本<br/>老師可加段落註解]:::teacher
     Teacher --> Output[產出完整備審資料]:::system

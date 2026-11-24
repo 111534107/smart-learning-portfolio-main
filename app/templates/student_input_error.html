@@ -1,3 +1,3 @@
 {% extends "base.html" %}
 {% block title %}資料尚未儲存{% endblock %}
-{% block content %}<div class="page narrow"><section class="sheet"><h1>資料尚未儲存</h1><p role="alert">{{ message }}</p><a class="button" href="{{ back_url }}">返回修改</a></section></div>{% endblock %}
+{% block content %}<div class="page narrow"><section class="sheet"><h1>資料尚未儲存</h1><p role="alert" data-tour="先查看資料未儲存的原因。" data-tour-order="1">{{ message }}</p><a class="button" href="{{ back_url }}" data-tour="按此返回，修正後再儲存。" data-tour-order="2">返回修改</a></section></div>{% endblock %}

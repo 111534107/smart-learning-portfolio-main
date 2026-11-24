@@ -7,13 +7,13 @@
 <section class="work-shell">
   <header class="work-heading">
     <div>
-      <p class="small"><a href="{{ url_for('announcement.index') }}">← 二技公告</a>　發布於 {{ announcement.published_at|taipei_time("%Y-%m-%d") }}</p>
+      <p class="small" data-tour="看完後可回公告清單。" data-tour-order="1"><a href="{{ url_for('announcement.index') }}">← 二技公告</a>　發布於 {{ announcement.published_at|taipei_time("%Y-%m-%d") }}</p>
       <h1>{{ announcement.title }}</h1>
     </div>
   </header>
   {% if message %}<p class="flash flash--success" role="status">{{ message }}</p>{% endif %}
   <section class="work-panel">
-    <p style="white-space: pre-line">{{ announcement.body }}</p>
+    <p style="white-space: pre-line" data-tour="閱讀公告內容與下方重要日期。" data-tour-order="2">{{ announcement.body }}</p>
   </section>
 
   {% if dates %}
@@ -47,7 +47,7 @@
       </tbody>
     </table>
     </div>
-    <form method="post" action="{{ url_for('announcement.remind', announcement_id=announcement.id) }}">
+    <form method="post" action="{{ url_for('announcement.remind', announcement_id=announcement.id) }}" data-tour="導師核對名單後，可通知這些學生。" data-tour-order="3">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button class="button" type="submit">提醒這些學生</button>
     </form>

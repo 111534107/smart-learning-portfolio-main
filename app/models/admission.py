@@ -193,6 +193,8 @@ class PackageReview(db.Model):
     teacher_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     status = db.Column(db.String(20), nullable=False, default="pending", index=True)
     comment = db.Column(db.Text, nullable=True)
+    # 導師確認時有沒有看自傳（2026-11-18 指導老師：看自傳是選擇，不是強制）；None＝舊資料或尚未決定
+    autobiography_viewed = db.Column(db.Boolean, nullable=True)
     readiness_percent = db.Column(db.Integer, nullable=True)
     # 學生送審當下的內容（事實清單、自傳版本、完成度）；導師確認的就是這一份，之後學生再改也不會變
     snapshot_json = db.Column(db.JSON, nullable=True)

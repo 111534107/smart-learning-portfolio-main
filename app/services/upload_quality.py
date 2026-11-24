@@ -29,6 +29,6 @@ def resolution_check(document_type, file_bytes, filename):
                             f"請改傳學校系統下載的 PDF，或長邊至少 {TRANSCRIPT_RECOMMENDED_LONG_SIDE} 像素的清楚圖片。")}
     if long_side < TRANSCRIPT_RECOMMENDED_LONG_SIDE:
         return {"level": "low", "long_side": long_side,
-                "message": (f"圖片解析度偏低（長邊 {long_side} 像素），可能有課程、學分或成績漏讀；"
+                "message": ("圖片中的文字可能不夠清楚，課程、學分或成績可能漏讀；"
                             "請逐筆對照原圖，或改傳學校系統下載的 PDF。")}
     return {"level": "ok", "long_side": long_side, "message": ""}

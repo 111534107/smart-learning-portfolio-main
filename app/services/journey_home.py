@@ -8,16 +8,18 @@
 """
 
 import hashlib
+import math
 import zlib
 from datetime import datetime, timezone
 
 from flask import url_for
 
-from app.content.five_year_plan import FIVE_YEAR_PLAN
+from app.content.five_year_plan import FIVE_YEAR_PLAN, SCHOOL_YEAR_PLAN
 from app.models import AuditLog, Portfolio, SourceDocument
 from app.services.journey_service import CATEGORY_KEYS, CATEGORY_LABELS, GRADE_LABELS, build_journey
 
 RETURN_DAYS = 60
+RESUME_FROM_GRADE = 4  # 專四上學期起，首頁多一個「產生學校格式的實習履歷」按鈕
 PIECE_LABELS = {"grades": "成績", "credential": "證照", "activity": "活動", "competition": "競賽", "service": "服務", "leadership": "幹部"}
 
 # 五年桌板：一筆資料＝一片拼圖，散在桌子四邊；拼起來是同一張圖（學期照片或預設風景）。
@@ -122,6 +124,8 @@ def table_pieces(journey):
                         "label": PIECE_LABELS[key],
                         "grade_label": GRADE_LABELS[year["grade"]],
                         "title": f"{GRADE_LABELS[year['grade']]}成績 {len(courses)} 門課",
+                        "detail": "、".join(course["title"] for course in courses[:8]) + ("……" if len(courses) > 8 else ""),
+                        "size": len(courses),
                     })
                 continue
             for item in year["categories"][key]:
@@ -138,6 +142,7 @@ def table_pieces(journey):
                     "label": PIECE_LABELS[key],
                     "grade_label": GRADE_LABELS[year["grade"]],
                     "title": title,
+                    "detail": item.get("detail") or "",
                 })
 
     rows = _rows_for(len(items))
@@ -166,6 +171,61 @@ def table_pieces(journey):
             })
             index += 1
     return {"pieces": items, "count": len(items), "scene_w": scene_w or 300, "scene_h": scene_h or 200}
+
+
+# 首頁第一屏「散落的紙張」：一筆資料一張紙，最多 SHEET_LIMIT 張（新的年級優先），其餘在五年資料夾。
+SHEET_LIMIT = 24
+SHEET_PHONE = 20  # 手機只鋪這麼多張（4 欄，中間 2×2 格留給小人）
+# 手機版的格子：4 欄 × 7 列，跳過中間四格（小人站的地方）。照設計示範 _design-demo/student-v2/index.html。
+PHONE_CELLS = [n for n in range(28) if n not in (9, 10, 13, 14)]
+
+
+def _sheet_link(key):
+    if key in ("grades", "credential"):
+        return url_for("student.learning_profile")
+    return url_for("student.portfolio_list")
+
+
+def _sheet_pages(piece):
+    """這張紙有「幾頁」（1～6）：成績看有幾門課、經歷看寫了多少說明。頁數越多紙越大、越厚（照設計示範）。"""
+    if piece["key"] == "grades":
+        return min(1 + piece.get("size", 0) // 3, 6)
+    return min(1 + len(piece.get("detail") or "") // 40, 4)
+
+
+def desk_sheets(pieces):
+    """把拼圖桌的同一批資料變成散落的紙：位置、角度依資料 id 雜湊（重新整理不會亂跳）。
+
+    電腦版繞著中間的小人散開；手機鋪成 4 欄、中間四格空給小人（照設計示範 _design-demo/student-v2/index.html）。
+    紙的大小依「頁數」：寫得越多越大張，5 頁以上疊成厚厚一疊；有寫說明的右上角多一個小圓點。
+    """
+    chosen = list(reversed(pieces))[:SHEET_LIMIT]
+    phone_count = max(min(len(chosen), SHEET_PHONE), 1)
+    sheets = []
+    for index, piece in enumerate(chosen):
+        angle, far, jitter, turn = _hash("sheet-" + piece["id"])
+        radians = angle * 2 * math.pi
+        reach = 22 + far * 24
+        x = min(max(50 + math.cos(radians) * reach * 1.7, 7), 93)
+        y = min(max(46 + math.sin(radians) * reach * 1.0, 10), 84)
+        # 手機：紙少的時候也平均鋪滿整個桌面（隔格放），不會全擠在上半部
+        step = len(PHONE_CELLS) / phone_count
+        spot = int(index * step + ((index // 2) % 2) * (step - 1))  # 每兩張錯開一格，四欄都用得到
+        cell = PHONE_CELLS[min(spot, len(PHONE_CELLS) - 1)] if index < phone_count else PHONE_CELLS[index % len(PHONE_CELLS)]
+        col, row = cell % 4, cell // 4
+        pages = _sheet_pages(piece)
+        sheets.append({
+            "id": piece["id"], "key": piece["key"], "label": piece["label"],
+            "grade_label": piece["grade_label"], "title": piece["title"], "detail": piece.get("detail", ""),
+            "href": _sheet_link(piece["key"]),
+            "pages": pages, "thick": pages >= 5, "note": bool(piece.get("detail")),
+            "phone": index < SHEET_PHONE,
+            "x": round(x, 2), "y": round(y, 2),
+            "mx": round(12 + col * 25.3 + (jitter - 0.5) * 8, 2),
+            "my": round(9 + row * 11 + (far - 0.5) * 4, 2),
+            "turn": round(-25 + 50 * turn, 1),
+        })
+    return {"sheets": sheets, "count": len(pieces), "more": max(len(pieces) - len(chosen), 0)}
 
 
 def _add_link(category):
@@ -202,12 +262,16 @@ def journey_home(user, journey=None, now=None):
     journey = journey or build_journey(user)
     grade = journey["current_grade"] or 1
     words = {stop["grade"]: stop["title"].split("・")[-1] for stop in FIVE_YEAR_PLAN}
+    plans = {stop["grade"]: stop for stop in FIVE_YEAR_PLAN}
 
     stops = [{
         "grade": year["grade"],
         "label": GRADE_LABELS[year["grade"]],
         "word": words.get(year["grade"], ""),
         "count": year["count"],
+        "summary": plans.get(year["grade"], {}).get("summary", ""),
+        "keep": plans.get(year["grade"], {}).get("keep", []),
+        "plan": SCHOOL_YEAR_PLAN.get(year["grade"]),
         "state": "past" if year["grade"] < grade else ("now" if year["grade"] == grade else "future"),
     } for year in journey["years"]]
 
@@ -221,12 +285,15 @@ def journey_home(user, journey=None, now=None):
         "pending": pending,
         "latest": latest.title if latest else None,
     }
+    table = table_pieces(journey)
     return {
         "summary": summary,
         "grade": grade,
         "grade_label": GRADE_LABELS[grade],
         "stops": stops,
-        "table": table_pieces(journey),
+        "table": table,
+        "desk": desk_sheets(table["pieces"]),
+        "resume_open": grade >= RESUME_FROM_GRADE,
         "sample_piece": SAMPLE_PIECE,
         "makers": [{"key": key, "label": PIECE_LABELS[key], "href": _add_link(key)} for key in CATEGORY_KEYS],
         "away_days": away_days(user, now),

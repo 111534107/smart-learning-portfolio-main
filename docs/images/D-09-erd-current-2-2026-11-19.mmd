@@ -1,0 +1,59 @@
+%%{init: {"theme":"neutral","fontFamily":"Microsoft JhengHei","er":{"layoutDirection":"LR","minEntityWidth":140,"fontSize":14}}}%%
+erDiagram
+ direction LR
+ users["帳號"] {
+  int id PK
+ }
+ admission_rule_versions["校系規則版本"] {
+  int id PK
+ }
+ admission_rule_items["備審要求"] {
+  int id PK
+  int rule_version_id FK
+ }
+ student_targets["學生目標"] {
+  int id PK
+  int student_id FK
+  int rule_version_id FK
+ }
+ package_reviews["導師送審快照"] {
+  int id PK
+  int student_id FK
+  int rule_version_id FK
+  int teacher_id FK
+ }
+ learning_profile_outputs["自傳版本"] {
+  int id PK
+  int student_id FK
+ }
+ autobiography_google_docs["個人自傳雲端文件"] {
+  int id PK
+  int student_id FK
+  int program_id FK
+  int based_on_output_id FK
+  int last_pulled_output_id FK
+ }
+ admission_rule_versions ||--o{ admission_rule_items : "rule_version_id"
+ users ||--o{ student_targets : "student_id"
+ admission_rule_versions ||--o{ student_targets : "rule_version_id"
+ users ||--o{ package_reviews : "student_id"
+ admission_rule_versions ||--o{ package_reviews : "rule_version_id"
+ users |o--o{ package_reviews : "teacher_id"
+ users ||--o{ learning_profile_outputs : "student_id"
+ users ||--o{ autobiography_google_docs : "student_id"
+ admission_rule_versions ||--o{ autobiography_google_docs : "program_id"
+ learning_profile_outputs ||--o{ autobiography_google_docs : "based_on_output_id"
+ learning_profile_outputs |o--o{ autobiography_google_docs : "last_pulled_output_id"
+ learning_profile_outputs ||--o{ autobiography_comments : "output_id"
+ users ||--o{ autobiography_comments : "author_id"
+ autobiography_comments |o--o{ autobiography_comments : "parent_id（學生回覆）"
+ autobiography_comments["自傳段落留言"] {
+  int id PK
+  int student_id FK
+  int program_id FK
+  int output_id FK
+  int paragraph "第幾段"
+  int author_id FK
+  int parent_id FK
+  datetime resolved_at "已處理時間"
+ }

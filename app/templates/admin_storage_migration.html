@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "admin-storage-migration" %}
+
+{% block title %}舊檔搬進學生資料夾｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, "檔案存放設定") }}{% endblock %}
+
+{% macro size(n) %}{% if n is none %}—{% elif n >= 1048576 %}{{ "%.1f"|format(n / 1048576) }} MB{% elif n >= 1024 %}{{ "%.0f"|format(n / 1024) }} KB{% else %}{{ n }} B{% endif %}{% endmacro %}
+
+{% block content %}
+<section class="work-shell" data-work-role="admin">
+  <header class="work-heading">
+    <div>
+      <h1>舊檔搬進學生資料夾</h1>
+      <p>把還存在本機的成績單、證照、經歷佐證、自傳 Word 備份，複製到 Google 雲端硬碟「智慧學習歷程系統上傳檔／學號_姓名／種類」。<b>本機原檔保留不刪</b>，旁邊多一個 <code>.migrated.json</code> 記錄搬去哪裡；已標記刪除的檔案不搬。表單下載區是科辦檔案，不在這裡。</p>
+      <p><a href="{{ url_for('storage.settings_page') }}">← 回檔案存放設定</a></p>
+    </div>
+  </header>
+
+  {% if error %}<p class="alert" role="alert">{{ error }}</p>{% endif %}
+  {% if outcome %}
+  <p class="notice" role="status" data-migration-outcome>已搬 {{ outcome.moved|length }} 個檔案{% if outcome.failed %}，{{ outcome.failed|length }} 個失敗（留在本機，可以再按一次）{% endif %}。</p>
+  {% if outcome.failed %}
+  <ul>{% for item in outcome.failed %}<li>{{ item.folder }}／{{ item.name }}：{{ item.message }}</li>{% endfor %}</ul>
+  {% endif %}
+  {% endif %}
+
+  <section class="work-panel" data-migration-summary data-tour="先預覽舊檔數量，試跑檢查不會搬檔。" data-tour-order="1">
+    <div class="work-panel__head"><div><h2>{{ "試跑結果" if dry else "預覽" }}</h2></div></div>
+    <p>
+      {% for key, label in statuses.items() %}<span class="tag {{ 'tag--ok' if key == 'ready' else ('tag--danger' if key == 'missing' else 'tag') }}" data-count-{{ key }}="{{ result.counts[key] }}">{{ label }} {{ result.counts[key] }}</span> {% endfor %}
+    </p>
+    <p class="muted small">可以搬的檔案共 {{ size(result.total_bytes) }}。{{ "試跑已把每個檔案讀過一次並算出雜湊，沒有連 Google、沒有改資料。" if dry else "預覽只讀資料庫和本機檔案，沒有改任何東西。" }}</p>
+    <form class="admin-inline-form" method="post" action="{{ url_for('storage.migration_page') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="button button--secondary" type="submit">試跑（讀檔、算雜湊，不搬）</button>
+    </form>
+  </section>
+
+  {% if result.by_student %}
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>依學生</h2></div></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>雲端學生資料夾</th><th>可以搬</th><th>大小</th><th>找不到</th><th>已在雲端</th><th>已標記刪除</th></tr></thead>
+        <tbody>
+          {% for row in result.by_student %}
+          <tr><td>{{ row.folder }}</td><td>{{ row.ready }}</td><td>{{ size(row.bytes) }}</td><td>{{ row.missing }}</td><td>{{ row.drive }}</td><td>{{ row.deleted }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>逐個檔案</h2></div></div>
+    <div class="table-wrap">
+      <table data-migration-items>
+        <thead><tr><th>學生資料夾</th><th>種類</th><th>檔名</th><th>大小</th><th>狀態</th>{% if dry %}<th>會放到</th><th>SHA-256 前 12 碼</th>{% endif %}</tr></thead>
+        <tbody>
+          {% for item in result["items"] %}
+          <tr><td>{{ item.folder }}</td><td>{{ item.kind_label }}</td><td>{{ item.name }}</td><td>{{ size(item.size) }}</td><td>{{ item.status_label }}{% if item.note %}（{{ item.note }}）{% endif %}</td>{% if dry %}<td>{{ item.target or "—" }}</td><td><code>{{ (item.sha256 or "")[:12] }}</code></td>{% endif %}</tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% else %}
+  <section class="work-panel"><p>目前沒有任何學生上傳檔或自傳備份。</p></section>
+  {% endif %}
+
+  <section class="work-panel" data-migration-execute data-tour="確認試跑結果與條件都過了，才能正式搬。" data-tour-order="2">
+    <div class="work-panel__head"><div><h2>真的搬</h2></div></div>
+    {% if result.blockers %}
+    <p class="alert">還不能搬，要先處理：</p>
+    <ul>{% for item in result.blockers %}<li>{{ item }}</li>{% endfor %}</ul>
+    {% elif not result.counts.ready %}
+    <p class="muted">沒有需要搬的檔案。</p>
+    {% else %}
+    <p>會把 {{ result.counts.ready }} 個檔案複製到雲端，資料庫改記雲端位置；本機原檔不刪。這一步會寫入 Google 雲端硬碟，請先看過上面的試跑結果。</p>
+    <form class="form-stack" method="post" action="{{ url_for('storage.migration_execute') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="field">在這裡輸入「{{ confirm_text }}」<input name="confirm" autocomplete="off" required></label>
+      <button class="button" type="submit">開始搬移</button>
+    </form>
+    {% endif %}
+  </section>
+</section>
+{% endblock %}

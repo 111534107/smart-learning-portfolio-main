@@ -404,3 +404,83 @@ def test_enthusiastic_charity_is_not_mistaken_for_leadership():
     assert service.classify("1132熱心公益") == "service"
     assert service.classify("1132熱心服務") == "service"
     assert service.classify("1132熱心") is None
+
+
+def test_award_paste_routes_school_attendance_to_review_without_saving_source(tmp_path):
+    from app.models import AttendanceSummary
+
+    app = records_app(tmp_path)
+    client = app.test_client()
+    login(client)
+    text = "114/10/03\t病假\t病假\n項目\t曠課\t病假\n合計\t0\t2"
+
+    response = client.post("/student/award-records/paste", data={"pasted_table": text})
+    html = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert "核對學期合計" in html and 'name="病假" value="2"' in html
+    assert 'action="/student/attendance-records/confirm"' in html
+    assert "114/10/03" not in html
+    assert response.headers["Cache-Control"] == "no-store"
+    with app.app_context():
+        assert AttendanceSummary.query.count() == 0
+        assert SourceDocument.query.count() == 0
+
+
+def test_award_paste_explains_how_to_import_attendance_daily_rows(tmp_path):
+    app = records_app(tmp_path)
+    client = app.test_client()
+    login(client)
+
+    response = client.post("/student/award-records/paste",
+                           data={"pasted_table": "114/10/03\t病假\t病假"})
+    html = response.get_data(as_text=True)
+    assert response.status_code == 400
+    assert "缺曠" in html and "底部" in html and "無法辨識表格欄位" not in html
+    assert html.count('action="/student/attendance-records"') == 2
+    assert "114/10/03" not in html
+
+
+def test_unconfirmed_award_import_can_be_deleted_and_returns_to_award_page(tmp_path):
+    """2026-11-19 刪除原則：還沒確認的獎懲匯入可以刪，刪完回獎懲頁；已確認的不能刪。"""
+    app = records_app(tmp_path)
+    client = app.test_client()
+    login(client)
+    client.post("/student/award-records/paste", data={"pasted_table": PASTED})
+    with app.app_context():
+        document_id = SourceDocument.query.filter_by(document_type="award_record").one().id
+    page = client.get("/student/award-records").get_data(as_text=True)
+    assert f"/student/learning-profile/documents/{document_id}/delete" in page
+
+    response = client.post(f"/student/learning-profile/documents/{document_id}/delete",
+                           data={"next": "/student/award-records"})
+
+    assert response.status_code == 302 and response.headers["Location"].endswith("/student/award-records")
+    with app.app_context():
+        assert SourceDocument.query.filter_by(document_type="award_record").count() == 0
+
+
+def test_confirmed_award_import_cannot_be_deleted(tmp_path):
+    app = records_app(tmp_path)
+    client = app.test_client()
+    login(client)
+    client.post("/student/award-records/paste", data={"pasted_table": PASTED})
+    with app.app_context():
+        document = SourceDocument.query.filter_by(document_type="award_record").one()
+        document.status = "confirmed"
+        db.session.commit()
+        document_id = document.id
+    assert f"/documents/{document_id}/delete" not in client.get("/student/award-records").get_data(as_text=True)
+    client.post(f"/student/learning-profile/documents/{document_id}/delete")
+    with app.app_context():
+        assert db.session.get(SourceDocument, document_id) is not None
+
+
+def test_external_next_is_ignored_after_delete(tmp_path):
+    app = records_app(tmp_path)
+    client = app.test_client()
+    login(client)
+    client.post("/student/award-records/paste", data={"pasted_table": PASTED})
+    with app.app_context():
+        document_id = SourceDocument.query.filter_by(document_type="award_record").one().id
+    response = client.post(f"/student/learning-profile/documents/{document_id}/delete", data={"next": "https://evil.example"})
+    assert response.headers["Location"].endswith("/student/files")

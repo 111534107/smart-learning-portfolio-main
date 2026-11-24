@@ -19,18 +19,22 @@
     </div>
   </header>
 
-  <nav class="work-panel" aria-label="學生資料快速導覽">
+  <form method="post" action="{{ url_for('teacher.student_summary', student_id=student.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small button--line" type="submit">查看學生資料摘要</button><small>僅在本機統計，不傳送學生個人資料。</small></form>
+
+  <nav class="work-panel" aria-label="學生資料快速導覽" data-tour="選項目直接跳到學生資料或送審紀錄。" data-tour-order="1">
     <div class="work-panel__head"><div><h2>快速查看</h2><p>點選項目，直接前往學生資料。</p></div></div>
     <div class="record-card__actions">
       <a class="button button--small button--line" href="#teacher-records">資料狀態與五年資料</a>
       <a class="button button--small button--line" href="#teacher-graduation">畢業門檻</a>
-      <a class="button button--small button--line" href="#teacher-targets">目標校系與備審／自傳</a>
+      <a class="button button--small button--line" href="#teacher-targets">送審紀錄與自傳</a>
       <a class="button button--small button--line" href="#teacher-evidence">佐證照片</a>
+      <a class="button button--small button--line" href="{{ url_for('teacher.internship_resume_view', student_id=student.id) }}">實習履歷</a>
+      <a class="button button--small button--line" href="{{ url_for('attendance.advisor_records', student_id=student.id) }}">缺曠合計</a>
     </div>
     <p class="small mt-1">五年資料：<a href="{{ url_for('teacher.student_detail', student_id=student.id, record_status='draft', _anchor='teacher-records') }}">草稿 {{ record_counts.draft }} 筆</a> · <a href="{{ url_for('teacher.student_detail', student_id=student.id, record_status='confirmed', _anchor='teacher-records') }}">學生已確認 {{ record_counts.confirmed }} 筆</a>{% if record_counts.other %} · <a href="{{ url_for('teacher.student_detail', student_id=student.id, record_status='other', _anchor='teacher-records') }}">狀態待確認 {{ record_counts.other }} 筆</a>{% endif %}</p>
   </nav>
 
-  <section class="teacher-journey-map" aria-labelledby="teacher-journey-title" data-teacher-journey-map data-tour="先看學生五年留下多少資料。" data-tour-order="1">
+  <section class="teacher-journey-map" aria-labelledby="teacher-journey-title" data-teacher-journey-map data-tour="先看學生五年留下多少資料。" data-tour-order="2">
     <div class="teacher-journey-map__head">
       <div>
         <p class="small">五年簡圖</p>
@@ -63,15 +67,10 @@
     {% if transfer_credit.submitted_on %}<p>申請日期：{{ transfer_credit.submitted_on.isoformat() }}</p>{% endif %}
     {% if transfer_credit.missing_documents %}<p>待補資料：{{ transfer_credit.missing_documents }}</p>{% endif %}
     {% if transfer_credit.note %}<p>備註：{{ transfer_credit.note }}</p>{% endif %}
-    {% if transfer_credit.teacher_confirmed %}<p class="notice">你已於 {{ transfer_credit.teacher_confirmed_at|taipei_time("%Y-%m-%d") }} 確認看過。</p>{% else %}
-    <form method="post" action="{{ url_for('transfer_credit.confirm_transfer_credit', student_id=student.id) }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button class="button button--line" type="submit" name="confirmed" value="1">確認看過這筆紀錄</button>
-    </form>
-    {% endif %}
+    {% if transfer_credit.teacher_confirmed %}<p class="notice">{{ transfer_credit.teacher.display_name if transfer_credit.teacher else "科辦" }} 已於 {{ transfer_credit.teacher_confirmed_at|taipei_time("%Y-%m-%d") }} 確認。</p>{% else %}<p class="small muted">還沒有人確認；轉學抵免進度由科主任或科辦確認，導師可以查看結果。</p>{% endif %}
   </section>
   {% endif %}
-  <section class="work-panel" id="teacher-graduation" data-grad-student>
+  <section class="work-panel" id="teacher-graduation" data-grad-student data-tour="查看畢業門檻與需要追蹤的事項。" data-tour-order="3">
     <div class="work-panel__head"><div><h2>畢業門檻提醒</h2><p>下一次檢核：{{ grad_next_check }}。</p>{% if grad_countdown %}<p class="small" data-check-countdown>{{ grad_countdown.text }}</p>{% endif %}</div></div>
     {% set flagged = semester_warnings.terms|rejectattr("level", "equalto", "ok")|list %}
     <div data-semester-warning>
@@ -114,7 +113,7 @@
   <div id="teacher-targets">
   {% for target in targets %}
   {% set gap = target.gap %}
-  <section class="work-panel" id="teacher-target-{{ target.program.id }}">
+  <section class="work-panel" id="teacher-target-{{ target.program.id }}"{% if loop.first %} data-tour="選校系查看送審紀錄與自傳，再確認。" data-tour-order="4"{% endif %}>
     <div class="work-panel__head">
       <div><h2>{{ target.program.school_name }} {{ target.program.department_name }}</h2>
         <p>{% if target.program.program_code.isdigit() %}志願代碼 {{ target.program.program_code }} · {% endif %}{{ target.program.admission_year }} 學年度 · {{ target.program.admission_category or "" }} · 準備度 {{ gap.readiness if gap.readiness is not none else "—" }}%</p></div>
@@ -123,7 +122,24 @@
         {% if target.review %}{% set label, cls = review_text[target.review.status] %}<span class="tag {{ cls }}">{{ label }}</span>{% else %}<span class="tag">學生尚未送出</span>{% endif %}
       </div>
     </div>
+    {% if not target.cancelled %}
+    {% if reminded == target.program.id %}<p class="notice mt-1" role="status">提醒已送出，學生點站內通知就會到這個校系的備審頁。</p>{% endif %}
+    <details class="target-remind mt-1" data-target-remind><summary>提醒學生準備這個校系</summary>
+      <form class="form-stack mt-1" method="post" action="{{ url_for('teacher.remind_target', student_id=student.id, program_id=target.program.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label class="field">提醒內容（已依下方缺件帶入，可以改；送出後學生會收到站內通知）<textarea name="message" maxlength="180" rows="3" required>{{ target.reminder_suggestion }}</textarea></label>
+        <div><button class="button button--small" type="submit">送出提醒</button></div>
+      </form>
+    </details>
+    {% endif %}
     {% set snap = target.review.snapshot_json if target.review else none %}
+    <div class="snapshot-box mt-1" data-review-summary>
+      <p><b>送審紀錄</b> · {% if target.review %}{{ review_text[target.review.status][0] }} · {{ target.review.requested_at|taipei_time("%Y-%m-%d %H:%M") }}{% else %}尚未送審{% endif %}</p>
+      <p class="small">送審自傳：{% if snap and snap.autobiography %}第 {{ snap.autobiography.version }} 版{% else %}無{% endif %} · 目前自傳：{% if target.current_version %}第 {{ target.current_version }} 版{% else %}無{% endif %} · 段落留言：{{ target.open_comments }} 則待處理</p>
+      {% if target.autobiography %}<a href="{{ url_for('teacher.autobiography_edit', student_id=student.id, output_id=target.autobiography.id) }}">查看段落留言與學生回覆</a>{% endif %}
+      {% if target.review and target.review.status == 'confirmed' %}<p class="small">自傳：{% if target.review.autobiography_viewed is none %}未記錄是否查看{% elif target.review.autobiography_viewed %}已查看{% else %}未查看{% endif %}</p>{% endif %}
+    </div>
+    {% with program=target.program %}{% include "partials/portfolio_tips.html" %}{% endwith %}
     {% if snap %}
     <div class="snapshot-box mt-1">
       <p class="small"><b>送審內容</b>：{{ target.review.requested_at|taipei_time("%Y-%m-%d %H:%M") }} 送出時的資料{% if snap.autobiography %}，自傳依據第 {{ snap.autobiography.version }} 版{% if target.current_version and target.current_version != snap.autobiography.version %}（目前第 {{ target.current_version }} 版）{% endif %}{% else %}，當時還沒有自傳{% endif %}。學生之後再改，這份內容不會變。</p>
@@ -138,7 +154,28 @@
       <details class="source-doc mt-1"><summary>送審當下的資料（{{ snap.facts|length }} 筆）</summary>
         <ul class="rule-item-list">{% for fact in snap.facts %}<li><span>{{ fact.text }}</span></li>{% else %}<li>沒有已確認的資料。</li>{% endfor %}</ul>
       </details>
+      {% if target.submitted_autobiography %}
+      <details class="source-doc mt-1" data-submitted-autobiography data-autobiography-optional><summary>查看自傳（送審時第 {{ snap.autobiography.version }} 版，選擇性查看）</summary>
+        {% for paragraph in target.submitted_autobiography.content_json.paragraphs %}<h3 class="h3 mt-1">{{ paragraph.title }}</h3><p class="version-text">{{ paragraph.text }}</p>{% for image_id in paragraph.images or [] %}<img class="bio-images__thumb" src="{{ url_for('student.autobiography_image', student_id=student.id, image_id=image_id) }}" alt="學生附圖">{% endfor %}{% endfor %}
+      </details>
+      {% endif %}
     </div>
+    {% endif %}
+    {% if target.history %}
+    <details class="source-doc mt-1" data-review-history><summary>歷次送審紀錄（{{ target.history|length }} 筆，僅供查看）</summary>
+      {% for item in target.history %}
+      {% set old = item.review %}{% set old_snap = old.snapshot_json or {} %}
+      <article class="snapshot-box mt-1">
+        <p><b>{{ old.requested_at|taipei_time("%Y-%m-%d %H:%M") }} 送審</b> · {{ review_text[old.status][0] }} · 舊紀錄不可確認</p>
+        <p class="small">送審自傳：{% if old_snap.autobiography %}第 {{ old_snap.autobiography.version }} 版{% else %}無{% endif %}{% if old.comment %} · 導師建議：{{ old.comment }}{% endif %}</p>
+        {% if old.status == 'confirmed' %}<p class="small">自傳：{% if old.autobiography_viewed is none %}未記錄是否查看{% elif old.autobiography_viewed %}已查看{% else %}未查看{% endif %}</p>{% endif %}
+        <details><summary>查看當時資料與自傳</summary>
+          <ul>{% for fact in old_snap.get('facts', []) %}<li>{{ fact.text }}</li>{% else %}<li>沒有已確認的資料。</li>{% endfor %}</ul>
+          {% if item.autobiography %}{% for paragraph in item.autobiography.content_json.paragraphs %}<h3 class="h3">{{ paragraph.title }}</h3><p class="version-text">{{ paragraph.text }}</p>{% endfor %}{% endif %}
+        </details>
+      </article>
+      {% endfor %}
+    </details>
     {% endif %}
     <div class="table-wrap">
       <table class="data-table">
@@ -160,22 +197,26 @@
     <details class="source-doc mt-1">
       {% set editor_text = {"teacher": "你修改過", "student": "學生已修改儲存", "ai": "AI 草稿，學生尚未修改"} %}
       <summary>自傳第 {{ target.current_version }} 版（{{ editor_text.get(auto.editor_role) or ("學生已修改儲存" if auto.edited else "AI 草稿，學生尚未修改") }}{{ "，示範草稿" if auto.provider == "demo" else "" }}）</summary>
-      {% for paragraph in auto.paragraphs %}<h3 class="h3 mt-1">{{ paragraph.title }}</h3><p>{{ paragraph.text }}</p>{% if paragraph.teacher_comment %}<blockquote class="teacher-comment"><b>你的意見：</b>{{ paragraph.teacher_comment }}</blockquote>{% endif %}{% endfor %}
-      <p class="mt-1"><a class="button button--small button--line" href="{{ url_for('teacher.autobiography_edit', student_id=student.id, output_id=target.autobiography.id) }}">直接修改文字、留意見</a></p>
+      {% for paragraph in auto.paragraphs %}<h3 class="h3 mt-1">{{ paragraph.title }}</h3><p>{{ paragraph.text }}</p>{% for image_id in paragraph.images or [] %}<img class="bio-images__thumb" src="{{ url_for('student.autobiography_image', student_id=student.id, image_id=image_id) }}" alt="學生附圖">{% endfor %}{% if paragraph.teacher_comment %}<blockquote class="teacher-comment"><b>你的意見：</b>{{ paragraph.teacher_comment }}</blockquote>{% endif %}{% endfor %}
+      <p class="mt-1 record-card__actions"><a class="button button--small button--line" href="{{ url_for('teacher.autobiography_edit', student_id=student.id, output_id=target.autobiography.id) }}">修改文字、段落註解{% if target.open_comments %}（{{ target.open_comments }} 則待處理）{% endif %}</a>
+        <a class="button button--small button--line" href="{{ url_for('teacher.autobiography_versions', student_id=student.id, program_id=target.program.id) }}">版本紀錄與修改內容</a></p>
     </details>
     {% else %}
     <p class="small muted mt-1">學生還沒有寫自傳。</p>
     {% endif %}
     {% if target.review and target.review.status == "pending" %}
+    {% if target.autobiography_changed %}<p class="alert mt-1" role="alert" data-autobiography-changed>學生送審後自傳又存了新版本（目前第 {{ target.current_version }} 版），送審的那份已經不是最新的。請選「需要修改」，請學生重新送審後再確認。</p>{% endif %}
     <form class="decision-form mt-1" method="post" action="{{ url_for('teacher.decide_review', review_id=target.review.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       {# 記住導師看到的是哪個時間點的送審內容；學生之後又更新，按確認會被擋下 #}
       <input type="hidden" name="taken_at" value="{{ (target.review.snapshot_json or {}).get('taken_at', '') }}">
+      {% if target.submitted_autobiography %}<p class="small muted" data-autobiography-hint>自傳預設收合，要不要看由你決定；不看也能確認。</p>{% endif %}
+      <label class="choice"><input type="checkbox" name="autobiography_viewed" value="1" data-autobiography-viewed><span><b>我已查看自傳</b><small>沒勾選就記錄為「未檢視自傳」，學生會看到這個差別；不影響其他流程。</small></span></label>
       <div class="choice-group">
-        <label class="choice"><input type="radio" name="decision" value="confirmed" required><span><b>內容合理，確認</b><small>學生可以產出正式備審資料</small></span></label>
-        <label class="choice"><input type="radio" name="decision" value="needs_revision"><span><b>需要修改</b><small>請在下方寫下建議</small></span></label>
+        <label class="choice"><input type="radio" name="decision" value="confirmed" required{% if target.autobiography_changed %} disabled{% endif %}><span><b>內容合理，確認</b><small>{% if target.autobiography_changed %}自傳有新版，要等學生重新送審{% else %}學生可以產出正式備審資料{% endif %}</small></span></label>
+        <label class="choice"><input type="radio" name="decision" value="needs_revision"{% if target.autobiography_changed %} checked{% endif %}><span><b>需要修改</b><small>請在下方寫下建議</small></span></label>
       </div>
-      <label class="field">給學生的建議<textarea name="comment" placeholder="例如：競賽成果請補上獎狀照片；自傳可以多寫專題中負責的部分。"></textarea></label>
+      <label class="field">給學生的建議<textarea name="comment" placeholder="例如：競賽成果請補上獎狀照片；自傳可以多寫專題中負責的部分。">{% if target.autobiography_changed %}你送審後自傳又改了，請到這個校系的備審頁重新送審，我再確認新的版本。{% endif %}</textarea></label>
       <div><button class="button" type="submit">送出</button></div>
     </form>
     {% elif target.review %}
@@ -197,7 +238,7 @@
   </div>
 
   {# 學生上傳的成績單、證照原始檔（學生已確認的） #}
-  <section class="work-panel">
+  <section class="work-panel" data-tour="對照學生上傳的成績單與證照原檔。" data-tour-order="5">
     <div class="work-panel__head"><div><h2>成績單與證照原始檔</h2><p>和下面的資料對照，確認學生輸入的內容沒有錯。</p></div></div>
     {% if documents %}
     {{ evidence_grid(documents, "teacher.document_view", id_arg="document_id") }}
@@ -207,7 +248,7 @@
   </section>
 
   {# 學生上傳的佐證照片：導師確認時可以直接看，不用下載 #}
-  <section class="work-panel" id="teacher-evidence">
+  <section class="work-panel" id="teacher-evidence" data-tour="點佐證照片放大，核對活動資料。" data-tour-order="6">
     <div class="work-panel__head"><div><h2>佐證照片</h2><p>包含草稿與已確認經歷的佐證；點照片可以放大。</p></div></div>
     {% for record in records_with_evidence %}
     <h3 class="mt-1">{{ record.title }} <span class="muted small">{{ category_labels.get(record.category, record.category) }}</span> <span class="tag {{ 'tag--ok' if record.status == 'confirmed' else 'tag--warn' }}">{{ '學生已確認' if record.status == 'confirmed' else ('草稿' if record.status == 'draft' else '狀態待確認') }}</span></h3>

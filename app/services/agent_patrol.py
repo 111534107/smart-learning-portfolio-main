@@ -15,7 +15,7 @@ GOAL = "請巡查招生資料的官方來源：先上網搜尋有沒有新的官
 
 INSTRUCTION = """你是康寧大學資管科學習歷程系統的「資管科小助手」，現在做背景巡查。
 規則：
-1. 先用 search_sources 上網找新的官方來源（可以自己決定關鍵字，例如學年度、二技技優甄審、日間部二技申請入學、資管系備審指引），
+1. 先用 search_sources 上網找新的官方來源（可以自己決定關鍵字，但一定要寫今年或明年的學年度，例如 116 學年度；也可以加上二技技優甄審、日間部二技申請入學、資管系備審指引），
    再檢查官方來源、列出等待擷取的變更；只擷取列出來的變更編號，不要自己編號碼。
 2. 擷取的結果（候選校系、候選日程）只是「候選」，要等管理員核准；總結時不要說已經發布或學生已經看得到。
 3. 工具回傳錯誤時，說明原因，不要一直重試同一個動作。
@@ -24,13 +24,24 @@ INSTRUCTION = """你是康寧大學資管科學習歷程系統的「資管科小
 AUTO = "auto"
 
 
+def with_school_years(query, roc_year=None):
+    """AI 自己下的關鍵字沒寫學年度時，一律拆成今年與明年兩組（2026-11-19：沒帶年份會搜到去年已經考完的簡章）。"""
+    import re
+    from datetime import date
+    query = query.strip()
+    if re.search(r"1\d\d\s*學年度", query):
+        return [query]
+    year = roc_year or date.today().year - 1911
+    return [f"{y} 學年度 {query}" for y in (year, year + 1)]
+
+
 def patrol_decider(chat=None):
     return AiDecider(INSTRUCTION, chat=chat)
 
 
 def _tools(requester, fetch, generate, search=None, resolve=None):
     def search_sources(query=""):
-        queries = [query.strip()] if query.strip() else None
+        queries = with_school_years(query) if query.strip() else None
         task = admission_agent.discover_sources(requester, queries=queries, search=search, resolve=resolve)
         if task.status != "succeeded":
             raise ToolError(task.error_message or "上網搜尋失敗。")

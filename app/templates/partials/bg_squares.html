@@ -1,0 +1,18 @@
+{# 版面背景方塊動畫（2026-11-16）：淡淡的方塊從畫面底部往上飄、慢慢旋轉，放在所有內容後面。
+   - 全系統每一頁都有（使用者 2026-11-16 要求）；老師、科辦、管理員頁在 bg-squares.css 調得更淡，以效率為優先。
+   - 樣式在 static/css/bg-squares.css；每個方塊用 --x（水平位置）、--s（邊長）、--d（一輪秒數）、--w（延遲）、--a（濃淡）控制。
+   - aria-hidden：純裝飾，螢幕報讀器略過；pointer-events: none，不擋點擊。
+   - 登入頁左側深色欄另外用 {% with bg_panel = true %} 引用一次，變成欄內的白色方塊（bg-squares--panel）。
+   - 要整個拿掉：刪掉 base.html 裡 include 這個檔的那一行即可。 #}
+<div class="bg-squares{% if bg_panel %} bg-squares--panel{% endif %}" aria-hidden="true">
+  <span style="--x:6%;--s:44px;--d:34s;--w:-4s;--a:.9"></span>
+  <span style="--x:18%;--s:92px;--d:46s;--w:-20s;--a:.6"></span>
+  <span style="--x:31%;--s:28px;--d:30s;--w:-11s;--a:1"></span>
+  <span style="--x:44%;--s:64px;--d:40s;--w:-30s;--a:.75"></span>
+  <span style="--x:57%;--s:120px;--d:52s;--w:-8s;--a:.5"></span>
+  <span style="--x:70%;--s:36px;--d:32s;--w:-24s;--a:1"></span>
+  <span style="--x:82%;--s:80px;--d:44s;--w:-15s;--a:.65"></span>
+  <span style="--x:92%;--s:22px;--d:28s;--w:-2s;--a:1"></span>
+  <span style="--x:25%;--s:150px;--d:58s;--w:-40s;--a:.4"></span>
+  <span style="--x:64%;--s:16px;--d:26s;--w:-17s;--a:1"></span>
+</div>

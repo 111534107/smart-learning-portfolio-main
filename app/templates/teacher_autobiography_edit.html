@@ -1,41 +1,567 @@
 {% extends "base.html" %}
-{% from "partials/nav.html" import masthead with context %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% import "partials/autobiography_comments.html" as cm with context %}
 {% set page_name = "teacher-autobiography-edit" %}
 
-{% block title %}修改自傳｜導師工作台{% endblock %}
+{% block title %}{{ student.display_name }}的自傳審閱｜導師工作台{% endblock %}
 
 {% block navigation %}{{ masthead(user, "工作台") }}{% endblock %}
 
 {% block content %}
 <section class="work-shell" data-work-role="teacher">
   <header class="work-heading">
-    <div>
-      <p class="small"><a href="{{ url_for('teacher.student_detail', student_id=student.id) }}">← {{ student.display_name }}</a>{% if program %} · {{ program.school_name }} {{ program.department_name }}{% endif %}</p>
-      <h1>修改自傳（目前第 {{ version }} 版）</h1>
-      <p>你可以直接改文字，也可以在每段下面留意見。儲存後會變成新的一版，學生看得到你改了哪裡；原本的版本會保留。</p>
+    <div class="page" data-page="teacher-autobiography-edit"
+      style="max-width:1320px; margin:0 auto; padding:12px 16px;">
+
+      <!-- 頂部導航資訊與手機換人列 -->
+      <header
+        style="margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+        <div>
+          <p class="small"><a href="{{ url_for('teacher.student_detail', student_id=student.id) }}">← {{
+              student.display_name }}</a>{% if program %} · {{ program.school_name }} {{ program.department_name }} · <a
+              href="{{ url_for('teacher.autobiography_versions', student_id=student.id, program_id=program.id) }}">版本紀錄</a>{%
+            endif %}</p>
+          <h1>修改自傳（目前第 {{ version }} 版）</h1>
+          <p>改文字請按最下面的「儲存成新的一版」，原本的版本會保留，學生看得到你改了哪裡。每段下方可以新增註解或回覆，註解會個別送出、學生會收到通知；自傳文字還沒儲存就送註解，系統會先提醒你。</p>
+          <p class="small" style="margin:0 0 2px;">
+            <a href="{{ url_for('teacher.student_detail', student_id=student.id) }}">← 回到 {{ student.display_name }}
+              資料</a>
+            {% if program %} · {{ program.school_name }} {{ program.department_name }} · <a
+              href="{{ url_for('teacher.autobiography_versions', student_id=student.id, program_id=program.id) }}">版本紀錄</a>{%
+            endif %}
+          </p>
+          <h1 class="h2" style="margin:0;">{{ student.display_name }}的自傳審閱（第 {{ version }} 版）</h1>
+        </div>
+
+        <!-- 上一位／下一位學生（手機與平板便利用） -->
+        <div style="display:flex; gap:8px; align-items:center;">
+          {% if prev_student %}
+          <a class="button button--line button--small" style="min-height:44px;"
+            href="{{ url_for('teacher.autobiography_latest', student_id=prev_student.id, program_id=program.id) if program else url_for('teacher.student_detail', student_id=prev_student.id) }}">‹
+            上一位：{{ prev_student.display_name }}</a>
+          {% endif %}
+          {% if next_student %}
+          <a class="button button--line button--small" style="min-height:44px;"
+            href="{{ url_for('teacher.autobiography_latest', student_id=next_student.id, program_id=program.id) if program else url_for('teacher.student_detail', student_id=next_student.id) }}">下一位：{{
+            next_student.display_name }} ›</a>
+          {% endif %}
+        </div>
+      </header>
+
+      {% if not is_latest %}<p class="alert mb-1" role="alert">這不是最新的一版；要修改請先回到學生資料頁打開最新版。</p>{% endif %}
+      {% if comment_error %}<p class="alert mb-1" role="alert">{{ comment_error }}</p>{% endif %}
+      {% if stale %}
+      <section class="work-panel">
+        <section class="work-panel mb-1">
+          <p class="alert mb-1" role="alert">{{ stale.message }}</p>
+          <details open>
+            <summary class="small">你剛才打的字（還沒存）</summary>
+            {% for text in stale.texts %}<h3 class="h3 mt-1">{{ stale.paragraphs[loop.index0].title }}</h3>
+            <p class="version-text">{{ text }}</p>{% if stale.comments[loop.index0] %}<blockquote
+              class="teacher-comment"><b>你的意見：</b>{{ stale.comments[loop.index0] }}</blockquote>{% endif %}{% endfor %}
+          </details>
+        </section>
+        {% endif %}
+        <form method="post" class="work-panel draft" data-draft-form
+          action="{{ url_for('teacher.autobiography_edit', student_id=student.id, output_id=output.id) }}">
+
+          <!-- 三欄式佈局：左學生佇列、中自傳紙張、右建議修改與註解 -->
+          <div class="teacher-bio-layout">
+
+            <!-- 左：班級學生佇列 -->
+            <aside class="teacher-queue-col" aria-label="待審學生佇列">
+              <div
+                style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:8px;">
+                <strong>待審閱學生</strong>
+                <span class="small muted">{{ queue|length }} 位</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:6px; overflow-y:auto; max-height:600px;">
+                {% for q in queue %}
+                <a class="teacher-queue-item{% if q.is_current %} is-active{% endif %}"
+                  href="{{ url_for('teacher.autobiography_latest', student_id=q.student.id, program_id=program.id) if program else url_for('teacher.student_detail', student_id=q.student.id) }}">
+                  <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <strong>{{ q.student.display_name }}</strong>
+                    {% if q.review and q.review.status == 'confirmed' %}
+                    <span class="tag tag--ok" style="font-size:var(--fs-xs);">已通過</span>
+                    {% elif q.review and q.review.status == 'needs_revision' %}
+                    <span class="tag tag--warn" style="font-size:var(--fs-xs);">請修改</span>
+                    {% elif q.review %}
+                    <span class="tag tag--info" style="font-size:var(--fs-xs);">待審閱</span>
+                    {% endif %}
+                  </div>
+                  <span class="small muted">第 {{ q.version or 1 }} 版</span>
+                  {% if q.pending_count %}
+                  <span class="small" style="color:var(--warn);">{{ q.pending_count }} 則建議待學生回覆</span>
+                  {% endif %}
+                </a>
+                {% else %}
+                <p class="small muted">目前無待審閱的班級學生。</p>
+                {% endfor %}
+              </div>
+              <p class="small muted"
+                style="margin:8px 0 0; line-height:1.6; border-top:1px solid var(--line); padding-top:8px;">
+                AI 摘要只提示疑點，不決定通過與否；意見可以空白，直接按「通過」。
+              </p>
+            </aside>
+
+            <!-- 中：自傳紙張（白底黑字標楷體） -->
+            <main class="teacher-paper-col">
+              <!-- 頂部模式切換與狀態列 -->
+              <div
+                style="display:flex; align-items:center; gap:10px; background:var(--sheet); border:1px solid var(--line); border-radius:12px; padding:8px 14px; flex-wrap:wrap;">
+                <strong>{{ student.display_name }}的自傳</strong>
+                <span class="small muted">第 {{ version }} 版 · {% if review %}{{ {'pending': '等待導師確認', 'confirmed':
+                  '已確認通過', 'needs_revision': '請學生修改'}.get(review.status, review.status) }}{% else %}尚未送審{% endif
+                  %}</span>
+                <span style="flex-grow:1;"></span>
+
+                <!-- 模式切換膠囊（檢視／建議／編輯） -->
+                <div role="radiogroup" aria-label="模式" class="teacher-mode-pill">
+                  <button type="button" class="{% if mode == 'view' %}is-active{% endif %}"
+                    data-mode-btn="view">檢視</button>
+                  <button type="button" class="{% if mode == 'suggest' %}is-active{% endif %}"
+                    data-mode-btn="suggest">建議</button>
+                  <button type="button" class="{% if mode == 'edit' %}is-active{% endif %}"
+                    data-mode-btn="edit">編輯</button>
+                </div>
+              </div>
+
+              <!-- 表單容器（支援直接編輯儲存，以及送審確認） -->
+              <form method="post" id="teacher-draft-form" class="work-panel draft" data-draft-form
+                action="{{ url_for('teacher.autobiography_edit', student_id=student.id, output_id=output.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <!-- 自傳紙張 -->
+                <article class="bio-paper" id="teacher-bio-paper" aria-label="自傳紙張">
+                  {% for paragraph in output.content_json.paragraphs %}
+                  {% set p_idx = loop.index0 %}
+                  {% set p_suggestions = suggestions_by_paragraph[p_idx] if suggestions_by_paragraph|length > p_idx else
+                  [] %}
+                  <section class="bio-paper-para" id="paragraph-{{ p_idx }}" data-para-idx="{{ p_idx }}">
+                    <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px;">
+                      <h2 class="bio-para-title h3">{{ paragraph.title }}</h2>
+                      <span class="small muted" style="font-family:'Noto Sans TC',system-ui,sans-serif;">第
+                        {{ loop.index }} 段 · {{ (paragraph.text|replace(' ', '')|replace('\n', '')|replace('\r',
+                        ''))|length }} 字</span>
+                    </div>
+
+                    <!-- 檢視與建議模式下的文字展示（支援標註刪除線與底線，滑鼠選取可彈出工具列） -->
+                    <div class="teacher-para-view-box" id="para-view-{{ p_idx }}"
+                      style="{% if mode == 'edit' %}display:none;{% endif %} margin:8px 0; text-align:justify; cursor:text;"
+                      data-para-idx="{{ p_idx }}">
+                      {# 將段落中已提出的建議修改以 del/ins 視覺化呈現 #}
+                      {% set text = paragraph.text %}
+                      {% if p_suggestions %}
+                      {# 有建議修改時，展示帶標註的文字 #}
+                      <p style="margin:0; line-height:1.9;">
+                        {% for s in p_suggestions %}
+                        <span class="small muted"
+                          style="display:block; margin-bottom:4px; font-family:'Noto Sans TC',sans-serif; color:var(--warn);">[導師建議：原句「{{
+                          s.original }}」改為「{{ s.replacement }}」]</span>
+                        {% endfor %}
+                        <span class="teacher-para-read-text">{{ text }}</span>
+                      </p>
+                      {% else %}
+                      <p style="margin:0; line-height:1.9;"><span class="teacher-para-read-text">{{ text }}</span></p>
+                      {% endif %}
+                    </div>
+
+                    <!-- 編輯模式下的文字輸入框 -->
+                    <div class="teacher-para-edit-box" id="para-edit-{{ p_idx }}"
+                      style="{% if mode != 'edit' %}display:none;{% endif %} margin:8px 0;">
+                      <textarea {% if loop.first %}data-tour="修改段落內容，協助學生改善自傳。" data-tour-order="1" {% endif %}
+                        name="paragraph_{{ p_idx }}" class="bio-para-textarea" rows="6" data-autosize
+                        aria-label="{{ paragraph.title }}" data-para-idx="{{ p_idx }}">{{ paragraph.text }}</textarea>
+                    </div>
+
+                    {% if paragraph.teacher_comment %}
+                    <blockquote class="teacher-comment"
+                      style="margin:8px 0; padding:8px 12px; background:var(--warn-soft); border-left:3px solid var(--warn);">
+                      <b>先前留下的意見：</b>{{ paragraph.teacher_comment }}
+                    </blockquote>
+                    {% endif %}
+
+                    {# 圖片展示 #}
+                    {% if paragraph.images %}
+                    <div class="bio-images-preview" style="display:flex; gap:8px; margin-top:6px; flex-wrap:wrap;">
+                      {% for image_id in paragraph.images %}
+                      <img src="{{ url_for('student.autobiography_image', student_id=student.id, image_id=image_id) }}"
+                        alt="自傳附圖" style="max-height:80px; border-radius:6px; border:1px solid var(--line);">
+                      {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <div style="display:none;" {% if loop.first %}data-tour="新增段落留言，學生會收到通知。" data-tour-order="2" {%
+                      endif %}>
+                      {{ cm.paragraph_block(threads[p_idx], "teacher", p_idx) }}
+                    </div>
+                  </section>
+                  {% endfor %}
+
+                  {{ cm.orphan_block(orphan_threads, "teacher") }}
+
+                  <!-- 編輯模式下的底端儲存按鈕 -->
+                  <div class="record-card__actions mt-1" id="teacher-edit-actions"
+                    style="{% if mode != 'edit' %}display:none;{% endif %} display:flex; gap:10px;">
+                    <button class="button" type="submit" data-tour="儲存成新版本，保留原本內容。" data-tour-order="3"
+                      style="min-height:44px;">儲存成新的一版</button>
+                    <a class="button button--line" href="{{ url_for('teacher.student_detail', student_id=student.id) }}"
+                      style="min-height:44px;">取消</a>
+                  </div>
+                </article>
+              </form>
+
+              <!-- 隱藏的建議修改表單（選取文字後送出） -->
+              <form id="suggestion-submit-form" method="post"
+                action="{{ url_for('teacher.autobiography_suggest', student_id=student.id, output_id=output.id) }}"
+                hidden>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="paragraph" id="sug-input-paragraph" value="0">
+                <input type="hidden" name="start" id="sug-input-start" value="0">
+                <input type="hidden" name="end" id="sug-input-end" value="0">
+                <input type="hidden" name="replacement" id="sug-input-replacement" value="">
+              </form>
+            </main>
+
+            <!-- 右：建議與註解面板 -->
+            <aside class="teacher-aside-col" aria-label="建議與註解">
+              <!-- 導師建議修改卡片列表 -->
+              <div
+                style="background:var(--sheet); border:1px solid var(--line); border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <strong style="font-size:var(--fs-sm);">建議修改</strong>
+                  <span
+                    style="font-size:var(--fs-xs); padding:2px 8px; border-radius:999px; background:var(--warn-soft); color:var(--warn);">
+                    {{ pending_suggestions|length }} 則待學生回覆
+                  </span>
+                </div>
+
+                {% for s in pending_suggestions %}
+                <div
+                  style="border:1px solid var(--line); border-radius:8px; padding:8px 10px; background:var(--paper); display:flex; flex-direction:column; gap:4px;">
+                  <span class="small muted">第 {{ s.paragraph + 1 }} 段</span>
+                  <p style="margin:0; font-size:var(--fs-xs); line-height:1.6;">
+                    刪除「<del style="color:var(--danger);">{{ s.original }}</del>」，改為「<ins
+                      style="color:var(--ok); text-decoration:none; font-weight:700;">{{ s.replacement }}</ins>」
+                  </p>
+                </div>
+                {% else %}
+                <p class="small muted" style="margin:0;">在自傳紙上選取文字，即可提出「建議修改」。</p>
+                {% endfor %}
+              </div>
+
+              <!-- 段落註解列表 -->
+              <div
+                style="background:var(--sheet); border:1px solid var(--line); border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:8px;">
+                <strong style="font-size:var(--fs-sm);">段落註解</strong>
+                {% for paragraph in output.content_json.paragraphs %}
+                {% set p_idx = loop.index0 %}
+                {% if threads[p_idx] %}
+                <div style="border-top:1px solid var(--line); padding-top:6px; margin-top:2px;">
+                  <span class="small muted">第 {{ loop.index }} 段 · {{ paragraph.title }}</span>
+                  {{ cm.paragraph_block(threads[p_idx], "teacher", p_idx) }}
+                </div>
+                {% endif %}
+                {% endfor %}
+
+                <!-- 新增註解按鈕或展開區 -->
+                <details style="margin-top:4px;">
+                  <summary class="small button button--line"
+                    style="min-height:44px; display:inline-flex; align-items:center;">新增註解到段落…</summary>
+                  <div style="padding-top:8px;">
+                    {% for paragraph in output.content_json.paragraphs %}
+                    <div style="margin-bottom:8px;">
+                      <span class="small muted">{{ loop.index }}. {{ paragraph.title }}</span>
+                      <textarea name="text" form="cform-new-{{ loop.index0 }}" rows="2" maxlength="2000"
+                        placeholder="輸入給這段的註解…" class="field small"
+                        style="width:100%; box-sizing:border-box; margin-top:2px;"></textarea>
+                      <button class="button button--small button--line mt-1" type="submit"
+                        form="cform-new-{{ loop.index0 }}" style="min-height:44px;">送出註解</button>
+                    </div>
+                    {% endfor %}
+                  </div>
+                </details>
+              </div>
+
+              <!-- 底端審核決策卡片（通過／請修改） -->
+              {% if review %}
+              <div
+                style="background:var(--sheet); border:1px solid var(--line); border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:8px; margin-top:auto;">
+                <strong style="font-size:var(--fs-sm);">審核備審資料</strong>
+                <p class="small muted" style="margin:0;">目前狀態：<b>{{ {'pending': '待審閱', 'confirmed': '已通過',
+                    'needs_revision': '請修改'}.get(review.status, review.status) }}</b></p>
+
+                <form method="post" action="{{ url_for('teacher.decide_review', review_id=review.id) }}"
+                  style="display:flex; flex-direction:column; gap:8px;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="taken_at" value="{{ (review.snapshot_json or {}).get('taken_at', '') }}">
+                  <input type="hidden" name="autobiography_viewed" value="1">
+                  <label class="field small" style="margin:0;">審核意見（可空白，請修改時會附給學生）
+                    <textarea name="comment" rows="2" maxlength="1000" placeholder="例如：自傳修改後請再次送出。"></textarea>
+                  </label>
+                  <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                    <button type="submit" name="decision" value="needs_revision" class="button button--line"
+                      style="min-height:44px; border-color:var(--warn); color:var(--warn); font-weight:700;">請修改</button>
+                    <button type="submit" name="decision" value="confirmed" class="button button--accent"
+                      style="min-height:44px; font-weight:700;">通過</button>
+                  </div>
+                </form>
+              </div>
+              {% endif %}
+            </aside>
+          </div>
+
+          <!-- 手機底部審核操作列 -->
+          {% if review %}
+          <nav class="teacher-mobile-bottom-actions" aria-label="手機審核操作">
+            <button type="submit" form="teacher-mobile-decide-form" name="decision" value="needs_revision"
+              class="button button--line"
+              style="min-height:48px; border-color:var(--warn); color:var(--warn); font-weight:700;">請修改</button>
+            <button type="submit" form="teacher-mobile-decide-form" name="decision" value="confirmed"
+              class="button button--accent" style="min-height:48px; font-weight:700;">通過</button>
+          </nav>
+          <form id="teacher-mobile-decide-form" method="post"
+            action="{{ url_for('teacher.decide_review', review_id=review.id) }}" hidden>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {% for paragraph in output.content_json.paragraphs %}
+            <section class="draft__paragraph" id="paragraph-{{ loop.index0 }}">
+              <h2 class="h3">{{ paragraph.title }}</h2>
+              <textarea {% if loop.first %}data-tour="修改段落內容，協助學生改善自傳。" data-tour-order="1" {% endif %}
+                name="paragraph_{{ loop.index0 }}" rows="6" data-autosize
+                aria-label="{{ paragraph.title }}">{{ paragraph.text }}</textarea>
+              {% if paragraph.teacher_comment %}<blockquote class="teacher-comment"><b>先前留下的意見：</b>{{
+                paragraph.teacher_comment }}</blockquote>{% endif %}
+              <div {% if loop.first %}data-tour="新增段落留言，學生會收到通知。" data-tour-order="2" {% endif %}>{{
+                cm.paragraph_block(threads[loop.index0], "teacher", loop.index0) }}</div>
+            </section>
+            {% endfor %}
+            {{ cm.orphan_block(orphan_threads, "teacher") }}
+            <div class="record-card__actions">
+              <button class="button" type="submit" data-tour="儲存成新版本，保留原本內容。" data-tour-order="3"
+                style="min-height:44px;">儲存成新的一版</button>
+              <a class="button button--line"
+                href="{{ url_for('teacher.student_detail', student_id=student.id) }}">取消</a>
+              <input type="hidden" name="taken_at" value="{{ (review.snapshot_json or {}).get('taken_at', '') }}">
+              <input type="hidden" name="autobiography_viewed" value="1">
+              <input type="hidden" name="comment" value="導師已審閱自傳。">
+          </form>
+          {% endif %}
+
+          <!-- 浮動選取操作列（Popover） -->
+          <div id="text-popover" class="teacher-selection-popover" style="display:none;" role="toolbar"
+            aria-label="選取操作">
+            <button type="button" class="button button--small button--accent" id="popover-btn-suggest"
+              style="min-height:44px; padding:0 12px;">建議修改</button>
+            <button type="button" class="button button--small button--accent" id="popover-btn-ai-rewrite"
+              style="min-height:44px; padding:0 12px; background:var(--theme, #3b5998);">小助手幫我改</button>
+            <button type="button" class="button button--small button--line" id="popover-btn-comment"
+              style="min-height:44px; padding:0 12px;">加上註解</button>
+          </div>
+
+          <!-- 彈出輸入對話框（建議修改） -->
+          <dialog id="suggest-dialog"
+            style="border:1px solid var(--line); border-radius:12px; padding:16px; background:var(--sheet); max-width:400px; box-shadow:0 8px 30px rgba(0,0,0,0.15);">
+            <h3 style="margin:0 0 8px; font-size:var(--fs-sm);">提出建議修改</h3>
+            <p class="small muted" style="margin:0 0 6px;">原句：<q id="dialog-orig-text"
+                style="font-weight:700; color:var(--ink);"></q></p>
+            <label class="field small">建議改為：
+              <textarea id="dialog-replacement-text" rows="3" maxlength="1000"
+                style="width:100%; box-sizing:border-box;" placeholder="輸入建議替換的句子…"></textarea>
+            </label>
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:10px;">
+              <button type="button" class="button button--line" id="dialog-btn-cancel"
+                style="min-height:44px;">取消</button>
+              <button type="button" class="button button--accent" id="dialog-btn-submit"
+                style="min-height:44px;">送出建議</button>
+            </div>
+          </dialog>
+
+        {{ cm.forms(threads + [orphan_threads], "teacher", url_for('teacher.autobiography_comment',
+        student_id=student.id, output_id=output.id), output.content_json.paragraphs|length) }}
+      </section>
     </div>
-  </header>
-  {% if stale %}
-  <section class="work-panel">
-    <p class="alert mb-1" role="alert">{{ stale.message }}</p>
-    <details open><summary class="small">你剛才打的字（還沒存）</summary>
-      {% for text in stale.texts %}<h3 class="h3 mt-1">{{ stale.paragraphs[loop.index0].title }}</h3><p class="version-text">{{ text }}</p>{% if stale.comments[loop.index0] %}<blockquote class="teacher-comment"><b>你的意見：</b>{{ stale.comments[loop.index0] }}</blockquote>{% endif %}{% endfor %}
-    </details>
-  </section>
-  {% endif %}
-  <form method="post" class="work-panel draft" action="{{ url_for('teacher.autobiography_edit', student_id=student.id, output_id=output.id) }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    {% for paragraph in output.content_json.paragraphs %}
-    <section class="draft__paragraph">
-      <h2 class="h3">{{ paragraph.title }}</h2>
-      <textarea name="paragraph_{{ loop.index0 }}" rows="6" data-autosize aria-label="{{ paragraph.title }}">{{ paragraph.text }}</textarea>
-      <label class="field small">給學生的意見（選填）<textarea name="comment_{{ loop.index0 }}" rows="2">{{ paragraph.teacher_comment or "" }}</textarea></label>
-    </section>
-    {% endfor %}
-    <div class="record-card__actions">
-      <button class="button" type="submit">儲存成新的一版</button>
-      <a class="button button--line" href="{{ url_for('teacher.student_detail', student_id=student.id) }}">取消</a>
-    </div>
-  </form>
-</section>
-{% endblock %}
+    {% endblock %}
+
+    {% block scripts %}
+    <script src="{{ url_for('static', filename='js/autobiography-comments.js') }}" defer></script>
+    <script>
+      (function () {
+        "use strict";
+
+        // 模式切換（檢視／建議／編輯）
+        var modeBtns = document.querySelectorAll("[data-mode-btn]");
+        var viewBoxes = document.querySelectorAll(".teacher-para-view-box");
+        var editBoxes = document.querySelectorAll(".teacher-para-edit-box");
+        var editActions = document.getElementById("teacher-edit-actions");
+
+        function setMode(m) {
+          modeBtns.forEach(function (btn) {
+            btn.classList.toggle("is-active", btn.dataset.modeBtn === m);
+          });
+          viewBoxes.forEach(function (vb) {
+            vb.style.display = m === "edit" ? "none" : "block";
+          });
+          editBoxes.forEach(function (eb) {
+            eb.style.display = m === "edit" ? "block" : "none";
+          });
+          if (editActions) {
+            editActions.style.display = m === "edit" ? "flex" : "none";
+          }
+        }
+
+        modeBtns.forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            setMode(btn.dataset.modeBtn);
+          });
+        });
+
+        // 選取文字浮出工具列
+        var popover = document.getElementById("text-popover");
+        var sugDialog = document.getElementById("suggest-dialog");
+        var origTextEl = document.getElementById("dialog-orig-text");
+        var repTextEl = document.getElementById("dialog-replacement-text");
+        var cancelBtn = document.getElementById("dialog-btn-cancel");
+        var submitBtn = document.getElementById("dialog-btn-submit");
+
+        var currentSelection = {
+          paragraph: 0,
+          start: 0,
+          end: 0,
+          text: ""
+        };
+
+        document.addEventListener("selectionchange", function () {
+          var sel = window.getSelection();
+          if (!sel || sel.isCollapsed || !sel.rangeCount) {
+            if (popover && !sugDialog.open) popover.style.display = "none";
+            return;
+          }
+
+          var selectionText = sel.toString();
+          var text = selectionText.trim();
+          var length = Array.from(text).length;
+          if (!text || length > 500) {
+            if (popover) popover.style.display = "none";
+            return;
+          }
+
+          // 尋找所選取文字所在的段落容器
+          var range = sel.getRangeAt(0);
+          var container = range.commonAncestorContainer;
+          var paraSec = container.nodeType === 1 ? container.closest(".bio-paper-para") : container.parentElement.closest(".bio-paper-para");
+          var readText = paraSec && paraSec.querySelector(".teacher-para-read-text");
+          if (!readText || !readText.contains(range.startContainer) || !readText.contains(range.endContainer)) {
+            if (popover) popover.style.display = "none";
+            return;
+          }
+
+          var paraIdx = parseInt(paraSec.dataset.paraIdx || "0", 10);
+          var prefix = document.createRange();
+          prefix.selectNodeContents(readText);
+          prefix.setEnd(range.startContainer, range.startOffset);
+          var leadingSpace = selectionText.match(/^\s*/)[0];
+          var startIdx = Array.from(prefix.toString() + leadingSpace).length;
+          var endIdx = startIdx + length;
+
+          currentSelection = {
+            paragraph: paraIdx,
+            start: startIdx,
+            end: endIdx,
+            text: text
+          };
+
+          var rect = range.getBoundingClientRect();
+          if (popover) {
+            popover.style.display = "flex";
+            popover.style.top = (window.scrollY + rect.top - 44) + "px";
+            popover.style.left = (window.scrollX + rect.left) + "px";
+          }
+        });
+
+        // 點擊「建議修改」
+        var btnSug = document.getElementById("popover-btn-suggest");
+        if (btnSug) {
+          btnSug.addEventListener("click", function () {
+            if (popover) popover.style.display = "none";
+            if (origTextEl) origTextEl.textContent = currentSelection.text;
+            if (repTextEl) {
+              repTextEl.value = currentSelection.text;
+              repTextEl.focus();
+            }
+            if (sugDialog) {
+              if (typeof sugDialog.showModal === "function") sugDialog.showModal();
+              else sugDialog.setAttribute("open", "true");
+            }
+          });
+        }
+
+        // 點擊「小助手幫我改」
+        var btnAiRewrite = document.getElementById("popover-btn-ai-rewrite");
+        if (btnAiRewrite) {
+          btnAiRewrite.addEventListener("click", function () {
+            if (popover) popover.style.display = "none";
+            btnAiRewrite.disabled = true;
+            fetch("{{ url_for('teacher.autobiography_teacher_assistant_rewrite', student_id=student.id, output_id=output.id) }}", {
+              method: "POST",
+              headers: { "X-Requested-With": "XMLHttpRequest" },
+              body: new URLSearchParams({
+                paragraph: currentSelection.paragraph,
+                start: currentSelection.start,
+                end: currentSelection.end,
+                csrf_token: "{{ csrf_token() }}"
+              })
+            })
+              .then(function (r) { return r.json(); })
+              .then(function (data) {
+                btnAiRewrite.disabled = false;
+                if (!data.ok) {
+                  alert(data.error || "改寫失敗");
+                  return;
+                }
+                window.location.reload();
+              })
+              .catch(function () {
+                btnAiRewrite.disabled = false;
+                alert("無法取得小助手的改寫結果，請稍後再試。");
+              });
+          });
+        }
+
+        // 點擊「加上註解」
+        var btnComm = document.getElementById("popover-btn-comment");
+        if (btnComm) {
+          btnComm.addEventListener("click", function () {
+            if (popover) popover.style.display = "none";
+            var formInput = document.querySelector('textarea[form="cform-new-' + currentSelection.paragraph + '"]');
+            if (formInput) {
+              formInput.value = "針對「" + currentSelection.text + "」：";
+              formInput.scrollIntoView({ behavior: "smooth", block: "center" });
+              formInput.focus();
+            }
+          });
+        }
+
+        if (cancelBtn) {
+          cancelBtn.addEventListener("click", function () {
+            if (sugDialog) {
+              if (typeof sugDialog.close === "function") sugDialog.close();
+              else sugDialog.removeAttribute("open");
+            }
+          });
+        }
+
+        if (submitBtn) {
+          submitBtn.addEventListener("click", function () {
+            var rep = (repTextEl.value || "").trim();
+            if (!rep) return;
+            document.getElementById("sug-input-paragraph").value = currentSelection.paragraph;
+            document.getElementById("sug-input-start").value = currentSelection.start;
+            document.getElementById("sug-input-end").value = currentSelection.end;
+            document.getElementById("sug-input-replacement").value = rep;
+            document.getElementById("suggestion-submit-form").submit();
+          });
+        }
+
+      })();
+    </script>
+    {% endblock %}

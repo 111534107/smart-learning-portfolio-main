@@ -17,7 +17,7 @@
 <div class="page page--banded">
   <div class="ocr-desk {{ 'is-failed' if failed else 'is-working' }}" id="ocr-desk"
        data-status-url="{{ status_url }}" data-state="{{ state }}" data-item-label="{{ item_label }}">
-    <figure class="ocr-bed">
+    <figure class="ocr-bed" data-tour="確認這是剛上傳、準備辨識的文件。" data-tour-order="1">
       <div class="ocr-sheet{{ ' has-preview' if preview_url }}" id="ocr-sheet">
         {% if preview_url %}<img class="ocr-sheet__img is-loaded" id="ocr-preview" src="{{ preview_url }}" alt="你上傳的{{ page_label }}第一頁">
         {% else %}<img class="ocr-sheet__img" id="ocr-preview" hidden alt="你上傳的{{ page_label }}第一頁">{% endif %}
@@ -32,7 +32,7 @@
       <figcaption>{{ document.display_name }}</figcaption>
     </figure>
 
-    <section class="ocr-panel" aria-labelledby="ocr-title">
+    <section class="ocr-panel" aria-labelledby="ocr-title" data-tour="查看辨識進度；失敗時可重試或手動輸入。" data-tour-order="2">
       {% if failed %}
       <p class="ocr-panel__eyebrow">{{ page_label }}自動辨識</p>
       <h1 class="ocr-panel__title" id="ocr-title">這次沒有讀出來</h1>

@@ -22,15 +22,15 @@
   <ol class="agent-phases">
     <li class="is-done"><b>① 手動建立</b><span>種子資料（115 學年度）已匯入</span></li>
     <li class="{{ 'is-done' if sources else '' }}"><b>② 偵測更新</b><span>{{ sources|length }} 個官方來源</span></li>
-    <li class="{{ 'is-done' if ai_ready else 'is-warn' }}"><b>③ 擷取加權</b><span>{{ "Gemini 已連線" if ai_ready else "尚未設定 Gemini 金鑰" }}</span></li>
+    <li class="{{ 'is-done' if ai_ready else 'is-warn' }}"><b>③ 擷取加權</b><span>{{ "AI 已連線" if ai_ready else "尚未設定 AI 金鑰（到「AI 設定」頁看）" }}</span></li>
   </ol>
 
   <section class="work-panel">
     <div class="work-panel__head"><div><h2>升學 Agent 巡查</h2><p>Agent 會檢查全部官方來源，把有更新的簡章擷取成候選校系；有設定 AI 時由 AI 決定步驟，沒有時走固定流程。結果仍要你核准。排程執行：<span class="mono">flask agent-patrol</span>。</p></div></div>
-    <form method="post" action="{{ url_for('admin.agent_patrol') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit" data-busy-text="Agent 上網找資料並巡查中…（約 1～3 分鐘）">讓 Agent 上網找資料並巡查</button></form>
+    <form method="post" action="{{ url_for('admin.agent_patrol') }}" data-tour="要查官方招生更新時，啟動巡查。" data-tour-order="1"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit" data-busy-text="Agent 上網找資料並巡查中…（約 1～3 分鐘）">讓 Agent 上網找資料並巡查</button></form>
   </section>
 
-  <section class="work-panel" id="public-sources">
+  <section class="work-panel" id="public-sources" data-tour="查看來源狀態，也可新增網址或上傳簡章。" data-tour-order="2">
     <div class="work-panel__head"><div><h2>官方來源</h2><p>只擷取科系名稱含「{{ keywords|join("、") }}」的校系（可在 .env 的 AGENT_PROGRAM_KEYWORDS 修改）。</p></div></div>
     {% if sources %}
     <div class="table-wrap">
@@ -71,7 +71,7 @@
     </div>
   </section>
 
-  <section class="work-panel" id="source-changes">
+  <section class="work-panel" id="source-changes" data-tour="查看偵測到的更新，擷取候選校系。" data-tour-order="3">
     <div class="work-panel__head"><div><h2>偵測到的更新</h2><p>按「擷取加權」後，Agent 會建立候選校系，到「校系資料」核對後再核准。</p></div></div>
     {% if changes %}
     <div class="table-wrap">
@@ -101,7 +101,7 @@
   </section>
 
   {% if schedule_groups %}
-  <section class="work-panel" id="candidate-schedules">
+  <section class="work-panel" id="candidate-schedules" data-tour="對照原文後核准或退回候選日程。" data-tour-order="4">
     <div class="work-panel__head"><div><h2>候選招生日程</h2><p>Agent 從官方日程表擷取的日程。<b>請對照原文</b>，整組核准後才會取代招生時程頁的日程；退回不會影響目前的日程。</p></div></div>
     {% for group in schedule_groups %}
     <h3>{{ group.year }} 學年度{{ group.label }}（{{ group.rows|length }} 項）{% if group.source %}<span class="small">：<a href="{{ group.source }}" target="_blank" rel="noopener noreferrer">原文</a></span>{% endif %}</h3>

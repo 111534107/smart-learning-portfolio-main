@@ -1,8 +1,9 @@
 import hmac
 from datetime import datetime, timezone
 from functools import wraps
+from pathlib import Path
 
-from flask import Blueprint, abort, current_app, jsonify, redirect, render_template, request, send_file, session, url_for
+from flask import Blueprint, abort, current_app, jsonify, redirect, render_template, request, send_file, send_from_directory, session, url_for
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -10,6 +11,7 @@ from app.extensions import db
 from app.models import AuditLog, AwardCertificate, PortfolioSubmission, SourceDocument, StudentTarget, User
 from app.services.gap_service import analyze_gap
 from app.services.guide_service import CARD_IDS, guide_cards
+from app.content.five_year_plan import CURRICULUM_SOURCE, INTERNSHIP_SOURCE
 from app.services.journey_home import journey_home
 from app.services import graduation_case_service, graduation_check_service, photo_service, student_rules
 from app.services.package_service import latest_review
@@ -185,7 +187,10 @@ def save_email_notify():
 def _finish_login(user, next_path=None):
     """帳號密碼或學校 Google 驗證成功後：要雙重驗證的人先到第二步（app/routes/two_factor.py），還不算登入。"""
     from app.routes import two_factor as second_step
-    admin_must = user.role == "admin" and current_app.config.get("ADMIN_TWO_FACTOR_REQUIRED", True)
+    from app.services import two_factor as two_factor_rules
+    # 正式站管理員仍一定要驗證碼（11-10 決定）；示範站一律不要（11-18 決定）
+    admin_must = (user.role == "admin" and current_app.config.get("ADMIN_TWO_FACTOR_REQUIRED", True)
+                  and not two_factor_rules.demo_site())
     if user.role in ("student", "teacher", "staff", "admin") and (admin_must or second_step.needs_second_step(user)):
         return second_step.start(user, next_path)
     return _complete_login(user, next_path)
@@ -298,11 +303,57 @@ def role_required(*allowed_roles):
     return decorator
 
 
+@main_bp.get("/school-docs/<path:name>")
+@role_required("student", "teacher", "staff", "admin")
+def school_doc(name):
+    """小助手引用的科辦原檔（school/Documents/ 的 PDF，沒有公開網址）：登入後才看得到，只開知識庫列出的檔案。"""
+    from app.services.knowledge_service import school_doc_files
+    if name not in school_doc_files():
+        abort(404)
+    folder = Path(current_app.root_path).parent / "school" / "Documents"
+    return send_from_directory(folder, name, mimetype="application/pdf")
+
+
+@main_bp.get("/student/search")
+@role_required("student")
+def student_search():
+    from app.models import LearningCourseRecord, CredentialRecord, Portfolio
+    user = get_current_user()
+    q = request.args.get("q", "").strip()[:60]
+    kind = request.args.get("kind", "")
+    kinds = {"": "全部類型", "功能": "功能", "成績": "成績", "證照": "證照", "經歷": "經歷"}
+    if kind not in kinds:
+        kind = ""
+    results = []
+    entries = [("我的五年", "main.student_dashboard"), ("成績單 上傳成績", "student.learning_profile"),
+               ("證照", "student.learning_profile_credentials"), ("活動與經歷", "student.portfolio_list"),
+               ("畢業門檻", "student.graduation_check"), ("目標校系 備審", "student.target_list"),
+               ("我的待辦", "agent_plan.issues")]
+    if q:
+        for title, endpoint in entries:
+            if kind in ("", "功能") and q.casefold() in title.casefold():
+                results.append(("功能", title, url_for(endpoint)))
+        for model, field, label, endpoint in [
+            (LearningCourseRecord, LearningCourseRecord.course_name, "成績", "student.learning_profile"),
+            (CredentialRecord, CredentialRecord.credential_name, "證照", "student.learning_profile_credentials"),
+            (Portfolio, Portfolio.title, "經歷", "student.portfolio_list"),
+        ]:
+            if kind and kind != label:
+                continue
+            query = model.query.filter(model.student_id == user.id, field.contains(q, autoescape=True))
+            if model is Portfolio:
+                query = query.filter(Portfolio.deleted_at.is_(None))
+            results.extend((label, getattr(row, field.key), url_for(endpoint)) for row in query.limit(20).all())
+    if request.args.get("format") == "json":
+        return jsonify(results=results)
+    return render_template("student_search.html", user=user, q=q, results=results, kind=kind, kinds=kinds)
+
+
 @main_bp.get("/student/dashboard")
 @role_required("student")
 def student_dashboard():
     user = get_current_user()
-    journey = build_journey(user)
+    journey = build_journey(user, include_evidence=True)
     targets = [
         {"program": target.program, "readiness": analyze_gap(user, target.program, journey)["readiness"]}
         for target in StudentTarget.query.filter_by(student_id=user.id).order_by(StudentTarget.selected_at).all()
@@ -330,6 +381,7 @@ def student_dashboard():
         experience_categories=EXPERIENCE_CATEGORIES,
         source_documents=SourceDocument.query.filter_by(owner_id=user.id).all(),
         guide=guide_cards(user, session.get("guide_snooze")),
+        plan_sources=[CURRICULUM_SOURCE, INTERNSHIP_SOURCE],
     )
 
 
@@ -439,43 +491,148 @@ def guide_snooze():
     return redirect(url_for("main.student_dashboard"))
 
 
+def _teacher_class_view():
+    """導師四個頁面（工作台、畢業門檻、學生名單、目標校系）共用：班級篩選與整理好的各列資料。"""
+    user = get_current_user()
+    classes = advised_classes(user)
+    selected_class = request.args.get("class_name", "").strip()
+    if selected_class and selected_class not in classes:
+        abort(400)
+    students = students_for_teacher(user)
+    if selected_class:
+        students = [student for student in students if student.student_profile and student.student_profile.class_name == selected_class]
+    from app.services.teacher_export import build_class_overview_rows
+    rows = build_class_overview_rows(students)
+    return user, classes, selected_class, students, rows
+
+
 @main_bp.get("/teacher/dashboard")
 @role_required("teacher")
 def teacher_dashboard():
-    """導師首頁：先看畢業門檻提醒，再看本班學生與待確認的備審資料。
+    """導師工作台（2026-11-21 拆分）：只放「現在要處理什麼」——等你確認的備審、畢業門檻有缺口的學生，
+    下面是三個分頁的入口（畢業門檻、學生名單、目標校系）。完整內容各自一頁，和學生端一頁一件事一樣。
     「專題審查指派／我的審查」2026-10-10 定案不在本系統範圍，畫面拿掉；review 路由與舊資料保留。"""
-    user = get_current_user()
-    students = students_for_teacher(user)
-    rows = []
-    for student in students:
-        journey = build_journey(student)
-        targets = StudentTarget.query.filter_by(student_id=student.id).all()
-        reviews = [latest_review(student, target.program) for target in targets]
-        rows.append({
-            "student": student,
-            "totals": journey["totals"],
-            "missing": len(journey["missing_categories"]),
-            "targets": [target.program for target in targets],
-            "pending": sum(1 for review in reviews if review and review.status == "pending"),
-        })
+    user, classes, selected_class, students, rows = _teacher_class_view()
     pending_rows = [row for row in rows if row["pending"]]
     if len(pending_rows) == 1:
         pending_href = url_for("teacher.student_detail", student_id=pending_rows[0]["student"].id)
     elif pending_rows:
-        pending_href = "#class-roster"
+        pending_href = url_for("main.teacher_roster", class_name=selected_class or None, pending=1)
     else:
         pending_href = None
     return render_template(
         "dashboard.html",
         title="教師工作台",
         user=user,
-        classes=advised_classes(user),
+        classes=classes,
+        selected_class=selected_class,
         class_rows=rows,
+        target_statistics=_target_statistics(rows),
         pending_href=pending_href,
         grad=graduation_case_service.class_overview(students),
         grad_disclaimer=graduation_check_service.DISCLAIMER,
         category_keys=CATEGORY_KEYS,
         category_labels=CATEGORY_LABELS,
+    )
+
+
+@main_bp.get("/teacher/graduation")
+@role_required("teacher")
+def teacher_graduation():
+    """導師：本班畢業門檻提醒（人數、比例條、需要優先關心的學生）。"""
+    user, classes, selected_class, students, rows = _teacher_class_view()
+    return render_template(
+        "teacher_graduation.html",
+        title="畢業門檻",
+        user=user,
+        classes=classes,
+        selected_class=selected_class,
+        grad=graduation_case_service.class_overview(students),
+        grad_disclaimer=graduation_check_service.DISCLAIMER,
+    )
+
+
+@main_bp.get("/teacher/roster")
+@role_required("teacher")
+def teacher_roster():
+    """導師：本班學生名單（可搜尋、排序、只看待確認，匯出 Excel）。?pending=1 表示一進來就只看待確認。"""
+    user, classes, selected_class, students, rows = _teacher_class_view()
+    return render_template(
+        "teacher_roster.html",
+        title="學生名單",
+        user=user,
+        classes=classes,
+        selected_class=selected_class,
+        class_rows=rows,
+        only_pending=request.args.get("pending") == "1",
+    )
+
+
+@main_bp.get("/teacher/targets")
+@role_required("teacher")
+def teacher_targets():
+    """導師：本班目標學校統計（同一位學生選同一所學校的好幾個科系，學校只算一次）。"""
+    user, classes, selected_class, students, rows = _teacher_class_view()
+    return render_template(
+        "teacher_targets.html",
+        title="目標校系",
+        user=user,
+        classes=classes,
+        selected_class=selected_class,
+        class_rows=rows,
+        target_statistics=_target_statistics(rows),
+    )
+
+
+@main_bp.post("/teacher/class-summary")
+@role_required("teacher")
+def teacher_class_summary():
+    from app.services.teacher_ai_summary import summarize
+    user = get_current_user()
+    selected = request.form.get("class_name", "").strip()
+    if selected and selected not in advised_classes(user):
+        abort(403)
+    students = students_for_teacher(user)
+    if selected:
+        students = [s for s in students if s.student_profile.class_name == selected]
+    result = summarize(students)
+    return render_template("teacher_class_summary.html", user=user, result=result, selected=selected)
+
+
+def _target_progress(student, journey, targets):
+    """導師工作台：每個目標校系的準備度與待補類別（組員 46531f2）。準備度不是錄取機率。"""
+    from app.routes.teacher import gap_needs
+    from app.services.gap_service import student_evidence
+    if not targets:
+        return []
+    evidence = student_evidence(student, journey)
+    rows = []
+    for target in targets:
+        gap = analyze_gap(student, target.program, journey, evidence)
+        rows.append({
+            "program": target.program,
+            "readiness": gap["readiness"],
+            "needs": gap_needs(gap),
+            "pending_mapping": any(item["mapping_pending"] or item["fraction"] is None for item in gap["items"]),
+        })
+    return rows
+
+
+def _target_statistics(rows):
+    """本班選各學校、科系的人數：同一人選同校多個科系，學校只算一次（組員 46531f2）。
+    選目標只代表有意願，不等於報名。"""
+    schools = {}
+    for row in rows:
+        for program in row["targets"]:
+            school = schools.setdefault(program.school_name, {"students": set(), "departments": {}})
+            school["students"].add(row["student"].id)
+            school["departments"].setdefault(program.department_name, set()).add(row["student"].id)
+    return sorted(
+        ({"school": name, "count": len(data["students"]),
+          "departments": [{"name": dept, "count": len(ids)}
+                          for dept, ids in sorted(data["departments"].items(), key=lambda kv: (-len(kv[1]), kv[0]))]}
+         for name, data in schools.items()),
+        key=lambda item: (-item["count"], item["school"]),
     )
 
 
@@ -584,8 +741,9 @@ def inject_student_progress():
         has_transfer = TransferCreditRecord.query.filter_by(student_id=user.id).first() is not None
         from app.services.assistant_agent_service import open_todo_count
         # 「我的待辦」放在學生主選單，旁邊顯示還沒完成幾項（11-04 使用者：原本藏在聊天視窗太不明顯）
+        from app.services import milestones
         return {"student_progress": student_progress(user), "has_transfer_record": has_transfer,
-                "agent_todos": open_todo_count(user)}
+                "agent_todos": open_todo_count(user), "student_milestones": milestones.reached(user)}
     return {}
 
 

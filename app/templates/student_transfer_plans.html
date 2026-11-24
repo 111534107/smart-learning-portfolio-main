@@ -36,7 +36,7 @@
       <li>考試 {{ plan.exam_date or "未填" }}{% if ready.days is not none and ready.days >= 0 %} <span class="tag tag--info">還有 {{ ready.days }} 天</span>{% endif %}</li>
     </ul>
 
-    <form method="post" action="{{ url_for('student.transfer_plan_progress', plan_id=plan.id) }}" class="transfer-plan__subjects" data-progress-form>
+    <form method="post" action="{{ url_for('student.transfer_plan_progress', plan_id=plan.id) }}" class="transfer-plan__subjects" data-progress-form {% if loop.first %}data-tour="拖曳考科進度條，記錄準備狀況。" data-tour-order="1"{% endif %}>
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       {% for subject in plan.subjects %}
       <label class="subject-bar">
@@ -47,7 +47,7 @@
       {% else %}
       <p class="muted small">還沒有考科。在下面「修改」填上考科（用頓號分開），就能開始記進度。</p>
       {% endfor %}
-      {% if plan.subjects %}<button class="button button--small" type="submit">儲存進度</button>{% endif %}
+      {% if plan.subjects %}<button class="button button--small" type="submit" {% if loop.first %}data-tour="調整後按儲存進度，保留變更。" data-tour-order="2"{% endif %}>儲存進度</button>{% endif %}
     </form>
 
     <details class="transfer-plan__edit">
@@ -61,7 +61,7 @@
   </article>
   {% endfor %}
 
-  <section class="transfer-plans__new" aria-labelledby="new-plan-title">
+  <section class="transfer-plans__new" aria-labelledby="new-plan-title" data-tour="新增考試準備計畫，選擇目標與考科。" data-tour-order="3">
     <h2 id="new-plan-title">{{ "新增插大目標" if plans else "加入第一個插大目標" }}</h2>
     {% if examples %}
     <label class="small">從範例校帶入（{{ examples[0].admission_year }} 學年度，只當格式參考）

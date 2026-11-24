@@ -10,7 +10,3 @@ flowchart TD
   H -- 是 --> J[導師確認]
   B -- 備審 --> K[確認後產出 Word]
   K --> L[下載／列印，原始版本保留]
-  B -- 刪除附件 --> M[刪除申請：標記為軟刪除<br/>一般畫面不再顯示，不立即清除]:::pending
-  M -.-> N[永久清理：待學校保存政策決議<br/>（與現行「不提供實體刪除」規則衝突）]:::pending
-  F -.- O[送審快照固定當時內容<br/>之後的修改另存新版，不影響快照]:::pending
-  classDef pending fill:#FFFFFF,stroke:#9CA3AF,color:#6B7280,stroke-width:1px,stroke-dasharray:5 3;

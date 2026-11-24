@@ -19,7 +19,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.extensions import db
 from app.models import AuditLog, DocumentExtraction, SourceDocument
 from app.services import storage_service
-from app.services.document_analysis_service import analyze_document
+from app.services.document_analysis_service import analyze_document, require_real_provider
 from app.services.upload_quality import resolution_check
 
 PENDING_STATUSES = ("queued", "processing")
@@ -83,6 +83,7 @@ def run_job(app, document_id):
         result, error, raw_error = None, None, None
         try:
             # 檔案可能在 Google 雲端硬碟：先取回本機快取（拿不到會丟出中文的 StorageUnavailable）
+            require_real_provider(app.config)
             source_path = storage_service.local_path(document.file_path)
             # 先做第一頁縮圖給「辨識中」頁顯示；PDF 轉圖不能跨執行緒同時做，所以放在同一條執行緒
             make_preview(app, document.file_path)

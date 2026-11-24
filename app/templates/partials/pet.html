@@ -1,0 +1,129 @@
+{# 資管科小助手（桌寵）可重用 SVG 角色組件
+   支援待機 (idle)、走路 (walking)、施法 (casting)、開心 (happy)、抱歉 (sorry) 等表情與動作。
+   包含手握魔法棒與施法手臂二頭肌肌肉彩蛋！ #}
+{% macro pet(state="idle", class_name="", bubble="嗨！我是資管小助手", muscle=false, id="pet-actor") %}
+<div class="pet-widget {{ class_name }}" data-pet-root data-pet-state="{{ state }}"{% if muscle %} data-muscle="true"{% endif %} id="{{ id }}">
+  <!-- 小助手頭頂對話泡泡 -->
+  <div class="pet-bubble" data-pet-bubble role="status" aria-live="polite">
+    <span class="pet-bubble-text" data-pet-bubble-text>{{ bubble }}</span>
+  </div>
+
+  <!-- 小助手 SVG 角色本體 -->
+  <div class="pet-avatar-frame">
+    <svg class="pet-svg" viewBox="0 0 160 160" width="160" height="160" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+      <defs>
+        <!-- 腮紅柔和漸層 (避免使用 AI 紫色漸層，使用純淨柔粉暖色) -->
+        <radialGradient id="pet-blush-grad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#fca5a5" stop-opacity="0.8" />
+          <stop offset="100%" stop-color="#fca5a5" stop-opacity="0" />
+        </radialGradient>
+      </defs>
+
+      <!-- 地面微柔陰影 -->
+      <ellipse cx="80" cy="146" rx="36" ry="6" class="pet-shadow" />
+
+      <!-- 小助手角色主結構 -->
+      <g class="pet-character">
+        <!-- 呆毛 / 資管天線 -->
+        <g class="pet-antenna-group">
+          <path class="pet-antenna" d="M80 44 Q76 22 89 16" fill="none" stroke-width="4" stroke-linecap="round" />
+          <circle class="pet-antenna-bulb" cx="90" cy="15" r="5.5" />
+        </g>
+
+        <!-- 可愛短短小雙腳 -->
+        <ellipse class="pet-foot pet-foot--left" cx="65" cy="132" rx="10" ry="6.5" />
+        <ellipse class="pet-foot pet-foot--right" cx="95" cy="132" rx="10" ry="6.5" />
+
+        <!-- 圓潤大臉蛋 / 身體本體 -->
+        <ellipse class="pet-face-base" cx="80" cy="88" rx="48" ry="44" stroke-width="3.5" />
+
+        <!-- 柔粉腮紅 -->
+        <ellipse class="pet-blush pet-blush--left" cx="51" cy="97" rx="8" ry="5" fill="url(#pet-blush-grad)" />
+        <ellipse class="pet-blush pet-blush--right" cx="109" cy="97" rx="8" ry="5" fill="url(#pet-blush-grad)" />
+
+        <!-- ================= 表情層 ================= -->
+
+        <!-- 1. 待機 (idle)：圓圓大眼睛 (定期眨眼)，微揚微笑 -->
+        <g class="pet-face pet-face--idle">
+          <g class="pet-eyes-idle">
+            <ellipse class="pet-eye" cx="62" cy="82" rx="5" ry="6.5" />
+            <circle class="pet-eye-glint" cx="60" cy="80" r="2.2" />
+            <ellipse class="pet-eye" cx="98" cy="82" rx="5" ry="6.5" />
+            <circle class="pet-eye-glint" cx="96" cy="80" r="2.2" />
+          </g>
+          <path class="pet-mouth pet-mouth--smile" d="M73 98 Q80 105 87 98" fill="none" stroke-width="3" stroke-linecap="round" />
+        </g>
+
+        <!-- 2. 走路 (walking)：向右注視、小嘴嘟嘟 -->
+        <g class="pet-face pet-face--walking">
+          <ellipse class="pet-eye" cx="66" cy="82" rx="5" ry="6.5" />
+          <circle class="pet-eye-glint" cx="68" cy="80" r="2.2" />
+          <ellipse class="pet-eye" cx="102" cy="82" rx="5" ry="6.5" />
+          <circle class="pet-eye-glint" cx="104" cy="80" r="2.2" />
+          <ellipse class="pet-mouth pet-mouth--whistle" cx="84" cy="100" rx="3.5" ry="4" fill="none" stroke-width="2.5" />
+        </g>
+
+        <!-- 3. 施法 (casting)：眼睛發亮（星星四芒星），堅毅自信嘴巴 -->
+        <g class="pet-face pet-face--casting">
+          <!-- 左星芒眼 -->
+          <path class="pet-star-eye" d="M62 73 L65 79 L71 82 L65 85 L62 91 L59 85 L53 82 L59 79 Z" stroke-width="1.5" stroke-linejoin="round" />
+          <!-- 右星芒眼 -->
+          <path class="pet-star-eye" d="M98 73 L101 79 L107 82 L101 85 L98 91 L95 85 L89 82 L95 79 Z" stroke-width="1.5" stroke-linejoin="round" />
+          <path class="pet-mouth pet-mouth--cast" d="M72 97 Q80 106 88 97" fill="none" stroke-width="3.5" stroke-linecap="round" />
+        </g>
+
+        <!-- 4. 開心 (happy)：彎彎瞇瞇笑眼 (^ ^)，大張嘴歡笑 -->
+        <g class="pet-face pet-face--happy">
+          <path class="pet-eye-happy" d="M54 83 Q62 73 70 83" fill="none" stroke-width="3.5" stroke-linecap="round" />
+          <path class="pet-eye-happy" d="M90 83 Q98 73 106 83" fill="none" stroke-width="3.5" stroke-linecap="round" />
+          <!-- 開心大嘴巴與舌頭 -->
+          <path class="pet-mouth pet-mouth--laugh" d="M70 95 Q80 115 90 95 Z" stroke-width="2.5" stroke-linejoin="round" />
+          <path class="pet-tongue" d="M74 105 Q80 101 86 105 Q80 113 74 105 Z" />
+        </g>
+
+        <!-- 5. 抱歉 (sorry)：八字眉、水汪汪雙眼、波浪嘴、額前冷汗滴 -->
+        <g class="pet-face pet-face--sorry">
+          <path class="pet-eyebrow" d="M55 71 L68 76" stroke-width="2.5" stroke-linecap="round" />
+          <path class="pet-eyebrow" d="M105 71 L92 76" stroke-width="2.5" stroke-linecap="round" />
+          <ellipse class="pet-eye" cx="62" cy="83" rx="4.5" ry="5.5" />
+          <circle class="pet-eye-glint" cx="60" cy="85" r="1.8" />
+          <ellipse class="pet-eye" cx="98" cy="83" rx="4.5" ry="5.5" />
+          <circle class="pet-eye-glint" cx="96" cy="85" r="1.8" />
+          <!-- 冷汗滴 -->
+          <path class="pet-sweat" d="M117 68 C117 63 123 56 123 56 C123 56 129 63 129 68 C129 71.5 126.3 74 123 74 C119.7 74 117 71.5 117 68 Z" stroke-width="1.5" />
+          <path class="pet-mouth pet-mouth--wave" d="M72 101 Q76 97 80 101 Q84 105 88 101" fill="none" stroke-width="2.5" stroke-linecap="round" />
+        </g>
+
+        <!-- ================= 肢體與手部 ================= -->
+
+        <!-- 正常圓圓小手 -->
+        <g class="pet-limbs-normal">
+          <circle class="pet-hand pet-hand--left" cx="29" cy="99" r="11" stroke-width="3" />
+          <circle class="pet-hand pet-hand--right" cx="131" cy="99" r="11" stroke-width="3" />
+        </g>
+
+        <!-- 肌肉爆棚手臂（彩蛋：施法或開啟肌肉模式時手臂變粗壯！） -->
+        <g class="pet-limbs-muscle">
+          <!-- 左手臂粗壯二頭肌 -->
+          <path class="pet-muscle-arm pet-muscle-arm--left" d="M38 92 C18 72 6 86 8 105 C10 120 27 118 35 104 Z" stroke-width="3.5" />
+          <path class="pet-muscle-cut" d="M16 93 Q25 89 29 97" fill="none" stroke-width="2" stroke-linecap="round" />
+          <!-- 右手臂粗壯二頭肌 -->
+          <path class="pet-muscle-arm pet-muscle-arm--right" d="M122 92 C142 72 154 86 152 105 C150 120 133 118 125 104 Z" stroke-width="3.5" />
+          <path class="pet-muscle-cut" d="M144 93 Q135 89 131 97" fill="none" stroke-width="2" stroke-linecap="round" />
+        </g>
+
+        <!-- ================= 魔法棒 (Magic Wand) ================= -->
+        <g class="pet-wand-group">
+          <!-- 魔杖杖身 -->
+          <line class="pet-wand-stick" x1="126" y1="102" x2="149" y2="48" stroke-width="4.5" stroke-linecap="round" />
+          <!-- 杖端金黃四角星 -->
+          <path class="pet-wand-star" d="M149 38 L152 45 L159 48 L152 51 L149 58 L146 51 L139 48 L146 45 Z" stroke-width="1.5" stroke-linejoin="round" />
+          <!-- 杖端發光環 -->
+          <circle class="pet-wand-glow" cx="149" cy="48" r="12" fill="none" stroke-width="2" stroke-dasharray="3 3" />
+        </g>
+
+      </g>
+    </svg>
+  </div>
+</div>
+{% endmacro %}

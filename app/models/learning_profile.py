@@ -89,6 +89,7 @@ class LearningCourseRecord(db.Model):
     score = db.Column(db.Integer, nullable=True)
     status_mark = db.Column(db.String(10), nullable=True)
     makeup_season = db.Column(db.String(10), nullable=True)
+    course_mark = db.Column(db.String(4), nullable=True)  # 成績單「選課別」：必／選；讀不到為空
     # 學生選擇不放進備審（2026-11-12）；簡章規定必備的類別仍會放，見 services/package_exclusion.py
     excluded_from_package = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
     confirmation_status = db.Column(db.String(30), nullable=False, default="confirmed", index=True)

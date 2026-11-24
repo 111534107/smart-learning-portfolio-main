@@ -10,6 +10,7 @@
 {% block content %}
 <section class="auth">
   <div class="auth__side">
+    {% with bg_panel = true %}{% include "partials/bg_squares.html" %}{% endwith %}
     <div>
       <h1>歡迎回來。<br>上次整理到哪裡了？</h1>
     </div>
@@ -24,7 +25,7 @@
       {{ parts.error_box(error, wrong_page) }}
       {{ parts.google_button(google_login_enabled, url_for('main.google_login', next=next_path), "使用學校 Google Workspace 帳號登入") }}
       {% if google_login_enabled %}<p class="small">在 Google 頁面只要輸入學號（第一次登入會自動建立你的帳號）。</p>{% endif %}
-      <details class="auth__fallback"{% if request.method == "POST" and not wrong_page %} open{% endif %}>
+      <details class="auth__fallback" data-tour="沒有學校帳號時，展開用帳號密碼登入。" data-tour-order="2"{% if request.method == "POST" and not wrong_page %} open{% endif %}>
         <summary>沒有學校帳號？用帳號密碼登入</summary>
         {{ parts.password_form(url_for('main.login'), next_path, "帳號", "學號") }}
       </details>

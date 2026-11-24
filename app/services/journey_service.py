@@ -16,10 +16,11 @@ CATEGORY_LABELS = {
     "competition": "競賽",
     "service": "服務學習",
     "leadership": "幹部經歷",
+    "project": "專題與作品集",
 }
 
-# 由學生自行新增的四類經歷（成績與證照來自上傳的文件）
-EXPERIENCE_CATEGORIES = ["activity", "competition", "service", "leadership"]
+# 由學生自行新增的經歷與作品（成績與證照來自上傳的文件）
+EXPERIENCE_CATEGORIES = ["activity", "competition", "service", "leadership", "project"]
 
 GRADE_LABELS = {1: "專一", 2: "專二", 3: "專三", 4: "專四", 5: "專五"}
 
@@ -53,7 +54,7 @@ def _empty_categories():
     return {key: [] for key in CATEGORY_KEYS}
 
 
-def build_journey(student, today=None):
+def build_journey(student, today=None, *, include_evidence=False):
     profile = student.student_profile
     admission_year = profile.admission_year if profile else None
     folders = {grade: _empty_categories() for grade in GRADE_LABELS}
@@ -67,6 +68,7 @@ def build_journey(student, today=None):
         place(grade_for(course.year_for_placement, admission_year), "grades", {
             "id": f"course-{course.id}",  # 來源＋資料庫編號：改標題也不會變（首頁拼圖桌的片靠它固定位置）
             "title": course.course_name,
+            "document_id": course.source_document_id,
             "confirmation_status": course.confirmation_status,
             "detail": " · ".join(part for part in (
                 f"{course.credits} 學分" if course.credits is not None else "",
@@ -80,6 +82,7 @@ def build_journey(student, today=None):
         place(grade_for(year, admission_year), "credential", {
             "id": f"credential-{credential.id}",
             "title": credential.credential_name,
+            "document_id": credential.source_document_id,
             "confirmation_status": credential.confirmation_status,
             "detail": credential.level or "",
         })
@@ -90,12 +93,16 @@ def build_journey(student, today=None):
         if record.category not in EXPERIENCE_CATEGORIES:
             unsorted_count += 1
             continue
-        place(grade_for(record.school_year, admission_year), record.category, {
+        place(grade_for(record.school_year, admission_year), "activity" if record.category == "project" else record.category, {
             "id": f"portfolio-{record.id}",
             "title": record.title,
             "confirmation_status": record.status,
-            "detail": record.description or "",
+            "detail": ("專題與作品集 · " if record.category == "project" else "") + (record.description or ""),
             "source": "" if record.source == "student" else record.source_label,
+            "attachments": [
+                (evidence.id, evidence.display_name, evidence.preview_kind)
+                for evidence in record.evidence_items if evidence.is_available and evidence.file_path and not evidence.external_url
+            ] if include_evidence else [],
         })
 
     totals = {key: 0 for key in CATEGORY_KEYS}

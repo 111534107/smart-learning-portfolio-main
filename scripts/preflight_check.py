@@ -47,11 +47,11 @@ RECOMMENDED = {
     "GOOGLE_STORAGE_REDIRECT_URI": "Google 雲端硬碟存放回呼網址（STORAGE_BACKEND=google 時）",
     "STORAGE_BACKEND": "檔案存放：local 或 google",
     "TWO_FACTOR_ISSUER": "Authenticator 顯示的名稱",
-    "SMTP_HOST": "寄信主機（電子郵件通知；變數名稱以 feat/email-notify 定案為準）",
-    "SMTP_PORT": "寄信連接埠（同上）",
-    "SMTP_USER": "寄信帳號（同上）",
-    "SMTP_PASSWORD": "寄信密碼（同上）",
-    "MAIL_FROM": "寄件人（同上）",
+    "MAIL_SMTP_HOST": "寄信主機（電子郵件通知）",
+    "MAIL_SMTP_PORT": "寄信連接埠",
+    "MAIL_SMTP_USER": "寄信帳號",
+    "MAIL_SMTP_PASSWORD": "寄信密碼",
+    "MAIL_SENDER": "寄件人",
 }
 
 PLACEHOLDER_HINTS = ("change-me", "changeme", "your-", "your_", "xxx", "example", "dev-secret-key", "<", "請填")

@@ -105,7 +105,8 @@ def test_publish_makes_graduation_check_use_the_new_rules(app):
     db.session.commit()
     assert version.status == "published" and version.reviewed_by_id == admin().id
     assert agent.credit_rule(114) == {"total": 220, "required": 181, "elective": 39,
-                                      "source": "114 學年度入學五專修業科目表（管理員確認版）"}
+                                      "source": "114 學年度入學五專修業科目表（管理員確認版）",
+                                      "source_url": PDF_URLS[114]}
     assert check.credit_rule(114)["required"] == 181
     table = check.load_curriculum()[114]
     assert table[check.normalize_course_name("生成式人工智慧之應用")]["category"] == "專業必修"

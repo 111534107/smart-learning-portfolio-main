@@ -474,4 +474,4 @@ def test_staff_home_reads_announcements_once(tmp_path, monkeypatch):
 def test_notifications_page_mentions_admission_notices(tmp_path):
     app = _app(tmp_path)
     page = _client(app, "s5").get("/notifications").get_data(as_text=True)
-    assert "畢業缺口案件、電子獎狀與二技公告" in page
+    assert "畢業缺口案件、備審送審、電子獎狀與二技公告" in page

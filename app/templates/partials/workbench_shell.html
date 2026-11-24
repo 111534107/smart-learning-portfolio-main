@@ -1,0 +1,39 @@
+{# 備審工作台外框（2026-11-20）：同一套校系切換、四個階段、下一步按鈕，四個階段頁與批次頁共用。
+   workbench = {"schools": [...], "stages": [...], "active": "gap|bio|preview|send|None", "next": stage|None, "batch_url": str|None}
+   版面由 app/static/css/workbench.css 依手機／平板／電腦切換；這裡只放結構。 #}
+{% macro workbench_shell(wb) %}
+<div class="wb" data-workbench{% if wb.active %} data-stage="{{ wb.active }}"{% endif %}>
+  {% if wb.schools|length > 1 %}
+  <details class="wb__schools" data-tour="在這裡換要處理的學校。" data-tour-order="1">
+    <summary>{% for s in wb.schools if s.current %}{{ s.name }}{% else %}選擇目標校系{% endfor %}</summary>
+    <ul>
+      {% for s in wb.schools %}<li><a href="{{ s.url }}"{% if s.current %} aria-current="page"{% endif %}>{{ s.name }}</a></li>{% endfor %}
+      {% if wb.batch_url %}<li><a class="wb__batch" href="{{ wb.batch_url }}" data-workbench-batch>一次替 {{ wb.schools|length }} 所校系生成自傳</a></li>{% endif %}
+    </ul>
+  </details>
+  {% elif wb.schools %}
+  <p class="wb__school">{{ wb.schools[0].name }}</p>
+  {% endif %}
+  {% if wb.stages %}
+  <nav class="wb__stages" aria-label="備審階段" data-tour="四個階段照順序做，亮的是目前這一步。" data-tour-order="2">
+    <ol>
+      {% for st in wb.stages %}
+      <li class="wb__stage wb__stage--{{ st.state }}">
+        <a href="{{ st.url }}"{% if st.key == wb.active %} aria-current="step"{% endif %}>
+          <span class="wb__mark" aria-hidden="true">{{ {'done': '✓', 'doing': '●', 'update': '⚠', 'todo': '○'}[st.state] }}</span>
+          <span>{{ st.label }}</span>
+          {% if st.state == 'update' %}<span class="visually-hidden">（資料已更新）</span>{% endif %}
+        </a>
+      </li>
+      {% endfor %}
+    </ol>
+  </nav>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% macro workbench_next(wb) %}
+{% if wb.next %}
+<p class="wb__next"><a class="button" href="{{ wb.next.url }}" data-workbench-next data-tour="做完按這裡到下一步。" data-tour-order="9">下一步：{{ wb.next.label }} →</a></p>
+{% endif %}
+{% endmacro %}

@@ -11,12 +11,20 @@
   <header class="work-heading">
     <div><h1>校系資料</h1>
       <p>學生只看得到「正式」的校系。候選資料（之後由 Agent 擷取）要先在這裡核對加權與對應的資料類別，再改為正式。</p></div>
-    <form method="post" action="{{ url_for('admin.programs_import_seed') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--line" type="submit">匯入種子資料</button></form>
+    <form method="post" action="{{ url_for('admin.programs_import_seed') }}" data-tour="需要初始校系資料時可匯入種子。" data-tour-order="1"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--line" type="submit">匯入種子資料</button></form>
   </header>
   {% if message %}<p class="notice mb-1" role="status">{{ message }}</p>{% endif %}
+  {% if programs %}
+  {# 2026-11-18 四角色實走：一百多個校系全部攤開、沒有搜尋，管理員找不到要改的那一個 #}
+  <div class="work-panel program-finder" data-program-finder>
+    <label class="field">找校系<input type="search" data-program-query placeholder="學校、科系、志願代碼或招生類別" autocomplete="off"></label>
+    <label class="check-row"><input type="checkbox" data-program-todo> 只看還有「需人工確認」或「待確認」的校系</label>
+    <p class="small muted" data-program-count aria-live="polite">共 {{ programs|length }} 個校系</p>
+  </div>
+  {% endif %}
 
   {% for program in programs %}
-  <section class="work-panel" id="program-{{ program.id }}">
+  <section class="work-panel" id="program-{{ program.id }}" data-program-card data-program-text="{{ program.school_name }} {{ program.department_name }} {{ program.program_code }} {{ program.admission_category or '' }} {{ program.admission_year }}">
     <div class="work-panel__head">
       <div>
         <h2>{{ program.school_name }} {{ program.department_name }}</h2>
@@ -27,6 +35,9 @@
         <form method="post" action="{{ url_for('admin.program_toggle_status', program_id=program.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small button--quiet" type="submit">{{ "改回候選" if program.status == "published" else "核准為正式" }}</button></form>
       </div>
     </div>
+    {# 2026-11-20：96 個校系的編輯表單一次全部展開，手機上整頁超過 14 萬像素；改成點開才編輯。網址帶 ?open=校系編號 或有待處理的會預設展開 #}
+    <details class="program-body"{% if loop.first %} data-tour="展開校系核對加權、資格與要點。" data-tour-order="2"{% endif %}{% if request.args.get("open")|int == program.id %} open{% endif %}>
+      <summary class="small">展開編輯：加權項目、資格規則與要點（{{ program.items|length }} 個項目）</summary>
     {% if program.data_origin == "agent" and program.status == "candidate" %}
     {% set diff = compare(program) %}
     <div class="agent-diff mb-1">
@@ -138,9 +149,40 @@
         </tbody>
       </table>
     </div>
+    </details>
   </section>
   {% else %}
   <section class="work-panel"><p class="work-empty"><strong>還沒有校系資料。</strong><span>按右上角「匯入種子資料」建立第一批。</span></p></section>
   {% endfor %}
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var finder = document.querySelector("[data-program-finder]");
+  if (!finder) return;
+  var query = finder.querySelector("[data-program-query]");
+  var todo = finder.querySelector("[data-program-todo]");
+  var count = finder.querySelector("[data-program-count]");
+  var cards = Array.prototype.slice.call(document.querySelectorAll("[data-program-card]"));
+  function needsWork(card) {
+    return card.querySelector(".tag--warn, .tag--danger") !== null
+      || Array.prototype.some.call(card.querySelectorAll("select[name=mapping_status]"), function (s) { return s.value !== "confirmed"; });
+  }
+  function apply() {
+    var words = query.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    var shown = 0;
+    cards.forEach(function (card) {
+      var text = card.getAttribute("data-program-text").toLowerCase();
+      var ok = words.every(function (w) { return text.indexOf(w) !== -1; }) && (!todo.checked || needsWork(card));
+      card.style.display = ok ? "" : "none";
+      if (ok) shown += 1;
+    });
+    count.textContent = shown === cards.length ? "共 " + cards.length + " 個校系" : "符合 " + shown + " 個，共 " + cards.length + " 個校系";
+  }
+  query.addEventListener("input", apply);
+  todo.addEventListener("change", apply);
+})();
+</script>
 {% endblock %}

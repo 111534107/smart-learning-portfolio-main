@@ -169,3 +169,11 @@ def test_resolve_url_falls_back_to_get_when_head_is_rejected(monkeypatch):
     monkeypatch.setattr(agent.urllib.request, "urlopen", fake_urlopen)
     assert agent.resolve_url("https://vertexaisearch.cloud.google.com/grounding-api-redirect/x") == "https://www.example.edu.tw/brochure.pdf"
     assert methods == ["HEAD", "GET"]
+
+
+def test_patrol_search_always_includes_school_year():
+    """AI 自己下的關鍵字沒寫學年度時，拆成今年與明年兩組；已寫學年度就照原樣。"""
+    from app.services.agent_patrol import with_school_years
+    assert with_school_years("二技 技優甄審 招生簡章", roc_year=115) == [
+        "115 學年度 二技 技優甄審 招生簡章", "116 學年度 二技 技優甄審 招生簡章"]
+    assert with_school_years("116學年度 二技 簡章", roc_year=115) == ["116學年度 二技 簡章"]

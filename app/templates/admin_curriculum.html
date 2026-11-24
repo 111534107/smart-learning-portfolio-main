@@ -18,10 +18,10 @@
 
   <section class="work-panel">
     <div class="work-panel__head"><div><h2>檢查網站更新</h2><p>同一個檔案再抓一次不會重複建立。數字由程式從 PDF 讀出，不經 AI。</p></div>
-      <form method="post" action="{{ url_for('admin.curriculum_check') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit" data-busy-text="下載與檢查中…（約 10～30 秒）">檢查網站更新</button></form></div>
+      <form method="post" action="{{ url_for('admin.curriculum_check') }}" data-tour="需要更新科目表時，先檢查學校網站。" data-tour-order="1"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button" type="submit" data-busy-text="下載與檢查中…（約 10～30 秒）">檢查網站更新</button></form></div>
   </section>
 
-  <section class="work-panel" id="curriculum-pending">
+  <section class="work-panel" id="curriculum-pending" data-tour="核對候選版本差異，再確認或不採用。" data-tour-order="2">
     <div class="work-panel__head"><div><h2>等你處理（{{ pending|length }}）</h2><p>看過檢查結果與差異後，確認或不採用。</p></div></div>
     {% for version in pending %}
     {% set label, tag = status_labels[version.status] %}

@@ -1,7 +1,7 @@
 {# 三個登入頁共用的零件（2026-11-10 登入頁分開）。 #}
 
 {% macro google_button(enabled, href, label) %}
-{% if enabled %}<a class="google-login google-login--primary" href="{{ href }}">{% else %}<button class="google-login google-login--primary" type="button" disabled aria-describedby="google-unavailable">{% endif %}
+{% if enabled %}<a class="google-login google-login--primary" href="{{ href }}" data-tour="使用學校 Google 帳號登入。" data-tour-order="1">{% else %}<button class="google-login google-login--primary" type="button" disabled aria-describedby="google-unavailable" data-tour="Google 登入未設定時，請使用帳號密碼。" data-tour-order="1">{% endif %}
   <svg aria-hidden="true" width="20" height="20" viewBox="0 0 48 48"><path fill="#4285F4" d="M43.6 24.5c0-1.4-.1-2.7-.4-4H24v7.6h11c-.5 2.5-1.9 4.6-4 6v5h6.6c3.9-3.6 6-8.8 6-14.6z"/><path fill="#34A853" d="M24 44c5.4 0 10-1.8 13.4-4.9l-6.6-5c-1.8 1.2-4.2 1.9-6.8 1.9-5.2 0-9.6-3.5-11.2-8.3H6v5.2C9.3 39.5 16.1 44 24 44z"/><path fill="#FBBC05" d="M12.8 27.7a12 12 0 0 1 0-7.4v-5.2H6a20 20 0 0 0 0 17.8z"/><path fill="#EA4335" d="M24 12c2.9 0 5.5 1 7.5 3l5.6-5.6A19.2 19.2 0 0 0 24 4C16.1 4 9.3 8.5 6 15.1l6.8 5.2C14.4 15.5 18.8 12 24 12z"/></svg>
   <span>{{ label }}</span>
 {% if enabled %}</a>{% else %}</button>{% endif %}
@@ -9,7 +9,7 @@
 {% endmacro %}
 
 {% macro password_form(action, next_path, username_label="帳號", username_hint="") %}
-<form method="post" action="{{ action }}" class="form-stack">
+<form method="post" action="{{ action }}" class="form-stack" data-tour="填帳號與密碼後按登入。" data-tour-order="2">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   {% if next_path %}<input type="hidden" name="next" value="{{ next_path }}">{% endif %}
   <label class="field">{{ username_label }}{% if username_hint %} <small>{{ username_hint }}</small>{% endif %}<input name="username" autocomplete="username" maxlength="100" required></label>

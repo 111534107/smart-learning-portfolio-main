@@ -74,7 +74,7 @@
       </table>
     </div>
     {% if good %}
-    <form method="post" class="mt-1">
+    <form method="post" class="mt-1" data-tour="核對可建立的名單，確認後才建立。" data-tour-order="3">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="title" value="{{ title }}">
       <textarea name="rows" hidden>{{ text }}</textarea>
@@ -88,7 +88,7 @@
     <h2 class="h3">{{ "修改名單" if rows is defined else "匯入名單" }}</h2>
     <p class="muted">科上辦活動後，一次開多張「活動證明」。一列一位學生，四欄依序是學號、活動名稱、獎項或服務內容、日期，用逗號或 Tab 分隔（從 Excel 複製貼上即可）。一次最多 {{ max_rows }} 列。</p>
     <pre class="batch-sample">{{ sample }}</pre>
-    <form method="post" enctype="multipart/form-data" class="form-stack mt-1">
+    <form method="post" enctype="multipart/form-data" class="form-stack mt-1" data-tour="貼上名單或上傳 CSV，填好獎狀標題。" data-tour-order="1">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label class="field">名單
         <textarea class="batch-rows" name="rows" rows="8" placeholder="{{ sample }}">{{ text }}</textarea>
@@ -100,7 +100,7 @@
         <input name="title" value="{{ title }}" maxlength="50">
       </label>
       <p class="muted small">內文會寫成：茲證明 本校五專資訊管理科 姓名（學號）同學，於民國某年某月某日參加「活動名稱」，獎項或服務內容，特此證明。</p>
-      <div><button class="button{% if rows is defined %} button--line{% endif %}" type="submit" name="action" value="preview">預覽名單</button></div>
+      <div><button class="button{% if rows is defined %} button--line{% endif %}" type="submit" name="action" value="preview" data-tour="先預覽名單，核對錯誤再建立獎狀。" data-tour-order="2">預覽名單</button></div>
     </form>
   </section>
   {% endif %}

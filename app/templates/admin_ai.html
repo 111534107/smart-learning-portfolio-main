@@ -12,7 +12,7 @@
     <div><h1>AI 設定</h1><p>選要用哪幾家 AI、用哪個模型、誰先誰後。系統照順序呼叫，前一家額度用完或連不上，就自動換下一家。</p></div>
   </header>
   {% if message %}<p class="notice mb-1" role="status">{{ message }}</p>{% endif %}
-  <section class="work-panel mb-1" data-ai-rules>
+  <section class="work-panel mb-1" data-ai-rules data-tour="設定前先了解送出資料與金鑰的規則。" data-tour-order="1">
     <h2>送給 AI 前一定會做的事</h2>
     <ul class="small">
       <li>AI 不讀圖片或檔案：PDF 先抽出文字，掃描檔和照片先用系統的 OCR 辨識成文字。</li>
@@ -20,7 +20,7 @@
       <li>金鑰只放在伺服器的 .env，不存在資料庫，這頁只顯示有沒有設定。</li>
     </ul>
   </section>
-  <form method="post" class="work-panel" data-ai-settings>
+  <form method="post" class="work-panel" data-ai-settings data-tour="選啟用項目、順序及模型，完成後儲存。" data-tour-order="2">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="table-wrap">
       <table class="data-table">

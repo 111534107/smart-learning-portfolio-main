@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "transfer-reviews" %}
+{% block title %}轉科核對案件｜資管科智慧學習歷程系統{% endblock %}
+{% block navigation %}{{ masthead(user, "轉科核對案件") }}{% endblock %}
+{% block content %}
+{# 2026-11-19 Claude 重排版面：原本是一長串沒有樣式的表單與英文代碼。
+   現在：上方三步流程、管理員兩步送核（先查學號再填資料）、案件分「待你處理／其他」、每件有進度條與中文歷程。 #}
+<style>
+  .tr-flow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; margin: 0 0 1rem; padding: 0; list-style: none; }
+  .tr-flow li { padding: .55rem .75rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: var(--fs-sm); }
+  .tr-flow li b { display: block; }
+  .tr-steps { display: flex; gap: .25rem; margin: .5rem 0 .75rem; padding: 0; list-style: none; }
+  .tr-steps li { flex: 1; padding: .3rem .5rem; border-top: 4px solid var(--line); font-size: var(--fs-sm); color: var(--muted); }
+  .tr-steps li.is-done { border-top-color: var(--accent, #2f6672); color: inherit; }
+  .tr-steps li.is-now { border-top-color: var(--accent, #2f6672); color: inherit; font-weight: 700; }
+  .tr-steps li.is-stop { border-top-color: #b4532a; color: inherit; font-weight: 700; }
+  .tr-case__facts { display: grid; grid-template-columns: max-content 1fr; gap: .2rem 1rem; margin: 0 0 .75rem; }
+  .tr-case__facts dt { color: var(--muted); }
+  .tr-case__facts dd { margin: 0; }
+  .tr-actions { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .75rem 1.25rem; margin-top: .5rem; }
+  .tr-actions form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .5rem; margin: 0; }
+  .tr-actions label { display: grid; gap: .2rem; font-size: var(--fs-sm); }
+  .tr-history { margin: .5rem 0 0; padding-left: 1.2rem; font-size: var(--fs-sm); }
+  .tr-history li { margin: .2rem 0; }
+  .tr-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: .6rem .9rem; align-items: end; }
+  .tr-form label { display: grid; gap: .25rem; }
+  .tr-form .tr-form__submit { grid-column: 1 / -1; }
+  @media (max-width: 640px) { .tr-flow { grid-template-columns: 1fr; } .tr-case__facts { grid-template-columns: 1fr; } }
+</style>
+{% set status_label = {'assistant_pending': '待科助核對', 'chief_pending': '待主任確認', 'returned': '已退回，待管理員更正',
+                       'closed': '已結案（學籍已更新）', 'withdrawn': '已撤回'} %}
+{% set action_label = {'submitted': '管理員送核', 'confirm': '確認', 'return': '退回', 'resubmit': '管理員更正後重送', 'withdraw': '管理員撤回'} %}
+{% macro case_card(case, can_act, first=false) %}
+<section class="work-panel mb-1" id="case-{{ case.id }}"{% if first %} data-tour="核對後確認或寫原因退回；管理員可更正重送。" data-tour-order="4"{% endif %}>
+  <div class="work-panel__head"><div>
+    <h2 class="h3">{{ case.student.display_name }}（{{ case.student.student_profile.student_no }}）</h2>
+    <p class="small muted">案件 {{ case.id }}{% if case.previous_case_id %}，接續前案 {{ case.previous_case_id }}{% endif %}</p>
+  </div></div>
+  {% set s = case.status %}
+  <ol class="tr-steps" aria-label="案件進度：{{ status_label.get(s, s) }}">
+    <li class="is-done">管理員送核</li>
+    <li class="{{ 'is-now' if s == 'assistant_pending' else ('is-done' if s in ('chief_pending', 'closed') else ('is-stop' if s == 'returned' else '')) }}">科助核對</li>
+    <li class="{{ 'is-now' if s == 'chief_pending' else ('is-done' if s == 'closed' else '') }}">主任確認</li>
+  </ol>
+  <dl class="tr-case__facts">
+    <dt>目前狀態</dt><dd><b>{{ status_label.get(s, s) }}</b></dd>
+    <dt>轉入班級</dt><dd>{{ case.class_name }}</dd>
+    <dt>入學學年度</dt><dd>{{ case.admission_year }}</dd>
+    {% if s != 'closed' and case.student.student_profile.class_name != case.class_name %}<dt>目前班級</dt><dd>{{ case.student.student_profile.class_name or "—" }}<span class="small muted">（主任確認後才改成轉入班級）</span></dd>{% endif %}
+  </dl>
+
+  {% if can_act %}
+  <div class="tr-actions">
+    <form method="post" action="{{ url_for('staff.transfer_review_action', case_id=case.id, action='confirm') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="version" value="{{ case.version }}">
+      <button class="button" type="submit">{{ '核對無誤，送主任' if s == 'assistant_pending' else '確認並結案' }}</button>
+    </form>
+    <form method="post" action="{{ url_for('staff.transfer_review_action', case_id=case.id, action='return') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="version" value="{{ case.version }}">
+      <label>有錯要退回？寫原因<input name="reason" required maxlength="2000" placeholder="例如：班級應為三甲"></label>
+      <button class="button button--line" type="submit">退回管理員</button>
+    </form>
+  </div>
+  {% endif %}
+
+  {% if admin and s == 'returned' %}
+  {% set last_return = case.events|selectattr('action', 'equalto', 'return')|list|last %}
+  {% if last_return %}<p class="alert small mb-1" role="note">退回原因：{{ last_return.reason }}</p>{% endif %}
+  <form class="tr-form" method="post" action="{{ url_for('admin.transfer_review_resubmit', case_id=case.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="version" value="{{ case.version }}">
+    <label>轉入班級<input name="class_name" value="{{ case.class_name }}" required maxlength="50"></label>
+    <label>入學學年度<input name="admission_year" type="number" min="90" max="200" value="{{ case.admission_year }}" required></label>
+    <div class="tr-form__submit"><button class="button" type="submit">更正並重送科助</button></div>
+  </form>
+  {% endif %}
+
+  {% if admin and s in ('assistant_pending', 'chief_pending', 'returned') %}
+  <details class="mt-1"><summary class="small">學號或帳號選錯了？</summary>
+    <p class="small">撤回只結束這個案件，帳號與學習資料都保留。如果起始密碼已經交錯人，請到帳號管理核對身分，必要時停用帳號。</p>
+    <form class="tr-form" method="post" action="{{ url_for('admin.transfer_review_withdraw', case_id=case.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="version" value="{{ case.version }}">
+      <label>撤回原因<input name="reason" required maxlength="2000"></label>
+      <div class="tr-form__submit"><button class="button button--line" type="submit">撤回這個案件</button></div>
+    </form>
+  </details>
+  {% endif %}
+
+  {% if case.events %}
+  <details class="mt-1"><summary class="small">處理紀錄（{{ case.events|length }} 筆）</summary>
+    <ol class="tr-history">
+      {% for event in case.events %}
+      <li>{{ event.created_at|taipei_time("%m-%d %H:%M") }}　{{ event.actor.display_name if event.actor else "" }} {{ action_label.get(event.action, event.action) }}：{{ event.class_name }}、{{ event.admission_year }} 學年度{% if event.reason %}。原因：{{ event.reason }}{% endif %}</li>
+      {% endfor %}
+    </ol>
+  </details>
+  {% endif %}
+</section>
+{% endmacro %}
+
+<div class="work-shell">
+  <header class="work-heading"><div><h1>轉科核對案件</h1>
+    <p>轉科要經過三關：管理員送核、科助核對、主任確認。主任確認後，學生的班級與入學學年度才會更新。</p></div></header>
+
+  <ol class="tr-flow" aria-label="轉科流程" data-tour="先了解管理員、科助與主任的處理順序。" data-tour-order="1">
+    <li><b>1．管理員送核</b>查學號；已有帳號就沿用，沒有就建新帳號。</li>
+    <li><b>2．科助核對</b>核對班級與學年度；有錯就寫原因退回。</li>
+    <li><b>3．主任確認</b>確認後結案並更新學籍。</li>
+  </ol>
+
+  {% if error %}<p class="alert mb-1" role="alert">{{ error }}</p>{% endif %}
+
+  {% if admin %}
+  <section class="work-panel mb-1" aria-labelledby="tr-new">
+    <div class="work-panel__head"><div><h2 class="h3" id="tr-new">送出新案件</h2>
+      <p class="small muted">學號是 9 碼數字（例如 113534105）。校內轉科沿用原學號與帳號；校外轉入才建新帳號。</p></div></div>
+    <form class="tr-form" method="get" data-tour="先查九碼學號，確認是否已有帳號。" data-tour-order="2">
+      <label>先查學號<input name="student_no" value="{{ query }}" required inputmode="numeric" pattern="\d{9}" maxlength="9" title="9 碼數字"></label>
+      <div><button class="button button--line" type="submit">查詢</button></div>
+    </form>
+    {% if found is not none %}
+    {% if found is sameas false %}
+    <p class="notice mt-1">查無 {{ query }} 的帳號，送核時會建一個新帳號。起始密碼請另外交給學生本人。</p>
+    {% else %}
+    <p class="notice mt-1">已有帳號：<b>{{ found.display_name }}</b>（{{ found.username }}），目前班級 {{ found.student_profile.class_name or "未填" }}。帳號和學習資料都保留，只改班級與學年度。</p>
+    {% endif %}
+    <form class="tr-form mt-1" method="post" data-tour="核對帳號後填入班級與學年度，再送核。" data-tour-order="3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="student_no" value="{{ query }}">
+      {% if found is sameas false %}
+      <label>姓名<input name="display_name" required maxlength="100"></label>
+      <label>學校信箱（選填）<input name="school_email" type="email" placeholder="學號@stu.ukn.edu.tw"></label>
+      <label>起始密碼<input name="password" type="password" required autocomplete="new-password"></label>
+      {% endif %}
+      <label>轉入班級<input name="class_name" required maxlength="50" placeholder="例如 資管科三甲"></label>
+      <label>入學學年度<input name="admission_year" type="number" min="90" max="200" required placeholder="例如 113"></label>
+      <div class="tr-form__submit"><button class="button" type="submit">送科助核對</button></div>
+    </form>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {% set mine = [] %}{% set others = [] %}
+  {% for case in cases %}
+    {% if (admin and case.status == 'returned') or (not admin and case.status == actionable_status) %}{% set _ = mine.append(case) %}{% else %}{% set _ = others.append(case) %}{% endif %}
+  {% endfor %}
+
+  <h2 class="h3">待你處理（{{ mine|length }}）</h2>
+  {% for case in mine %}{{ case_card(case, not admin, loop.first) }}{% else %}<p class="muted mb-1">目前沒有要你處理的案件。</p>{% endfor %}
+
+  {% if others %}
+  <h2 class="h3 mt-1">其他案件（{{ others|length }}）</h2>
+  {% for case in others %}{{ case_card(case, false) }}{% endfor %}
+  {% endif %}
+</div>
+{% endblock %}

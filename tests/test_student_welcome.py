@@ -76,3 +76,12 @@ def test_senior_student_is_not_welcomed_as_a_freshman(client):
 
     assert "歡迎來到資管科" not in page
     assert "歡迎使用學習歷程系統" in page
+
+
+def test_milestone_popup_is_no_longer_shown(client):
+    """2026-11-21 使用者要求拿掉里程碑彈跳視窗（用處不大、蓋住畫面）：彩蛋腳本不再讀 milestones-data 來跳卡片。
+    後端的里程碑資料仍保留（頁面上還有 milestones-data），要恢復只要把腳本那一行的註解拿掉。"""
+    from pathlib import Path
+    script = (Path(client.application.root_path) / "static" / "js" / "easter-eggs.js").read_text(encoding="utf-8")
+    live = [line for line in script.splitlines() if "window.showMilestone(item)" in line and not line.lstrip().startswith("//")]
+    assert live == [], "里程碑卡片不應該在載入頁面時自動跳出來"

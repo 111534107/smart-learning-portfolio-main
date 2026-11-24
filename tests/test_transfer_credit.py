@@ -15,7 +15,9 @@ def transfer_app():
         teacher.set_password("pw")
         other_teacher = User(username="other-teacher", display_name="其他導師", role="teacher")
         other_teacher.set_password("pw")
-        db.session.add_all([student, teacher, other_teacher])
+        staff = User(username="transfer-staff", display_name="測試科助", role="staff", job_title="科助")
+        staff.set_password("pw")
+        db.session.add_all([student, teacher, other_teacher, staff])
         db.session.flush()
         db.session.add(StudentProfile(user_id=student.id, student_no="TEST-TRANSFER", class_name="專四甲"))
         db.session.add(ClassAdvisor(teacher_id=teacher.id, class_name="專四甲", school_year=115))
@@ -29,7 +31,13 @@ def signed_in(app, username):
     return client
 
 
-def test_student_can_record_transfer_credit_status_and_teacher_can_confirm():
+def test_transfer_credit_tour_distinguishes_school_application_and_record():
+    page = signed_in(transfer_app(), 'transfer-student').get('/student/transfer-credit').get_data(as_text=True)
+    assert 'data-tour="先到學校抵免系統辦理正式申請。"' in page
+    assert 'data-tour="選狀態、填待補資料，再儲存進度。"' in page
+
+
+def test_student_can_record_transfer_credit_status_and_staff_can_confirm():
     app = transfer_app()
     student = signed_in(app, "transfer-student")
 
@@ -47,7 +55,7 @@ def test_student_can_record_transfer_credit_status_and_teacher_can_confirm():
     assert response.status_code == 302
 
     teacher = signed_in(app, "transfer-teacher")
-    response = teacher.post("/teacher/students/1/transfer-credit/confirm", data={"confirmed": "1"})
+    response = signed_in(app, "transfer-staff").post("/staff/transfer-students/1/confirm", data={"confirmed": "1"})
     assert response.status_code == 302
 
     with app.app_context():
@@ -57,7 +65,7 @@ def test_student_can_record_transfer_credit_status_and_teacher_can_confirm():
         assert record.submitted_on == date(2026, 10, 13)
         assert record.missing_documents == "前校課程大綱"
         assert record.teacher_confirmed is True
-        assert record.teacher_id == 2
+        assert record.teacher_id == 4  # 科辦（測試科助）確認
 
     teacher_page = teacher.get("/teacher/students/1")
     assert teacher_page.status_code == 200
@@ -78,14 +86,14 @@ def test_student_cannot_save_invalid_transfer_status_or_date():
         assert TransferCreditRecord.query.count() == 0
 
 
-def test_teacher_cannot_confirm_transfer_record_outside_assigned_class():
+def test_teacher_can_no_longer_confirm_transfer_record():
     app = transfer_app()
     student = signed_in(app, "transfer-student")
     student.post("/student/transfer-credit", data={"status": "submitted"})
 
-    response = signed_in(app, "other-teacher").post("/teacher/students/1/transfer-credit/confirm", data={"confirmed": "1"})
-
-    assert response.status_code == 403
+    for name in ("other-teacher", "transfer-teacher"):
+        response = signed_in(app, name).post("/teacher/students/1/transfer-credit/confirm", data={"confirmed": "1"})
+        assert response.status_code == 403  # 改由科主任或科辦確認（2026-11-19），導師只能看
     with app.app_context():
         from app.models import TransferCreditRecord
         assert TransferCreditRecord.query.one().teacher_confirmed is False
@@ -95,7 +103,7 @@ def test_student_update_clears_previous_teacher_confirmation():
     app = transfer_app()
     student = signed_in(app, "transfer-student")
     student.post("/student/transfer-credit", data={"status": "submitted"})
-    signed_in(app, "transfer-teacher").post("/teacher/students/1/transfer-credit/confirm", data={"confirmed": "1"})
+    signed_in(app, "transfer-staff").post("/staff/transfer-students/1/confirm", data={"confirmed": "1"})
 
     student.post("/student/transfer-credit", data={"status": "needs_documents", "missing_documents": "課程大綱"})
 

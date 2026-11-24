@@ -353,31 +353,72 @@ def test_other_student_cannot_confirm_source_document(tmp_path):
     assert response.status_code == 403
 
 
-@pytest.mark.skip(reason="刪除與保留政策（M10）待學校決定，本次未搬刪除上傳文件功能")
-def test_student_can_delete_owned_source_document_without_erasing_confirmed_records(tmp_path):
+def test_student_can_delete_unconfirmed_upload_and_it_is_logged(tmp_path):
+    """2026-11-19 刪除原則：還沒確認的上傳檔可以真的刪（連辨識結果），並留操作紀錄。"""
+    from app.models import AuditLog
+    app, document_id = learning_profile_app(tmp_path)
+    client = app.test_client()
+    login(client)
+
+    response = client.post(f"/student/learning-profile/documents/{document_id}/delete")
+
+    assert response.status_code == 302 and response.headers["Location"].endswith("/student/files")
+    with app.app_context():
+        assert db.session.get(SourceDocument, document_id) is None
+        assert DocumentExtraction.query.count() == 0
+        assert AuditLog.query.filter_by(action="document.delete", target_id=document_id).count() == 1
+
+
+@pytest.mark.parametrize("status", ["confirmed", "queued", "processing"])
+def test_confirmed_or_processing_upload_cannot_be_deleted(tmp_path, status):
+    """已確認（成績已寫入）或辨識中的文件不能刪，資料原封不動並記一筆被擋下的紀錄。"""
+    from app.models import AuditLog
     app, document_id = learning_profile_app(tmp_path)
     client = app.test_client()
     login(client)
     with app.app_context():
-        document = db.session.get(SourceDocument, document_id)
-        db.session.add(LearningCourseRecord(
-            student_id=document.owner_id,
-            source_document_id=document.id,
-            course_name="程式設計",
-            normalized_course_name="程式設計",
-            credits=3,
-            score=92,
-        ))
+        db.session.get(SourceDocument, document_id).status = status
         db.session.commit()
 
     response = client.post(f"/student/learning-profile/documents/{document_id}/delete")
 
     assert response.status_code == 302
     with app.app_context():
-        assert db.session.get(SourceDocument, document_id) is None
-        assert DocumentExtraction.query.count() == 0
-        record = LearningCourseRecord.query.one()
-        assert record.source_document_id is None
+        assert db.session.get(SourceDocument, document_id) is not None
+        assert AuditLog.query.filter_by(action="document.delete_blocked").count() == 1
+
+
+def test_upload_already_used_by_records_cannot_be_deleted(tmp_path):
+    """就算狀態還沒改成已確認，只要已有成績紀錄引用它就不能刪，避免紀錄失去來源。"""
+    app, document_id = learning_profile_app(tmp_path)
+    client = app.test_client()
+    login(client)
+    with app.app_context():
+        document = db.session.get(SourceDocument, document_id)
+        db.session.add(LearningCourseRecord(student_id=document.owner_id, source_document_id=document.id,
+                                            course_name="程式設計", normalized_course_name="程式設計", credits=3, score=92))
+        db.session.commit()
+
+    client.post(f"/student/learning-profile/documents/{document_id}/delete")
+
+    with app.app_context():
+        assert db.session.get(SourceDocument, document_id) is not None
+        assert LearningCourseRecord.query.one().source_document_id == document_id
+
+
+def test_other_student_cannot_delete_upload(tmp_path):
+    app, document_id = learning_profile_app(tmp_path)
+    with app.app_context():
+        other = User(username="other-student", display_name="另一位學生（僅為測試資料）", role="student")
+        other.set_password("pw")
+        db.session.add(other)
+        db.session.commit()
+    client = app.test_client()
+    client.post("/login", data={"username": "other-student", "password": "pw"})
+
+    assert client.post(f"/student/learning-profile/documents/{document_id}/delete").status_code == 403
+    with app.app_context():
+        assert db.session.get(SourceDocument, document_id) is not None
 
 
 @pytest.mark.parametrize("grade", ["一年級", "二年級", "三年級", "四年級", "五年級", "1年級", "2年級", "3年級", "4年級", "5年級", "1", "5"])

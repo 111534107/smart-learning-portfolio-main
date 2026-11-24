@@ -15,6 +15,7 @@ html[data-ui="student-v2"] {
   --warn: #8a4e10;
   --warn-soft: #f2e3cf;
   --warn-line: #e3c9a6;
+  --bio-warn: #9b3d36;
   --on: #ffffff;
   --stripe: #ede5d9;
   --shadow: 0 1px 0 rgb(43 38 34 / .05), 0 12px 28px -20px rgb(70 50 30 / .4);
@@ -44,6 +45,7 @@ html[data-ui="student-v2"][data-theme="dark"] {
   --warn: #e2a865;
   --warn-soft: #3d2f20;
   --warn-line: #6b5236;
+  --bio-warn: #e8a39b;
   --on: #171411;
   --stripe: #332d26;
   --glass: rgb(40 35 30 / .72);

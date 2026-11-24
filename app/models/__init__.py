@@ -1,4 +1,7 @@
 from app.models.agent_task import AgentTask
+from app.models.attendance import AttendanceSummary
+from app.models.autobiography_comment import AutobiographyComment
+from app.models.autobiography_suggestion import AutobiographySuggestion
 from app.models.ai_usage import AiDailyUsage
 from app.models.audit_log import AuditLog
 from app.models.portfolio import Portfolio, PortfolioDomainTag, PortfolioEvidence
@@ -56,6 +59,8 @@ from app.models.curriculum import CurriculumCourse, CurriculumVersion
 from app.models.announcement import Announcement, AnnouncementRead
 
 __all__ = [
+    "AutobiographyComment",
+    "AutobiographySuggestion",
     "AiDailyUsage",
     "AwardCertificate",
     "SchoolAwardRecord",
@@ -123,3 +128,5 @@ __all__ = [
     "Announcement",
     "AnnouncementRead",
 ]
+
+from app.models.transfer_review import TransferReviewCase, TransferReviewEvent

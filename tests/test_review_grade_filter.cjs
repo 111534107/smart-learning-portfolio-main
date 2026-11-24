@@ -42,7 +42,7 @@ function viewButton(view, pressed) {
 // 假的頁面：每列是 [年級, 種類, 需核對, 課名, 成績, 學分]
 function page(rowSpecs, startView = 'review') {
   const grade = element(); grade.value = 'all';
-  const views = ['review', 'failed', 'all'].map((view) => viewButton(view, view === startView));
+  const views = ['review', 'failed', 'all', 'retake'].map((view) => viewButton(view, view === startView));
   const showAll = element();
   const rest = element();
   const allow = element();
@@ -50,12 +50,13 @@ function page(rowSpecs, startView = 'review') {
   const unlocked = element();
   const status = element();
   const changed = element();
+  const empty = element();
   const scoreInputs = [];
   const courseInputs = [];
-  const rows = rowSpecs.map(([gradeKey, kind, attention, name, score, credits], index) => {
+  const rows = rowSpecs.map(([gradeKey, kind, attention, name, score, credits, retake = false], index) => {
     const row = element({
       courseIndex: String(index), reviewGrade: gradeKey, reviewKind: kind,
-      attention: attention ? 'true' : 'false', schoolYear: '114',
+      attention: attention ? 'true' : 'false', schoolYear: '114', reviewRetake: retake ? 'true' : 'false',
     });
     const inputs = {};
     for (const [field, value] of [['course_name', name], ['score', score], ['credits', credits], ['semester', '第一學期']]) {
@@ -91,6 +92,7 @@ function page(rowSpecs, startView = 'review') {
     ['review-grade-filter', grade], ['review-rest', rest], ['allow-score-edit', allow],
     ['allow-score-edit-label', allowLabel], ['scores-unlocked', unlocked],
     ['score-lock-status', status], ['review-changed-count', changed],
+    ['review-filter-empty', empty],
   ]);
   const document = {
     getElementById(id) { return ids.get(id) || null; },
@@ -105,7 +107,7 @@ function page(rowSpecs, startView = 'review') {
     createElement() { return element(); },
   };
   vm.runInNewContext(script, { document, Array, Number, Boolean });
-  return { grade, views, showAll, rest, allow, allowLabel, unlocked, status, changed, rows, groups, heading };
+  return { grade, views, showAll, rest, allow, allowLabel, unlocked, status, changed, empty, rows, groups, heading };
 }
 
 test('the review script exists and the old three-state lock is gone', () => {
@@ -138,6 +140,23 @@ test('starts on courses that need checking; failed and all views switch the list
 test('a missing credit counts as needing review even when not flagged', () => {
   const p = page([['1', 'passed', false, '國文', '80', ''], ['1', 'passed', false, '英文', '90', '2']]);
   assert.deepEqual(p.rows.map((row) => row.hidden), [false, true]);
+});
+
+test('retake filter shows both original and passing rows and combines with grade', () => {
+  const p = page([
+    ['1', 'resolved', false, '模擬程式', '58', '3', true],
+    ['1', 'passed', false, '模擬程式', '85', '3', true],
+    ['1', 'passed', false, '國文', '80', '2'],
+    ['2', 'failed', true, '模擬統計', '55', '3', true],
+  ], 'all');
+  p.views.find(b => b.dataset.reviewView === 'retake').listeners.click();
+  assert.deepEqual(p.rows.map(row => row.hidden), [false, false, true, false]);
+  p.grade.value = '1'; p.grade.listeners.change();
+  assert.deepEqual(p.rows.map(row => row.hidden), [false, false, true, true]);
+  p.views.find(b => b.dataset.reviewView === 'failed').listeners.click();
+  assert.deepEqual(p.rows.map(row => row.hidden), [true, true, true, true]);
+  assert.equal(p.empty.hidden, false);
+  assert.match(p.empty.textContent, /沒有尚未補過的課程/);
 });
 
 test('grade filter combines with the view and hides other grades', () => {

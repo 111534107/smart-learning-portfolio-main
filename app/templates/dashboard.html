@@ -9,85 +9,51 @@
 
 {% block content %}
 {% if user.role == "teacher" %}
-{# 11-08 改版：畢業門檻提醒放最上面（10 秒內看懂全班狀態），本班學生表在下面；每列整列可點、右邊有「查看」。
-   「我的審查／專題審查指派」2026-10-10 定案不在本系統範圍，畫面拿掉；review 路由與舊資料保留。 #}
+{# 2026-11-21 拆分：工作台只放「現在要處理什麼」，畢業門檻、學生名單、目標校系各自一頁（導覽列與下面三張入口卡都能進去），
+   和學生端一頁一件事一樣。「我的審查／專題審查指派」2026-10-10 定案不在本系統範圍，畫面拿掉；review 路由與舊資料保留。 #}
+{% set pending_total = class_rows|sum(attribute="pending") %}
+{% set class_arg = {"class_name": selected_class} if selected_class else {} %}
 <section class="work-shell work-shell--wide" data-work-role="teacher">
-  <header class="work-heading" data-tour="先看本班畢業門檻，再看學生資料與待確認件數。" data-tour-order="1">
-    <div><h1>{{ user.display_name }} 老師</h1><p>{% if classes %}負責班級：{{ classes|join("、") }}。{% endif %}先看畢業門檻提醒，點任一列就能打開學生資料。</p></div>
+  <header class="work-heading" data-tour="這裡只放現在要處理的事；完整內容在上方各分頁。" data-tour-order="1">
+    <div><h1>{{ user.display_name }} 老師</h1><p>{% if classes %}負責班級：{{ classes|join("、") }}。{% endif %}先看等你確認的備審和有缺口的學生，其他內容從下面的入口或上方分頁進去。</p></div>
   </header>
   {% include "partials/announcement_home.html" %}
-  <section class="work-panel" data-grad-overview data-tour="看本班畢業門檻的整體情形，從最需要關心的學生開始。" data-tour-order="2">
-    <div class="work-panel__head"><div><h2>畢業門檻提醒</h2><p>依學生已確認的證照與成績單整理，專四下起才會正式列出缺口。</p></div></div>
-    <div class="work-metrics work-metrics--four">
-      <article class="work-metric"><span>全班人數</span><strong>{{ grad.total }}</strong><small>人</small></article>
-      <article class="work-metric"><span>已達門檻</span><strong>{{ grad.met }}</strong><small>人</small></article>
-      <article class="work-metric"><span>確定有缺口</span><strong>{{ grad.gap }}</strong><small>人</small></article>
-      <article class="work-metric"><span>資料待確認</span><strong>{{ grad.data }}</strong><small>人</small></article>
-    </div>
-    {% if grad.total %}
-    <div class="grad-bar" role="img" aria-label="已達門檻 {{ grad.met }} 人、確定有缺口 {{ grad.gap }} 人、資料待確認 {{ grad.data }} 人" style="display:flex;height:12px;border-radius:6px;overflow:hidden;background:#d9dde3;margin:12px 0 4px">
-      <span style="width:{{ grad.met * 100 / grad.total }}%;background:#2e8b57"></span>
-      <span style="width:{{ grad.gap * 100 / grad.total }}%;background:#c0392b"></span>
-      <span style="width:{{ grad.data * 100 / grad.total }}%;background:#8a919c"></span>
-    </div>
-    <p class="small muted">綠色已達門檻、紅色確定有缺口、灰色資料待確認{% if grad.other %}；另有 {{ grad.other }} 人還在修課、抵免待核對、或待人工確認{% endif %}。</p>
-    {% endif %}
-    <h3 class="mt-1">需要優先關心的學生</h3>
-    {% if grad.priority %}
-    <div class="table-wrap">
-      <table class="data-table data-table--rowlink" data-priority-list>
-        <thead><tr><th>學生</th><th>目前缺口</th><th>建議行動</th><th><span class="visually-hidden">操作</span></th></tr></thead>
-        <tbody>
-          {% for row in grad.priority %}
-          <tr class="row-link">
-            <td><b>{{ row.student.display_name }}</b> <span class="muted small mono">{{ row.case.number }}</span></td>
-            <td>{{ row.label }}</td>
-            <td>{{ row.hint }}</td>
-            <td class="row-link__action"><a class="button button--small row-link__target" href="{{ url_for('graduation.case_detail', case_id=row.case.id) }}" aria-label="查看 {{ row.student.display_name }} 的畢業門檻案件">查看</a></td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <p class="muted">目前沒有需要優先關心的學生。</p>
-    {% endif %}
-    <p class="small muted">{{ grad_disclaimer }}</p>
-  </section>
-  {% set pending_total = class_rows|sum(attribute="pending") %}
-  <div class="work-metrics" data-tour="這裡整理班級人數、待確認送審和目標校系；有待確認時點數字卡就能過去。" data-tour-order="3">
+  {% include "partials/teacher_class_filter.html" %}
+  <form method="post" action="{{ url_for('main.teacher_class_summary') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="class_name" value="{{ selected_class }}"><button class="button button--small button--line" type="submit">產生目前班級的資料摘要</button><small>僅傳送匿名總數，資料少於 5 人時只顯示本機統計；不包含缺曠。</small></form>
+
+  <div class="work-metrics" data-tour="等你確認的備審和有缺口的學生，點數字卡可直接過去。" data-tour-order="2">
     <article class="work-metric"><span>本班學生</span><strong>{{ class_rows|length }}</strong><small>人</small></article>
     {% if pending_total and pending_href %}
     <a class="work-metric work-metric--link" href="{{ pending_href }}" data-pending-link><span>等待你確認</span><strong>{{ pending_total }}</strong><small>份備審資料 · 點這裡確認</small></a>
     {% else %}
     <article class="work-metric"><span>等待你確認</span><strong>{{ pending_total }}</strong><small>份備審資料</small></article>
     {% endif %}
-    <article class="work-metric"><span>已選目標校系</span><strong>{{ class_rows|selectattr("targets")|list|length }}</strong><small>人</small></article>
+    <a class="work-metric work-metric--link" href="{{ url_for('main.teacher_graduation', **class_arg) }}" data-gap-link><span>確定有缺口</span><strong>{{ grad.gap }}</strong><small>人 · 看畢業門檻</small></a>
   </div>
-  <section class="work-panel" id="class-roster" data-class-roster data-tour="只會列出分派給你的班級學生；點任一列查看。" data-tour-order="4">
-    <div class="work-panel__head"><div><h2>本班學生</h2><p>各類資料筆數包含草稿與學生已確認資料；空格代表還沒有資料。標「待確認」的學生有備審資料等你確認。</p></div></div>
-    {% if class_rows %}
-    <div class="table-wrap">
-      <table class="data-table data-table--rowlink">
-        <thead><tr><th>學號</th><th>姓名</th>{% for key in category_keys %}<th>{{ category_labels[key] }}</th>{% endfor %}<th>目標校系</th><th>待確認</th><th><span class="visually-hidden">操作</span></th></tr></thead>
-        <tbody>
-          {% for row in class_rows %}
-          <tr class="row-link{% if row.pending %} row-link--pending{% endif %}">
-            <td class="mono">{{ row.student.student_profile.student_no }}</td>
-            <td><b>{{ row.student.display_name }}</b></td>
-            {% for key in category_keys %}<td>{% if row.totals[key] %}{{ row.totals[key] }}{% else %}<span class="muted">—</span>{% endif %}</td>{% endfor %}
-            <td class="small">{% for program in row.targets %}{{ program.school_name|replace("國立", "") }}{{ program.department_name }}{% if not loop.last %}<br>{% endif %}{% else %}<span class="muted">未選</span>{% endfor %}</td>
-            <td>{% if row.pending %}<span class="tag tag--warn">{{ row.pending }} 份</span>{% else %}<span class="muted">—</span>{% endif %}</td>
-            <td class="row-link__action"><a class="button button--small row-link__target" href="{{ url_for('teacher.student_detail', student_id=row.student.id) }}" aria-label="查看 {{ row.student.display_name }} 的資料">{% if row.pending %}確認{% else %}查看{% endif %}</a></td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+
+  <section class="work-panel" data-grad-overview data-tour="最需要關心的學生放在這裡，完整名單在「畢業門檻」。" data-tour-order="3">
+    <div class="work-panel__head"><div><h2>需要優先關心的學生</h2><p>依學生已確認的證照與成績單整理，專四下起才會正式列出缺口。</p></div>
+      <a class="button button--line button--small" href="{{ url_for('main.teacher_graduation', **class_arg) }}">全部畢業門檻</a></div>
+    {% if grad.priority %}
+    <ul class="work-list" data-priority-preview>
+      {% for row in grad.priority[:5] %}
+      <li><span class="work-list__index">{{ loop.index }}</span>
+        <div><strong>{{ row.student.display_name }} <span class="muted small mono">{{ row.case.number }}</span></strong><span>{{ row.label }} · {{ row.hint }}</span></div>
+        <a class="button button--small" href="{{ url_for('graduation.case_detail', case_id=row.case.id) }}" aria-label="查看 {{ row.student.display_name }} 的畢業門檻案件">查看</a></li>
+      {% endfor %}
+    </ul>
+    {% if grad.priority|length > 5 %}<p class="small"><a href="{{ url_for('main.teacher_graduation', **class_arg) }}">還有 {{ grad.priority|length - 5 }} 位，查看全部 →</a></p>{% endif %}
     {% else %}
-    <p class="work-empty"><strong>還沒有負責的班級。</strong><span>請系統管理者在「導師班級」設定。</span></p>
+    <p class="muted">目前沒有需要優先關心的學生。</p>
     {% endif %}
+    <p class="small muted">{{ grad_disclaimer }}</p>
   </section>
+
+  <div class="work-metrics teacher-entries" data-teacher-entries data-tour="完整內容各自一頁：畢業門檻、學生名單、目標校系。" data-tour-order="4">
+    <a class="work-metric work-metric--link" href="{{ url_for('main.teacher_graduation', **class_arg) }}"><span>畢業門檻</span><strong>{{ grad.total }}</strong><small>人 · 已達 {{ grad.met }}、缺口 {{ grad.gap }}、待確認 {{ grad.data }}</small></a>
+    <a class="work-metric work-metric--link" href="{{ url_for('main.teacher_roster', **class_arg) }}"><span>學生名單</span><strong>{{ class_rows|length }}</strong><small>人 · 搜尋、排序、匯出 Excel</small></a>
+    <a class="work-metric work-metric--link" href="{{ url_for('main.teacher_targets', **class_arg) }}"><span>目標校系</span><strong>{{ target_statistics|length }}</strong><small>所學校 · 已選目標校系 {{ class_rows|selectattr("targets")|list|length }} 人</small></a>
+  </div>
 </section>
 {% elif user.role == "staff" %}
 {# 11-08 改版：首頁只放規格書定的科辦工作（電子獎狀）。11-09 拿掉畢業缺口核對（改由教務處審查、改善後自動結案）。
@@ -104,8 +70,8 @@
   </div>
   {% include "partials/announcement_home.html" %}
 
-  <section class="work-panel" id="staff-certificates" data-tour="對照獎懲記錄，修改內文後核准或退回。" data-tour-order="3">
-    <div class="work-panel__head"><div><h2>待核准電子獎狀</h2><p>學生從學校獎懲記錄申請的科上派服務。按「審核」對照紀錄、修改內文，再核准或退回。</p></div>
+  <section class="work-panel" id="staff-certificates" data-tour="對照獎懲記錄、修改內文；主任或副主任才能核准或退回。" data-tour-order="3">
+    <div class="work-panel__head"><div><h2>待核准電子獎狀</h2><p>學生從學校獎懲記錄申請的科上派服務。按「審核」對照紀錄、修改內文或退回；核准要由主任或副主任按。</p></div>
       <a class="button button--line button--small" href="{{ url_for('certificate.staff_list') }}">全部申請與處理紀錄</a></div>
     <ul class="work-list staff-list">
       {% for cert in staff_certificate_rows %}

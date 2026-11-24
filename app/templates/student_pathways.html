@@ -11,14 +11,14 @@
 <div class="page page--banded pathways">
   <p class="muted mb-1">五專畢業後常見三條路：二技、插大（轉學考）、考統測進四技。先選你現在的狀況，看哪條路現在能走。</p>
 
-  <fieldset class="pathways__status" data-pathway-status>
+  <fieldset class="pathways__status" data-pathway-status data-tour="選擇目前身分，查看各路線的資格。" data-tour-order="1">
     <legend>我現在是</legend>
     {% for value, label in [("y1to3", "五專一到三年級"), ("y4", "五專四年級"), ("y5", "五專五年級"), ("grad", "已畢業"), ("leave", "修滿三年級下學期後，休學或退學滿一年")] %}
     <label class="pathways__chip"><input type="radio" name="pathway-status" value="{{ value }}"{% if value == default_status %} checked{% endif %}> {{ label }}</label>
     {% endfor %}
   </fieldset>
 
-  <div class="pathways__grid" role="list">
+  <div class="pathways__grid" role="list" data-tour="比較升學路線，並點來源查看規定。" data-tour-order="2">
     {% for path in pathways %}
     <article class="pathway-card" role="listitem" data-pathway="{{ path.key }}" data-open="{{ path.open_when | join(' ') }}" data-soon="{{ path.soon_when | join(' ') }}">
       <header class="pathway-card__head">

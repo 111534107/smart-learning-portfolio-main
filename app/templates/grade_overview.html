@@ -14,7 +14,7 @@
   </header>
   <section class="work-panel">
     <p class="small muted mb-1">在學學生 {{ overview.total }} 人{% if overview.unknown_grade %}，其中 {{ overview.unknown_grade }} 人還沒有入學學年度，無法分年級（請管理員在「帳號管理」匯入）{% endif %}。</p>
-    <div class="table-wrap">
+    <div class="table-wrap" data-tour="按年級查看已確認的成績與經歷統計。" data-tour-order="1">
       <table class="data-table" data-grade-overview>
         <thead><tr><th scope="col">年級</th><th scope="col">人數</th><th scope="col">平均成績</th><th scope="col">每人平均及格學分</th><th scope="col">證照（每人）</th><th scope="col">獎項</th><th scope="col">其他經歷</th><th scope="col">已確認上傳檔案</th></tr></thead>
         <tbody>
@@ -33,7 +33,7 @@
         </tbody>
       </table>
     </div>
-    <p class="small muted mt-1">平均成績是所有已確認、有分數的課程平均；獎項是學生經歷裡「競賽」類；其他經歷是活動、服務、幹部。</p>
+    <p class="small muted mt-1" data-tour="核對平均與獎項統計的計算範圍。" data-tour-order="2">平均成績是所有已確認、有分數的課程平均；獎項是學生經歷裡「競賽」類；其他經歷是活動、服務、幹部。</p>
   </section>
 </section>
 {% endblock %}

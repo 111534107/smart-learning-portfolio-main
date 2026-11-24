@@ -58,8 +58,10 @@ def test_student_filters_by_region_and_sees_school_card(app):
     import re
     central = client.get("/student/targets?region=中部").get_data(as_text=True)
     # 2026-11-13 起排行全部送到瀏覽器、不在本區的加 hidden（地圖不換頁切換用）：只看沒隱藏的列
-    shown = re.findall(r'<li data-region="([^"]*)" data-school="([^"]+)">', central)
-    hidden = re.findall(r'<li data-region="([^"]*)" data-school="[^"]+" hidden>', central)
+    # 2026-11-16 B22 起每列多了篩選用的 data-f-* 屬性：只看有沒有 hidden
+    rows = re.findall(r'<li data-region="([^"]*)" data-school="([^"]+)"([^>]*)>', central)
+    shown = [(region, school) for region, school, rest in rows if not rest.endswith(" hidden")]
+    hidden = [region for region, _, rest in rows if rest.endswith(" hidden")]
     assert shown and {region for region, _ in shown} == {"中部"} and hidden and "中部" not in set(hidden)
 
     card = client.get("/student/targets?school=國立臺中科技大學&region=中部").get_data(as_text=True)
@@ -148,7 +150,7 @@ def test_map_fits_canvas_and_region_zoom_has_reset_and_school_list(app):
     north = client.get("/student/targets?region=北部").get_data(as_text=True)
     assert f'viewBox="{directory.region_view_box("北部")}"' in north and "回到全台灣" in north
     assert 'data-map-reset href="/student/targets?track=twotech&amp;major=all#target-explorer-title">' in north  # 放大後顯示
-    shown = re.findall(r'<li class="school-list__item" data-region="([^"]+)">', north)
+    shown = re.findall(r'<li class="school-list__item" data-region="([^"]+)"[^>]*?(?<! hidden)>', north)
     assert shown and set(shown) == {"北部"} and "<span data-list-region>北部</span>的二技學校" in north  # 只顯示北部的學校
 
 

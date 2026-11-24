@@ -267,6 +267,14 @@ def test_one_student_walks_the_whole_main_line(app, fake_ai):
     assert any("資訊週志工" in fact for fact in fact_texts)
     assert "等待導師確認" in text(stu.get(f"/student/targets/{pid}"))
 
+    # 導師先在同一份送審自傳留言，學生看到後再修改並重新送審。
+    teacher, _ = login(app, "e2e_teacher")
+    comment = "測試用導師留言：請補上二技之後的學習方向。"
+    response = teacher.post(f"/teacher/students/{stu_id}/autobiography/{second_id}/comments",
+                            data={"paragraph": 3, "text": comment})
+    assert response.status_code == 302 and "#paragraph-3" in response.location
+    assert comment in text(stu.get(f"/student/autobiography?program_id={pid}"))
+
     # 9. 學生再改自傳（第 3 版），快照與第 2 版內容都不變
     texts[3] = "進二技後想學資料分析與系統設計，之後做系統分析師。"
     response = stu.post(f"/student/autobiography/{second_id}/save",
@@ -278,14 +286,26 @@ def test_one_student_walks_the_whole_main_line(app, fake_ai):
         assert frozen["version"] == 2
         assert frozen["paragraphs"][3]["text"] == ANSWERS["future"]
 
-    # 10. 導師在本班看到這位學生與待確認 1 份，選「內容合理，確認」；學生端看到已確認
-    teacher, _ = login(app, "e2e_teacher")
-    dashboard = text(teacher.get("/teacher/dashboard"))
+    # 10. 導師在本班看到這位學生與待確認 1 份；送審後自傳又改了（第 3 版），不能確認舊的那份
+    #     （2026-11-18 併入組員 46531f2）；學生重新送審第 3 版後，導師選「內容合理，確認」
+    dashboard = text(teacher.get("/teacher/roster"))   # 2026-11-21 工作台拆頁：學生列在「學生名單」頁
     assert "SYN9001" in dashboard and "SYN9002" not in dashboard
-    assert '<span class="tag tag--warn">1 份</span>' in dashboard
+    assert f'href="/teacher/students/{stu_id}#teacher-targets"' in dashboard and "1 份送審</a>" in dashboard   # 連結帶 44px 樣式，不再逐字比對整個標籤
     detail = text(teacher.get(f"/teacher/students/{stu_id}"))
     assert "自傳依據第 2 版（目前第 3 版）" in detail
-    assert "內容合理，確認" in detail
+    assert "送審後自傳又存了新版本" in detail
+    response = teacher.post(f"/teacher/package-reviews/{review_id}",
+                            data={"decision": "confirmed", "comment": "", "taken_at": snapshot["taken_at"]})
+    assert "notice=autobiography_changed" in response.headers["Location"]
+    with app.app_context():
+        assert db.session.get(PackageReview, review_id).status == "pending"
+    assert stu.post(f"/student/targets/{pid}/review").status_code == 302
+    with app.app_context():
+        review = db.session.get(PackageReview, review_id)  # 還在等待確認：更新同一筆的快照
+        snapshot = review.snapshot_json
+        assert snapshot["autobiography"]["version"] == 3
+    detail = text(teacher.get(f"/teacher/students/{stu_id}"))
+    assert "內容合理，確認" in detail and "送審後自傳又存了新版本" not in detail
     assert f'name="taken_at" value="{snapshot["taken_at"]}"' in detail
     response = teacher.post(f"/teacher/package-reviews/{review_id}",
                             data={"decision": "confirmed", "comment": "", "taken_at": snapshot["taken_at"]})
@@ -297,6 +317,20 @@ def test_one_student_walks_the_whole_main_line(app, fake_ai):
         assert review.teacher.username == "e2e_teacher"
         assert review.snapshot_json == snapshot
     assert "導師已確認" in text(stu.get(f"/student/targets/{pid}"))
+
+    # 最終匯出同一位學生已確認的第 3 版。核對 Word 內容和 ZIP 的獨立自傳。
+    package = stu.get(f"/student/targets/{pid}/package.docx")
+    assert package.status_code == 200
+    with zipfile.ZipFile(io.BytesIO(package.data)) as docx:
+        assert texts[3] in docx.read("word/document.xml").decode()
+
+    bundle = stu.get(f"/student/targets/{pid}/package.zip")
+    assert bundle.status_code == 200
+    with zipfile.ZipFile(io.BytesIO(bundle.data)) as archive:
+        essays = [name for name in archive.namelist() if name.endswith("02_自傳_第3版.docx")]
+        assert len(essays) == 1
+        with zipfile.ZipFile(io.BytesIO(archive.read(essays[0]))) as essay:
+            assert texts[3] in essay.read("word/document.xml").decode()
 
     # 11. 另一位學生與非本班導師看不到這位學生的資料
     other, _ = login(app, "e2e_other")
@@ -313,7 +347,7 @@ def test_one_student_walks_the_whole_main_line(app, fake_ai):
     assert stranger.get(f"/teacher/documents/{document_id}/view").status_code == 403
     assert stranger.post(f"/teacher/package-reviews/{review_id}",
                          data={"decision": "needs_revision", "comment": "不該能送"}).status_code == 403
-    assert "SYN9001" not in text(stranger.get("/teacher/dashboard"))
+    assert "SYN9001" not in text(stranger.get("/teacher/dashboard")) and "SYN9001" not in text(stranger.get("/teacher/roster"))
     with app.app_context():
         assert db.session.get(PackageReview, review_id).status == "confirmed"
         assert LearningProfileOutput.query.filter_by(student_id=stu_id).count() == 3

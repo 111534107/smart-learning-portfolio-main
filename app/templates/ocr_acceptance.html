@@ -11,7 +11,7 @@
 <div class="page page--banded acceptance">
   <p class="acceptance__lead">成績單和證照上傳後，系統用本機 OCR 讀出欄位，再由學生對照原圖確認。這頁是 {{ data.date }} 逐欄對照原圖的驗收結果，包含讀錯的地方。</p>
 
-  <section aria-labelledby="acc-summary">
+  <section aria-labelledby="acc-summary" data-tour="先看本次 OCR 驗收的結果摘要。" data-tour-order="1">
     <h2 id="acc-summary">結果摘要</h2>
     <dl class="acceptance__summary">
       {% for item in data.summary %}
@@ -20,7 +20,7 @@
     </dl>
   </section>
 
-  <section aria-labelledby="acc-method">
+  <section aria-labelledby="acc-method" data-tour="查看驗收方式，再往下對照各欄結果。" data-tour-order="2">
     <h2 id="acc-method">怎麼驗收</h2>
     <p>{{ data.samples }}</p>
     <ol>{% for step in data.method %}<li>{{ step }}</li>{% endfor %}</ol>

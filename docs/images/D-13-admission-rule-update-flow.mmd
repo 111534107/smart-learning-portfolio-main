@@ -11,7 +11,7 @@ flowchart TD
     subgraph Stage1[第一階段：手動建立]
         Manual[系統管理者依簡章或整理資料<br/>輸入校系與加權項目]:::admin
     end
-    subgraph Stage23[第二、三階段：每年檢查招生資料（後續擴充）]
+    subgraph Stage23[第二、三階段：每年檢查招生資料]
         Source[管理者設定官方來源<br/>技專校院招生委員會、各校簡章連結<br/>先做資管相關科系]:::admin
         Schedule[排程：每年簡章公告期間定期檢查]:::system
         Detect[系統讀取官方資料並比對內容<br/>每個來源只留最新一份簡章檔]:::ai

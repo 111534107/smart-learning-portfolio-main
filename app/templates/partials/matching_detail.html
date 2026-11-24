@@ -37,13 +37,13 @@
       {% if key == "grades" %}{% set href = url_for("student.learning_profile_upload_page", type="transcript") %}
       {% elif key == "credential" %}{% set href = url_for("student.learning_profile_upload_page", type="credential") %}
       {% elif key == "autobiography" %}{% set href = url_for("student.autobiography", program_id=row.program.id) %}
-      {% elif key == "project" %}{% set href = url_for("student.portfolio_new") %}
+      {% elif key == "project" %}{% set href = url_for("student.portfolio_new", category="project") %}
       {% else %}{% set href = url_for("student.portfolio_new", category=key) %}{% endif %}
       <li>
         {% if loop.first %}<b>先做這個：</b>{% endif %}{{ item.name }}（占 {{ item.weight }}%）
         <span class="muted small">：{% if item.missing %}還缺 {% for k in item.missing %}{{ category_labels.get(k, k) }}{% if not loop.last %}、{% endif %}{% endfor %}{% else %}{{ partial_hint(key, category_labels.get(key, doc_labels.get(key, key))) }}{% endif %}{% for k in item.documents if item.levels[k] < 1 %}；{{ doc_labels.get(k, k) }}還沒完成{% endfor %}</span>
         <span class="small">補滿可加 {{ item.gain }}%</span>
-        <a class="small" href="{{ href }}">去補 →</a>
+        <a class="small" href="{{ href }}" style="min-height: 44px; display: inline-flex; align-items: center;">去補 →</a>
       </li>
       {% endfor %}
     </ol>

@@ -29,7 +29,9 @@ def start(user, next_path):
 
 
 def needs_second_step(user):
-    return user.two_factor_enabled or two_factor.required()
+    if two_factor.demo_site():
+        return False
+    return user.two_factor_enabled or two_factor.required_for(user)
 
 
 def _pending_user():
@@ -109,7 +111,7 @@ def account_page():
         secret = session.get(ACCOUNT_SECRET) or two_factor.new_secret()
         session[ACCOUNT_SECRET] = secret
         context = _setup_context(user, secret)
-    return render_template("two_factor_account.html", user=user, required=two_factor.required(),
+    return render_template("two_factor_account.html", user=user, required=two_factor.required_for(user),
                            remaining=two_factor.remaining_backup_codes(user) if user.two_factor_enabled else 0,
                            error=request.args.get("error"), **context)
 
@@ -146,7 +148,7 @@ def account_backup_codes():
 @role_required("student", "teacher", "staff", "admin")
 def account_disable():
     user = get_current_user()
-    if two_factor.required():
+    if two_factor.required_for(user):
         abort(403)  # 規定要開時不能自己關
     two_factor.reset(user, user, reason="self")
     db.session.commit()

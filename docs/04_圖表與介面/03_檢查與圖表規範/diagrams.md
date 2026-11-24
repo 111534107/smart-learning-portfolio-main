@@ -4,19 +4,6 @@
 > 每張圖的原始碼存放在 `docs/images/` 的 `.mmd` 檔，本文件內容與 `.mmd` 檔一致；PNG／SVG 由 Mermaid CLI 匯出，正式規格書引用 PNG。
 > 流程以正式規格書為準；登入導頁與資料表以目前程式（`app/routes/main.py`、`app/models/`）為準，尚未實作的部分在圖中標示「待新增」或以虛線框表示。
 
-> **2026-10-16 V2 對照更新**：下列圖已依 V2 架構提案修改，待組員與指導老師決議後才定案。虛線框＝待決議（D1～D6）。
-> - 圖 16 系統架構（`D-05-system-architecture`）：MySQL 為業務資料主來源；本機 OCR；去識別化後才送 Gemini；Google Drive 原始附件倉庫、Google 登入列為待決議；Docs、Calendar、Gmail 列為 V2 候選。
-> - 圖 17 DFD（`D-06-dfd`）：新增 OCR、去識別化、Drive 待決議、軟刪除申請（保存政策待決議）。
-> - 圖 6 學生主線（`D-10-main-line-flow`）、圖 19 報告用總體流程（`D-15-report-overview`）：OCR 本機辨識，AI 只整理去識別化後的必要欄位，學生確認前不生效。
-> - 圖 15 角色與責任（`D-14-role-responsibility`）、圖 2 老師使用案例（`D-01-use-case-v2`）、圖 8 導師確認（`D-16-teacher-confirm-flow`）：教師端只畫班導師；2026-10-16 使用者決定拿掉專任教師、指導老師等其他教師關係（含圖 29 教師角色架構、圖 32 權限表、圖 16 系統架構）。
-> - 修改前的原始檔備份在 `01_正式規格/正式報告書/舊版/圖檔_V2修改前/`。
-> - 第二批（同日）：圖 1～4 使用案例（`D-01-use-case-by-role.py`）、圖 7 學校資料匯入、圖 11 招生資料更新（自動檢查列 V2）、圖 18-1～18-3 ERD（上傳原始檔加入儲存位置、Drive 檔案 ID、軟刪除欄位，皆標待決議）、圖 21 甘特圖（改為 V1 時程）、圖 23 上傳流程、圖 25 送審流程、圖 29 教師角色架構、圖 32 權限表、圖 33 學生細部流程、圖 37 版本流程（加入軟刪除待決議）、圖 39 資料確認頁、圖 40 導師審查頁。
-> - 未改（內容與 V2 不衝突）：圖 5、9、10、12、13、14、20、22、24、26～28、30、31、34～36、38、41。
-> - 2026-10-16 晚：D1～D6 經指導老師與組員同意，圖上「待決議 D2、D3」改為「先用個人雲端硬碟測試，尚未實機驗收」；軟刪除保存期限仍標示待學校政策（圖 16、17、11、18-1～18-3、21、23、39）。
-> - V2 版統整簡報：`08_簡報/AI_流程圖大全_V2草稿_2026-10-16.pptx`（原 10-10 版保留）。
-> - **2026-10-28 更正「最多 5 所」**：圖 1 學生使用案例、圖 6 學生主線、圖 12 二技公告改為「選校不限數量、隨時可換；報名時依各管道當年度簡章提醒規定」（依 10-21 指導老師錄音）。正式 Word 與兩份 V2 簡報已換成新圖，另存 `01_正式規格/正式報告書/資管科智慧學習歷程系統_專題報告書_V2_2026-10-28.docx`、`08_簡報/資管科智慧學習歷程系統_流程圖_完整版_V2_2026-10-28.pptx`、`08_簡報/資管科智慧學習歷程系統_流程圖_精簡版_V2_2026-10-28.pptx`（10-16 版保留不動）。
-> - **2026-10-28 依程式更正 OCR 與 AI 的順序、補上校系排行與篩選選項**（對照 `ai-wt-story` 分支 `feat/google-docs-autobiography` 提交 `413d0d3`）：OCR 由本機辨識、系統依規則整理，學生在核對頁（左圖右表、橘色標待確認）確認後，才去識別化交給 AI（升學 Agent、自傳）；未確認的文件 AI 只看得到狀態。改了圖 1、圖 4 使用案例、圖 6 學生主線、圖 16 系統架構、圖 17 DFD（新增 13.0 維護排行篩選選項、D14）、圖 18-2 ERD（新增 `MATCH_FILTER_OPTIONS`）、圖 19、圖 23、圖 33、圖 39；本文件內嵌的圖 6、16、17、18-2、19 與總覽 ERD 原始碼已和 `.mmd` 同步。修改前的檔案備份在 `01_正式規格/正式報告書/舊版/圖檔_2026-10-28校正前/`。主任角色與首頁拼圖仍待確認，沒有畫。
-
 ## 圖表閱讀方式
 
 | 顏色 | 代表 |
@@ -58,7 +45,7 @@
 | 圖 23 | 學生資料上傳、擷取與本人確認流程 | `images/D-26-student-upload-flow.mmd`；待環境可用時輸出 PNG／SVG | — |
 | 圖 24 | 二技目標校系推薦流程 | `images/D-27-target-recommendation-flow.mmd`；待環境可用時輸出 PNG／SVG | — |
 | 圖 25 | 備審送審與導師確認流程 | `images/D-28-review-package-flow.mmd`；待環境可用時輸出 PNG／SVG | — |
-| 圖 26 | 電子獎狀與 TA 證明流程（科學會證明改由學務處，11-09） | `images/D-29-certificate-flow.mmd`；待環境可用時輸出 PNG／SVG | — |
+| 圖 26 | 電子獎狀、TA 與社團證明流程 | `images/D-29-certificate-flow.mmd`；待環境可用時輸出 PNG／SVG | — |
 | 圖 27 | 管理員資料來源維護流程 | `images/D-30-admin-source-flow.mmd`；待環境可用時輸出 PNG／SVG | — |
 | 圖 28 | 學生角色功能架構圖 | `images/D-31-student-role-architecture.mmd` | 依現有 P02～P11 頁面與學生主線 |
 | 圖 29 | 教師／導師角色功能架構圖 | `images/D-32-teacher-role-architecture.mmd` | 依現有 P10、teacher scope 與送審規格 |
@@ -74,13 +61,6 @@
 | 圖 39 | 學生資料確認頁展示架構 | `images/D-42-data-confirmation-wireframe.mmd` | 依學生確認與 AI 來源標籤規格 |
 | 圖 40 | 導師審查頁展示架構 | `images/D-43-teacher-review-wireframe.mmd` | 依 P10 與送審版本規格 |
 | 圖 41 | 管理員維護頁展示架構 | `images/D-44-admin-maintenance-wireframe.mmd` | 依 P12、P20、P29～P31 |
-| 圖 42 | ~~五個 Agent 分工架構圖~~（作廢，改用圖 43；檔案保留對照） | `images/D-45-agent-architecture.*` | 依 `ai-wt-story` 規格 `AI_設計規格_Agent分工規劃_2026-10-22.md` 第四節 |
-| 圖 43 | 升學 Agent 架構圖：一個引擎、多組工具（11/4 簡報用，新增） | `images/D-46-agent-engine-tools.*` | 依 `ai-wt-story` 規格 `AI_設計規格_Agent分工規劃_2026-10-22.md` 第〇節；雲端依 V2 架構提案 |
-| 圖 44 | 總步驟流程圖：管理者準備 → 學生整理 → 科辦獎狀 → 導師確認 → 下載（2026-11-12 新增，回應指導老師「要流程圖不是使用案例圖」） | `images/D-47-overall-step-flow.mmd`／`.png`／`.svg` | 依 `ai-wt-story` 的 `app/routes/`；虛線＝尚未完成 |
-| 圖 45 | 學生步驟流程圖（每一步：哪一頁、做什麼、下一步） | `images/D-48-student-step-flow.mmd`／`.png`／`.svg` | 同上 |
-| 圖 46 | 導師步驟流程圖 | `images/D-49-teacher-step-flow.mmd`／`.png`／`.svg` | 同上 |
-| 圖 47 | 科辦步驟流程圖 | `images/D-50-staff-step-flow.mmd`／`.png`／`.svg` | 同上 |
-| 圖 48 | 系統管理者步驟流程圖 | `images/D-51-admin-step-flow.mmd`／`.png`／`.svg` | 同上 |
 
 ## 圖 1～4：依角色的使用案例圖
 
@@ -118,11 +98,11 @@
 
 | 項目 | 決定 | 影響的圖 |
 | --- | --- | --- |
-| 選校系 | 不限數量、隨時可換（原寫「五年級做備審時最多 5 所」，2026-10-28 依 10-21 指導老師錄音「你不能限制他的選擇」更正）；報名規定改為依各管道簡章提醒；AI 推薦＝規則算符合程度＋AI 寫理由 | 圖 1、圖 5、圖 17 |
+| 選校系 | 一～四年級不限數量、隨時可換；五年級做備審時最多 5 所；AI 推薦＝規則算符合程度＋AI 寫理由 | 圖 1、圖 5、圖 17 |
 | 上傳後 | AI 在學生確認畫面旁註記可能的問題與修改建議，學生本人確認（照 10-07 指導老師錄音） | 圖 1、圖 5、圖 11、圖 13、圖 15 |
 | 導師確認 | 只能確認送審的那一版；確認畫面同時顯示送審版與最新版；老師（導師、專任、指導老師）可加段落註解，學生可回覆 | 圖 2、圖 5、圖 9、圖 13、圖 14 |
 | 二技公告 | AI 代理查資管相關科系、只存文字（每個來源只留最新一份簡章檔）；管理員核對後公告給學生、老師（四、五年級學生）、科辦 | 圖 3、圖 8、圖 12、圖 13、圖 14、圖 17 |
-| 科辦 | 電子獎狀加 TA 證明（社團證明指科學會證明，11-09 科長訪談後改由學務處辦理）；拿掉「登錄送件審查結果」；批次上傳公假、嘉獎不做；表單下載區要有完整流程圖（使用者：功能簡單也要畫） | 圖 1-1、圖 6、圖 11、圖 16 |
+| 科辦 | 電子獎狀加 TA 證明、社團證明；拿掉「登錄送件審查結果」；批次上傳公假、嘉獎不做；表單下載區要有完整流程圖（使用者：功能簡單也要畫） | 圖 1-1、圖 6、圖 11、圖 16 |
 | 移除的圖 | 圖 6 舊版（行政表單數位化與收件）、圖 7（專題共同審查）和定案衝突，搬到封存 | 圖 6、圖 7 |
 | 管理員 | 新增二技公告核對發布、操作紀錄查詢；專題類型與需求模板先隱藏 | 圖 3、圖 11 |
 
@@ -234,7 +214,7 @@ flowchart TD
 ## 圖 6：學生主線流程圖
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables': {'fontSize':'18px','fontFamily':'DFKai-SB, BiauKai, serif','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280','edgeLabelBackground':'#FFFFFF'},'flowchart':{'wrappingWidth':400}}}%%
+%%{init: {'theme':'base','themeVariables': {'fontFamily':'Microsoft JhengHei, Noto Sans TC, Arial, sans-serif','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280','edgeLabelBackground':'#FFFFFF'},'flowchart':{'wrappingWidth':400}}}%%
 flowchart TD
     classDef student fill:#DBEAFE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
     classDef system fill:#E0F2FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
@@ -246,8 +226,8 @@ flowchart TD
 
     Start([學生登入]) --> HasTarget{已選擇目標校系？}
     Start -.- Home[首頁：引導卡片（一次最多 3 張）與二技公告<br/>（公告流程見圖 12）]:::note
-    HasTarget -- 否 --> Recommend[校系排行：依已確認的資料算準備度（建議值，不是錄取保證）<br/>篩選科系、學制、是否可報；橫條／長條切換<br/>點入看已符合與缺少的項目]:::system
-    Recommend --> Choose[學生選擇想去的校系<br/>不限數量、隨時可換<br/>（10-21 指導老師：不能限制學生的選擇）]:::student
+    HasTarget -- 否 --> Recommend[AI 依學生條件推薦資管相關二技校系<br/>規則算符合程度＋AI 寫推薦理由]:::ai
+    Recommend --> Choose[學生選擇想去的校系<br/>一～四年級不限數量、隨時可換<br/>五年級做備審時最多 5 所]:::student
     Choose --> Req
     HasTarget -- 是 --> Req[系統列出該校系需要的<br/>備審資料項目與標準]:::system
     Req --> Download[學生自行登入學校系統<br/>下載或複製成績、獎懲記錄、缺曠、電子證書]:::student
@@ -257,15 +237,15 @@ flowchart TD
     Upload -.- Paste[成績、獎懲、缺曠可以整段貼上表格<br/>缺曠只存合計、只有本人與班導看得到（見圖 7）]:::note
     FileOK -- 否 --> FileErr[顯示錯誤原因，請重新上傳]:::alert
     FileErr --> Upload
-    FileOK -- 是 --> Extract[本機 OCR 辨識文件（原始檔不送外部）<br/>系統依規則整理欄位，這一步不經過 AI<br/>獎懲記錄逐列分類；證照初判；<br/>電子證書讀出驗證碼]:::system
+    FileOK -- 是 --> Extract[AI 辨識文件並判斷格式<br/>獎懲記錄逐列分類；證照初判真偽；<br/>電子證書讀出驗證碼]:::ai
     Extract --> Recognized{辨識成功？}
-    Recognized -- 否 --> Explain[顯示可能的原因<br/>與建議怎麼修正]:::alert
+    Recognized -- 否 --> Explain[AI 說明可能哪裡有問題<br/>與建議怎麼修正]:::alert
     Explain --> Retry{重新上傳？}
     Retry -- 是 --> Upload
     Retry -- 否 --> Manual[學生手動輸入]:::student
-    Recognized -- 是 --> Confirm[學生在核對頁逐項確認與修正<br/>左邊原圖、右邊表格；沒把握的欄位標橘色<br/>（候選結果不會直接生效）]:::student
+    Recognized -- 是 --> Confirm[學生確認與修正<br/>AI 在旁註記可能的問題與修改建議]:::student
     Manual --> Confirm
-    Confirm -.- Note2[一定要學生本人確認後才存入<br/>確認後的資料才去識別化，交給 AI（升學 Agent、自傳）<br/>成績單、證照與競賽證明不經導師審核<br/>競賽證明由主辦方開立，學生自行上傳]:::note
+    Confirm -.- Note2[一定要學生本人確認後才存入<br/>成績單、證照與競賽證明不經導師審核<br/>競賽證明由主辦方開立，學生自行上傳]:::note
     Confirm --> Compare[系統比對校系要求]:::system
     Confirm -.科上派的服務.-> StaffRec[申請電子獎狀 → 科辦核准<br/>產出後列入學生資料（見圖 9）]:::staff
     StaffRec -.-> Compare
@@ -383,8 +363,7 @@ flowchart TD
 
     Start([學生從學校系統下載獎懲記錄並上傳]):::student --> Read[AI 逐列讀出並分類<br/>例如「協助資管科麗山國中社團活動」→服務學習]:::ai
     Read --> Pick[學生勾選科上派的服務<br/>申請電子獎狀]:::student
-    Other([學生申請 TA 證明<br/>系統從獎懲原文帶出課程與學期]):::student --> Draft
-    Club([經歷寫到科學會或社團]):::student --> Remind[系統提醒：科學會（社團）證明由學務處辦理<br/>填學務處表格，社團指導老師與學務處蓋章；科辦不開]:::note
+    Other([學生申請 TA 證明或社團證明<br/>填寫擔任的課程或社團與學期]):::student --> Draft
     Pick --> Draft[系統依範本自動帶入內文<br/>姓名、學號、學年度學期、服務內容、次數或時數]:::system
     Draft --> Review[科辦查看申請<br/>對照獎懲記錄或科辦自己的名單]:::staff
     Review --> Valid{確有這筆服務？}
@@ -392,7 +371,7 @@ flowchart TD
     Return --> Pick
     Valid -- 是 --> Edit[科辦視需要修改內文]:::staff
     Edit --> Approve[科辦按「核准」]:::staff
-    Approve --> Cert[系統產出電子獎狀 PDF<br/>證明類別：科上派的服務、TA（寫課程與學期，不寫時數）<br/>固定外框＋內文＋驗證碼與 QR code]:::system
+    Approve --> Cert[系統產出電子獎狀 PDF<br/>證明類別：科上派的服務、TA、社團<br/>固定外框＋內文＋驗證碼與 QR code]:::system
     Cert --> Student[學生下載；列入學習資料<br/>來源標示「科辦電子獎狀」]:::student
     Cert --> Verify[任何人輸入驗證碼<br/>可在本系統驗證頁查到]:::system
     Student --> Package([產出備審資料、AI 寫自傳時可引用])
@@ -524,7 +503,7 @@ flowchart TD
     Recommend --> Choose[學生自己選，隨時可以換<br/>畫面提醒：只是幫你找方向]:::student
     Choose --> Grade5{五年級開始做備審？}
     Grade5 -- 否 --> Choose
-    Grade5 -- 是 --> Limit[準備報名時顯示各招生管道當年度簡章的規定<br/>（可報幾個志願、各校是否限報一系、期限），附出處<br/>系統不限制想去的學校數量；換學校時提醒自傳要調整]:::student
+    Grade5 -- 是 --> Limit[目標校系同時最多 5 所<br/>換學校時提醒：自傳要重寫]:::student
     Teacher --> Remind[學生首頁出現老師的提醒]:::system
     Staff -.- NotStaff[學生自己漏傳的獎狀<br/>科辦不處理]:::pending
 ```
@@ -607,7 +586,7 @@ flowchart TD
     Student --> S3[看引導卡片與二技公告<br/>選想去的學校、回覆老師的註解<br/>依分類瀏覽學校資訊、下載表單]:::student
     Teacher[老師<br/>導師、專任教師、指導老師]:::teacher --> T1[查看與自己有關的學生資料<br/>收到二技公告並提醒學生]:::teacher
     Teacher --> T2[段落註解、修改自傳<br/>導師確認學生送審的那一版]:::teacher
-    Staff[科辦／科助]:::staff --> F1[審核電子獎狀申請<br/>科上派的服務、TA 證明]:::staff
+    Staff[科辦／科助]:::staff --> F1[審核電子獎狀申請<br/>科上派的服務、TA 證明、社團證明]:::staff
     Staff --> F2[編輯內文後核准<br/>系統產出含驗證碼的電子獎狀]:::staff
     Staff --> F3[收到二技公告與寄送備審日期<br/>管理表單下載區：上架、改版、下架]:::staff
     Staff -.不審備審資料.-> T2
@@ -619,7 +598,7 @@ flowchart TD
 ## 圖 16：系統架構圖
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables': {'fontSize':'18px','fontFamily':'DFKai-SB, BiauKai, serif','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280','edgeLabelBackground':'#FFFFFF'},'flowchart':{'wrappingWidth':400}}}%%
+%%{init: {'theme':'base','themeVariables': {'fontFamily':'Microsoft JhengHei, Noto Sans TC, Arial, sans-serif','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280','edgeLabelBackground':'#FFFFFF'},'flowchart':{'wrappingWidth':400}}}%%
 flowchart LR
     classDef student fill:#DBEAFE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
     classDef teacher fill:#DCFCE7,stroke:#9CA3AF,color:#111827,stroke-width:1px;
@@ -628,12 +607,12 @@ flowchart LR
     classDef db fill:#F3F4F6,stroke:#9CA3AF,color:#111827,stroke-width:1px;
     classDef ai fill:#FFEDD5,stroke:#9CA3AF,color:#111827,stroke-width:1px;
     classDef external fill:#FFFFFF,stroke:#9CA3AF,color:#6B7280,stroke-width:1px,stroke-dasharray:5 3;
-    classDef pending fill:#FFFFFF,stroke:#9CA3AF,color:#6B7280,stroke-width:1px,stroke-dasharray:5 3;
 
     School[學校的學生資訊系統<br/>成績、獎懲、缺曠（本系統不連線）]:::external
+    Campus[資管科官網、資圖中心、教務處行事曆<br/>（只抓管理員登記的頁面）]:::external
     Official[二技招生官方網站與簡章<br/>（只抓管理員登記的來源）]:::external
     Student[學生]:::student
-    Teacher[班導師]:::teacher
+    Teacher[老師]:::teacher
     Staff[科辦／科助]:::admin
     Admin[系統管理者（開發者）]:::admin
 
@@ -644,23 +623,19 @@ flowchart LR
     Admin --> UI
 
     UI[瀏覽器前端<br/>HTML／CSS／少量原生 JavaScript]:::backend
-    UI --> App[Flask 後端（總指揮）<br/>登入與權限、業務規則、服務調度、<br/>Evidence 組裝、送審快照、稽核]:::backend
-    App --> DB[(MySQL 8.0 業務資料主來源<br/>帳號、學習資料、證據、自傳、送審快照、<br/>檔案索引與狀態、公告、資料來源、操作紀錄)]:::db
-    App --> OCR[本機 OCR<br/>圖片 → 候選文字與欄位（規則整理）<br/>學生在核對頁確認前不送 AI]:::backend
-    OCR -. 學生確認後 .-> Dewash[去識別化<br/>移除身分證字號、學號、姓名、證號等]:::backend
-    Dewash -. 只傳送必要欄位 .-> Gemini[Google Gemini API（選用）<br/>升學 Agent、自傳建議<br/>只收學生確認過、去識別化的資料<br/>不讀取雲端檔案、不做資格判定]:::ai
-    App -. 招生簡章擷取與分類（管理員登記來源） .-> Official
-
-    App -. 原始附件（先用個人雲端硬碟測試，尚未實機驗收）.-> Drive[(Google Drive<br/>原始附件倉庫<br/>檔案 ID 與權限由後端控管)]:::pending
-    App -. 登入（已決議採用，尚未實機驗收）.-> GLogin[Google 登入]:::pending
-    App -. Docs、Calendar、Gmail（V2 候選，未採用）.-> Svc[成熟服務候選<br/>不因列在架構圖即視為已整合]:::pending
-    App --> Doc[Word 備審資料<br/>（只收已確認資料與送審版本）]:::backend
+    UI --> App[Flask 後端<br/>登入與權限、檔案上傳、資料整理、<br/>成績貼上解析、缺件比對、畢業學分檢查、<br/>備審資料產出、二技公告與提醒、<br/>資料分類、資料來源維護、表單下載區、操作紀錄]:::backend
+    App --> DB[(MySQL 8.0<br/>帳號、學習資料、缺曠合計、校系備審要求、<br/>公告、資料來源與分類、表單、確認與註解、操作紀錄)]:::db
+    App --> Files[(上傳檔案儲存區)]:::db
+    App -. 推薦校系理由、文件辨識與註記、證照初判、<br/>自傳小幫手、限定範圍的提問、招生資料擷取與資料分類<br/>（缺曠資料不送給 AI） .-> Gemini[Google Gemini API]:::ai
+    App -. AI 代理下載簡章（每個來源只留最新一份） .-> Official
+    App -. AI 代理定期檢查、只存文字與連結 .-> Campus
+    App --> Doc[Word 備審資料<br/>（可列印）]:::backend
 ```
 
 ## 圖 17：DFD 資料流程圖
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables': {'fontSize':'18px','fontFamily':'DFKai-SB, BiauKai, serif','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280','edgeLabelBackground':'#FFFFFF'},'flowchart':{'wrappingWidth':400}}}%%
+%%{init: {'theme':'base','themeVariables': {'fontFamily':'Microsoft JhengHei, Noto Sans TC, Arial, sans-serif','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280','edgeLabelBackground':'#FFFFFF'},'flowchart':{'wrappingWidth':400}}}%%
 flowchart TD
     classDef student fill:#DBEAFE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
     classDef teacher fill:#DCFCE7,stroke:#9CA3AF,color:#111827,stroke-width:1px;
@@ -673,28 +648,21 @@ flowchart TD
 
     Admin[系統管理者]:::admin --> P6[6.0 維護校系備審要求]:::system
     P6 --> D1[(D1 校系備審要求)]:::store
-    D1 --> P1[1.0 校系排行與選擇目標校系<br/>準備度建議值、篩選、已符合與缺少]:::system
+    D1 --> P1[1.0 選擇目標校系]:::system
     Student[學生]:::student --> P1
     P1 --> D2[(D2 學生目標校系)]:::store
     Student --> P2[2.0 上傳與確認學習資料]:::system
-    P2 --> OCR[本機 OCR 辨識<br/>原始檔不送外部服務]:::system
-    P2 --> D3[(D3 原始附件索引<br/>檔案 ID、類別、狀態)]:::store
-    P2 -.-> Drive[(Google Drive 原始附件倉庫<br/>先用個人雲端硬碟測試（尚未實機驗收）)]:::pending
-    OCR --> D3b[(D3b 候選辨識結果<br/>學生確認前不生效、不送 AI)]:::store
-    D3b --> P2
-    P2 --> D4[(D4 學生確認後的學習證據)]:::store
-    D4 --> P2a[2.1 去識別化<br/>只處理學生確認後的資料<br/>移除身分證字號、學號、姓名、證號]:::system
-    P2a -. 只傳送必要欄位 .-> AI[Gemini API（選用）<br/>升學 Agent、自傳建議<br/>不讀取雲端檔案]:::ai
-    Admin --> P13[13.0 維護排行篩選選項<br/>科系、學制、是否可報]:::system
-    P13 --> D14[(D14 排行篩選選項)]:::store
-    D14 --> P1
+    P2 <-. 辨識、證照初判與修改建議註記 .-> AI[AI 輔助服務]:::ai
+    P1 <-. 推薦校系 .-> AI
+    P2 --> D3[(D3 原始檔與辨識結果)]:::store
+    P2 --> D4[(D4 成績、證照、活動等學習紀錄)]:::store
     D2 --> P3[3.0 缺件比對]:::system
     D4 --> P3
     D1 -.-> P3
     P3 --> Gap[缺件清單回饋給學生]:::alert
-    D4 --> P4[4.0 送審與導師確認]:::system
-    Teacher[班導師（V1 僅班導）]:::teacher --> P4
-    P4 --> D5[(D5 送審快照與段落註解<br/>送審後不因草稿修改而改變)]:::store
+    D4 --> P4[4.0 老師確認與段落註解]:::system
+    Teacher[老師]:::teacher --> P4
+    P4 --> D5[(D5 確認紀錄與段落註解)]:::store
     D5 --> P5[5.0 產出備審資料]:::system
     D4 --> P5
     P5 --> D6[(D6 備審資料檔)]:::store
@@ -707,14 +675,12 @@ flowchart TD
     P8 <-. 擷取招生資料 .-> AI
     P8 --> D1
     P8 --> D8[(D8 公告與已讀紀錄)]:::store
+    D8 --> Notice[學生、老師、科辦看到公告]:::system
     Student --> P9[9.0 貼上匯入成績、獎懲、缺曠]:::system
     P9 --> D4
     P9 --> D9[(D9 缺曠合計<br/>只有學生與班導可讀)]:::store
-    D9 -. 學生勾選並確認後才放入 .-> P5
+    D9 -. 學生勾選並確認後才放 .-> P5
     D9 -.- NoAI[缺曠資料不送給 AI]:::pending
-    Student --> Del[9.1 刪除申請<br/>標記為軟刪除，不立即清除]:::pending
-    Del -.- DelPolicy[保存期限與永久清理<br/>待學校政策決議（與現行「不提供實體刪除」規則衝突）]:::pending
-    Del -.-> D3
     D4 --> P10[10.0 畢業學分檢查]:::system
     D10[(D10 課程規則與修業科目表)]:::store --> P10
     P10 --> Credit[已取得與還差的學分<br/>（僅供參考）]:::alert
@@ -933,14 +899,6 @@ erDiagram
         string key_kind "school own"
         int count
     }
-    MATCH_FILTER_OPTIONS["MATCH_FILTER_OPTIONS 校系排行篩選選項　　　"] {
-        int id PK
-        string category "department level eligible region"
-        string label "顯示名稱"
-        string value
-        int sort_order
-        bool is_active "停用不刪除"
-    }
 ```
 
 ### 圖 18-3：資料來源、公告、表單與操作紀錄
@@ -1120,10 +1078,6 @@ erDiagram
         string document_type "成績單 證照 獎懲記錄等"
         string file_path
         string status
-        string storage_backend "local；drive（個人雲端硬碟測試中）"
-        string drive_file_id "Google Drive 檔案 ID"
-        string lifecycle_status "active soft_deleted（保存期限待學校政策）"
-        datetime deleted_at "軟刪除時間"
     }
     DOCUMENT_EXTRACTIONS["DOCUMENT_EXTRACTIONS 辨識結果　　　"] {
         int id PK
@@ -1330,14 +1284,6 @@ erDiagram
         int uploaded_by FK
         datetime uploaded_at
     }
-    MATCH_FILTER_OPTIONS["MATCH_FILTER_OPTIONS 校系排行篩選選項　　　"] {
-        int id PK
-        string category "department level eligible region"
-        string label "顯示名稱"
-        string value
-        int sort_order
-        bool is_active "停用不刪除"
-    }
     AUDIT_LOGS["AUDIT_LOGS 操作紀錄　　　"] {
         int id PK
         int user_id FK
@@ -1352,7 +1298,7 @@ erDiagram
 ## 圖 19：報告用總體流程圖
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables': {'fontSize':'18px','fontFamily':'DFKai-SB, BiauKai, serif','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280','edgeLabelBackground':'#FFFFFF'},'flowchart':{'wrappingWidth':400}}}%%
+%%{init: {'theme':'base','themeVariables': {'fontFamily':'Microsoft JhengHei, Noto Sans TC, Arial, sans-serif','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280','edgeLabelBackground':'#FFFFFF'},'flowchart':{'wrappingWidth':400}}}%%
 flowchart LR
     classDef student fill:#DBEAFE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
     classDef system fill:#F3F4F6,stroke:#9CA3AF,color:#111827,stroke-width:1px;
@@ -1361,15 +1307,15 @@ flowchart LR
     classDef ai fill:#FFEDD5,stroke:#9CA3AF,color:#111827,stroke-width:1px;
 
     Notice[二技公告<br/>管理員核對後發布]:::system --> Recommend
-    Recommend[校系排行<br/>準備度建議值、篩選、已符合與缺少]:::system --> Target[學生選擇目標校系]:::student
+    Recommend[AI 推薦校系]:::ai --> Target[學生選擇目標校系]:::student
     Target --> Upload[上傳六類資料<br/>成績、獎懲、缺曠可貼上匯入]:::student
-    Upload --> Check[本機 OCR → 系統整理欄位<br/>核對頁左圖右表；學生確認才生效]:::system
-    Check --> Confirm[學生確認並補齊資料<br/>確認後才去識別化交給 AI]:::student
+    Upload --> Check[AI 辨識並註記修改建議<br/>證照初判]:::ai
+    Check --> Confirm[學生確認並補齊資料]:::student
     Confirm -.科上派的服務.-> Staff[科辦核准<br/>電子獎狀]:::staff
     Staff -.-> Core
     Confirm --> Core[系統比對缺件]:::system
     Core --> Teacher
-    Teacher[班導師確認送審版本（V1 僅班導）<br/>可加段落註解]:::teacher
+    Teacher[導師確認送審版本<br/>老師可加段落註解]:::teacher
     Teacher --> Output[產出完整備審資料]:::system
 ```
 

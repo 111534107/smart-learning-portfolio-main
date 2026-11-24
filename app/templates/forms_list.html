@@ -22,7 +22,7 @@
   {{ page_band("表單下載") }}
   <p class="muted">科辦上架的表單都在這裡，下載的一定是最新版。只列出開放給{{ "學生" if user.role == "student" else "老師" }}的表單。</p>
 
-  <form class="forms-search" method="get" role="search">
+  <form class="forms-search" method="get" role="search" data-tour="輸入名稱或用途，搜尋需要的表單。" data-tour-order="1">
     <label class="field"><span class="field__label">找表單</span><input type="search" name="q" value="{{ q }}" placeholder="例如：請假、實習"></label>
     <button class="button button--small" type="submit">搜尋</button>
     {% if q %}<a class="button button--small button--line" href="{{ url_for('forms.form_list') }}">清除</a>{% endif %}
@@ -30,7 +30,7 @@
 
   {% if groups %}
     {% for category, items in groups %}
-    <details class="forms-group" open>
+    <details class="forms-group" open{% if loop.first %} data-tour="展開分類後，下載需要的最新版表單。" data-tour-order="2"{% endif %}>
       <summary>{{ category.name }} <span class="muted">（{{ items|length }}）</span></summary>
       <ul>
         {% for item in items %}

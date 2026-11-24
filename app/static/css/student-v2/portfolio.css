@@ -189,3 +189,8 @@
 [data-ui="student-v2"] .pf-card.is-just-added { animation: pf-just-added 1.8s ease 2; outline: 3px solid var(--ok); outline-offset: 3px; border-radius: var(--radius); scroll-margin-top: 6rem; }
 @keyframes pf-just-added { 0%, 100% { box-shadow: 0 0 0 0 rgb(31 138 122 / 0%); } 40% { box-shadow: 0 0 0 10px rgb(31 138 122 / 28%); } }
 @media (prefers-reduced-motion: reduce) { [data-ui="student-v2"] .pf-card.is-just-added { animation: none; } }
+
+/* mobile-sweep additional targets */
+@media (max-width: 767px) {
+  [data-ui="student-v2"] .pf-cat { min-height: 44px; }
+}

@@ -13,7 +13,7 @@
   <p class="help__lead">點問題看答案。找不到的話，右下角可以問小助手。</p>
 
   <div class="help-v2__tools">
-    <label class="help-v2__search">
+    <label class="help-v2__search" data-tour="輸入關鍵字，搜尋想了解的操作。" data-tour-order="1">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
       <input type="search" id="help-q" placeholder="搜尋：上傳、自傳、確認…" aria-label="搜尋操作說明" autocomplete="off">
     </label>
@@ -42,7 +42,7 @@
   </section>
   {% endif %}
 
-  <div class="help-v2__faq" data-help-faq>
+  <div class="help-v2__faq" data-help-faq data-tour="點問題展開答案，再前往操作頁面。" data-tour-order="2">
   {% for section in sections %}
   <section class="help__section" aria-labelledby="help-{{ loop.index }}" data-help-section>
     <h2 id="help-{{ loop.index }}">{{ section.title }}</h2>
@@ -50,6 +50,7 @@
     <details class="help__item" data-help-item>
       <summary><span class="help-v2__q">{{ item.q }}</span></summary>
       <p class="help__answer">{{ item.a }}</p>
+      {% if item.gif %}<img src="{{ url_for('static', filename='img/howto/' ~ item.gif) }}" alt="{{ item.gif_alt }}" loading="lazy" style="display:block;max-width:100%;height:auto">{% endif %}
       <a class="button button--small button--line" href="{{ url_for(item.link) }}">{{ item.label }} →</a>
     </details>
     {% endfor %}

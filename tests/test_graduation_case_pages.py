@@ -117,7 +117,7 @@ def test_transfer_credit_save_triggers_sync(tmp_path):
         assert GraduationCase.query.filter_by(item="certificates", case_type="gap").count() == 1
 
 
-def test_teacher_confirm_transfer_triggers_sync(tmp_path):
+def test_staff_confirm_transfer_triggers_sync(tmp_path):
     app = pages_app(tmp_path)
     as_user(app, "stu").post("/student/transfer-credit", data={"status": "completed"})
     with app.app_context():
@@ -126,7 +126,7 @@ def test_teacher_confirm_transfer_triggers_sync(tmp_path):
         GraduationCaseEvent.query.delete()
         GraduationCase.query.delete()
         db.session.commit()
-    response = as_user(app, "tea").post(f"/teacher/students/{student_id}/transfer-credit/confirm",
+    response = as_user(app, "sta").post(f"/staff/transfer-students/{student_id}/confirm",
                                         data={"confirmed": "1"})
     assert response.status_code == 302
     with app.app_context():
@@ -299,7 +299,7 @@ def test_transfer_save_survives_sync_failure(tmp_path, monkeypatch):
     with app.app_context():
         assert TransferCreditRecord.query.one().status == "submitted"
         student_id = User.query.filter_by(username="stu").one().id
-    response = as_user(app, "tea").post(f"/teacher/students/{student_id}/transfer-credit/confirm",
+    response = as_user(app, "sta").post(f"/staff/transfer-students/{student_id}/confirm",
                                         data={"confirmed": "1"})
     assert response.status_code == 302
     with app.app_context():

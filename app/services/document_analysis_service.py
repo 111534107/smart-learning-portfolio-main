@@ -863,6 +863,12 @@ def _analyze_image_with_ocr(document_type, file_path):
     return parsed
 
 
+def require_real_provider(config):
+    """拒絕在要求真實辨識的展示站產生模擬草稿。"""
+    if config.get("REQUIRE_REAL_DOCUMENT_OCR") and config["DOCUMENT_ANALYSIS_PROVIDER"] != "rapidocr":
+        raise RuntimeError("本機證照與成績單辨識暫時未啟用。請聯絡管理員啟用 RapidOCR 後重試。")
+
+
 def analyze_document(document_type, file_path, provider_name="fake", ocr_engine=None):
     if document_type not in ALLOWED_DOCUMENT_TYPES:
         raise ValueError("unsupported document type")

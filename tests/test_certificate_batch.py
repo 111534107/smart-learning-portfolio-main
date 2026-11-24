@@ -181,3 +181,12 @@ def test_single_certificate_page_still_works(tmp_path):
         cert_id, code = cert.id, cert.verify_code
     page = client_for(app, "stu").get(f"/certificates/{cert_id}").get_data(as_text=True)
     assert code in page and page.count('class="sheet"') == 1
+
+def test_batch_certificate_tour_describes_preview_and_confirmation(tmp_path):
+    app = cert_app(tmp_path)
+    client = client_for(app, 'staff')
+    page = client.get(URL).get_data(as_text=True)
+    assert 'data-tour="貼上名單或上傳 CSV，填好獎狀標題。"' in page
+    assert 'data-tour="先預覽名單，核對錯誤再建立獎狀。"' in page
+    preview = post(app).get_data(as_text=True)
+    assert 'data-tour="核對可建立的名單，確認後才建立。"' in preview

@@ -1,0 +1,440 @@
+[data-page="student-portfolio-view"] {
+  --pv-paper: #fff;
+  --pv-ink: #111;
+  --pv-ground: #dedede;
+}
+
+[data-page="student-portfolio-view"] main#main-content {
+  width: 100%;
+}
+
+[data-page="student-portfolio-view"] .pv-shell {
+  width: min(100%, 980px);
+  margin: 0 auto;
+  padding: var(--space-4);
+}
+
+[data-page="student-portfolio-view"] .pv-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-2);
+}
+
+[data-page="student-portfolio-view"] .pv-toolbar__back {
+  display: inline-flex;
+  align-items: center;
+  color: var(--ink);
+  font-size: var(--fs-base);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+[data-page="student-portfolio-view"] .pv-toolbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+[data-page="student-portfolio-view"] .pv-hint {
+  margin: 0 0 var(--space-3);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+
+[data-page="student-portfolio-view"] .pv-pages {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-5);
+  padding: var(--space-4);
+  background: var(--pv-ground);
+}
+
+[data-page="student-portfolio-view"] .pv-paper {
+  position: relative;
+  container-type: inline-size;
+  width: min(210mm, 100%);
+  min-height: 297mm;
+  padding: 20mm;
+  overflow-wrap: anywhere;
+  color: var(--pv-ink);
+  background: var(--pv-paper);
+  box-shadow: 0 3px 14px rgb(0 0 0 / 18%);
+  font-family: "DFKai-SB", "BiauKai", "標楷體", "KaiTi", serif;
+  font-size: 12pt;
+  line-height: 1.7;
+}
+
+[data-page="student-portfolio-view"] .pv-paper__title {
+  margin: 0 0 14mm;
+  padding-bottom: 5mm;
+  border-bottom: 1.2pt solid var(--accent);
+  color: var(--pv-ink);
+  font-family: inherit;
+  font-size: 20pt;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+[data-page="student-portfolio-view"] .pv-cover {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  text-align: center;
+}
+
+[data-page="student-portfolio-view"] .pv-cover__year {
+  font-size: 18pt;
+}
+
+[data-page="student-portfolio-view"] .pv-cover__school h1,
+[data-page="student-portfolio-view"] .pv-cover__school p {
+  margin: 0;
+  font-size: 24pt;
+  font-weight: 700;
+  line-height: 1.8;
+}
+
+[data-page="student-portfolio-view"] .pv-cover__title {
+  margin: 0;
+  color: var(--pv-ink);
+  font-size: 36pt;
+  font-weight: 700;
+  letter-spacing: .18em;
+}
+
+[data-page="student-portfolio-view"] .pv-cover__applicant {
+  font-size: 16pt;
+}
+
+[data-page="student-portfolio-view"] .pv-toc__list,
+[data-page="student-portfolio-view"] .pv-courses ul,
+[data-page="student-portfolio-view"] .pv-outcomes ul,
+[data-page="student-portfolio-view"] .pv-resume__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-page="student-portfolio-view"] .pv-toc__list li + li {
+  margin-top: 7mm;
+}
+
+[data-page="student-portfolio-view"] .pv-toc__link {
+  display: flex;
+  align-items: baseline;
+  gap: 3mm;
+  color: inherit;
+  text-decoration: none;
+}
+
+[data-page="student-portfolio-view"] .pv-toc__chapter {
+  flex: 0 0 auto;
+}
+
+[data-page="student-portfolio-view"] .pv-toc__chapter small {
+  margin-left: 2mm;
+  font-size: 9pt;
+}
+
+[data-page="student-portfolio-view"] .pv-toc__leader {
+  flex: 1;
+  min-width: 4mm;
+  border-bottom: 1pt dotted currentColor;
+}
+
+[data-page="student-portfolio-view"] .pv-toc__page {
+  flex: 0 0 auto;
+}
+
+[data-page="student-portfolio-view"] .pv-toc__note {
+  margin-top: 12mm;
+  font-size: 9pt;
+}
+
+[data-page="student-portfolio-view"] .pv-journey__year {
+  margin: 0 0 10mm;
+  padding-left: 4mm;
+  border-left: 3pt solid var(--accent);
+  font-size: 24pt;
+}
+
+[data-page="student-portfolio-view"] .pv-journey__columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 10mm minmax(0, 1fr);
+  align-items: start;
+  gap: 3mm;
+}
+
+[data-page="student-portfolio-view"] .pv-courses h3,
+[data-page="student-portfolio-view"] .pv-outcomes h3 {
+  margin: 0 0 6mm;
+  padding-bottom: 2mm;
+  border-bottom: 1pt solid var(--accent);
+  font-size: 14pt;
+}
+
+[data-page="student-portfolio-view"] .pv-courses li {
+  display: flex;
+  align-items: baseline;
+  gap: 2mm;
+  margin-bottom: 6mm;
+}
+
+[data-page="student-portfolio-view"] .pv-course__leader {
+  flex: 1;
+  min-width: 2mm;
+  border-bottom: 1pt dotted #555;
+}
+
+[data-page="student-portfolio-view"] .pv-courses li b {
+  min-width: 10mm;
+  text-align: right;
+}
+
+[data-page="student-portfolio-view"] .pv-outcomes li {
+  margin-bottom: 6mm;
+}
+
+[data-page="student-portfolio-view"] .pv-outcomes li b,
+[data-page="student-portfolio-view"] .pv-outcomes li small {
+  display: block;
+}
+
+[data-page="student-portfolio-view"] .pv-outcomes li small,
+[data-page="student-portfolio-view"] .pv-resume__main small {
+  margin-top: 1mm;
+  color: #444;
+  font-size: 9pt;
+  line-height: 1.5;
+}
+
+[data-page="student-portfolio-view"] .pv-kind {
+  display: inline-block;
+  margin-bottom: 1mm;
+  padding: 0 2mm;
+  border: .7pt solid var(--accent);
+  color: var(--accent);
+  font-size: 9pt;
+}
+
+[data-page="student-portfolio-view"] .pv-journey__arrow {
+  align-self: center;
+  color: var(--accent);
+  font-size: 22pt;
+  text-align: center;
+}
+
+[data-page="student-portfolio-view"] .pv-paragraph {
+  margin: 0 0 8mm;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+[data-page="student-portfolio-view"] .pv-paragraph h2 {
+  margin: 0 0 3mm;
+  font-size: 16pt;
+  font-weight: 700;
+}
+
+[data-page="student-portfolio-view"] .pv-paragraph p {
+  margin: 0;
+  font-size: 12pt;
+  line-height: 1.8;
+  text-indent: 2em;
+  white-space: pre-line;
+}
+
+[data-page="student-portfolio-view"] .pv-resume__list li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8mm;
+  padding: 5mm 0;
+  border-bottom: .7pt solid #bbb;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+[data-page="student-portfolio-view"] .pv-resume__main {
+  min-width: 0;
+}
+
+[data-page="student-portfolio-view"] .pv-resume__main b,
+[data-page="student-portfolio-view"] .pv-resume__main small {
+  display: block;
+}
+
+[data-page="student-portfolio-view"] .pv-resume__label {
+  flex: 0 0 auto;
+  color: #444;
+  text-align: right;
+}
+
+[data-page="student-portfolio-view"] .pv-empty {
+  color: #444;
+}
+
+[data-page="student-portfolio-view"] .pv-guidance {
+  margin-top: 45mm;
+  text-align: center;
+  font-size: 16pt;
+}
+
+[data-page="student-portfolio-view"] .pv-page-number {
+  position: absolute;
+  right: 20mm;
+  bottom: 10mm;
+  left: 20mm;
+  color: #333;
+  font-size: 10pt;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  [data-page="student-portfolio-view"] .pv-shell {
+    padding: var(--space-2);
+  }
+
+  [data-page="student-portfolio-view"] .pv-toolbar__actions {
+    width: 100%;
+  }
+
+  [data-page="student-portfolio-view"] .pv-toolbar .button,
+  [data-page="student-portfolio-view"] .pv-toolbar__back {
+    min-height: 44px;
+  }
+
+  [data-page="student-portfolio-view"] .pv-pages {
+    container-type: inline-size;
+    gap: var(--space-3);
+    padding: var(--space-2);
+  }
+
+  [data-page="student-portfolio-view"] .pv-paper {
+    width: min(210mm, 100%);
+    min-height: 141.43cqw;
+    padding: 9.52cqw;
+    font-size: 2cqw;
+  }
+
+  [data-page="student-portfolio-view"] .pv-paper__title {
+    margin-bottom: 6.67cqw;
+    padding-bottom: 2.38cqw;
+    font-size: 3.33cqw;
+  }
+
+  [data-page="student-portfolio-view"] .pv-cover__year { font-size: 3cqw; }
+  [data-page="student-portfolio-view"] .pv-cover__school h1,
+  [data-page="student-portfolio-view"] .pv-cover__school p { font-size: 3.8cqw; }
+  [data-page="student-portfolio-view"] .pv-cover__title { font-size: 5.7cqw; }
+  [data-page="student-portfolio-view"] .pv-cover__applicant { font-size: 2.6cqw; }
+  [data-page="student-portfolio-view"] .pv-toc__list li + li { margin-top: 3.33cqw; }
+  [data-page="student-portfolio-view"] .pv-toc__chapter small,
+  [data-page="student-portfolio-view"] .pv-toc__note,
+  [data-page="student-portfolio-view"] .pv-outcomes li small,
+  [data-page="student-portfolio-view"] .pv-resume__main small { font-size: 1.8cqw; }
+  [data-page="student-portfolio-view"] .pv-journey__year { margin-bottom: 4.76cqw; font-size: 4cqw; }
+  [data-page="student-portfolio-view"] .pv-journey__columns { grid-template-columns: minmax(0, 1fr) 6cqw minmax(0, 1fr); gap: 1.4cqw; }
+  [data-page="student-portfolio-view"] .pv-courses h3,
+  [data-page="student-portfolio-view"] .pv-outcomes h3 { margin-bottom: 2.86cqw; font-size: 2.5cqw; }
+  [data-page="student-portfolio-view"] .pv-courses li,
+  [data-page="student-portfolio-view"] .pv-outcomes li { margin-bottom: 2.86cqw; }
+  [data-page="student-portfolio-view"] .pv-kind { font-size: 1.8cqw; }
+  [data-page="student-portfolio-view"] .pv-journey__arrow { font-size: 4cqw; }
+  [data-page="student-portfolio-view"] .pv-paragraph { margin-bottom: 3.8cqw; }
+  [data-page="student-portfolio-view"] .pv-paragraph h2 { margin-bottom: 1.43cqw; font-size: 2.8cqw; }
+  [data-page="student-portfolio-view"] .pv-paragraph p { font-size: 2.1cqw; }
+  [data-page="student-portfolio-view"] .pv-resume__list li { gap: 3.8cqw; padding: 2.38cqw 0; }
+  [data-page="student-portfolio-view"] .pv-guidance { margin-top: 21.43cqw; font-size: 2.8cqw; }
+  [data-page="student-portfolio-view"] .pv-page-number { right: 9.52cqw; bottom: 4.76cqw; left: 9.52cqw; font-size: 1.8cqw; }
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  html,
+  body {
+    width: 210mm;
+    margin: 0 !important;
+    background: #fff !important;
+    color: #000 !important;
+    scroll-behavior: auto !important;
+  }
+
+  [data-page="student-portfolio-view"] .masthead,
+  [data-page="student-portfolio-view"] .skip-link,
+  [data-page="student-portfolio-view"] .footer,
+  [data-page="student-portfolio-view"] .pv-toolbar,
+  [data-page="student-portfolio-view"] .pv-hint,
+  [data-page="student-portfolio-view"] .flash-stack,
+  [data-page="student-portfolio-view"] .student-search-dialog,
+  [data-page="student-portfolio-view"] .egg-credits-dialog,
+  [data-page="student-portfolio-view"] [data-assistant],
+  [data-page="student-portfolio-view"] .assistant,
+  [data-page="student-portfolio-view"] .assistant-launcher,
+  [data-page="student-portfolio-view"] .bg-squares {
+    display: none !important;
+  }
+
+  [data-page="student-portfolio-view"] main#main-content,
+  [data-page="student-portfolio-view"] .pv-shell,
+  [data-page="student-portfolio-view"] .pv-pages {
+    display: block;
+    width: 210mm;
+    margin: 0;
+    padding: 0;
+    background: #fff;
+  }
+
+  [data-page="student-portfolio-view"] .pv-paper {
+    width: 210mm;
+    min-height: 297mm;
+    height: 297mm;
+    margin: 0;
+    padding: 20mm;
+    box-shadow: none;
+    color: #000;
+    background: #fff;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  [data-page="student-portfolio-view"] .pv-paper:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto !important;
+  }
+
+  [data-page="student-portfolio-view"] *,
+  [data-page="student-portfolio-view"] *::before,
+  [data-page="student-portfolio-view"] *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (max-width: 1099.98px) {
+  [data-page="student-portfolio-view"] .pv-toc__link {
+    min-height: 44px;
+    align-items: center;
+  }
+}
+
+html[data-theme="dark"] [data-page="student-portfolio-view"] .pv-paper {
+  background: #ffffff !important;
+}
+html[data-theme="dark"] [data-page="student-portfolio-view"] .pv-paper :is(h1, h2, h3, h4, p, span, small, b, strong, a, li, td, th, div) {
+  color: #111111 !important;
+}

@@ -146,3 +146,20 @@
 }
 
 [data-theme="campus"] .vessel.is-filled::after { display: none; }
+
+/* 校園主題深色模式：覆寫淺色變數，確保卡片文字對比度高於 4.5:1 */
+html[data-theme="dark"] [data-theme="campus"],
+html[data-theme="dark"][data-theme="campus"] {
+  --paper: #1f1b17;
+  --paper-deep: #171411;
+  --sheet: #28231e;
+  --line: #3d362e;
+  --ink: #ece3d6;
+  --ink-soft: #b9ad9d;
+  --muted: #b9ad9d;
+}
+html[data-theme="dark"] [data-theme="campus"] :is(.work-panel, .teacher-queue-col, .teacher-paper-col > div),
+html[data-theme="dark"][data-theme="campus"] :is(.work-panel, .teacher-queue-col, .teacher-paper-col > div) {
+  color: var(--ink);
+}
+

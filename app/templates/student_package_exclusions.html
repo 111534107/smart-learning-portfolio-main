@@ -10,7 +10,7 @@
 {% set crumbs = [("備審資料", url_for('student.target_gap', program_id=back_program.id))] if back_program else [] %}
 {{ page_band("選擇放進備審的資料", crumbs) }}
 <div class="page page--banded">
-  <section class="sheet mb-1">
+  <section class="sheet mb-1" data-tour="先看排除資料的影響與必備資料例外。" data-tour-order="1">
     <p>每一筆成績、證照、經歷都可以選擇<b>不放進備審</b>。不放的資料不會出現在自傳小助手的資料、備審 Word，也不算進準備度；資料本身不會刪除，隨時可以放回來。</p>
     <p class="small muted">例外：{{ reason }}的資料不能拿掉（例如校系把成績列入評分時，歷年成績單一定要附）。
       {% if not targets %}你還沒選目標校系，選了之後這裡會標出哪些資料是必備的。{% endif %}</p>
@@ -19,7 +19,7 @@
   {% if request.args.get("saved") %}<p class="notice mb-1" role="status">已更新。</p>{% endif %}
 
   {% for group in groups %}
-  <section class="record-group" aria-labelledby="exclusion-{{ group.kind }}">
+  <section class="record-group" aria-labelledby="exclusion-{{ group.kind }}" data-tour="依資料狀態選擇不放進備審或放回。" data-tour-order="2">
     <div class="record-group__head"><h2 id="exclusion-{{ group.kind }}">{{ group.label }}</h2><span class="muted small">{{ group.rows|length }} 筆已確認，{{ group.rows|selectattr("excluded")|list|length }} 筆不放</span></div>
     {% if group.rows %}
     <div class="table-wrap">

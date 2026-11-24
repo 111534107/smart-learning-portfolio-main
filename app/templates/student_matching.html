@@ -17,11 +17,11 @@
   </div>
 
   {% set keep = dict(active_filters, track=track, chart=chart, major=major_filter) %}
-  <nav class="match-tabs mb-1" aria-label="招生管道">
+  <nav class="match-tabs mb-1" aria-label="招生管道" data-tour="選二技或插大，切換招生管道。" data-tour-order="1">
     <a class="button button--small {{ '' if track == 'twotech' else 'button--line' }}" href="{{ url_for('student.matching', track='twotech', chart=chart) }}" aria-current="{{ 'page' if track == 'twotech' else 'false' }}">二技（{{ track_counts.twotech }}）</a>
     <a class="button button--small {{ '' if track == 'transfer' else 'button--line' }}" href="{{ url_for('student.matching', track='transfer', chart=chart) }}" aria-current="{{ 'page' if track == 'transfer' else 'false' }}">插大（{{ track_counts.transfer }}）</a>
   </nav>
-  <form class="match-filter mb-1" method="get" action="{{ url_for('student.matching') }}" role="search">
+  <form class="match-filter mb-1" method="get" action="{{ url_for('student.matching') }}" role="search" data-tour="輸入學校或科系，篩選推薦清單。" data-tour-order="2">
     <label class="match-filter__field">搜尋學校或科系
       <input type="search" name="q" value="{{ active_filters.get('q', '') }}" placeholder="例如：北商 資管">
     </label>
@@ -47,7 +47,7 @@
   </form>
 
   {% if rows %}
-  <section class="match-chart-panel mb-1" aria-label="準備度圖表">
+  <section class="match-chart-panel mb-1" aria-label="準備度圖表" data-tour="點校系名稱，查看資格與缺少項目。" data-tour-order="3">
     <div class="match-chart-panel__head">
       <h2>{{ '二技' if track == 'twotech' else '插大' }}排行（共 {{ matched }} 間，列出前 {{ rows | length }} 間）</h2>
       <div class="match-chart-toggle" role="group" aria-label="圖表樣式">
@@ -75,7 +75,7 @@
     </ol>
     {% if more %}<p class="mt-1"><a class="button button--small button--line" href="{{ url_for('student.matching', **dict(keep, show=show + 20)) }}">看更多 →</a></p>{% endif %}
   </section>
-  <details class="match-cards mb-1">
+  <details class="match-cards mb-1" data-tour="展開後逐間比較理由，也可設為目標。" data-tour-order="4">
   <summary>逐間看理由與細項（{{ rows | length }} 間）</summary>
   <ol class="plain-list mt-1">
     {% for row in rows %}

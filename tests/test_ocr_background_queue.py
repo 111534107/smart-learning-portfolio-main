@@ -339,3 +339,19 @@ def test_english_engine_error_is_shown_in_chinese_and_kept_in_audit_log(tmp_path
     with app.app_context():
         log = AuditLog.query.filter_by(action="learning_profile.ocr_failed").one()
         assert "PDFium" in log.detail_json["raw_error"]
+
+
+def test_real_ocr_preview_rejects_a_simulated_provider(tmp_path):
+    app = queue_app(tmp_path)
+    app.config["REQUIRE_REAL_DOCUMENT_OCR"] = True
+    client = app.test_client()
+    login(client)
+    upload(client)
+
+    document_id = only_document_id(app)
+    assert ocr_queue.run_job(app, document_id)
+    status = client.get(f"/student/learning-profile/documents/{document_id}/status").get_json()
+    assert status["state"] == "failed"
+    assert "RapidOCR" in status["error"]
+    with app.app_context():
+        assert not DocumentExtraction.query.one().result_json

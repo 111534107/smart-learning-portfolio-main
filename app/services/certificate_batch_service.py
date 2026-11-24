@@ -25,7 +25,7 @@ from app.services.journey_service import grade_for
 KIND = "activity"
 MAX_ROWS = 300
 COLUMNS = ("學號", "活動名稱", "獎項或服務內容", "日期")
-SAMPLE = "學號,活動名稱,獎項或服務內容,日期\n111534105,資管科資訊週程式競賽,榮獲第一名,2026-10-20"
+SAMPLE = "學號,活動名稱,獎項或服務內容,日期\n113534901,資管科資訊週程式競賽,榮獲第一名,2026-10-20"
 _DATE = re.compile(r"^(\d{2,4})\s*[-/.年]\s*(\d{1,2})\s*[-/.月]\s*(\d{1,2})\s*日?$")
 
 

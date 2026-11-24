@@ -14,7 +14,7 @@
   </header>
   {% if see_all %}
   <section class="work-panel">
-    <form class="admin-inline-form" method="get">
+    <form class="admin-inline-form" method="get" data-tour="選擇動作並篩選科辦操作紀錄。" data-tour-order="1">
       <label>人員<select name="person">
         <option value="">科辦全部</option>
         {% for member in staff %}<option value="{{ member.id }}"{% if member.id == person %} selected{% endif %}>{{ member.display_name }}{% if member.job_title %}（{{ member.job_title }}）{% endif %}</option>{% endfor %}
@@ -25,7 +25,7 @@
   </section>
   {% endif %}
   <section class="work-panel">
-    <div class="table-wrap">
+    <div class="table-wrap" data-tour="查看時間與動作，核對處理紀錄。" data-tour-order="2">
       <table class="data-table">
         <thead><tr><th>時間</th>{% if see_all %}<th>人員</th>{% endif %}<th>動作</th><th>對象</th></tr></thead>
         <tbody>

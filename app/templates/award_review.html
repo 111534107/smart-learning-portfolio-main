@@ -11,7 +11,7 @@
 {{ page_band("確認獎懲記錄", [("活動與經歷", url_for('student.portfolio_list')), ("匯入獎懲記錄", url_for('award.award_upload_page'))], note=document.display_name) }}
 <div class="page page--banded">
   {% set source_url = url_for('student.learning_profile_document_view', document_id=document.id) %}
-  <details class="source-doc mb-1" open>
+  <details class="source-doc mb-1" open data-tour="對照貼上的內容或上傳的原檔。" data-tour-order="1">
     {% set pasted = document.extraction and document.extraction.provider == "paste" %}
     <summary>{{ "你貼上的獎懲記錄" if pasted else "你上傳的獎懲記錄" }}：{{ document.display_name }}</summary>
     {% if pasted %}
@@ -52,7 +52,7 @@
   </section>
   {% endif %}
 
-  <form method="post" action="{{ url_for('award.award_confirm', document_id=document.id) }}" class="form-stack">
+  <form method="post" action="{{ url_for('award.award_confirm', document_id=document.id) }}" class="form-stack" data-tour="勾選並修正獎勵，核對後確認匯入。" data-tour-order="2">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="table-wrap">
       <table class="data-table award-table">

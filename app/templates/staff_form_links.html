@@ -12,13 +12,13 @@
   <section class="work-panel">
     <div class="work-panel__head"><div><h1 class="h2">檢查表單連結</h1>
       <p>學校網站改版後，表單的連結常會失效。按「檢查連結」會逐一連到每個連結看還開不開得了（每個最多等 {{ timeout }} 秒），只記錄結果，不會下載或自動換成新版；失效的要請科辦手動換成最新的連結。</p></div>
-      <form method="post" action="{{ url_for('forms.staff_links_check') }}">
+      <form method="post" action="{{ url_for('forms.staff_links_check') }}" data-tour="按檢查連結，逐一確認學校網址狀態。" data-tour-order="1">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="button" type="submit"{% if not items %} disabled{% endif %}>檢查連結</button>
       </form></div>
     {% if broken %}<p class="alert mb-1" role="alert">有 {{ broken|length }} 個連結失效，請更新成最新的連結。學生端這幾份表單目前顯示「連結可能已失效，請洽科辦」。</p>{% endif %}
     {% if items %}
-    <div class="table-wrap">
+    <div class="table-wrap" data-tour="查看檢查結果，失效時進入管理更新。" data-tour-order="2">
       <table class="data-table">
         <thead><tr><th>表單</th><th>連結</th><th>狀態</th><th>最後檢查</th>{% if user.role == "staff" %}<th><span class="visually-hidden">操作</span></th>{% endif %}</tr></thead>
         <tbody>

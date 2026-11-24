@@ -2,7 +2,7 @@
 {% from "partials/nav.html" import masthead, footer, page_band with context %}
 {% from "partials/status.html" import status_chip %}
 {% set page_name = "student-portfolio" %}
-{% set slot_colors = {"activity": "var(--year-3)", "competition": "var(--year-4)", "service": "var(--year-2)", "leadership": "var(--year-5)"} %}
+{% set slot_colors = {"activity": "var(--year-3)", "competition": "var(--year-4)", "service": "var(--year-2)", "leadership": "var(--year-5)", "project": "var(--year-1)"} %}
 {% set semester_labels = {1: "上學期", 2: "下學期"} %}
 
 {% block title %}活動與經歷｜資管科智慧學習歷程系統{% endblock %}
@@ -16,7 +16,9 @@
   <div class="list-head">
     <p class="muted">填上年級的資料會放進「我的五年」。</p>
     <div class="record-card__actions">
-      <a class="button button--line" href="{{ url_for('award.award_upload_page') }}" data-tour="學校的獎懲記錄可以直接匯入。" data-tour-order="2">從學校獎懲記錄匯入</a>
+      <a class="button button--line" href="{{ url_for('student.portfolio_new', category='project') }}" data-tour="要新增專題作品時按這裡。" data-tour-order="2">＋ 新增專題與作品集</a>
+      <a class="button button--line" href="{{ url_for('award.award_upload_page') }}" data-tour="從學校複製獎懲表格後，按這裡匯入。" data-tour-order="3">從學校獎懲記錄匯入</a>
+      <a class="button button--line" href="{{ url_for('attendance.records') }}" data-tour="要匯入單學期缺曠合計時按這裡。" data-tour-order="4">從學校缺曠記錄匯入</a>
       <a class="button" href="{{ url_for('student.portfolio_new') }}" data-tour="活動、競賽、服務、幹部從這裡新增。" data-tour-order="1">＋ 新增一筆</a>
     </div>
   </div>
@@ -27,7 +29,7 @@
   {% if request.args.get("added") %}<p class="notice mb-1" role="status">已新增一筆{{ category_labels.get(request.args.get("added"), "") }}。</p>{% endif %}
 
   {# DEMO-03：活動適合學校。點學校，用得到的紀錄會亮起來 #}
-  <section class="fit-brief pf-fit" id="fit-brief" aria-labelledby="fit-brief-title">
+  <section class="fit-brief pf-fit" id="fit-brief" aria-labelledby="fit-brief-title" data-tour="點學校，查看哪些活動可能用得上。" data-tour-order="5">
     {% if fit.summary %}
     <h2 id="fit-brief-title" class="fit-brief__title">你的 {{ fit.record_count }} 筆活動，最能用在：{% for school in fit.summary_schools %}<span class="fit-brief__name">{{ school }}</span>{% if not loop.last %}、{% endif %}{% endfor %}</h2>
     <ol class="fit-brief__list">
@@ -62,7 +64,7 @@
   {% set has_other = ns.rows|selectattr("1.school_year")|rejectattr("1.school_year", "le", 5)|list or ns.rows|rejectattr("1.school_year")|list %}
   <section class="pf-cabinet" aria-labelledby="pf-cabinet-title" data-pf-cabinet>
     <h2 id="pf-cabinet-title" class="visually-hidden">我的活動與經歷</h2>
-    <div class="pf-tabs" role="tablist" aria-label="依年級看">
+    <div class="pf-tabs" role="tablist" aria-label="依年級看" data-tour="依年級或類別篩選，找出想看的紀錄。" data-tour-order="6">
       <button type="button" class="pf-tab" role="tab" data-pf-grade="all" aria-selected="true">全部<small>{{ ns.rows|length }}</small></button>
       {% for n in range(1, 6) %}
       <button type="button" class="pf-tab" role="tab" data-pf-grade="{{ n }}" aria-selected="false">專{{ "一二三四五"[n - 1] }}<small>{{ ns.rows|selectattr("1.school_year", "equalto", n)|list|length }}</small></button>
@@ -74,7 +76,7 @@
       <button type="button" class="pf-cat" data-pf-cat="{{ key }}" aria-pressed="false" style="--slot: {{ slot_colors[key] }};">{{ category_labels[key] }}<b>{{ grouped[key]|length }}</b></button>
       {% endfor %}
     </div>
-    <div class="pf-cards" id="pf-cards">
+    <div class="pf-cards" id="pf-cards" data-tour="點紀錄卡片編輯，或拖入佐證檔案。" data-tour-order="7">
       <a class="pf-add" href="{{ url_for('student.portfolio_new') }}" data-pf-add data-pf-add-base="{{ url_for('student.portfolio_new') }}">
         <span class="pf-add__plus" aria-hidden="true">＋</span>
         <b>新增一筆</b>
@@ -157,7 +159,7 @@
 (function () {
   var cabinet = document.querySelector("[data-pf-cabinet]");
   if (!cabinet) return;
-  var grade = "all", cat = null;
+  var grade = "all", cat = new URLSearchParams(window.location.search).get("category") === "project" ? "project" : null;
   var cards = [].slice.call(cabinet.querySelectorAll(".pf-card"));
   var add = cabinet.querySelector("[data-pf-add]");
   var empty = cabinet.querySelector("[data-pf-empty]");
@@ -185,7 +187,7 @@
     var pill = event.target.closest(".pf-cat");
     if (pill) { cat = cat === pill.dataset.pfCat ? null : pill.dataset.pfCat; apply(); }
   });
-  cabinet.classList.add("is-dealt");
+  if (cat) apply(); else cabinet.classList.add("is-dealt");
 
   /* 拖檔案：放在哪張卡片上，就當那一筆的佐證送出（原本的表單與路由） */
   var page = document.querySelector("[data-pf-page]");

@@ -76,6 +76,7 @@ def student_transfer_credit():
 @transfer_credit_bp.post("/teacher/students/<int:student_id>/transfer-credit/confirm")
 @role_required("teacher")
 def confirm_transfer_credit(student_id):
+    abort(403, description="轉學抵免進度改由科主任或科辦確認（2026-11-19），導師可以查看結果。")
     teacher = get_current_user()
     student = db.session.get(User, student_id)
     if not student or not can_view_student(teacher, student):

@@ -7,12 +7,23 @@
 {% block navigation %}{{ masthead(user, "檔案存放設定") }}{% endblock %}
 
 {% block content %}
+<style>
+  .storage-checks { list-style: none; padding: 0; margin: .5rem 0; display: grid; gap: .4rem; }
+  .storage-checks li { line-height: 1.6; }
+</style>
 <section class="work-shell" data-work-role="admin">
   <header class="work-heading">
     <div><h1>檔案存放設定</h1><p>學生上傳的成績單、證照、佐證檔案存在哪裡。資料庫只記檔案編號與位置；Google 雲端硬碟只當原始檔案倉庫，AI 不會直接瀏覽雲端硬碟。</p></div>
   </header>
 
   {% if message %}<p class="{{ 'notice' if message[0] == 'ok' else 'alert' }} mb-1" role="status">{{ message[1] }}</p>{% endif %}
+
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>學校 Google 雲端硬碟</h2></div></div>
+    {% if active == "google_drive" %}<p class="notice">已連線：新的上傳檔案儲存到已授權的 Google 雲端硬碟。請確認使用的是學校帳號。</p>
+    {% else %}<p class="notice">目前尚未連線，新的上傳檔案暫存在本機。正式使用學校雲端前，需要完成系統設定並由學校帳號授權。</p>{% endif %}
+    <p class="muted small">切換雲端後，原本已存在本機的檔案不會自動搬移；請先確認備份及移轉方式。</p>
+  </section>
 
   <section class="work-panel">
     <div class="work-panel__head"><div><h2>目前狀態</h2></div></div>
@@ -26,6 +37,19 @@
     <p class="notice">Google 雲端硬碟已設定，尚未連線。連線前新上傳的檔案都存本機。</p>
     {% else %}
     <p class="notice">已連上 Google 雲端硬碟（只授權本系統建立的檔案，權杖只放伺服器記憶體；網站重開後要重新連線）。</p>
+    {% endif %}
+  </section>
+
+  <section class="work-panel" data-storage-checks data-tour="先檢查存放設定與連線條件。" data-tour-order="1">
+    <div class="work-panel__head"><div><h2>.env 設定檢查</h2></div></div>
+    <p class="muted small">只檢查格式，不顯示金鑰內容。改了 <code>.env</code> 要重開網站才會生效。</p>
+    <ul class="storage-checks">
+      {% for item in checks %}
+      <li><span class="tag {{ 'tag--ok' if item.ok else 'tag--danger' }}">{{ "正確" if item.ok else "要處理" }}</span> <b>{{ item.label }}</b>：{{ item.hint }}</li>
+      {% endfor %}
+    </ul>
+    {% if last_error %}
+    <p class="alert" data-storage-last-error>最近一次存到雲端失敗（{{ last_error.at|taipei_time }}），那個檔案改存本機：{{ last_error.message }}</p>
     {% endif %}
   </section>
 
@@ -43,8 +67,33 @@
       <button class="button" type="submit">連上 Google 雲端硬碟</button>
     </form>
     {% endif %}
-    <p class="muted small">連線時請登入要存放檔案的 Google 帳號（目前用個人帳號測試；正式導入改學校 Workspace）。每次連線、中斷都會記入稽核紀錄。</p>
+    <p class="muted small">連線時請登入要存放檔案的 Google 帳號（目前用個人帳號測試；正式導入改學校 Workspace）。每次連線、中斷、測試都會記入稽核紀錄。</p>
   </section>
   {% endif %}
+
+  <section class="work-panel" id="connection-test" data-storage-test data-tour="完成連線後測試是否能存取。" data-tour-order="2">
+    <div class="work-panel__head"><div><h2>測試連線</h2></div></div>
+    <p class="muted small">依序檢查 .env 設定、Google 授權、連上的帳號與空間、系統資料夾。只讀，不上傳也不刪任何檔案。</p>
+    <form class="admin-inline-form" method="post" action="{{ url_for('storage.test_connection') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="button button--secondary" type="submit">測試連線</button>
+    </form>
+    {% if last_check %}
+    <p class="{{ 'notice' if last_check.ok else 'alert' }}" role="status" data-storage-test-result="{{ 'ok' if last_check.ok else 'fail' }}">
+      {{ "連線正常" if last_check.ok else "連線有問題" }}（{{ last_check.at|taipei_time }}）
+    </p>
+    <ol class="storage-checks">
+      {% for step in last_check.steps %}
+      <li><span class="tag {{ 'tag--ok' if step.ok else 'tag--danger' }}">{{ "通過" if step.ok else "失敗" }}</span> <b>{{ step.label }}</b>：{{ step.message }}</li>
+      {% endfor %}
+    </ol>
+    {% endif %}
+  </section>
+
+  <section class="work-panel">
+    <div class="work-panel__head"><div><h2>舊檔搬進學生資料夾</h2></div></div>
+    <p>改存雲端之前上傳的檔案還在本機。可以先看預覽、試跑，確定後再搬；搬的時候本機原檔保留不刪。</p>
+    <p><a class="button button--secondary" href="{{ url_for('storage.migration_page') }}">看哪些舊檔可以搬</a></p>
+  </section>
 </section>
 {% endblock %}

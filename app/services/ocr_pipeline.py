@@ -193,8 +193,11 @@ def parse_panel_words(words, size, region_index, *, body=None, columns=None,
         name_words = sorted(cells[name_index], key=lambda w: w["bbox"][0])
         raw_name = " ".join(w["text"] for w in name_words)
         _without_marker, makeup_season = split_makeup_marker(raw_name)
+        course_mark = None
         if has_makeup_column:
             marker_text = "".join(w["text"] for w in cells[0])
+            # 最左邊「選課別」欄：必（必修）、選（選修）；讀不到或讀成別的字就留空，不猜
+            course_mark = ("必" if "必" in marker_text else "選" if "選" in marker_text else None)
             if "暑" in marker_text:
                 makeup_season = "summer"
             elif "寒" in marker_text:
@@ -224,7 +227,7 @@ def parse_panel_words(words, size, region_index, *, body=None, columns=None,
                     reasons.append(f"{label}辨識信心不足，請對照原圖。")
             courses.append({"course_name": name or "課名待確認", "credits": credits,
                 "score": score, "score_band": score_band(score),
-                "makeup_season": makeup_season,
+                "makeup_season": makeup_season, "course_mark": course_mark,
                 "semester": ("第一學期", "第二學期")[semester] if semester is not None else None,
                 "grade_level": grade_level,
                 "source_page": page, "source_line": line, "source_region": region_index,

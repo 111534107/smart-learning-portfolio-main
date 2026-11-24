@@ -156,3 +156,12 @@ def test_inline_file_serves_relative_upload_path_from_working_directory(app, tmp
         response.direct_passthrough = False
         assert response.status_code == 200
         assert response.get_data() == PNG
+
+def test_teacher_student_page_guides_navigation_review_and_sources(app):
+    with app.app_context():
+        student_id = User.query.filter_by(username='stu').one().id
+    page = login(app, 'teacher').get(f'/teacher/students/{student_id}').get_data(as_text=True)
+    assert 'data-tour="選項目直接跳到學生資料或送審紀錄。"' in page
+    assert 'data-tour="查看畢業門檻與需要追蹤的事項。"' in page
+    assert 'data-tour="對照學生上傳的成績單與證照原檔。"' in page
+    assert 'data-tour="點佐證照片放大，核對活動資料。"' in page

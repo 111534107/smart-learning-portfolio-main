@@ -51,7 +51,7 @@
 
 .hub-hero__body { position: relative; z-index: 1; min-width: 0; }
 .hub-hero__eyebrow { margin: 0 0 .3rem; color: rgb(255 255 255 / 75%); font-size: var(--fs-xs); letter-spacing: .08em; }
-.hub-hero__title { margin: 0 0 .75rem; color: #fff; font-family: var(--font-serif); font-size: var(--fs-xl); line-height: 1.25; }
+.hub .hub-hero__title { margin: 0 0 .75rem; color: #fff; font-family: var(--font-serif); font-size: var(--fs-xl); line-height: 1.25; }
 .hub-stats { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0; padding: 0; list-style: none; }
 .hub-stats li { display: inline-flex; align-items: baseline; gap: .35rem; padding: .3rem .8rem; border-radius: 999px; background: rgb(255 255 255 / 12%); font-size: var(--fs-sm); }
 .hub-stats b { font-family: var(--font-mono); font-size: var(--fs-md); }
@@ -68,6 +68,7 @@
 .hub-tabs a { display: inline-flex; align-items: center; gap: .45rem; margin-bottom: -2px; padding: .65rem 1.1rem; border-bottom: 3px solid transparent; color: var(--ink-soft); font-weight: 700; text-decoration: none; white-space: nowrap; }
 .hub-tabs a:hover { color: var(--ink); border-bottom-color: var(--line); }
 .hub-tabs a[aria-current="page"] { color: var(--hub-navy); border-bottom-color: var(--hub-warm); }
+html[data-theme="dark"] .hub-tabs a[aria-current="page"] { color: var(--ink); }
 .hub-count { min-width: 1.6rem; padding: .05rem .45rem; border-radius: 999px; background: var(--paper-deep); color: var(--ink); font-family: var(--font-mono); font-size: var(--fs-xs); text-align: center; }
 .hub-tabs a[aria-current="page"] .hub-count { background: var(--hub-navy); color: #fff; }
 
@@ -187,7 +188,7 @@
   padding: 1.1rem 1.4rem;
   border: 2px solid var(--hub-merge);
   border-radius: var(--hub-card);
-  background: #f0faf4;
+  background: var(--ok-soft);
 }
 .hub-merge h3 { margin: 0 0 .25rem; font-family: var(--font-sans); font-size: var(--fs-md); color: var(--hub-merge); }
 .hub-merge p { margin: 0; max-width: 40rem; color: var(--ink-soft); font-size: var(--fs-sm); }
@@ -258,7 +259,7 @@
 /* ---- 右下角聊天視窗：組員版的計畫卡、站內連結 ---- */
 .assistant__links { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .6rem; }
 .assistant__links .button { text-decoration: none; }
-.assistant__plan { margin-top: .75rem; padding: .75rem .85rem; border: 2px solid #1f8a5a; border-radius: 10px; background: #f0faf4; }
+.assistant__plan { margin-top: .75rem; padding: .75rem .85rem; border: 2px solid #1f8a5a; border-radius: 10px; background: var(--ok-soft); }
 .assistant__plan > p { margin: .35rem 0 0; font-size: var(--fs-sm); }
 .assistant__plan ol { margin: .35rem 0 .6rem; padding-left: 1.25rem; font-size: var(--fs-sm); }
 .assistant__plan-actions { display: flex; flex-wrap: wrap; gap: .45rem; }
@@ -270,3 +271,16 @@
 .mainnav__todo { position: relative; display: inline-flex; align-items: center; gap: .35rem; }
 .mainnav__count { min-width: 1.35rem; padding: 0 .4rem; border-radius: 999px; background: var(--danger); color: #fff; font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 700; line-height: 1.35rem; text-align: center; }
 .mainnav__dot { width: .55rem; height: .55rem; border-radius: 50%; background: #ca9954; box-shadow: 0 0 0 3px rgb(202 153 84 / 30%); }
+
+/* 這張卡固定深色底與淺字，避免深色主題的文字變數把背景變成淺色。 */
+.hub .hub-hero { background: #1f3a5f; color:#fff; }
+
+/* mobile-sweep special controls */
+@media (max-width: 767px) {
+  .hub-chip { display: inline-flex; align-items: center; min-height: 44px; }
+}
+
+/* mobile-sweep continuous animation */
+@media (hover: none) and (pointer: coarse) {
+  html:not([data-staff-ui="admin"]) .hub-pulse { animation: none; }
+}

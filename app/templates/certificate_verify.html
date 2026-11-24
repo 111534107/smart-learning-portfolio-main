@@ -11,10 +11,10 @@
   <section class="sheet">
     <h1 class="h2">電子獎狀驗證</h1>
     <p class="muted small mb-1">輸入獎狀右下角的 8 碼驗證碼，確認這張獎狀是否由資管科核發。</p>
-    <form method="get" action="{{ url_for('certificate.verify') }}" class="form-stack">
+    <form method="get" action="{{ url_for('certificate.verify') }}" class="form-stack" data-tour="輸入獎狀上的驗證碼，再按查詢。" data-tour-order="1">
       <label class="field"><span class="field__label">驗證碼</span>
         <input name="code" value="{{ code }}" maxlength="12" autocomplete="off" required></label>
-      <div><button class="button" type="submit">查詢</button></div>
+      <div><button class="button" type="submit" data-tour="按查詢確認獎狀是否由資管科核發。" data-tour-order="2">查詢</button></div>
     </form>
     {% if code %}
       {% if cert %}

@@ -41,6 +41,8 @@ def create_app(config_overrides=None):
     app.add_template_filter(describe_step, "ocr_step")
     from app.services.agent_engine import taipei_time
     app.add_template_filter(taipei_time, "taipei_time")
+    from app.content.portfolio_tips import tips_for as portfolio_tips_for
+    app.add_template_global(portfolio_tips_for, "portfolio_tips_for")
 
     from app.routes.main import main_bp
     from app.routes.admin import admin_bp
@@ -50,6 +52,7 @@ def create_app(config_overrides=None):
     from app.routes.teacher import teacher_bp
     from app.routes.assistant import assistant_bp
     from app.routes.award import award_bp
+    from app.routes.attendance import attendance_bp
     from app.routes.certificate import certificate_bp
     from app.routes.proposal_preview import proposal_preview_bp
     from app.routes.transfer_credit import transfer_credit_bp
@@ -61,6 +64,8 @@ def create_app(config_overrides=None):
     from app.routes.announcement import announcement_bp
     from app import models
 
+    from app.routes import transfer_review  # register case routes before blueprints
+
     app.register_blueprint(main_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(student_bp)
@@ -69,6 +74,7 @@ def create_app(config_overrides=None):
     app.register_blueprint(teacher_bp)
     app.register_blueprint(assistant_bp)
     app.register_blueprint(award_bp)
+    app.register_blueprint(attendance_bp)
     app.register_blueprint(certificate_bp)
     app.register_blueprint(proposal_preview_bp)
     app.register_blueprint(transfer_credit_bp)
@@ -130,16 +136,26 @@ def create_app(config_overrides=None):
         recover_on_startup(app)
 
     error_texts = {
+        400: ("資料沒有存", "送出的資料有問題，這次沒有存。請回上一頁重新整理後再試一次。"),
         401: ("請先登入", "這一頁要登入後才能看。可能是還沒登入，或太久沒操作被登出了。"),
         403: ("沒有權限", "你的帳號不能看這一頁。如果你覺得應該可以，請洽導師或系統管理員。"),
         404: ("找不到這一頁", "網址可能打錯了，或這筆資料不是你的、已經不存在。"),
     }
 
     def friendly_error(error):
-        """401、403、404 改成中文頁面（10-27 實測問題 5）；狀態碼不變，給程式讀的請求照樣回 JSON。"""
+        """400、401、403、404 改成中文頁面（10-27 實測問題 5；400 為 11-18 補）；狀態碼不變，給程式讀的請求照樣回 JSON。"""
         from flask import jsonify, render_template, request
         from app.routes.main import get_current_user
         title, message = error_texts[error.code]
+        back = None
+        if error.code == 400:
+            # 2026-11-18 四角色實走：表單填錯時原本跳出英文「Bad Request」空白頁。
+            # 程式寫的中文原因直接顯示；Flask 預設的英文說明（例如表單過期）改用通用說明。
+            description = getattr(error, "description", "") or ""
+            if any("\u4e00" <= char <= "\u9fff" for char in description):
+                message = description
+            referrer = request.referrer or ""
+            back = referrer if referrer.startswith(request.host_url) else None
         if request.accept_mimetypes.best == "application/json":
             return jsonify(error=title, message=message), error.code
         from flask import session
@@ -148,7 +164,8 @@ def create_app(config_overrides=None):
         user = get_current_user()
         admin_logged_out = error.code == 401 and bool(session.pop(LOGGED_OUT, None))
         return render_template("error_page.html", user=user, code=error.code, title=title,
-                               message=message, next_path=next_path, admin_logged_out=admin_logged_out), error.code
+                               message=message, next_path=next_path, admin_logged_out=admin_logged_out,
+                               back=back), error.code
 
     for code in error_texts:
         app.register_error_handler(code, friendly_error)

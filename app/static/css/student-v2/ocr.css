@@ -303,10 +303,9 @@
   [data-ui="student-v2"] body[data-page="learning-profile-review"] .course-review-section td.course-notes-cell { grid-column: auto; }
 }
 /* 電腦版：左側原圖上方的「這一列」放大條 */
-[data-ui="student-v2"] .sv2-strip { margin: 0 0 .75rem; padding: 6px; border: 2px solid var(--accent); border-radius: 12px; background: #fff; }
+[data-ui="student-v2"] .sv2-strip { margin: 0 0 .75rem; padding: 6px; border: 2px solid var(--accent); border-radius: 12px; background: var(--card); }
 [data-ui="student-v2"] .sv2-strip[hidden] { display: none; }
 [data-ui="student-v2"] .sv2-strip figcaption { margin: 0 0 4px; color: var(--accent); font-size: var(--fs-xs); font-weight: 700; }
-[data-ui="student-v2"][data-theme="dark"] .sv2-strip figcaption { color: #2f6672; }
 [data-ui="student-v2"] .sv2-strip img { display: block; width: 100%; height: auto; max-height: 6rem; object-fit: contain; object-position: left center; }
 
 @media (max-width: 720px) {

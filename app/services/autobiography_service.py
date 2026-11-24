@@ -259,6 +259,8 @@ def _prompt(student, program, facts, answers, questions=None):
     questions = questions or guided_questions(program)
     fact_lines = "\n".join(f"{fact['id']}. {fact['text']}" for fact in facts["items"]) or "（沒有資料）"
     weight_lines = "\n".join(f"- {w['name']}：{w['weight']}%（{w['categories']}）" for w in facts["weights"])
+    budgets = paragraph_budgets(program, questions)
+    outline = "→".join(f"{title}（約{budgets.get(title, 200)}字內）" for title in outline_titles(program, questions))
     answer_lines = "\n".join(f"- {question['text']}\n  回答：{answers.get(question['key']) or '（未回答）'}"
                              for question in questions)
     return f"""你是五專資管科學生的自傳寫作助手。請幫學生寫申請「{program.school_name} {program.department_name}」的自傳草稿。
@@ -268,7 +270,9 @@ def _prompt(student, program, facts, answers, questions=None):
 2. 只能使用下面的「學生資料」和「學生回答」，不得編造任何獎項、分數、證照、職位或經歷。資料不足就少寫，不要補。
 3. 學生沒回答的題目，那一段的 text 只寫「（請補上：題目內容）」，sources 給空陣列；不要從其他資料推想他的感受、心得或經過。
 4. 依校系加權，把加權高的項目相關經驗寫得比較完整。
-5. 段落標題依內容命名，長度依簡章規定；沒有規定時以約 1500～2500 字為目標，資料不足時寧可較短，不得為湊字數編造。
+5. 段落（目錄）請照這個大綱的順序，段落數量與順序不要增減：{outline}。每段的 title 請寫成「有主張的小標題」，格式像「從電腦興趣，走進資訊管理」「在社團中，學會負責與合作」（約 8 到 16 字，點出這段的成長主軸，不要只寫類別名稱）；括號裡的名稱只是這段的主題，不是標題。
+5-1. 每段內文寫 3 到 5 句：先講一件具體的事（用學生資料或回答），再講做了什麼、得到什麼，最後用一兩句寫自己的體會，像學生自己說話，不要口號。
+長度依簡章規定；沒有規定時以約 1500～2500 字為目標，資料不足時寧可較短，不得為湊字數編造。
 6. 每段的 sources 列出這段用到的學生資料編號（例如 F2）；只用到學生回答就給空陣列。
 7. 學生回答是自傳的主體：你只整理語句、順序與段落，不替學生新增他沒寫的經歷、感受或結論。
 
@@ -283,20 +287,62 @@ def _prompt(student, program, facts, answers, questions=None):
 """
 
 
+MAX_FOCUS_SECTIONS = 4  # 自傳大綱最多放幾個「依簡章項目」的段落
+
+
+def outline_titles(program, questions=None):
+    """自傳大綱（目錄）：學習動機 → 依簡章比重由高到低的項目 → 困難與成長 → 未來規劃。
+
+    沒有比重資料的校系沒有項目段落，改用「學習歷程與具體經驗」。標題用簡章的項目名稱，所以換校系目錄就會跟著變。
+    """
+    questions = questions if questions is not None else guided_questions(program)
+    focus = [q["item"][:30] for q in questions if q.get("weight")][:MAX_FOCUS_SECTIONS]
+    middle = [*focus, "學習歷程與具體經驗"]
+    return ["學習動機", *middle, "困難與成長", "未來規劃"]
+
+
+TOTAL_CHAR_BUDGET = 2200  # 一所校系自傳加讀書計畫的總字數目標（評審不會有耐心看萬字）
+_FIXED_BUDGET = {"學習動機": 250, "學習歷程與具體經驗": 250, "困難與成長": 200, "未來規劃": 300}
+
+
+def paragraph_budgets(program, questions=None):
+    """每一段的字數上限：固定段落給固定字數，剩下的依簡章比重分給各項目（每項 150～450 字），總量約 2200 字。"""
+    questions = questions if questions is not None else guided_questions(program)
+    focus = [q for q in questions if q.get("weight")][:MAX_FOCUS_SECTIONS]
+    left = max(TOTAL_CHAR_BUDGET - sum(_FIXED_BUDGET.values()), 150 * len(focus))
+    total_weight = sum(q["weight"] for q in focus) or 1
+    budgets = dict(_FIXED_BUDGET)
+    for q in focus:
+        budgets[q["item"][:30]] = max(150, min(450, round(left * q["weight"] / total_weight / 10) * 10))
+    return budgets
+
+
 def _demo_paragraphs(facts, answers, questions=()):
-    """沒有接上 AI 時的示範草稿：只把學生的回答和資料排好，明白標示不是 AI 寫的。"""
-    focus = [{"title": question["item"][:30], "text": answers[question["key"]], "sources": []}
-             for question in questions if question["weight"] and answers.get(question["key"])]
+    """沒有接上 AI 時的示範草稿：只把學生的回答和資料排好，明白標示不是 AI 寫的。
+
+    段落順序跟著校系的簡章比重（outline_titles）：比重高的項目排在前面，各自放學生對那一題的回答。
+    """
     experience = [f for f in facts["items"] if f["text"].split("：", 1)[0] in ("競賽", "活動", "幹部經歷")][:3]
     titles = "、".join(f["text"].split("：", 1)[1].split("—")[0] for f in experience)
     proud = answers.get("proud") or "（請補上你最有成就感的經驗）"
+    focus = [q for q in questions if q.get("weight")][:MAX_FOCUS_SECTIONS]
+    middle = [{"title": q["item"][:30], "text": answers.get(q["key"]) or f"（請補上你在「{q['item']}」的相關經驗）",
+               "sources": []} for q in focus]
+    if not focus or answers.get("proud"):  # 學生回答了「最有成就感的事」就保留成一段，不因為有簡章項目而消失
+        middle.append({"title": "學習歷程與具體經驗", "text": proud + (f"另外，我也參與了{titles}。" if titles else ""),
+                       "sources": [f["id"] for f in experience]})
     return [
         {"title": "學習動機", "text": answers.get("motivation") or "（請補上你想讀這個系的原因）", "sources": []},
-        {"title": "學習歷程與具體經驗", "text": proud + (f"另外，我也參與了{titles}。" if titles else ""),
-         "sources": [f["id"] for f in experience]},
+        *middle,
         {"title": "困難與成長", "text": answers.get("challenge") or "（請補上你遇過的困難與解決方式）", "sources": []},
         {"title": "未來規劃", "text": answers.get("future") or "（請補上進二技後的學習計畫）", "sources": []},
-    ] + focus  # 依簡章項目寫的回答原文接在後面（示範草稿不重排，接上 AI 才會依比重整理）
+    ]
+
+
+def new_facts_since(draft, current_facts):
+    """草稿產生後新增的已確認資料（比對草稿存的資料清單）；用來提示「資料已更新，可重新產生」。"""
+    old = {(f.get("text") or "") for f in ((draft.content_json or {}).get("facts") or [])}
+    return [f["text"] for f in current_facts.get("items", []) if f.get("text") and f["text"] not in old]
 
 
 def generate_draft(student, program, answers, generate=None, api_key=None):
@@ -415,6 +461,28 @@ def versions(student, program):
     return [o for o in outputs if o.content_json.get("program_id") == program.id]
 
 
+def never_submitted(student, program):
+    """這份自傳從沒送過導師（沒有任何送審紀錄、也沒有導師留言）才能整份刪除（2026-11-19 使用者決定）。"""
+    from app.models import AutobiographyComment, PackageReview
+    if PackageReview.query.filter_by(student_id=student.id, rule_version_id=program.id).first():
+        return False
+    return AutobiographyComment.query.filter_by(student_id=student.id, program_id=program.id).first() is None
+
+
+def delete_unsubmitted(student, program):
+    """整份刪除從沒送審過的自傳草稿（所有版本與本系統記的 Google 文件連結）；送審過的回傳 None、不刪。
+
+    學生雲端硬碟裡的 Google 文件本身不動（那是學生自己的檔案）。呼叫端 commit。"""
+    from app.models import AutobiographyGoogleDoc
+    if not never_submitted(student, program):
+        return None
+    drafts = versions(student, program)
+    AutobiographyGoogleDoc.query.filter_by(student_id=student.id, program_id=program.id).delete()
+    for draft in drafts:
+        db.session.delete(draft)
+    return len(drafts)
+
+
 def version_of(output):
     """這一版是第幾版。新資料存在 content_json["version"]；舊資料依建立順序推算。"""
     if output.content_json.get("version"):
@@ -453,12 +521,13 @@ def _backup_existing(student_id, content):
     autobiography_backup.mark_pending(content)
 
 
-def save_edits(output, texts, editor, comments=None):
+def save_edits(output, texts, editor, comments=None, images=None, titles=None):
     """逐段修改後儲存成**新的一版**，回傳新版本；舊版不動。
 
     texts：每一段的新文字（順序和原本一樣）。
     editor：按儲存的人（學生本人或導師）。
     comments：導師的段落意見；None 表示沿用上一版的意見（學生儲存時）。
+    titles：各段標題（選填，若有新增段落或修改標題時使用）。
     要存的不是最新版時丟 StaleVersion，避免舊頁面蓋掉別人剛存的版本。
     """
     latest = _latest_for(output.student_id, output.content_json.get("program_id"))
@@ -468,8 +537,20 @@ def save_edits(output, texts, editor, comments=None):
                            "下面是最新版，你剛才打的字列在最上方，請對照後再存一次。")
     content = dict(output.content_json)
     paragraphs = [dict(p) for p in content["paragraphs"]]
-    for paragraph, text in zip(paragraphs, texts):
+    for i, (paragraph, text) in enumerate(zip(paragraphs, texts)):
         paragraph["text"] = text.strip()
+        if titles and i < len(titles) and titles[i]:
+            paragraph["title"] = str(titles[i]).strip()
+    if len(texts) > len(paragraphs):
+        for i in range(len(paragraphs), len(texts)):
+            t = (str(titles[i]).strip() if titles and i < len(titles) and titles[i] else f"第 {i + 1} 段")
+            paragraphs.append({"title": t, "text": texts[i].strip(), "sources": []})
+    if images is not None:  # 只有學生儲存時傳入；導師修改文字不動學生貼的圖
+        for paragraph, ids in zip(paragraphs, images):
+            if ids:
+                paragraph["images"] = list(ids)
+            else:
+                paragraph.pop("images", None)
     if comments is not None:
         for paragraph, comment in zip(paragraphs, comments):
             comment = comment.strip()[:500]

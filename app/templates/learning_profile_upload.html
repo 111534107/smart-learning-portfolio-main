@@ -27,9 +27,9 @@
         {% if document_type == "transcript" %}<b>成績單</b>：從學校系統下載，建議用列印版。
         {% else %}<b>證照</b>：證書正面的照片或 PDF。{% endif %}
       </p>
-      {{ upload_field(hint="PDF、PNG、JPG", accept="image/png,image/jpeg,.pdf") }}
+      <div data-tour="選擇要上傳的成績單或證照檔案。" data-tour-order="1">{{ upload_field(hint="PDF、PNG、JPG", accept="image/png,image/jpeg,.pdf") }}</div>
       <div class="record-card__actions">
-        <button class="button" type="submit" data-busy-text="上傳中…">上傳</button>
+        <button class="button" type="submit" data-busy-text="上傳中…" data-tour="選好檔案後按上傳，再核對辨識結果。" data-tour-order="2">上傳</button>
         <a class="button button--line" href="{{ back_url }}">取消</a>
       </div>
       <p class="muted small">上傳後請逐筆確認。系統不會保存你的學校帳號密碼。

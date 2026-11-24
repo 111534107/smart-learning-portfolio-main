@@ -15,7 +15,7 @@
 <path d="M282,389.0 L436,105.0" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
 <rect x="440" y="70" width="490" height="70" rx="35.0" fill="#FFFFFF" stroke="#374151" stroke-width="2.5"/>
 <text x="685.0" y="101.0" font-size="20" font-weight="bold" text-anchor="middle" fill="#111827">電子獎狀申請清單</text>
-<text x="685.0" y="127.0" font-size="15" text-anchor="middle" fill="#4B5563">（科上派的服務、TA 證明；不審備審資料）</text>
+<text x="685.0" y="127.0" font-size="15" text-anchor="middle" fill="#4B5563">（科上派的服務、TA 證明、社團證明；不審備審資料）</text>
 <path d="M282,389.0 L436,191.0" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
 <rect x="440" y="156" width="490" height="70" rx="35.0" fill="#FFFFFF" stroke="#374151" stroke-width="2.5"/>
 <text x="685.0" y="187.0" font-size="20" font-weight="bold" text-anchor="middle" fill="#111827">編輯獎狀內文</text>

@@ -20,7 +20,7 @@
     <h1 class="h2">開立電子獎狀</h1>
     <p class="muted">科上主動開的證明，例如曾協助課輔班擔任小老師、擔任某課 TA。送出後直接核准、產生驗證碼，學生會收到通知，經歷裡也會多一筆「科辦電子獎狀」。科學會證明由學務處辦理，這裡不開。</p>
     {% if error %}<p class="alert" role="alert">{{ error }}</p>{% endif %}
-    <form method="post" class="form-stack" data-certificate-issue>
+    <form method="post" class="form-stack" data-certificate-issue data-tour="填學生及獎狀內容，確認資料正確。" data-tour-order="1">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label class="field">學生學號
         <input name="student_no" list="issue-students" value="{{ form.get('student_no', '') }}" required autocomplete="off" inputmode="numeric" placeholder="輸入學號或姓名從清單選">
@@ -56,7 +56,7 @@
       <label class="field">內文 <small>留空會依上面資料自動產生（和學生申請的格式相同）；要特別寫法再填</small>
         <textarea name="body" rows="4" maxlength="1000">{{ form.get('body', '') }}</textarea>
       </label>
-      <button class="button" type="submit">開立並核准</button>
+      <button class="button" type="submit" data-tour="核對完成後按此開立並核准。" data-tour-order="2">開立並核准</button>
     </form>
   </section>
 </div>

@@ -13,7 +13,7 @@
   </header>
   <section class="work-panel">
     <div class="work-panel__head"><div><h2>新增選項</h2></div></div>
-    <form class="admin-inline-form" method="post" action="{{ url_for('admin.match_filters') }}">
+    <form class="admin-inline-form" method="post" action="{{ url_for('admin.match_filters') }}" data-tour="填寫分類與名稱，新增學生可用的篩選。" data-tour-order="1">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label>類別<select name="category">{% for key, name in category_labels.items() %}<option value="{{ key }}">{{ name }}</option>{% endfor %}</select></label>
       <label>顯示名稱<input name="label" required></label>
@@ -26,7 +26,7 @@
     <p class="muted small">學校的地區（北中南東）改在「學校資料」頁維護，學生端目標校系的地圖與地區按鈕會用到。</p>
   </section>
   <section class="work-panel">
-    <div class="table-wrap">
+    <div class="table-wrap" data-tour="修改名稱或排序後儲存，也可停用選項。" data-tour-order="2">
       <table class="data-table">
         <thead><tr><th>類別</th><th>顯示名稱</th><th>值</th><th>排序</th><th>狀態</th><th>操作</th></tr></thead>
         <tbody>

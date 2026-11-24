@@ -13,7 +13,7 @@
     <div><h1>操作紀錄</h1><p>登入、確認、送審、刪除、上傳等動作的最近 200 筆。只記動作與對象編號，不記內容、姓名與學號；要知道是誰，用使用者編號到帳號管理查。</p></div>
   </header>
   <section class="work-panel">
-    <form class="admin-inline-form" method="get">
+    <form class="admin-inline-form" method="get" data-tour="選擇動作並篩選，查找操作紀錄。" data-tour-order="1">
       <label>動作<select name="action">
         <option value="">全部動作</option>
         {% for code in actions %}<option value="{{ code }}"{% if code == action %} selected{% endif %}>{{ label(code) }}</option>{% endfor %}
@@ -23,7 +23,7 @@
     </form>
   </section>
   <section class="work-panel">
-    <div class="table-wrap">
+    <div class="table-wrap" data-tour="查看時間、角色與對象編號，核對動作。" data-tour-order="2">
       <table class="data-table">
         <thead><tr><th>時間</th><th>角色</th><th>使用者編號</th><th>動作</th><th>對象</th></tr></thead>
         <tbody>

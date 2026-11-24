@@ -21,7 +21,8 @@ def make_app(required=True):
     with app.app_context():
         db.create_all()
         for username, role in (("adm", "admin"), ("tea", "teacher"), ("stu", "student")):
-            user = User(username=username, display_name=username, role=role)
+            # 2026-11-18：只有學校信箱 @stu.ukn.edu.tw 的帳號一定要雙重驗證；原有測試沿用「要開」的情境
+            user = User(username=username, display_name=username, role=role, email=f"{username}@stu.ukn.edu.tw")
             user.set_password("pw")
             db.session.add(user)
         db.session.commit()
@@ -239,3 +240,42 @@ def test_migration_adds_two_factor_columns(tmp_path):
     assert runner.invoke(args=["db", "downgrade", "b20261109c01"]).exit_code == 0
     with migrated.app_context():
         assert not inspect(db.engine).has_table("user_backup_codes")
+
+
+
+# ---- 2026-11-18 使用者決定：只有學校信箱要；示範站一律不要 ----
+
+def test_only_school_mailbox_accounts_must_set_up_two_factor():
+    app = make_app()
+    with app.app_context():
+        outside = User(username="out", display_name="out", role="teacher", email="teacher@example.test")
+        outside.set_password("pw")
+        db.session.add(outside); db.session.commit()
+    client = app.test_client()
+    response = client.post("/login", data={"username": "out", "password": "pw"})
+    assert "/two-factor" not in response.headers.get("Location", "")
+    assert logged_in(client)
+    client = app.test_client()
+    response = login(client, "stu")
+    assert "/login/two-factor/setup" in response.headers["Location"]
+    assert not logged_in(client)
+
+
+def test_demo_site_never_asks_for_two_factor_even_for_admin():
+    app = make_app()
+    app.config["LOCAL_DEMO_MODE"] = True
+    app.config["ADMIN_TWO_FACTOR_REQUIRED"] = True
+    for username in ("stu", "tea", "adm"):
+        client = app.test_client()
+        response = login(client, username)
+        assert "/two-factor" not in response.headers.get("Location", ""), username
+        assert logged_in(client), username
+
+
+def test_two_factor_pages_have_no_assistant():
+    app = make_app()
+    client = app.test_client()
+    login(client, "stu")
+    page = client.get("/login/two-factor/setup").get_data(as_text=True)
+    assert "設定雙重驗證" in page
+    assert "assistant__toggle" not in page

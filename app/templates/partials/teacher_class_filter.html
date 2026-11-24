@@ -1,0 +1,2 @@
+{# 導師四個頁面共用：班級篩選（GET，留在同一頁）。#}
+{% if classes %}<form method="get" class="class-filter"><label for="teacher-class-filter">班級篩選</label> <select id="teacher-class-filter" name="class_name"><option value="">全部負責班級</option>{% for name in classes %}<option value="{{ name }}"{% if name == selected_class %} selected{% endif %}>{{ name }}</option>{% endfor %}</select> <button class="button button--small button--line" type="submit">查看</button></form>{% endif %}

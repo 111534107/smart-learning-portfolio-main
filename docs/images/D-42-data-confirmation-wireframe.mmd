@@ -1,11 +1,9 @@
 flowchart TB
   P[資料確認頁]
   P --> A[原始檔名稱與來源]
-  P --> B[OCR 與系統整理後的待確認欄位<br/>（這時還沒有送 AI）]
-  P --> C[左邊原圖、右邊可修改的表格<br/>沒把握的欄位標橘色，顯示還有幾列待確認]
+  P --> B[AI 擷取待確認欄位]
+  P --> C[辨識結果、待確認處與分類]
   P --> D[學生修改欄位]
   P --> E[保留原始檔]
-  P --> F[確認後寫入正式資料<br/>之後才去識別化交給 AI]
-  P --> G[尚未確認：只保留草稿<br/>AI 讀不到內容]
-  P -.-> H[刪除申請：軟刪除<br/>保存期限待學校政策]:::pending
-  classDef pending fill:#FFFFFF,stroke:#9CA3AF,color:#6B7280,stroke-width:1px,stroke-dasharray:5 3;
+  P --> F[確認後寫入正式資料]
+  P --> G[尚未確認：只保留草稿]

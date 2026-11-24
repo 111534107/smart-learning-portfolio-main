@@ -14,8 +14,8 @@
 <path d="M210,713.0 L210,758.0 L230,758.0" stroke="#374151" stroke-width="3" fill="none"/>
 <path d="M282,690.0 L436,105.0" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
 <rect x="440" y="70" width="490" height="70" rx="35.0" fill="#FFFFFF" stroke="#374151" stroke-width="2.5"/>
-<text x="685.0" y="101.0" font-size="20" font-weight="bold" text-anchor="middle" fill="#111827">認識二技與校系排行</text>
-<text x="685.0" y="127.0" font-size="15" text-anchor="middle" fill="#4B5563">（準備度建議值，可篩選、點入看已符合與缺少；選校不限數量）</text>
+<text x="685.0" y="101.0" font-size="20" font-weight="bold" text-anchor="middle" fill="#111827">認識二技與選校系</text>
+<text x="685.0" y="127.0" font-size="15" text-anchor="middle" fill="#4B5563">（看各校特色與 AI 推薦；一～四年級不限、五年級最多 5 所）</text>
 <path d="M282,690.0 L436,191.0" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
 <rect x="440" y="156" width="490" height="70" rx="35.0" fill="#FFFFFF" stroke="#374151" stroke-width="2.5"/>
 <text x="685.0" y="187.0" font-size="20" font-weight="bold" text-anchor="middle" fill="#111827">看引導卡片與公告</text>
@@ -30,12 +30,12 @@
 <text x="685.0" y="385.0" font-size="15" text-anchor="middle" fill="#4B5563">（成績、獎懲、缺曠整段貼上；缺曠只有本人與班導看得到）</text>
 <path d="M282,690.0 L436,449.0" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
 <rect x="440" y="414" width="490" height="70" rx="35.0" fill="#FFFFFF" stroke="#374151" stroke-width="2.5"/>
-<text x="685.0" y="445.0" font-size="20" font-weight="bold" text-anchor="middle" fill="#111827">核對辨識結果</text>
-<text x="685.0" y="471.0" font-size="15" text-anchor="middle" fill="#4B5563">（本機 OCR 後左圖右表逐項確認；確認後才交給 AI）</text>
+<text x="685.0" y="445.0" font-size="20" font-weight="bold" text-anchor="middle" fill="#111827">確認整理結果</text>
+<text x="685.0" y="471.0" font-size="15" text-anchor="middle" fill="#4B5563">（AI 在旁註記可能的問題與修改建議）</text>
 <path d="M282,690.0 L436,535.0" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
 <rect x="440" y="500" width="490" height="70" rx="35.0" fill="#FFFFFF" stroke="#374151" stroke-width="2.5"/>
 <text x="685.0" y="531.0" font-size="20" font-weight="bold" text-anchor="middle" fill="#111827">申請電子獎狀</text>
-<text x="685.0" y="557.0" font-size="15" text-anchor="middle" fill="#4B5563">（科上派的服務、TA 證明送科辦核准；科學會證明到學務處）</text>
+<text x="685.0" y="557.0" font-size="15" text-anchor="middle" fill="#4B5563">（科上派的服務、TA 證明、社團證明，送科辦核准）</text>
 <path d="M282,690.0 L436,621.0" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
 <rect x="440" y="586" width="490" height="70" rx="35.0" fill="#FFFFFF" stroke="#374151" stroke-width="2.5"/>
 <text x="685.0" y="617.0" font-size="20" font-weight="bold" text-anchor="middle" fill="#111827">查看缺件清單</text>
@@ -43,7 +43,7 @@
 <path d="M282,690.0 L436,707.0" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
 <rect x="440" y="672" width="490" height="70" rx="35.0" fill="#FFFFFF" stroke="#374151" stroke-width="2.5"/>
 <text x="685.0" y="703.0" font-size="20" font-weight="bold" text-anchor="middle" fill="#111827">畢業學分檢查</text>
-<text x="685.0" y="729.0" font-size="15" text-anchor="middle" fill="#4B5563">（依修業科目表提醒；正式審查由教務處負責）</text>
+<text x="685.0" y="729.0" font-size="15" text-anchor="middle" fill="#4B5563">（依入學年度的修業科目表，僅供參考）</text>
 <path d="M282,690.0 L436,793.0" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
 <rect x="440" y="758" width="490" height="70" rx="35.0" fill="#FFFFFF" stroke="#374151" stroke-width="2.5"/>
 <text x="685.0" y="789.0" font-size="20" font-weight="bold" text-anchor="middle" fill="#111827">瀏覽學校資訊與下載表單</text>

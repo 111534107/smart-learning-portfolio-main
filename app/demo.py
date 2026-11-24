@@ -81,6 +81,8 @@ def _seed_journey_board(student_id, admission_year):
             issue_date=date(year + 1911, 10, 1), confirmation_status="confirmed",
         ))
         for category in EXPERIENCE_CATEGORIES:
+            if category not in DEMO_STORIES:
+                continue
             title, description, role, achievement, learned, domain_tags = DEMO_STORIES[category]
             portfolio = Portfolio(
                 student_id=student_id, title=f"【測試】{DEMO_CATEGORY_NAMES[category]}{grade}：{title}", category=category,

@@ -139,7 +139,8 @@ def test_folders_drawer_comes_before_the_puzzle(app):
     client = app.test_client()
     client.post("/login", data={"username": "stu", "password": "pw"})
     page = client.get("/student/dashboard").get_data(as_text=True)
-    assert page.index('id="today-title"') < page.index('id="folders"') < page.index('class="year-puzzle"')
+    # 2026-11-17 改版：拼圖桌平常收起來（按按鈕才整頁攤開），五年路線移到最底下，資料夾緊接在路線下面
+    assert page.index('id="today-title"') < page.index('class="route-map"') < page.index('id="folders"')
 
 
 def _dashboard(app):

@@ -10,8 +10,8 @@
 {{ page_band("目標校系") }}
 <div class="page page--banded">
   {% if config.LOCAL_DEMO_MODE %}<p class="small muted">本機展示使用示範校系資料，學年度與招生條件請以當年度官方簡章確認。</p>{% endif %}
-  <p class="muted mb-1" data-tour="想去哪裡都可以選，隨時可以換。" data-tour-order="0">目標校系不限所數，隨時可以更換；報名條件與所需資料請依各校簡章確認。</p>
-  <nav class="match-tabs mb-1" aria-label="升學管道">
+  <p class="muted mb-1">目標校系不限所數，隨時可以換；報名條件與所需資料請依各校簡章確認。</p>
+  <nav class="match-tabs mb-1" aria-label="升學管道" data-tour="切換二技或插大，查看不同招生管道。" data-tour-order="1">
     <a class="button button--small {{ '' if track == 'twotech' else 'button--line' }}" href="{{ url_for('student.target_list', track='twotech') }}" aria-current="{{ 'page' if track == 'twotech' else 'false' }}">二技（{{ track_counts.twotech }}）</a>
     <a class="button button--small {{ '' if track == 'transfer' else 'button--line' }}" href="{{ url_for('student.target_list', track='transfer') }}" aria-current="{{ 'page' if track == 'transfer' else 'false' }}">插大（{{ track_counts.transfer }}）</a>
   </nav>
@@ -25,13 +25,21 @@
   </div>
   {% endif %}
 
-  <section class="target-ranking my-targets" id="my-targets" aria-labelledby="my-targets-title">
+  <section class="target-ranking my-targets" id="my-targets" aria-labelledby="my-targets-title" data-tour="點已選校系查看缺件，或探索其他校系。" data-tour-order="3">
     <div class="target-ranking__head">
       <h2 id="my-targets-title">我的目標 <span class="muted small">{{ selected_programs|length }} 所</span></h2>
       <a class="button button--small button--line" href="#target-programs">探索其他校系 →</a>
     </div>
     {% if selected_programs %}
     <p class="small muted">已選校系依準備度排列；點校系可看採計項目與待補資料。百分比是資料準備度，並非錄取機率。</p>
+    {% if selected_programs|length >= 2 %}
+    <div class="my-targets__batch-action mt-1 mb-1">
+      <a class="button button--small button--accent" href="{{ url_for('student.autobiography_batch') }}" style="min-height: 44px; display: inline-flex; align-items: center; gap: 0.35rem;">
+        <span aria-hidden="true">🪄</span>
+        <span>一次替所有校系生成自傳</span>
+      </a>
+    </div>
+    {% endif %}
     <ol class="target-ranking__list">
       {% for program in selected_programs %}
       {% set gap = gaps[program.id] %}

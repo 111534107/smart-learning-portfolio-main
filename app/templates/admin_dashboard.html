@@ -13,7 +13,7 @@
     <span class="queue-badge{% if todo_total %} queue-badge--strong{% endif %}">{{ todo_total }} 類待處理</span>
   </header>
 
-  <section class="work-panel" data-admin-todos data-tour="數字卡直接連到要處理的頁面；0 表示這一類目前沒事。" data-tour-order="2">
+  <section class="work-panel" id="admin-todos" tabindex="-1" data-admin-todos data-tour="數字卡直接連到要處理的頁面；0 表示這一類目前沒事。" data-tour-order="2">
     <div class="work-panel__head"><div><h2>今天要處理</h2><p>候選更新要你核准，學生才看得到；資料來源失效、分類待核對、班級沒有導師也在這裡提醒。</p></div></div>
     <div class="work-metrics admin-todo">
       {% for todo in todos %}
@@ -24,7 +24,7 @@
     </div>
   </section>
 
-  <section class="work-panel" data-tour="帳號人數與各角色負責的事；帳號、密碼只有管理員能改。" data-tour-order="3">
+  <section class="work-panel" id="admin-accounts" tabindex="-1" data-tour="帳號人數與各角色負責的事；帳號、密碼只有管理員能改。" data-tour-order="3">
     <div class="work-panel__head"><div><h2>帳號</h2><p>帳號、密碼只有管理員能改。</p></div><a class="button button--small button--line" href="{{ url_for('admin.accounts') }}">帳號管理</a></div>
     <div class="work-metrics">
       <article class="work-metric"><span>學生</span><strong>{{ student_count }}</strong><small>整理成績、證照與學習歷程</small></article>
@@ -33,7 +33,7 @@
     </div>
   </section>
 
-  <section class="work-panel" data-grad-recheck>
+  <section class="work-panel" id="admin-graduation" tabindex="-1" data-grad-recheck>
     <div class="work-panel__head"><div><h2>畢業門檻重新對照</h2><p>學生改資料時系統會自動對照；學期跨到專四下或專五上時，按一次讓全科案件依新階段開立或結案。正式畢業資格審查由教務處負責。</p></div>
       <form method="post" action="{{ url_for('graduation.recheck') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button--small button--line" type="submit">重新對照全科</button></form></div>
     <form class="form-stack mt-1" method="post" action="{{ url_for('graduation.save_check_dates') }}" data-check-dates>
@@ -48,7 +48,7 @@
     </form>
   </section>
 
-  <section class="work-panel" id="email-notify" data-email-notify-admin>
+  <section class="work-panel" id="email-notify" tabindex="-1" data-email-notify-admin>
     <div class="work-panel__head"><div><h2>電子郵件通知</h2><p>畢業缺口案件、各學期預警、檢核日期倒數會同時寄信給學生與導師（學生、導師可在帳號設定自己關閉）。{% if email_smtp_ready %}SMTP 已設定，會真的寄信。{% else %}目前沒有設定 SMTP（或是展示站），不會寄信，只寫進記錄檔與操作紀錄。{% endif %}</p></div></div>
     <form class="form-stack mt-1" method="post" action="{{ url_for('main.save_email_notify') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -57,7 +57,7 @@
     </form>
   </section>
 
-  <section class="work-panel" id="login-security" data-login-security>
+  <section class="work-panel" id="login-security" tabindex="-1" data-login-security>
     <div class="work-panel__head"><div><h2>管理員登入安全</h2><p>管理員登入網址不放在公開頁面：<code>/admin/login</code>。{% if config.get('ADMIN_TWO_FACTOR_REQUIRED') %}一定要六位數驗證碼{% else %}六位數驗證碼目前沒有強制（本機展示站或測試）{% endif %}，密碼錯 5 次鎖 15 分鐘，閒置 15 分鐘自動登出。</p></div></div>
     <form class="form-stack mt-1" method="post" action="{{ url_for('main.save_login_security') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -70,7 +70,7 @@
     </form>
   </section>
 
-  <section class="work-panel">
+  <section class="work-panel" id="admin-audit" tabindex="-1">
     <div class="work-panel__head"><div><h2>操作紀錄</h2><p>誰在什麼時候登入、確認、刪除或上傳；不記內容與個資。</p></div><a class="button button--small" href="{{ url_for('admin.audit_logs') }}">查看操作紀錄</a></div>
   </section>
 </section>

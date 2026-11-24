@@ -25,7 +25,9 @@ from app.models import (
     StudentProfile,
     User,
 )
+from app.services import class_assignment_service
 from app.services import admission_agent_service as agent
+from app.services import audit_service, backup_email, email_notify
 from app.services.staff_accounts import STAFF_TITLES
 from app.services.admission_service import import_seed_programs, published_programs, refresh_seed_details
 from app.services.admission_eligibility_service import validate_eligibility_condition
@@ -56,13 +58,13 @@ def course_rules():
             credits_value = request.form.get("credits", "").strip()
             credits = int(credits_value) if credits_value else None
         except ValueError:
-            abort(400, description="School year and credits must be numbers")
+            abort(400, description="學年度與學分要填數字。")
         if not normalized_course_name or not category or requirement_type not in {"required", "elective"}:
-            abort(400, description="Course name, category, and requirement type are required")
+            abort(400, description="課程名稱、分類與必選修都要填。")
         if CourseRule.query.filter_by(
             school_year=school_year, normalized_course_name=normalized_course_name
         ).first():
-            abort(400, description="A rule for this school year and course already exists")
+            abort(400, description="這個學年度已經有同名課程的規則。")
         db.session.add(CourseRule(
             school_year=school_year,
             course_name=course_name,
@@ -115,16 +117,16 @@ def match_filters():
         try:
             sort_order = int(request.form.get("sort_order", "").strip() or 0)
         except ValueError:
-            abort(400, description="Sort order must be a number")
+            abort(400, description="排序要填數字。")
         if category not in MATCH_FILTER_CATEGORIES or not label or not value:
-            abort(400, description="Category, label, and value are required")
+            abort(400, description="類別、顯示名稱與值都要填。")
         _check_match_filter_label(label)
         if len(value) > MatchFilterOption.value.type.length:
             abort(400, description=f"值不可超過 {MatchFilterOption.value.type.length} 個字")
         if category == "eligible" and value not in MATCH_FILTER_ELIGIBLE_VALUES:
             abort(400, description="「是否可報」的值只能是 eligible、needs_check、ineligible")
         if MatchFilterOption.query.filter_by(category=category, value=value).first():
-            abort(400, description="This filter option already exists")
+            abort(400, description="這個篩選選項已經存在。")
         db.session.add(MatchFilterOption(
             category=category, label=label, value=value, sort_order=sort_order, is_active=True,
         ))
@@ -155,7 +157,7 @@ def edit_match_filter(option_id):
     try:
         sort_order = int(request.form.get("sort_order", "").strip() or 0)
     except ValueError:
-        abort(400, description="Sort order must be a number")
+        abort(400, description="排序要填數字。")
     option.label = label
     option.sort_order = sort_order
     db.session.commit()
@@ -186,7 +188,26 @@ def accounts():
         staff_titles=STAFF_TITLES,
         staff_domain=_staff_domain(),
         locked_usernames=login_guard.locked_usernames(),
+        backup_pending=backup_email.pending(),
+        backup_result=session.pop("backup_email_result", None),
+        mail_ready=email_notify.smtp_ready(),
     )
+
+
+@admin_bp.post("/admin/accounts/<int:user_id>/backup-email/confirm")
+@role_required("admin")
+def confirm_backup_email(user_id):
+    """B30：沒有寄信帳號時，學生收不到確認信；管理員當面核對學生的備用信箱後代為確認。"""
+    account = db.session.get(User, user_id)
+    if account is None:
+        abort(404)
+    if backup_email.admin_confirm(get_current_user(), account, request.form.get("address")):
+        db.session.commit()
+        session["backup_email_result"] = {"ok": f"已確認 {account.display_name} 的備用信箱。"}
+    else:
+        db.session.rollback()
+        session["backup_email_result"] = {"error": f"{account.display_name} 的備用信箱剛剛換過或已經確認，請重新核對。"}
+    return redirect(url_for("admin.accounts") + "#backup-pending")
 
 
 def _staff_domain():
@@ -269,8 +290,10 @@ def toggle_account_active(user_id):
     if not account:
         abort(404)
     if account.id == actor.id:
-        abort(400, description="Administrators cannot disable their own account")
+        abort(400, description="不能停用自己正在使用的管理員帳號。")
     account.is_active = not account.is_active
+    # 2026-11-18：停用、重新啟用會影響對方能不能登入，要留操作紀錄（原本沒記）
+    audit_service.record(actor, "account.activate" if account.is_active else "account.deactivate", "user", account.id)
     db.session.commit()
     return redirect(url_for("admin.accounts"))
 
@@ -299,6 +322,28 @@ def unlock_login(user_id):
     login_guard.unlock(get_current_user(), target)
     db.session.commit()
     return redirect(url_for("admin.accounts"))
+
+
+@admin_bp.post("/admin/accounts/<int:user_id>/class-name")
+@role_required("admin")
+def set_student_class(user_id):
+    """學生班級：Google 登入自動建立的學生沒有班級，導師就看不到他們（2026-11-18 四角色實測）。"""
+    actor = get_current_user()
+    account = db.session.get(User, user_id)
+    if not account or account.role != "student" or not account.student_profile:
+        abort(404)
+    class_name = " ".join(request.form.get("class_name", "").split())
+    if not class_name:
+        abort(400, description="請填寫班級，例如「資管科三甲」。")
+    if len(class_name) > 50:
+        abort(400, description="班級名稱最多 50 個字。")
+    old_name = account.student_profile.class_name
+    if old_name != class_name:
+        account.student_profile.class_name = class_name
+        db.session.add(AuditLog(user_id=actor.id, action="student.class_name.update", target_type="user",
+                                target_id=account.id, detail_json={"from": old_name, "to": class_name}))
+        db.session.commit()
+    return redirect(url_for("admin.accounts") + f"#account-{account.id}")
 
 
 @admin_bp.post("/admin/accounts/<int:user_id>/school-email")
@@ -370,7 +415,18 @@ def google_workspace_page():
     return render_template("admin_google_workspace.html", user=get_current_user(), settings=google_workspace.settings(),
                            oauth=oauth, ready=school_google_login.configured(config), linked=linked,
                            auto_created=auto_created, student_domain=school_google_login.DOMAIN,
-                           error=error), (400 if error else 200)
+                           drive=_drive_status(), error=error), (400 if error else 200)
+
+
+def _drive_status():
+    """Google 登入設定頁也顯示雲端硬碟存放狀態，詳細設定與測試連線在「檔案存放設定」。"""
+    from app.services import storage_service
+    checks = storage_service.check_settings(current_app.config)
+    last = storage_service.last_check(current_app)
+    return {"active": storage_service.active_backend_name(),
+            "connected": storage_service.token_holder(current_app).connected,
+            "problems": sum(1 for item in checks if not item["ok"]),
+            "last_ok": None if last is None else last["ok"]}
 
 
 @admin_bp.route("/admin/project-types", methods=["GET", "POST"])
@@ -382,9 +438,9 @@ def project_types():
         try:
             school_year = int(request.form.get("school_year", ""))
         except ValueError:
-            abort(400, description="School year must be a number")
+            abort(400, description="學年度要填數字。")
         if not code or not name or ProjectType.query.filter_by(code=code).first():
-            abort(400, description="Project type code and name must be unique and complete")
+            abort(400, description="專題類型的代碼與名稱都要填，而且不能和既有的重複。")
         db.session.add(
             ProjectType(code=code, name=name, school_year=school_year, is_active=True)
         )
@@ -417,7 +473,7 @@ def create_requirement_template(project_type_id):
     name = request.form.get("name", "").strip()
     version = request.form.get("version", "").strip()
     if not name or not version:
-        abort(400, description="Template name and version are required")
+        abort(400, description="模板名稱與版本都要填。")
     db.session.add(
         RequirementTemplate(
             project_type_id=project_type.id,
@@ -449,11 +505,11 @@ def create_requirement_item(template_id):
         abort(404)
     title = request.form.get("title", "").strip()
     if not title:
-        abort(400, description="Requirement title is required")
+        abort(400, description="要求項目的標題要填。")
     try:
         sort_order = int(request.form.get("sort_order", "0"))
     except ValueError:
-        abort(400, description="Sort order must be a number")
+        abort(400, description="排序要填數字。")
     db.session.add(
         RequirementItem(
             template_id=template.id,
@@ -502,6 +558,9 @@ def program_toggle_status(program_id):
     if not program:
         abort(404)
     program.status = "candidate" if program.status == "published" else "published"
+    # 核准為正式後學生就看得到，要留操作紀錄（2026-11-18 補）
+    audit_service.record(get_current_user(), "program.publish" if program.status == "published" else "program.unpublish",
+                         "admission_program", program.id)
     db.session.commit()
     return redirect(url_for("admin.programs"))
 
@@ -778,37 +837,26 @@ def curriculum_decide(version_id, decision):
 def classes():
     error = None
     if request.method == "POST":
-        teacher = db.session.get(User, request.form.get("teacher_id", type=int) or 0)
-        class_name = request.form.get("class_name", "").strip()
-        school_year = request.form.get("school_year", type=int)
-        if not teacher or teacher.role != "teacher":
-            error = "請選擇導師帳號"
-        elif not class_name or not school_year:
-            error = "請填寫班級與學年度"
-        elif ClassAdvisor.query.filter_by(teacher_id=teacher.id, class_name=class_name, school_year=school_year).first():
-            error = "這位導師已經負責這個班級"
-        else:
-            db.session.add(ClassAdvisor(teacher_id=teacher.id, class_name=class_name, school_year=school_year))
-            db.session.commit()
+        try:
+            class_assignment_service.add(get_current_user(), request.form.get("teacher_id", type=int),
+                                         request.form.get("class_name"), request.form.get("school_year", type=int))
             return redirect(url_for("admin.classes"))
-    class_names = sorted({p.class_name for p in StudentProfile.query.all() if p.class_name})
+        except class_assignment_service.AssignmentError as exc:
+            error = str(exc)
     return render_template(
         "admin_classes.html",
         user=get_current_user(),
-        advisors=ClassAdvisor.query.order_by(ClassAdvisor.school_year.desc(), ClassAdvisor.class_name).all(),
-        teachers=User.query.filter_by(role="teacher", is_active=True).order_by(User.display_name).all(),
-        class_names=class_names,
         error=error,
+        form_action=url_for("admin.classes"),
+        delete_endpoint="admin.class_delete",
+        **class_assignment_service.page_data(),
     ), (400 if error else 200)
 
 
 @admin_bp.post("/admin/classes/<int:advisor_id>/delete")
 @role_required("admin")
 def class_delete(advisor_id):
-    advisor = db.session.get(ClassAdvisor, advisor_id)
-    if advisor:
-        db.session.delete(advisor)
-        db.session.commit()
+    class_assignment_service.remove(get_current_user(), advisor_id)
     return redirect(url_for("admin.classes"))
 
 

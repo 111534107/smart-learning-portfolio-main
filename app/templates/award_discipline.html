@@ -9,9 +9,9 @@
 {% block content %}
 {{ page_band("已保存的懲處紀錄", [("活動與經歷", url_for('student.portfolio_list')), ("匯入獎懲記錄", url_for('award.award_upload_page'))]) }}
 <div class="page page--banded">
-  <p class="notice mb-1">懲處紀錄不會出現在「活動與經歷」，目前也不會自動帶入備審資料。</p>
+  <p class="notice mb-1" data-tour="先了解懲處紀錄不會自動放入備審。" data-tour-order="1">懲處紀錄不會出現在「活動與經歷」，目前也不會自動帶入備審資料。</p>
   {% if records %}
-  <div class="table-wrap">
+  <div class="table-wrap" data-tour="查看已保存的日期、事由及銷過狀態。" data-tour-order="2">
     <table class="data-table discipline-table">
       <thead><tr><th>學年度</th><th>學期</th><th>日期</th><th>名稱</th><th>數量</th><th>事由</th><th>銷過</th></tr></thead>
       <tbody>

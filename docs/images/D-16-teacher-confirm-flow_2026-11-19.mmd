@@ -1,0 +1,29 @@
+%%{init: {'theme':'base','themeVariables': {'fontSize':'18px','fontFamily':'DFKai-SB, BiauKai, serif','primaryColor':'#F3F4F6','primaryTextColor':'#111827','primaryBorderColor':'#9CA3AF','lineColor':'#6B7280','edgeLabelBackground':'#FFFFFF'},'flowchart':{'wrappingWidth':400}}}%%
+flowchart TD
+    classDef student fill:#DBEAFE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef teacher fill:#DCFCE7,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef system fill:#E0F2FE,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef alert fill:#FEE2E2,stroke:#9CA3AF,color:#111827,stroke-width:1px;
+    classDef pending fill:#FFFFFF,stroke:#9CA3AF,color:#6B7280,stroke-width:1px,stroke-dasharray:5 3;
+
+    Submit([學生送審<br/>系統存下快照：事實清單、自傳第 N 版、完成度]):::student --> List[班導師查看本班學生清單]:::teacher
+    List -.- Scope[只能查看與自己有關的學生<br/>其他學生一律拒絕存取]:::pending
+    Submit -.- NoCert[成績單、證照與競賽證明不經導師審核<br/>（證照由 AI 初判；競賽證明只標出可疑處）<br/>科上派的服務由科主任核准電子獎狀<br/>導師只確認最後整理好的備審內容]:::pending
+    List --> View[查看學生資料、缺件清單與原始檔]:::teacher
+    View --> Versions[確認區塊同時顯示<br/>送審版本：第 N 版（誰、何時）＋全文<br/>目前最新版本：第 M 版（誰、何時）]:::system
+    Versions --> Comment[老師可以在段落加註解<br/>記錄是哪位老師、時間；每段可多則、不能刪除]:::teacher
+    Comment --> Reply[學生看到註解（含老師姓名與身分）<br/>可以回覆；處理完按「已處理」收起來]:::student
+    Versions --> Edit[導師也可以直接修改自傳<br/>存成新的一版（記錄編輯者）]:::teacher
+    Edit --> Notify[自傳頁與學生首頁提醒：老師修改了你的自傳<br/>可比較修改了哪裡]:::system
+    Notify --> Resubmit[學生看過後重新送審]:::student
+    Resubmit --> Submit
+    Versions --> Same{送審版和最新版<br/>是同一版？}
+    Same -- 否 --> Block[不能確認<br/>提示：要確認最新版，請學生重新送審]:::alert
+    Block --> Resubmit
+    Same -- 是 --> Reasonable{備審內容合理？}
+    Reasonable -- 是 --> Confirm[導師確認送審的那一版<br/>寫入操作紀錄]:::teacher
+    Confirm --> Ready[系統記錄導師確認（審核紀錄）<br/>備審 Word 學生隨時可下載，不必等確認]:::system
+    Reasonable -- 否 --> Advice[導師按「請學生修改」並留下建議]:::teacher
+    Advice --> Fix[學生依建議與註解修改]:::student
+    Fix --> Resubmit
+    Confirm -.- Withdraw[按錯可以撤回確認<br/>要填原因，原本的紀錄保留]:::pending

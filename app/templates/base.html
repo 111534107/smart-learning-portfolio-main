@@ -4,6 +4,9 @@
    教職員頁另外載入 staff-v2.css，表格與清單維持精簡、以效率為優先。 #}
 {% set student_v2 = user is defined and user and user.role in ("student", "teacher", "staff", "admin") %}
 {% set staff_v2 = student_v2 and user.role != "student" %}
+{# 背景方塊動畫：2026-11-16 使用者要求全系統每一頁都有；老師、科辦、管理員頁由 bg-squares.css 調得更淡。
+   某一頁不想要時，在該頁 {% set bg_squares = false %} 即可。 #}
+{% set bg_squares = bg_squares is not defined or bg_squares %}
 <html lang="zh-Hant" class="no-js"{% if student_v2 %} data-ui="student-v2"{% endif %}{% if staff_v2 %} data-staff-ui="{{ user.role }}"{% endif %}>
   <head>
     <meta charset="utf-8">
@@ -21,6 +24,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700;900&display=swap">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/workbench.css') }}">
     {# 校園招生風主題：只在 body 有 data-theme="campus" 時生效（首頁不加），撤掉只要拿掉下面 body 的屬性 #}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-campus.css') }}">
     {% if student_v2 %}
@@ -29,8 +33,11 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/student-v2/ocr.css') }}">
     {% if staff_v2 %}<link rel="stylesheet" href="{{ url_for('static', filename='css/student-v2/staff.css') }}">{% endif %}
     {% endif %}
+    {% if page_name|default('') in ('student-dashboard', 'student-internship-resume') %}<link rel="stylesheet" href="{{ url_for('static', filename='css/student-v2/home-desk.css') }}">{% endif %}
+    {% if bg_squares %}<link rel="stylesheet" href="{{ url_for('static', filename='css/bg-squares.css') }}">{% endif %}
   </head>
   <body data-page="{{ page_name|default('workspace') }}"{% if page_name|default('workspace') not in ('student-dashboard', 'public-home') %} data-theme="campus"{% endif %}>
+    {% if bg_squares %}{% include "partials/bg_squares.html" %}{% endif %}
     <a class="skip-link" href="#main-content">跳到主要內容</a>
     {% block navigation %}{% endblock %}
     <main id="main-content">
@@ -43,10 +50,52 @@
     {# 學生頁左下角快捷鈕（招生時程／小助手寫自傳／回到頂端）：2026-11-04 使用者決定拿掉（會蓋到內文、看不出用途）。
        檔案 partials/quick_dock.html 與樣式保留未刪，要恢復只要把 include 加回來。 #}
     {% block footer %}{% endblock %}
-    {% if user is defined and user and user.role in ("student", "teacher") %}{% include "partials/assistant.html" %}{% endif %}
+    {% if user is defined and user and user.role in ("student", "teacher", "staff", "admin") and session.get("user_id") %}{% include "partials/assistant.html" %}<script src="{{ url_for('static', filename='js/graduation-policy.js') }}" defer></script>{% endif %}{# 登入、雙重驗證頁不放小助手 #}
+    {% if user is defined and user and user.role == "student" and session.get("user_id") %}
+    <dialog class="student-search-dialog" id="student-search-dialog" aria-labelledby="student-search-title">
+      <div class="student-search-dialog__head">
+        <h2 id="student-search-title">搜尋</h2>
+        <div class="student-search-dialog__controls">
+          <button type="button" data-search-move aria-label="移動搜尋視窗，可拖曳或使用方向鍵" title="拖曳或使用方向鍵移動">✥</button>
+          <button type="button" data-search-reset aria-label="搜尋視窗回到預設位置" title="回到預設位置">↺</button>
+        </div>
+        <button type="button" data-student-search-close aria-label="關閉搜尋">×</button>
+      </div>
+      <form action="{{ url_for('main.student_search') }}" method="get" role="search">
+        <label class="visually-hidden" for="student-search-overlay-q">搜尋關鍵字</label>
+        <input id="student-search-overlay-q" type="search" name="q" maxlength="60" placeholder="搜尋功能或我的資料" required autofocus>
+        <label class="visually-hidden" for="student-search-overlay-kind">資料類型</label>
+        <select id="student-search-overlay-kind" name="kind"><option value="">全部類型</option>{% for label in ("功能", "成績", "證照", "經歷") %}<option>{{ label }}</option>{% endfor %}</select>
+        <button class="button button--small" type="submit">搜尋</button>
+      </form>
+      <details class="student-search-dialog__guide">
+        <summary>怎麼搜尋？</summary>
+        <ol>
+          <li>輸入關鍵字，例如「畢業門檻」。</li>
+          <li>選「功能」，按「搜尋」。</li>
+          <li>點結果標題，開啟該頁面。</li>
+        </ol>
+        <button type="button" class="button button--small button--line" data-search-example>試搜「畢業門檻」</button>
+      </details>
+      <p data-search-status role="status" hidden></p>
+      <ul data-search-results hidden></ul>
+    </dialog>
+    <script src="{{ url_for('static', filename='js/student-search.js') }}" defer></script>
+    {% endif %}
     <script src="{{ url_for('static', filename='js/motion.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/components.js') }}" defer></script>
     {% if student_v2 %}<script src="{{ url_for('static', filename='js/student-v2.js') }}" defer></script>{% endif %}
+    {% if user is defined and user and user.role == "student" and session.get("user_id") %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/easter-eggs.css') }}">
+    {% include "partials/milestones.html" %}
+    <script type="application/json" id="credits-data">[{"role":"指導老師","name":"（待填）"},{"role":"專題組員","name":"（待填）"}]</script>
+    <dialog class="egg-credits-dialog" id="egg-credits-dialog" aria-labelledby="egg-credits-title">
+      <div class="egg-credits-dialog__head"><h2 id="egg-credits-title">製作團隊與指導</h2><button type="button" class="egg-close" data-egg-close aria-label="關閉致謝名單">×</button></div>
+      <ul data-credits-list></ul>
+    </dialog>
+    <script src="{{ url_for('static', filename='js/easter-eggs.js') }}" defer></script>
+    {% endif %}
     {% block scripts %}{% endblock %}
+    <script src="{{ url_for('static', filename='js/typing-mode.js') }}" defer></script>
   </body>
 </html>

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer, page_band with context %}
+{% block title %}作品連結分析{% endblock %}
+{% block navigation %}{{ masthead(user, "活動與經歷") }}{% endblock %}
+{% block content %}
+{{ page_band("請小助手分析", [("回作品", url_for('student.portfolio_edit', portfolio_id=portfolio.id))]) }}
+<div class="page narrow page--banded"><section class="sheet">
+<h2>{{ portfolio.title }}</h2>
+<p>先選擇要讀取的公開網址，再按開始分析。僅讀取 GitHub 與 Canva 不需登入的文字；不會修改作品資料。</p>
+<p data-tour="先確認公開頁面適合傳送給小助手。" data-tour-order="1">內容會先遮蓋系統已知的姓名、學號等資料，再送給小助手服務；自動遮蓋可能無法辨識所有個資，請確認公開頁面適合傳送。</p>
+{% if links %}<form method="post" class="form-stack" data-tour="選公開網址，再按開始讀取並分析。" data-tour-order="2"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<fieldset><legend>選擇要讀取的網址</legend>{% for item in links %}<label><input type="radio" name="evidence_id" value="{{ item.id }}" required> {{ item.display_name }}：{{ item.external_url }}</label><br>{% endfor %}</fieldset>
+<button class="button" type="submit">開始讀取並分析</button></form>{% else %}<p>請先回作品頁新增連結。</p>{% endif %}
+{% if error %}<p class="alert" role="alert">{{ error }}</p>{% endif %}
+{% if source %}<p>來源：<a href="{{ source }}" target="_blank" rel="noopener noreferrer">{{ source }}</a></p>{% endif %}
+{% if result %}<h3>作品原文依據</h3><p>{{ result.evidence }}</p><h3>分析摘要</h3><p>{{ result.summary }}</p><h3>無法確認的部分</h3><p>{{ result.uncertain }}</p><p>分析供參考，請自行核對來源；不會自動修改作品。</p>{% endif %}
+</section></div>{% endblock %}
+{% block footer %}{{ footer() }}{% endblock %}

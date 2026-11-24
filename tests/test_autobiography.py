@@ -11,6 +11,7 @@ from app.models import (AdmissionProgram, CredentialRecord, LearningCourseRecord
                         Portfolio, StudentProfile, StudentTarget, User)
 from app.services.admission_service import import_seed_programs
 from app.services.autobiography_service import build_facts, generate_draft
+from app.services import autobiography_service
 from app.services.journey_service import academic_year_of
 from tests.board_helpers import fill_board
 
@@ -411,7 +412,7 @@ def test_custom_draft_prompt_uses_flexible_headings_and_evidence_based_length(ap
         prog = AdmissionProgram.query.filter_by(program_code='208003').one()
         generate_draft(student, prog, ANSWERS, generate=fake_ai)
     assert '1500' in captured['prompt'] and '2500' in captured['prompt']
-    assert '標題依內容' in captured['prompt']
+    assert '有主張的小標題' in captured['prompt']
     assert '不得編造' in captured['prompt']
 
 
@@ -425,7 +426,7 @@ def test_custom_draft_prompt_uses_flexible_headings_and_evidence_based_length(ap
         prog = AdmissionProgram.query.filter_by(program_code='208003').one()
         generate_draft(student, prog, ANSWERS, generate=fake_ai)
     assert '1500' in captured['prompt'] and '2500' in captured['prompt']
-    assert '標題依內容' in captured['prompt']
+    assert '有主張的小標題' in captured['prompt']
     assert '不得編造' in captured['prompt']
 
 
@@ -572,3 +573,263 @@ def test_question_page_offers_facts_as_draggable_pieces(app):
 
     assert "data-bio-pieces" in html
     assert "校園黑客松" in html and "（F" in html
+
+
+def test_manual_start_works_without_ai_and_preserves_versions(app, monkeypatch):
+    client = login(app)
+    choose_target(app, client)
+    monkeypatch.setattr('app.routes.student.autobiography_service.generate_json', lambda *a, **k: (_ for _ in ()).throw(AssertionError('AI called')))
+    response = client.post('/student/autobiography/manual', data={'program_id': program(app), 'motivation': '我的手寫動機'})
+    assert response.status_code == 302
+    html = client.get(response.headers['Location']).get_data(as_text=True)
+    assert '我的手寫動機' in html
+    assert '目前版本' in html and '送審' in html and '未儲存' in html
+    with app.app_context():
+        output = LearningProfileOutput.query.filter_by(output_type='autobiography_ai').one()
+        assert output.content_json['provider'] == 'manual'
+        output_id = output.id
+        count = len(output.content_json['paragraphs'])
+    client.post(f'/student/autobiography/{output_id}/save', data={f'paragraph_{i}': '手寫內容' for i in range(count)})
+    with app.app_context():
+        assert LearningProfileOutput.query.filter_by(output_type='autobiography_ai').count() == 2
+
+
+def test_manual_school_switch_and_review_snapshot(app):
+    client = login(app)
+    choose_target(app, client)
+    with app.app_context():
+        other_id = AdmissionProgram.query.filter(AdmissionProgram.program_code != "208003").first().id
+    client.post('/student/targets', data={'program_id': other_id})
+    client.post('/student/autobiography/manual', data={'program_id': program(app), 'motivation': '第一校的手寫內容'})
+    client.post('/student/autobiography/manual', data={'program_id': other_id, 'motivation': '第二校的手寫內容'})
+    first = client.get(f'/student/autobiography?program_id={program(app)}').get_data(as_text=True)
+    assert '第一校的手寫內容' in first and '第二校的手寫內容' not in first
+    assert '#review' in first
+    client.post(f'/student/targets/{program(app)}/review')
+    first = client.get(f'/student/autobiography?program_id={program(app)}').get_data(as_text=True)
+    assert '送出第 1 版' in first
+    with app.app_context():
+        student = User.query.filter_by(username='stu').one()
+        output = autobiography_service.latest_draft(student, db.session.get(AdmissionProgram, program(app)))
+        output_id = output.id
+        count = len(output.content_json['paragraphs'])
+    client.post(f'/student/autobiography/{output_id}/save', data={f'paragraph_{i}': '更新' for i in range(count)})
+    first = client.get(f'/student/autobiography?program_id={program(app)}').get_data(as_text=True)
+    assert '目前版本尚未送審' in first and '送出第 1 版' in first
+
+
+def test_manual_start_rejects_another_students_target(app):
+    owner = login(app)
+    choose_target(app, owner)
+    other = login(app, 'other')
+    assert other.post('/student/autobiography/manual', data={'program_id': program(app)}).status_code == 302
+    with app.app_context():
+        assert LearningProfileOutput.query.filter_by(output_type='autobiography_ai').count() == 0
+
+
+def test_ai_failure_keeps_answers_and_allows_manual_start(app, monkeypatch):
+    from app.services.gemini_client import AIUnavailable
+    client = login(app)
+    choose_target(app, client)
+    def fail(*args, **kwargs):
+        raise AIUnavailable('模擬 AI 失敗')
+    with monkeypatch.context() as patcher:
+        patcher.setattr(autobiography_service, 'generate_draft', fail)
+        failed = client.post('/student/autobiography/generate', data={'program_id': program(app), **ANSWERS})
+    html = failed.get_data(as_text=True)
+    assert failed.status_code == 503 and '模擬 AI 失敗' in html
+    assert ANSWERS['motivation'] in html and '/student/autobiography/manual' in html
+    saved = client.post('/student/autobiography/manual', data={'program_id': program(app), **ANSWERS})
+    assert saved.status_code == 302 and ANSWERS['motivation'] in client.get(saved.headers['Location']).get_data(as_text=True)
+
+
+def test_writing_progress_guides_first_draft_before_review(app):
+    client = login(app)
+    choose_target(app, client)
+    program_id = program(app)
+    first = client.get('/student/autobiography').get_data(as_text=True)
+    assert 'aria-label="自傳步驟"' in first
+    assert 'data-writing-stage="questions" aria-current="step"' in first
+    assert '前往確認送審' not in first
+    response = client.post('/student/autobiography/manual', data={'program_id': program_id})
+    assert response.status_code == 302
+    draft = client.get(response.location).get_data(as_text=True)
+    assert 'data-writing-stage="draft" aria-current="step"' in draft
+    assert '前往確認送審' in draft
+
+
+def _draft_count(app, username="stu"):
+    with app.app_context():
+        student = User.query.filter_by(username=username).one()
+        return len(autobiography_service.versions(student, db.session.get(AdmissionProgram, program(app))))
+
+
+def test_unsubmitted_autobiography_can_be_deleted_whole(app):
+    """2026-11-19 使用者決定：從沒送過導師的自傳草稿可以整份刪除，並留操作紀錄。"""
+    from app.models import AuditLog
+    client = login(app)
+    choose_target(app, client)
+    client.post('/student/autobiography/manual', data={'program_id': program(app), 'motivation': '想刪掉重寫'})
+    assert _draft_count(app) == 1
+    page = client.get(f'/student/autobiography/versions?program_id={program(app)}').get_data(as_text=True)
+    assert '刪除整份草稿' in page
+
+    response = client.post('/student/autobiography/delete', data={'program_id': program(app)})
+
+    assert response.status_code == 302
+    assert _draft_count(app) == 0
+    with app.app_context():
+        assert AuditLog.query.filter_by(action='autobiography.delete').count() == 1
+
+
+def test_submitted_autobiography_cannot_be_deleted(app):
+    """送過導師確認的自傳不能刪（歷史版本與送審紀錄要保留），頁面也不顯示刪除鈕。"""
+    from app.models import AuditLog
+    client = login(app)
+    choose_target(app, client)
+    client.post('/student/autobiography/manual', data={'program_id': program(app), 'motivation': '已送審的內容'})
+    client.post(f'/student/targets/{program(app)}/review')
+    page = client.get(f'/student/autobiography/versions?program_id={program(app)}').get_data(as_text=True)
+    assert '刪除整份草稿' not in page
+
+    client.post('/student/autobiography/delete', data={'program_id': program(app)})
+
+    assert _draft_count(app) == 1
+    with app.app_context():
+        assert AuditLog.query.filter_by(action='autobiography.delete_blocked').count() == 1
+
+
+def test_other_student_cannot_delete_my_autobiography(app):
+    owner = login(app)
+    choose_target(app, owner)
+    owner.post('/student/autobiography/manual', data={'program_id': program(app), 'motivation': '我的內容'})
+    other = login(app, 'other')
+    assert other.post('/student/autobiography/delete', data={'program_id': program(app)}).status_code == 404
+    assert _draft_count(app) == 1
+
+
+def test_outline_follows_target_program_weights(app):
+    """自傳目錄跟著目標校系的簡章項目改變：學習動機開頭、未來規劃結尾，中間依比重由高到低。"""
+    from app.services.autobiography_service import guided_questions, outline_titles
+    with app.app_context():
+        prog = AdmissionProgram.query.filter_by(program_code='208003').one()
+        questions = guided_questions(prog)
+        titles = outline_titles(prog, questions)
+        weighted = [q["item"][:30] for q in questions if q.get("weight")]
+        assert titles[0] == "學習動機" and titles[-1] == "未來規劃"
+        assert titles[1:1 + len(weighted[:4])] == weighted[:4]
+        assert outline_titles(None, []) == ["學習動機", "學習歷程與具體經驗", "困難與成長", "未來規劃"]
+
+
+def test_paragraph_budgets_follow_weights_and_stay_short(app):
+    """每段字數上限依簡章比重分配；全份不超過約 2200 字的目標（不會寫成萬字）。"""
+    from app.services.autobiography_service import (TOTAL_CHAR_BUDGET, guided_questions, outline_titles,
+                                                    paragraph_budgets)
+    with app.app_context():
+        prog = AdmissionProgram.query.filter_by(program_code='208003').one()
+        questions = guided_questions(prog)
+        budgets = paragraph_budgets(prog, questions)
+        titles = outline_titles(prog, questions)
+        assert all(title in budgets for title in titles)
+        assert sum(budgets[t] for t in titles) <= TOTAL_CHAR_BUDGET + 300
+        focus = [q for q in questions if q.get("weight")]
+        if len(focus) >= 2 and focus[0]["weight"] > focus[-1]["weight"]:
+            assert budgets[focus[0]["item"][:30]] >= budgets[focus[-1]["item"][:30]]
+
+
+def test_prompt_tells_ai_the_chapter_budgets(app):
+    captured = {}
+    def fake_ai(prompt, schema):
+        captured['prompt'] = prompt
+        return {'paragraphs': [{'title': '學習動機', 'text': '測試', 'sources': []}]}
+    with app.app_context():
+        student = User.query.filter_by(username='stu').one()
+        prog = AdmissionProgram.query.filter_by(program_code='208003').one()
+        generate_draft(student, prog, ANSWERS, generate=fake_ai)
+    assert '約250字內' in captured['prompt'] and '未來規劃（約300字內）' in captured['prompt']
+
+
+def test_new_facts_since_draft_lists_only_new_confirmed_data(app):
+    from app.services.autobiography_service import build_facts, new_facts_since
+    client = login(app)
+    choose_target(app, client)
+    client.post("/student/autobiography/generate", data={"program_id": program(app), **ANSWERS})
+    with app.app_context():
+        student = User.query.filter_by(username="stu").one()
+        prog = AdmissionProgram.query.filter_by(program_code="208003").one()
+        draft = autobiography_service.latest_draft(student, prog)
+        assert new_facts_since(draft, build_facts(student, prog)) == []
+        db.session.add(Portfolio(student_id=student.id, title="新增的志工服務", category="service", school_year=3,
+                                 status="confirmed", description="假日淨灘"))
+        db.session.commit()
+        fresh = new_facts_since(draft, build_facts(student, prog))
+        assert any("新增的志工服務" in text for text in fresh)
+
+
+def test_editor_page_receives_budgets_and_update_notice(app):
+    client = login(app)
+    choose_target(app, client)
+    client.post("/student/autobiography/generate", data={"program_id": program(app), **ANSWERS})
+    with app.app_context():
+        student = User.query.filter_by(username="stu").one()
+        db.session.add(Portfolio(student_id=student.id, title="剛新增的社團", category="activity", school_year=3,
+                                 status="confirmed", description="社長"))
+        db.session.commit()
+    page = client.get(f"/student/autobiography?program_id={program(app)}").get_data(as_text=True)
+    assert page.count("data-budget") >= 0 and response_ok(page)
+
+
+def response_ok(page):
+    return "小助手寫自傳" in page
+
+
+def test_autobiography_autosave_accumulates_versions_and_returns_json(app):
+    client = login(app)
+    choose_target(app, client)
+    client.post("/student/autobiography/generate", data={"program_id": program(app), **ANSWERS})
+    with app.app_context():
+        output = LearningProfileOutput.query.filter_by(output_type="autobiography_ai").one()
+        v1 = autobiography_service.version_of(output)
+
+    # 第一次自動儲存
+    res1 = client.post(f"/student/autobiography/{output.id}/autosave",
+                       json={"paragraph_0": "自動儲存測試第一段", "paragraph_1": "自動儲存測試第二段"})
+    assert res1.status_code == 200
+    data1 = res1.get_json()
+    assert data1["ok"] is True
+    assert data1["version"] == v1 + 1
+    assert "已自動儲存" in data1["message"]
+    new_id = data1["output_id"]
+
+    # 第二次自動儲存：以最新 output_id 儲存，版本照舊累加
+    res2 = client.post(f"/student/autobiography/{new_id}/autosave",
+                       json={"paragraph_0": "第二次自動儲存第一段", "paragraph_1": "第二次自動儲存第二段"})
+    assert res2.status_code == 200
+    data2 = res2.get_json()
+    assert data2["ok"] is True
+    assert data2["version"] == v1 + 2
+    assert data2["output_id"] != new_id
+
+    # 防衝突：拿舊的 output.id 來存會回報 409 與 stale
+    res_stale = client.post(f"/student/autobiography/{output.id}/autosave",
+                            json={"paragraph_0": "舊頁面打的字"})
+    assert res_stale.status_code == 409
+    assert res_stale.get_json()["stale"] is True
+
+
+def test_autobiography_autosave_validation_and_permissions(app):
+    client = login(app)
+    choose_target(app, client)
+    client.post("/student/autobiography/generate", data={"program_id": program(app), **ANSWERS})
+    with app.app_context():
+        output = LearningProfileOutput.query.filter_by(output_type="autobiography_ai").one()
+        out_id = output.id
+
+    # 找不到這份自傳 404
+    res_404 = client.post("/student/autobiography/999999/autosave", json={"paragraph_0": "test"})
+    assert res_404.status_code == 404
+
+    # 非本人操作 403
+    other_client = login(app, username="other")
+    res_403 = other_client.post(f"/student/autobiography/{out_id}/autosave", json={"paragraph_0": "test"})
+    assert res_403.status_code == 403

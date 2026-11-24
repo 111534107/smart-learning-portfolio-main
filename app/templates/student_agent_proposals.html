@@ -10,7 +10,7 @@
 {{ hub_header(tab, counts) }}
 
 {% if rows %}
-<ol class="hub-prs">
+<ol class="hub-prs" data-tour="點提案查看內容與待辦，再決定是否同意。" data-tour-order="3">
   {% for plan in rows %}
   <li class="hub-prs__item hub-prs__item--{{ plan.status }}" style="--i: {{ loop.index0 }};">
     <a class="hub-prs__link" href="{{ url_for('agent_plan.proposal_page', plan_id=plan.id) }}">

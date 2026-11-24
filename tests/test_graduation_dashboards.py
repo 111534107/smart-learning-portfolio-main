@@ -143,28 +143,70 @@ def test_priority_hints(monkeypatch, tmp_path):
 def test_teacher_dashboard_shows_cards_and_names(tmp_path):
     app = pages_app(tmp_path)
     make_case(app)
-    html = as_user(app, "tea").get("/teacher/dashboard").get_data(as_text=True)
-    for text in ("已達門檻", "確定有缺口", "資料待確認", "測試學生", "需要優先關心的學生", "G-0000", "僅供提醒"):
-        assert text in html
+    client = as_user(app, "tea")
+    # 工作台（2026-11-21 拆頁）：待處理與優先關心的學生預覽
+    dashboard = client.get("/teacher/dashboard").get_data(as_text=True)
+    for text in ("確定有缺口", "需要優先關心的學生", "G-0000", "僅供提醒"):
+        assert text in dashboard
+    # 畢業門檻頁：四個人數卡與完整優先名單；學生名單頁：學生名字
+    graduation = client.get("/teacher/graduation").get_data(as_text=True)
+    for text in ("已達門檻", "確定有缺口", "資料待確認", "需要優先關心的學生", "G-0000", "僅供提醒"):
+        assert text in graduation
+    assert "測試學生" in client.get("/teacher/roster").get_data(as_text=True)
 
 
-def test_teacher_dashboard_puts_graduation_first_and_rows_clickable(tmp_path):
+def test_teacher_dashboard_is_split_into_pages_and_rows_clickable(tmp_path):
+    """2026-11-21 導師工作台拆成四頁：工作台只放待處理與入口，畢業門檻、學生名單、目標校系各自一頁。"""
     app = pages_app(tmp_path)
     case_id = make_case(app)
     with app.app_context():
         student_id = User.query.filter_by(username="stu").one().id
-    html = as_user(app, "tea").get("/teacher/dashboard").get_data(as_text=True)
-    # 畢業門檻提醒在本班學生表上面，導師一進首頁就看到
-    assert html.index("data-grad-overview") < html.index("data-class-roster")
-    assert html.index("需要優先關心的學生") < html.index("本班學生</h2>")
-    # 兩張表每一列右邊都有明確的「查看」按鈕，整列可點（按鈕的 ::after 蓋住整列）
-    priority = html[html.index("data-priority-list"):html.index("data-class-roster")]
-    assert f'class="button button--small row-link__target" href="/graduation/cases/{case_id}"' in priority
-    roster = html[html.index("data-class-roster"):]
-    assert f'class="button button--small row-link__target" href="/teacher/students/{student_id}"' in roster
-    assert '<tr class="row-link">' in roster
+    client = as_user(app, "tea")
+    dashboard = client.get("/teacher/dashboard").get_data(as_text=True)
+    # 工作台：先看待處理（優先關心的學生預覽），下面是三個分頁入口；不再放整張學生表
+    assert "data-grad-overview" in dashboard and "data-priority-preview" in dashboard
+    assert "data-teacher-entries" in dashboard
+    assert "data-class-roster" not in dashboard and "teacher-roster-table" not in dashboard
+    assert f'href="/graduation/cases/{case_id}"' in dashboard
+    for path in ("/teacher/graduation", "/teacher/roster", "/teacher/targets"):
+        assert f'href="{path}"' in dashboard
     # 沒有待確認的備審資料時，數字卡不連結
-    assert "data-pending-link" not in html
+    assert "data-pending-link" not in dashboard
+    # 畢業門檻頁：完整的優先關心名單，每一列右邊有明確的「查看」按鈕，整列可點
+    graduation = client.get("/teacher/graduation").get_data(as_text=True)
+    assert "data-grad-overview" in graduation and "需要優先關心的學生" in graduation
+    priority = graduation[graduation.index("data-priority-list"):]
+    assert f'class="button button--small row-link__target" href="/graduation/cases/{case_id}"' in priority
+    # 學生名單頁：本班學生表，每一列整列可點
+    roster = client.get("/teacher/roster").get_data(as_text=True)
+    assert "data-class-roster" in roster
+    assert f'class="button button--small row-link__target" href="/teacher/students/{student_id}"' in roster[roster.index("data-class-roster"):]
+    assert '<tr class="row-link">' in roster
+
+
+def test_teacher_split_pages_open_filter_and_guard_roles(tmp_path):
+    """導師四個分頁都打得開、導覽列有四個入口、班級篩選與「只看待確認」正確，學生不能進。"""
+    app = pages_app(tmp_path)
+    make_case(app)
+    teacher = as_user(app, "tea")
+    pages = {"/teacher/dashboard": "老師", "/teacher/graduation": "畢業門檻",
+             "/teacher/roster": "學生名單", "/teacher/targets": "目標校系"}
+    for path, heading in pages.items():
+        response = teacher.get(path)
+        assert response.status_code == 200, path
+        html = response.get_data(as_text=True)
+        assert heading in html
+        for other in pages:   # 每一頁的導覽列都有四個入口
+            assert f'href="{other}"' in html, (path, other)
+    # 不是自己負責的班級：400；一進來就只看待確認：勾選框預設勾起
+    assert teacher.get("/teacher/roster?class_name=不存在的班").status_code == 400
+    assert teacher.get("/teacher/graduation?class_name=不存在的班").status_code == 400
+    assert 'id="roster-filter-pending" checked' in teacher.get("/teacher/roster?pending=1").get_data(as_text=True)
+    assert 'id="roster-filter-pending" checked' not in teacher.get("/teacher/roster").get_data(as_text=True)
+    # 學生不能進導師的頁面
+    student = as_user(app, "stu")
+    for path in ("/teacher/graduation", "/teacher/roster", "/teacher/targets"):
+        assert student.get(path).status_code != 200, path
 
 
 def test_teacher_sees_only_own_class(tmp_path):

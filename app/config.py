@@ -93,6 +93,7 @@ class Config:
     # 生成自傳要到這個年級才開放（專一到專四只收集拼圖）；送審仍看 MIN_REVIEW_GRADE
     AUTOBIOGRAPHY_OPEN_GRADE = int(os.getenv("AUTOBIOGRAPHY_OPEN_GRADE", "5"))
     DOCUMENT_ANALYSIS_PROVIDER = os.getenv("DOCUMENT_ANALYSIS_PROVIDER", "fake")
+    REQUIRE_REAL_DOCUMENT_OCR = False
     # 離線 OCR 引擎：空白＝不啟用（上傳會標示 analysis_failed）；rapidocr＝本機 RapidOCR
     DOCUMENT_OCR_ENGINE = os.getenv("DOCUMENT_OCR_ENGINE", "")
     # 模型等級：server＝伺服器版（預設，較準、較慢）；mobile＝輕量版（較快、記憶體較少）

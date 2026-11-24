@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead, footer with context %}
+{% set page_name = "student-portfolio-view" %}
+
+{% block title %}{{ program.school_name }} {{ program.department_name }}｜備審 A4 預覽{% endblock %}
+
+{% block navigation %}{{ masthead(user, "備審資料") }}{% endblock %}
+
+{% block content %}
+{% from "partials/workbench_shell.html" import workbench_shell, workbench_next %}
+{% if workbench %}<div class="page wb-page">{{ workbench_shell(workbench) }}</div>{% endif %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/portfolio-view.css') }}">
+<div class="pv-shell">
+  <nav class="pv-toolbar" aria-label="備審預覽工具列">
+    <a class="pv-toolbar__back" href="{{ gap_url }}">← 回備審資料</a>
+    <div class="pv-toolbar__actions">
+      <a class="button button--accent" href="{{ word_url }}">下載 Word 備審</a>
+      <button class="button button--line" type="button" onclick="window.print()">列印／另存 PDF</button>
+    </div>
+  </nav>
+  <p class="pv-hint">這是預覽，正式檔案請下載 Word；目錄依本校系簡章加權排序</p>
+
+  <div class="pv-pages">
+    <section class="pv-paper pv-cover" aria-label="備審封面">
+      <p class="pv-cover__year">{{ data.cover.year }} 學年度</p>
+      <div class="pv-cover__school">
+        <h1>{{ data.cover.school }}</h1>
+        <p>{{ data.cover.department }}</p>
+      </div>
+      <h2 class="pv-cover__title">備審資料</h2>
+      <p class="pv-cover__applicant">申請人：{{ data.cover.applicant }}</p>
+      <span class="pv-page-number">1</span>
+    </section>
+
+    <section class="pv-paper pv-toc" aria-labelledby="pv-toc-title">
+      <h1 class="pv-paper__title" id="pv-toc-title">目錄</h1>
+      <ol class="pv-toc__list">
+        {% for chapter in data.toc %}
+        <li>
+          <a class="pv-toc__link" href="#chapter-{{ chapter.code }}">
+            <span class="pv-toc__chapter">{{ chapter.no }}　{{ chapter.title }}{% if chapter.weight > 0 %}<small>佔 {{ chapter.weight }}%</small>{% endif %}</span>
+            <span class="pv-toc__leader" aria-hidden="true"></span>
+            <span class="pv-toc__page">{{ chapter.page }}</span>
+          </a>
+        </li>
+        {% endfor %}
+      </ol>
+      <p class="pv-toc__note">章節依本校系備審項目加權排序，佔分高的在前</p>
+      <span class="pv-page-number">2</span>
+    </section>
+
+    {% for chapter in data.toc %}
+      {% if chapter.code == "03" %}
+        {% if data.years %}
+          {% for year in data.years %}
+    <section class="pv-paper pv-chapter pv-journey" id="{{ 'chapter-' ~ chapter.code if loop.first else 'year-' ~ chapter.code ~ '-' ~ loop.index }}" aria-labelledby="pv-year-{{ chapter.code }}-{{ loop.index }}">
+      {% if loop.first %}<h1 class="pv-paper__title" id="pv-heading-{{ chapter.code }}-{{ loop.index }}">{{ chapter.no }}　{{ chapter.title }}</h1>{% endif %}
+      <h2 class="pv-journey__year" id="pv-year-{{ chapter.code }}-{{ loop.index }}">{{ year.label }} 學習歷程</h2>
+      <div class="pv-journey__columns">
+        <section class="pv-courses" aria-labelledby="pv-courses-{{ loop.index }}">
+          <h3 id="pv-courses-{{ loop.index }}">代表課程</h3>
+          {% if year.courses %}
+          <ul>
+            {% for course in year.courses %}
+            <li><span>{{ course.name }}</span><span class="pv-course__leader" aria-hidden="true"></span><b>{{ course.score }}</b></li>
+            {% endfor %}
+          </ul>
+          {% else %}<p class="pv-empty">尚無代表課程</p>{% endif %}
+        </section>
+        <span class="pv-journey__arrow" aria-hidden="true">→</span>
+        <section class="pv-outcomes" aria-labelledby="pv-outcomes-{{ loop.index }}">
+          <h3 id="pv-outcomes-{{ loop.index }}">課程延伸成果</h3>
+          {% if year.outcomes %}
+          <ul>
+            {% for outcome in year.outcomes %}
+            <li>
+              <span class="pv-kind">{{ {"credential": "證照", "competition": "競賽", "leadership": "幹部", "activity": "活動", "service": "服務"}.get(outcome.kind, outcome.kind) }}</span>
+              <b>{{ outcome.title }}</b>
+              {% if outcome.detail %}<small>{{ outcome.detail }}</small>{% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}<p class="pv-empty">尚無課程延伸成果</p>{% endif %}
+        </section>
+      </div>
+      <span class="pv-page-number">{{ chapter.page + loop.index0 }}</span>
+    </section>
+          {% endfor %}
+        {% else %}
+    <section class="pv-paper pv-chapter" id="chapter-{{ chapter.code }}">
+      <h1 class="pv-paper__title">{{ chapter.no }}　{{ chapter.title }}</h1>
+      <p class="pv-empty">尚未有已確認的成績資料</p>
+      <span class="pv-page-number">{{ chapter.page }}</span>
+    </section>
+        {% endif %}
+      {% elif chapter.code == "04" or chapter.code == "05" %}
+        {% set paragraphs = data.bio if chapter.code == "04" else data.plan %}
+      {% if paragraphs %}
+          {% set total_length = namespace(value=0) %}
+          {% for paragraph in paragraphs %}{% set total_length.value = total_length.value + (paragraph.text|length) %}{% endfor %}
+          {% set writing_page_count = [chapter.pages, (total_length.value / 700)|round(0, "ceil")|int]|max %}
+          {% set writing_pages = namespace(groups=[], current=[], length=0) %}
+          {% for paragraph in paragraphs %}
+            {% if writing_pages.length and writing_pages.length + (paragraph.text|length) > 700 and writing_pages.groups|length < writing_page_count - 1 %}
+              {% set _ = writing_pages.groups.append(writing_pages.current) %}
+              {% set writing_pages.current = [] %}
+              {% set writing_pages.length = 0 %}
+            {% endif %}
+            {% set _ = writing_pages.current.append(paragraph) %}
+            {% set writing_pages.length = writing_pages.length + (paragraph.text|length) %}
+          {% endfor %}
+          {% set _ = writing_pages.groups.append(writing_pages.current) %}
+          {% for page_paragraphs in writing_pages.groups %}
+    <section class="pv-paper pv-chapter pv-writing" id="{{ 'chapter-' ~ chapter.code if loop.first else 'writing-' ~ chapter.code ~ '-' ~ loop.index }}">
+      {% if loop.first %}<h1 class="pv-paper__title">{{ chapter.no }}　{{ chapter.title }}</h1>{% endif %}
+            {% for paragraph in page_paragraphs %}
+      <article class="pv-paragraph">
+        <h2>{{ paragraph.title }}</h2>
+        <p>{{ paragraph.text }}</p>
+      </article>
+            {% endfor %}
+      <span class="pv-page-number">{{ chapter.page + loop.index0 }}</span>
+    </section>
+          {% endfor %}
+      {% else %}
+    <section class="pv-paper pv-chapter pv-writing" id="chapter-{{ chapter.code }}">
+      <h1 class="pv-paper__title">{{ chapter.no }}　{{ chapter.title }}</h1>
+      <p class="pv-empty">
+        {% if chapter.code == "04" %}尚未產生自傳，請先到「小助手寫自傳」
+        {% else %}尚未產生讀書計畫，請先整理讀書計畫內容{% endif %}
+        {% if chapter.code == "04" %}<a href="{{ url_for('student.autobiography', program_id=program.id) }}">前往撰寫</a>{% endif %}
+      </p>
+      <span class="pv-page-number">{{ chapter.page }}</span>
+    </section>
+      {% endif %}
+      {% elif chapter.code in ("02", "06", "07", "08", "09", "10") %}
+        {% set resume_key = {"06": "credentials", "07": "competitions", "08": "projects", "09": "leaderships"}.get(chapter.code) %}
+        {% set items = data.resume.get(resume_key, []) if resume_key else [] %}
+    <section class="pv-paper pv-chapter pv-resume" id="chapter-{{ chapter.code }}">
+      <h1 class="pv-paper__title">{{ chapter.no }}　{{ chapter.title }}</h1>
+      {% if chapter.code == "02" %}
+      <p class="pv-guidance">請依當年度簡章附上報名資格證明</p>
+      {% elif chapter.code == "10" %}
+      <p class="pv-guidance">其他有利資料請補充</p>
+      {% elif items %}
+      <ul class="pv-resume__list">
+        {% for item in items %}
+        <li>
+          <div class="pv-resume__main"><b>{{ item.title }}</b>{% if item.detail %}<small>{{ item.detail }}</small>{% endif %}</div>
+          {% if item.label %}<span class="pv-resume__label">{{ item.label }}</span>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="pv-empty">（尚無已確認資料）</p>{% endif %}
+      <span class="pv-page-number">{{ chapter.page }}</span>
+    </section>
+      {% endif %}
+    {% endfor %}
+  </div>
+</div>
+{% if workbench %}<div class="page wb-next-page">{{ workbench_next(workbench) }}</div>{% endif %}
+{% endblock %}
+
+{% block footer %}{{ footer() }}{% endblock %}

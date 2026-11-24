@@ -15,7 +15,7 @@ import smtplib
 import time
 from email.message import EmailMessage
 
-from flask import current_app
+from flask import current_app, has_request_context, request
 
 from app.extensions import db
 from app.models import SystemSetting
@@ -55,8 +55,23 @@ def smtp_ready():
     return bool(cfg.get("MAIL_SMTP_HOST") and cfg.get("MAIL_SENDER"))
 
 
+def site_url():
+    """信裡連結用的系統網址（結尾沒有 /）。
+
+    先用 .env 的 MAIL_SITE_URL；沒設時改用這次請求的網址（B30，2026-11-16：之前沒設就變成相對路徑，學生點不到）。
+    經過 Cloudflare 等通道時，請求本身是 http，依 X-Forwarded-Proto 改回 https。都拿不到才回傳空字串。
+    """
+    base = (current_app.config.get("MAIL_SITE_URL") or "").strip().rstrip("/")
+    if base or not has_request_context():
+        return base
+    base = request.host_url.rstrip("/")
+    if request.headers.get("X-Forwarded-Proto", "").split(",")[0].strip() == "https" and base.startswith("http://"):
+        base = "https://" + base[len("http://"):]
+    return base
+
+
 def build_body(user, kind):
-    base = (current_app.config.get("MAIL_SITE_URL") or "").rstrip("/")
+    base = site_url()
     link = f"{base}/notifications" if base else "/notifications（請從系統首頁登入）"
     label = KIND_LABELS.get(kind, "系統通知")
     return (f"{user.display_name} 您好：\n\n"

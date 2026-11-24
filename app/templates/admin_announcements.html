@@ -12,12 +12,12 @@
       <h1>二技公告管理</h1>
       <p>核准招生日程後系統會擬好草稿；你改字後發布，學生、老師、科辦會收到通知。公告不能刪除，只能下架。</p>
     </div>
-    <a class="button" href="{{ url_for('announcement.admin_new') }}">手動新增公告</a>
+    <a class="button" href="{{ url_for('announcement.admin_new') }}" data-tour="要手動撰寫公告時，先建立草稿。" data-tour-order="1">手動新增公告</a>
   </header>
   {% if message %}<p class="notice mb-1" role="status">{{ message }}</p>{% endif %}
   {% if error %}<p class="alert mb-1" role="alert">{{ error }}</p>{% endif %}
   {% for status in ("draft", "published", "withdrawn") %}
-  <section class="work-panel mt-1" data-status="{{ status }}">
+  <section class="work-panel mt-1" data-status="{{ status }}"{% if loop.first %} data-tour="依狀態查看公告；草稿可編輯發布。" data-tour-order="2"{% endif %}>
     <h2>{{ status_labels[status][0] }}（{{ groups[status]|length }}）</h2>
     {% if groups[status] %}
     <ul class="work-list">

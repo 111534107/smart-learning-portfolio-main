@@ -6,7 +6,7 @@ flowchart TD
     classDef alert fill:#FEE2E2,stroke:#9CA3AF,color:#111827,stroke-width:1px;
     classDef pending fill:#FFFFFF,stroke:#9CA3AF,color:#6B7280,stroke-width:1px,stroke-dasharray:5 3;
 
-    Submit([學生送審<br/>系統存下快照：事實清單、自傳第 N 版、完成度]):::student --> List[班導師查看本班學生清單]:::teacher
+    Submit([學生送審<br/>系統存下快照：事實清單、自傳第 N 版、完成度]):::student --> List[老師查看自己的學生清單<br/>（導師、專任教師、指導老師）]:::teacher
     List -.- Scope[只能查看與自己有關的學生<br/>其他學生一律拒絕存取]:::pending
     Submit -.- NoCert[成績單、證照與競賽證明不經導師審核<br/>（證照由 AI 初判；競賽證明只標出可疑處）<br/>科上派的服務由科辦核准電子獎狀<br/>導師只確認最後整理好的備審內容]:::pending
     List --> View[查看學生資料、缺件清單與原始檔]:::teacher

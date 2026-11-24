@@ -503,8 +503,23 @@ fieldset.field legend { padding: 0; margin-bottom: .35rem; }
 .program-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.25rem; }
 .target-filter { display: flex; flex-wrap: wrap; align-items: end; gap: .75rem 1rem; margin: 0 0 1.25rem; padding: 1rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--sheet); }
 .target-filter label { display: grid; gap: .4rem; min-width: 12rem; flex: 1 1 12rem; font-weight: 700; }
-.target-filter label:nth-child(2) { flex: 2 1 18rem; }
-.target-filter select { width: 100%; min-height: 2.8rem; padding: .55rem .7rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--sheet); color: var(--ink); font: inherit; }
+.target-filter { display: grid; gap: 1rem; }
+/* B22 篩選選單（2026-11-16）：選單排成格子，手機一欄；結果列用細長比例條表示還剩多少 */
+.target-filter__menus { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: .75rem 1rem; }
+.target-filter__menus label { min-width: 0; }
+.target-filter__wide { grid-column: 1 / -1; }
+.target-filter input[type="search"] { width: 100%; min-width: 0; }
+.target-filter__actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; }
+.target-filter__result { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1rem; padding-bottom: .75rem; border-bottom: 1px solid var(--line); }
+.target-filter__result p { margin: 0; }
+.target-filter__result strong { display: inline-block; font-size: 1.35em; }
+.target-filter__result strong.is-changed { animation: target-filter-tick .45s ease-out; }
+.target-filter__meter { flex: 1 1 8rem; height: .55rem; background: var(--paper-deep); border: 1px solid var(--ink); overflow: hidden; }
+.target-filter__meter span { display: block; height: 100%; background: var(--accent); transition: width .35s ease-out; }
+.target-filter option:disabled { color: var(--muted, #888); }
+@keyframes target-filter-tick { from { transform: translateY(-.35em); opacity: .3; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .target-filter__result strong.is-changed { animation: none; } .target-filter__meter span { transition: none; } }
+.target-filter select { width: 100%; max-width: 100%; min-width: 0; min-height: 2.8rem; padding: .55rem .7rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--sheet); color: var(--ink); font: inherit; }
 .target-ranking { margin-bottom: 1.5rem; padding: 1.25rem; border: 1px solid var(--line); background: var(--sheet); }
 .target-ranking__group + .target-ranking__group { margin-top: 1.1rem; padding-top: 1rem; border-top: 1px solid var(--line); }
 .target-ranking__group h3 { margin: 0 0 .5rem; font-size: var(--fs-base); }
@@ -622,6 +637,15 @@ fieldset.field legend { padding: 0; margin-bottom: .35rem; }
 .check-row { display: flex; flex-wrap: wrap; gap: .3rem .9rem; font-size: var(--fs-sm); font-weight: 400; }
 .check-row label { display: inline-flex; align-items: center; gap: .3rem; }
 .admin-item-form fieldset { grid-column: 1 / -1; }
+/* 2026-11-19 手機 Safari 破圖：自動欄寬格線把「辨識裝置」和「顯示卡編號」排在同一列，Safari 不會把 fieldset 撐高，選項疊到輸入框上。
+   選項組一律獨佔一整列；兩張選項卡在寬螢幕並排、手機一張一行；拿掉外層多出來的一圈框（只留內層卡片框）。 */
+.admin-inline-form fieldset { grid-column: 1 / -1; min-width: 0; }
+.ocr-device-form fieldset { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: .6rem; }
+.ocr-device-form fieldset legend { grid-column: 1 / -1; float: left; width: 100%; }
+.ocr-device-form label.choice { display: block; padding: 0; border: 0; background: none; box-shadow: none; transform: none; text-align: start; font-weight: 400; }
+.ocr-device-form label.choice span { height: 100%; box-sizing: border-box; }
+.ocr-device-form > label, .ocr-device-form > .button { grid-column: 1 / -1; }
+.ocr-device-form > .button { justify-self: start; }
 .check-row label { white-space: nowrap; }
 
 /* =========================================================
@@ -844,6 +868,17 @@ fieldset.field legend { padding: 0; margin-bottom: .35rem; }
 .version-list li[aria-current] a { font-weight: 700; }
 .version-list li span { display: block; }
 .teacher-comment { margin: .4rem 0 0; padding: .5rem .8rem; border-left: 4px solid var(--warn); background: var(--warn-soft); font-size: var(--fs-sm); }
+/* 自傳段落註解（2026-11-18 併入組員 46531f2） */
+.para-comments { margin-top: .8rem; padding: .7rem .9rem; border-left: 4px solid var(--warn); background: var(--paper-deep); }
+.para-comments__title { font-weight: 700; font-size: var(--fs-sm); margin: 0 0 .4rem; }
+.para-comment { margin: .5rem 0; padding: .5rem .8rem; background: var(--sheet); border: 1px solid var(--line); }
+.para-comment summary { cursor: pointer; line-height: 1.7; }
+.para-comment--done { opacity: .78; }
+.para-comment__text { white-space: pre-wrap; overflow-wrap: anywhere; margin: .4rem 0; }
+.para-comment__original { margin: .2rem 0 .4rem; padding: .4rem .7rem; border-left: 3px solid var(--line); background: var(--paper); white-space: pre-wrap; font-size: var(--fs-sm); }
+.para-comment__reply { margin: .5rem 0 .5rem .6rem; padding-left: .7rem; border-left: 3px solid var(--line); }
+.para-comments textarea { width: 100%; min-height: 3.2rem; }
+.target-progress + .target-progress { margin-top: .45rem; padding-top: .45rem; border-top: 1px dashed var(--line); }
 
 
 /* ---------- 第一次登入的歡迎流程：一次一個畫面，像開機設定 ---------- */
@@ -878,11 +913,11 @@ fieldset.field legend { padding: 0; margin-bottom: .35rem; }
 .school__bar i { font-style: normal; padding: .25rem .4rem; background: var(--accent-soft); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .welcome__note { font-size: var(--fs-sm) !important; color: var(--muted) !important; }
 .welcome__choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: .9rem; width: 100%; }
-.choice { display: grid; gap: .25rem; padding: 1.2rem 1rem; background: var(--sheet); border: 2px solid var(--ink); font: inherit; color: var(--ink); cursor: pointer; text-align: center; transition: transform .2s, box-shadow .2s; }
-.choice:hover, .choice:focus-visible { transform: translateY(-3px); box-shadow: 4px 4px 0 var(--accent); }
-.choice b { font-size: var(--fs-md); }
-.choice small { color: var(--muted); }
-.choice--quiet { border-style: dashed; background: none; }
+.welcome__choices .choice { display: grid; gap: .25rem; padding: 1.2rem 1rem; background: var(--sheet); border: 2px solid var(--ink); font: inherit; color: var(--ink); cursor: pointer; text-align: center; transition: transform .2s, box-shadow .2s; }
+.welcome__choices .choice:hover, .welcome__choices .choice:focus-visible { transform: translateY(-3px); box-shadow: 4px 4px 0 var(--accent); }
+.welcome__choices .choice b { font-size: var(--fs-md); }
+.welcome__choices .choice small { color: var(--muted); }
+.welcome__choices .choice--quiet { border-style: dashed; background: none; }
 .welcome__nav { display: flex; align-items: center; justify-content: space-between; gap: 1rem; max-width: 40rem; width: 100%; margin: 0 auto; padding: 1rem 0 .5rem; }
 .welcome__back { background: none; border: 0; font: inherit; color: var(--muted); cursor: pointer; padding: .5rem; }
 .welcome__dots { display: flex; gap: .5rem; list-style: none; margin: 0; padding: 0; }
@@ -915,10 +950,10 @@ body[data-page="student-welcome"] .assistant { display: none; }
 .focus__top li:first-child { box-shadow: 4px 4px 0 var(--year-4); }
 .focus__top span:nth-child(2) { display: grid; }
 .focus__top small { color: var(--muted); }
-.focus__no { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%; background: var(--ink); color: #fff; font-weight: 700; }
+.focus__no { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%; background: var(--ink); color: var(--sheet); font-weight: 700; }
 .focus__replay { background: none; border: 0; color: var(--muted); font: inherit; font-size: var(--fs-sm); text-decoration: underline; cursor: pointer; }
 @keyframes pile-in { from { opacity: 0; transform: translateY(-30px) rotate(calc(var(--r) * 3)) scale(.6); } to { opacity: 1; transform: rotate(var(--r)); } }
-@keyframes focus-rise { from { opacity: 0; transform: translateY(16px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes focus-rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .focus__piece, .focus__top li { animation: none !important; transition: none !important; } }
 .focus__pending { font-style: normal; color: var(--warn); font-weight: 700; }
 .focus__note { max-width: 32rem; margin: 0; font-size: var(--fs-xs); color: var(--muted); }
@@ -1698,7 +1733,7 @@ body[data-page="student-welcome"] .assistant { display: none; }
 .admin-nav-group summary::after { content: " ▾"; }
 .admin-nav-group summary:hover, .admin-nav-group[open] summary { background: var(--paper-deep); }
 .admin-nav-group summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-.admin-nav-group__links { position: absolute; top: 100%; left: 0; z-index: 30; min-width: 13rem; padding: .4rem; background: #fff; border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow-pop); }
+.admin-nav-group__links { position: absolute; top: 100%; left: 0; z-index: 30; min-width: 13rem; padding: .4rem; background: var(--sheet); border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow-pop); }
 .admin-nav-group__links a { display: block; white-space: nowrap; }
 .masthead__inner > .brand { flex-shrink: 0; }
 @media (max-width: 720px) {
@@ -1735,8 +1770,10 @@ body[data-page="student-welcome"] .assistant { display: none; }
 .staff-list > li.work-empty { display: block; }
 /* 導師首頁：整列可點。「查看」按鈕的 ::after 蓋住整列，點列上任何位置都進到同一頁；不需要 JS。 */
 .data-table--rowlink tr.row-link { position: relative; cursor: pointer; }
+table.teacher-roster-table tr.row-link[hidden] { display: none; }
 .data-table--rowlink tr.row-link:hover td, .data-table--rowlink tr.row-link:focus-within td { background: rgba(0, 0, 0, .04); }
 .data-table--rowlink .row-link__target::after { content: ""; position: absolute; inset: 0; }
+.data-table--rowlink tr.row-link a:not(.row-link__target) { position: relative; z-index: 1; }
 .data-table--rowlink .row-link__action { text-align: right; white-space: nowrap; }
 .data-table--rowlink tr.row-link--pending td:first-child { box-shadow: inset 3px 0 0 var(--warn, #b7791f); }
 
@@ -1862,3 +1899,4090 @@ body[data-page="student-welcome"] .assistant { display: none; }
   .subject-bar__name { grid-column: 1 / -1; }
 }
 @media (prefers-reduced-motion: reduce) { .pathway-card, .transfer-plan__ring { transition: none; animation: none; } }
+
+/* 自傳四步驟：目前位置保留文字與邊框提示，深色與小螢幕沿用既有配色。 */
+[data-page="student-autobiography"] .writing-steps {
+  margin-bottom: 1.25rem;
+}
+[data-page="student-autobiography"] .writing-steps ol {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .55rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+[data-page="student-autobiography"] .writing-steps li {
+  padding: .65rem .75rem;
+  color: var(--ink);
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+[data-page="student-autobiography"] .writing-steps li[aria-current="step"] {
+  border-color: var(--accent);
+  box-shadow: inset 0 -3px 0 var(--accent);
+  font-weight: 800;
+}
+[data-page="student-autobiography"] .writing-steps li span {
+  margin-inline-end: .3rem;
+  color: var(--accent);
+  font-weight: 800;
+}
+[data-page="student-autobiography"] .writing-overview :is(h2, p) {
+  margin: 0 0 .45rem;
+  overflow-wrap: anywhere;
+}
+[data-page="student-autobiography"] .writing-overview__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: .35rem 1.25rem;
+}
+[data-page="student-autobiography"] .writing-overview .alert { padding: .35rem .6rem; }
+[data-page="student-autobiography"] .ai-boundary summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+@media (max-width: 620px) {
+  [data-page="student-autobiography"] .writing-steps ol {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* 「?」說明彈跳視窗（2026-11-19 使用者要求：不要往下展開，改成彈跳視窗）。components.js 產生。 */
+.info-tip-dialog {
+  width: min(92vw, 32rem); max-height: min(80vh, 36rem); padding: 0; border: 1px solid var(--line, #d6ccbe); border-radius: 14px;
+  background: var(--card, #fff); color: var(--ink, #2b2622); box-shadow: 0 24px 60px -20px rgb(0 0 0 / .45); overflow: auto;
+}
+.info-tip-dialog::backdrop { background: rgb(20 16 12 / .45); }
+.info-tip-dialog[open] { animation: info-tip-pop .16s ease-out; }
+@keyframes info-tip-pop { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+.info-tip-dialog__head { position: sticky; top: 0; display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+  padding: .85rem 1rem .6rem; background: var(--card, #fff); border-bottom: 1px solid var(--line, #d6ccbe); }
+.info-tip-dialog__title { margin: 0; font-size: var(--fs-md); line-height: 1.4; color: var(--ink, #2b2622); }
+.info-tip-dialog__close { flex: none; width: 2.5rem; height: 2.5rem; border: 1px solid var(--line, #d6ccbe); border-radius: 8px;
+  background: transparent; color: var(--ink, #2b2622); font-size: var(--fs-lg); line-height: 1; cursor: pointer; }
+.info-tip-dialog__close:focus-visible { outline: 3px solid var(--accent, #2f6672); outline-offset: 2px; }
+.info-tip-dialog__body { padding: .8rem 1rem 1.1rem; font-size: var(--fs-base); line-height: 1.8; }
+.info-tip-dialog__body p { margin: 0 0 .6rem; color: inherit; }
+.info-tip-dialog__body p:last-child { margin-bottom: 0; }
+html.info-tip-open { overflow: hidden; }
+@media (prefers-reduced-motion: reduce) { .info-tip-dialog[open] { animation: none; } }
+
+/* 手機上的教職員表格：一列一張卡（components.js 加 .table--stack 與 data-label） */
+@media (max-width: 640px) {
+  table.table--stack, table.table--stack tbody, table.table--stack tr, table.table--stack td { display: block; width: 100%; }
+  table.table--stack thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  table.table--stack { min-width: 0 !important; border: 0; }
+  table.table--stack tr { margin: 0 0 .75rem; padding: .55rem .75rem; border: 1px solid var(--line, #d6ccbe); border-radius: 10px; background: var(--card, #fff); }
+  table.table--stack td { display: grid; grid-template-columns: 5.5em 1fr; gap: .6rem; padding: .3rem 0; border: 0; text-align: start; white-space: normal; overflow-wrap: anywhere; }
+  table.table--stack td + td { border-top: 1px dashed var(--line, #d6ccbe); }
+  table.table--stack td::before { content: attr(data-label); color: var(--muted, #6b625a); font-size: var(--fs-sm); }
+  table.table--stack td:not([data-label])::before { content: none; }
+  table.table--stack td:not([data-label]) { grid-template-columns: 1fr; }
+  table.table--stack td form, table.table--stack td .button { margin: 0; }
+  .table--stack-wrap, :has(> table.table--stack) { overflow-x: visible !important; }
+}
+
+/* mobile-sweep touch targets */
+@media (max-width: 767px) {
+  html:not([data-staff-ui="admin"]) :is(.button, .account-menu__button, .snav-bell) { min-width: 44px; min-height: 44px; }
+  html:not([data-staff-ui="admin"]) .band__crumbs a { display: inline-flex; align-items: center; min-height: 44px; }
+}
+
+/* mobile-sweep additional targets */
+@media (max-width: 767px) {
+  html:not([data-staff-ui="admin"]) :is(.brand, .match-chart__label, .link-button, .guide-card__later) { min-height: 44px; }
+  html:not([data-staff-ui="admin"]) .match-chart__label { display: flex; align-items: center; }
+}
+
+/* mobile-sweep continuous animation */
+@media (hover: none) and (pointer: coarse) {
+  html:not([data-staff-ui="admin"]) :is(.vessel--missing, .piece--missing) { animation: none; }
+}
+
+/* 手機上的長清單一次先顯示 10 個（components.js「手機上的長清單」） */
+li.is-folded { display: none !important; }
+.list-more { display: block; margin: .75rem auto 0; }
+
+/* =========================================================
+   導師班級總覽表（Teacher Class Overview Roster）
+   - 選擇器支援 [data-page="teacher-dashboard"] 與 [data-page="work-dashboard"] [data-work-role="teacher"]
+   - 效率導向：無動畫、無漸層、無斜體、無圓角膠囊，淺色與深色色彩皆走專案既有 CSS 變數
+   - 桌機（>= 768px）：維持表格排版、可橫向捲動、學號與姓名欄 position: sticky 固定左側、點表頭排序
+   - 手機（< 768px）：緊湊卡片（高度約 200px 內）、第一行姓名學號班級、中間 2 欄格線項目、最底 44px 滿版按鈕、下拉排序、無雙重框或虛線框、無水平捲動
+   ========================================================= */
+
+[data-page="teacher-dashboard"] .teacher-roster-toolbar,
+[data-page="work-dashboard"] [data-work-role="teacher"] .teacher-roster-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 1rem 0 0.75rem;
+}
+
+[data-page="teacher-dashboard"] .teacher-roster-filters,
+[data-page="work-dashboard"] [data-work-role="teacher"] .teacher-roster-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+[data-page="teacher-dashboard"] .teacher-roster-filters .input--search,
+[data-page="work-dashboard"] [data-work-role="teacher"] .teacher-roster-filters .input--search {
+  min-height: 44px;
+  height: 44px;
+  padding: 0.5rem 0.75rem;
+  font-size: var(--fs-sm, 0.875rem);
+  border: 1px solid var(--line, #d6cdbb);
+  border-radius: 4px;
+  background: var(--sheet, #ffffff);
+  color: var(--ink, #1c2230);
+  box-sizing: border-box;
+}
+
+[data-page="teacher-dashboard"] .teacher-roster-filters .checkbox-label,
+[data-page="teacher-roster"] .teacher-roster-filters .checkbox-label,
+[data-page="work-dashboard"] [data-work-role="teacher"] .teacher-roster-filters .checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  cursor: pointer;
+  font-size: var(--fs-sm, 0.875rem);
+  user-select: none;
+}
+
+[data-page="teacher-dashboard"] .teacher-roster-filters .checkbox-label input[type="checkbox"],
+[data-page="work-dashboard"] [data-work-role="teacher"] .teacher-roster-filters .checkbox-label input[type="checkbox"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  cursor: pointer;
+}
+
+[data-page="teacher-dashboard"] .button--export-excel,
+[data-page="work-dashboard"] [data-work-role="teacher"] .button--export-excel {
+  min-height: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 1rem;
+  font-size: var(--fs-sm, 0.875rem);
+  font-weight: 500;
+  border-radius: 4px;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+/* 桌機版（>= 768px）：標準表格排版與固定欄位（sticky） */
+@media (min-width: 768px) {
+  .teacher-roster-sort,
+  .roster-mobile-inline {
+    display: none !important;
+  }
+
+  [data-page="teacher-dashboard"] .teacher-roster-wrap,
+  [data-page="work-dashboard"] [data-work-role="teacher"] .teacher-roster-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid var(--line, #d6cdbb);
+    background: var(--sheet, #ffffff);
+    margin-top: 0.5rem;
+  }
+
+  [data-page="teacher-dashboard"] .teacher-roster-table,
+  [data-page="work-dashboard"] [data-work-role="teacher"] .teacher-roster-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 0;
+  }
+
+  [data-page="teacher-dashboard"] .teacher-roster-table th,
+  [data-page="teacher-dashboard"] .teacher-roster-table td,
+  [data-page="work-dashboard"] [data-work-role="teacher"] .teacher-roster-table th,
+  [data-page="work-dashboard"] [data-work-role="teacher"] .teacher-roster-table td {
+    padding: 0.65rem 0.75rem;
+    white-space: nowrap;
+    font-style: normal;
+    border-bottom: 1px solid var(--line, #d6cdbb);
+  }
+
+  [data-page="teacher-dashboard"] .teacher-roster-table th,
+  [data-page="work-dashboard"] [data-work-role="teacher"] .teacher-roster-table th {
+    background: var(--sheet, #ffffff);
+    font-weight: 600;
+    color: var(--ink, #1c2230);
+    border-bottom: 2px solid var(--ink, #1c2230);
+  }
+
+  [data-page="teacher-dashboard"] .teacher-roster-table .table-sort-btn,
+  [data-page="teacher-roster"] .teacher-roster-table .table-sort-btn,
+  [data-page="work-dashboard"] [data-work-role="teacher"] .teacher-roster-table .table-sort-btn {
+    background: transparent;
+    border: none;
+    font: inherit;
+    font-weight: 600;
+    color: inherit;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    width: 100%;
+    min-height: 44px;
+    text-align: left;
+  }
+
+  [data-page="teacher-dashboard"] .teacher-roster-table .sort-indicator,
+  [data-page="work-dashboard"] [data-work-role="teacher"] .teacher-roster-table .sort-indicator {
+    font-size: var(--fs-xs);
+    color: var(--muted, #6a6f78);
+  }
+
+  /* Sticky columns for desktop table scrolling */
+  [data-page="teacher-dashboard"] .teacher-roster-table .sticky-col,
+  [data-page="work-dashboard"] [data-work-role="teacher"] .teacher-roster-table .sticky-col {
+    position: sticky;
+    background: var(--sheet, #ffffff);
+  }
+
+  [data-page="teacher-dashboard"] .teacher-roster-table th.sticky-col,
+  [data-page="work-dashboard"] [data-work-role="teacher"] .teacher-roster-table th.sticky-col {
+    z-index: 5;
+  }
+
+  [data-page="teacher-dashboard"] .teacher-roster-table td.sticky-col,
+  [data-page="work-dashboard"] [data-work-role="teacher"] .teacher-roster-table td.sticky-col {
+    z-index: 2;
+  }
+
+  [data-page="teacher-dashboard"] .teacher-roster-table .sticky-col-1,
+  [data-page="work-dashboard"] [data-work-role="teacher"] .teacher-roster-table .sticky-col-1 {
+    left: 0;
+    min-width: 6.5rem;
+    max-width: 6.5rem;
+  }
+
+  [data-page="teacher-dashboard"] .teacher-roster-table .sticky-col-2,
+  [data-page="work-dashboard"] [data-work-role="teacher"] .teacher-roster-table .sticky-col-2 {
+    left: 6.5rem;
+    min-width: 6.5rem;
+    max-width: 6.5rem;
+    border-right: 1px solid var(--line, #d6cdbb);
+    box-shadow: 2px 0 4px -1px rgba(0, 0, 0, 0.08);
+  }
+
+  [data-page="teacher-dashboard"] .teacher-roster-table tr.row-link:hover td.sticky-col,
+  [data-page="teacher-dashboard"] .teacher-roster-table tr.row-link:focus-within td.sticky-col,
+  [data-page="work-dashboard"] [data-work-role="teacher"] .teacher-roster-table tr.row-link:hover td.sticky-col,
+  [data-page="work-dashboard"] [data-work-role="teacher"] .teacher-roster-table tr.row-link:focus-within td.sticky-col {
+    background: var(--paper-deep, #e9e2d3);
+  }
+
+  [data-page="teacher-dashboard"] .teacher-roster-table .cell-action .button,
+  [data-page="work-dashboard"] [data-work-role="teacher"] .teacher-roster-table .cell-action .button {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.85rem;
+    border-radius: 4px;
+  }
+}
+
+/* 手機版（< 768px）：緊湊卡片、下拉排序、2 欄格線項目、44px 滿版按鈕 */
+@media (max-width: 767px) {
+  [data-page="teacher-dashboard"] .teacher-roster-toolbar,
+  [data-page="work-dashboard"] [data-work-role="teacher"] .teacher-roster-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    margin: 0.75rem 0;
+  }
+
+  [data-page="teacher-dashboard"] .teacher-roster-filters,
+  [data-page="work-dashboard"] [data-work-role="teacher"] .teacher-roster-filters {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+  }
+
+  [data-page="teacher-dashboard"] .teacher-roster-filters .input--search,
+  [data-page="work-dashboard"] [data-work-role="teacher"] .teacher-roster-filters .input--search {
+    flex: 1;
+    min-width: 0;
+  }
+
+  [data-page="teacher-dashboard"] .teacher-roster-filters .checkbox-label,
+  [data-page="work-dashboard"] [data-work-role="teacher"] .teacher-roster-filters .checkbox-label {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+[data-page="teacher-dashboard"] .teacher-roster-table .sort-indicator,
+[data-page="work-dashboard"] [data-work-role="teacher"] .teacher-roster-table .sort-indicator {
+  font-size: var(--fs-xs);
+  color: var(--muted, #6a6f78);
+}
+  /* 手機排序工具列：下拉選單 + 升降冪按鈕（>= 44px） */
+  .teacher-roster-sort {
+    display: flex !important;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+  }
+
+  .teacher-roster-sort .roster-sort-label {
+    font-size: var(--fs-sm, 0.875rem);
+    color: var(--muted, #6a6f78);
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .teacher-roster-sort .select--sort {
+    flex: 1;
+    min-width: 0;
+    min-height: 44px;
+    height: 44px;
+    padding: 0 0.65rem;
+    font-size: var(--fs-sm, 0.875rem);
+    border: 1px solid var(--line, #d6cdbb);
+    border-radius: 4px;
+    background: var(--sheet, #ffffff);
+    color: var(--ink, #1c2230);
+    box-sizing: border-box;
+  }
+
+  .teacher-roster-sort .button--sort-order {
+    min-height: 44px;
+    height: 44px;
+    padding: 0 0.85rem;
+    font-size: var(--fs-sm, 0.875rem);
+    border: 1px solid var(--line, #d6cdbb);
+    border-radius: 4px;
+    background: var(--sheet, #ffffff);
+    color: var(--ink, #1c2230);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    cursor: pointer;
+    white-space: nowrap;
+    box-sizing: border-box;
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+
+  .teacher-roster-sort .sort-order-icon {
+    font-size: var(--fs-xs);
+  }
+
+  [data-page="teacher-dashboard"] .teacher-roster-actions,
+  [data-page="work-dashboard"] [data-work-role="teacher"] .teacher-roster-actions {
+    width: 100%;
+  }
+
+  [data-page="teacher-dashboard"] .button--export-excel,
+  [data-page="work-dashboard"] [data-work-role="teacher"] .button--export-excel {
+    width: 100%;
+  }
+
+  /* 移除外層外框，避免手機卡片出現雙重外框；無水平左右捲動 */
+  [data-page="teacher-dashboard"] .teacher-roster-wrap,
+  [data-page="work-dashboard"] [data-work-role="teacher"] .teacher-roster-wrap {
+    border: none !important;
+    background: transparent !important;
+    overflow: visible !important;
+    margin-top: 0.5rem;
+  }
+
+  /* 表格轉卡片清單 */
+  table.teacher-roster-table {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    border: none !important;
+    margin: 0 !important;
+  }
+
+  table.teacher-roster-table thead {
+    display: none !important;
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    overflow: hidden !important;
+    clip: rect(0 0 0 0) !important;
+  }
+
+  table.teacher-roster-table tbody {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.65rem !important;
+    width: 100% !important;
+  }
+
+  /* 每位學生一張緊湊的卡（高度控制在約 200px 內） */
+  table.teacher-roster-table tr.row-link:not([hidden]) {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 0.3rem 0.65rem !important;
+    padding: 0.65rem 0.75rem !important;
+    margin: 0 !important;
+    border: 1px solid var(--line, #d6cdbb) !important;
+    border-radius: 8px !important;
+    background: var(--sheet, #ffffff) !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    position: relative !important;
+    min-height: auto !important;
+  }
+
+  /* 待確認邊框提示（簡潔無多餘雙重外框） */
+  table.teacher-roster-table tr.row-link--pending {
+    border-left: 3.5px solid var(--warn, #b7791f) !important;
+  }
+
+  /* 徹底重設所有 td，拔除全站 dashed 邊框、5.5em 格線與 sticky 設定 */
+  table.teacher-roster-table td {
+    display: flex !important;
+    align-items: baseline !important;
+    padding: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    position: static !important;
+    left: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    width: auto !important;
+    text-align: left !important;
+    white-space: normal !important;
+    overflow: hidden !important;
+    font-size: var(--fs-sm, 0.875rem) !important;
+    line-height: 1.45 !important;
+    color: var(--ink, #1c2230) !important;
+  }
+
+  table.teacher-roster-table td + td {
+    border-top: none !important;
+  }
+
+  table.teacher-roster-table .sticky-col,
+  table.teacher-roster-table .sticky-col-1,
+  table.teacher-roster-table .sticky-col-2 {
+    position: static !important;
+    left: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+
+  /* 欄位短標籤（不帶 ↕） */
+  table.teacher-roster-table td::before {
+    content: attr(data-label) "：";
+    color: var(--muted, #6a6f78);
+    font-size: var(--fs-xs, 0.75rem);
+    font-weight: 500;
+    flex-shrink: 0;
+    margin-right: 0.15rem;
+  }
+
+  /* 隱藏單獨 cell（學號與班級已整合至姓名行） */
+  table.teacher-roster-table td.cell-student-no,
+  table.teacher-roster-table td.cell-class-name {
+    display: none !important;
+  }
+
+  /* 第一行：姓名（粗體）學號 班級（跨 2 欄，橫向排列不直排） */
+  table.teacher-roster-table td.cell-student-name {
+    grid-column: 1 / -1 !important;
+    order: 1 !important;
+    display: flex !important;
+    align-items: baseline !important;
+    gap: 0.45rem !important;
+    flex-wrap: wrap !important;
+    padding-bottom: 0.35rem !important;
+    border-bottom: 1px solid var(--line, #d6cdbb) !important;
+    width: 100% !important;
+  }
+
+  table.teacher-roster-table td.cell-student-name::before {
+    display: none !important;
+    content: none !important;
+  }
+
+  table.teacher-roster-table td.cell-student-name .cell-student-name__text {
+    font-size: var(--fs-base);
+    font-weight: 700;
+    color: var(--ink, #1c2230);
+  }
+
+  .roster-mobile-inline {
+    display: inline !important;
+  }
+
+  table.teacher-roster-table td.cell-student-name .cell-student-no-inline {
+    font-size: var(--fs-xs);
+    color: var(--muted, #6a6f78);
+    font-family: var(--font-mono, monospace);
+  }
+
+  table.teacher-roster-table td.cell-student-name .cell-class-name-inline {
+    font-size: var(--fs-xs);
+    color: var(--muted, #6a6f78);
+  }
+
+  /* 下方 2 欄格線項目（依需求次序） */
+  /* 1. 送審校系 */
+  table.teacher-roster-table td.cell-targets {
+    order: 2 !important;
+    grid-column: 1 / -1;
+    flex-wrap: wrap;
+    overflow-wrap: anywhere;
+  }
+
+  table.teacher-roster-table td.cell-targets a {
+    max-width: 100%;
+    color: var(--ink, #1c2230);
+    text-decoration: underline;
+    text-decoration-color: var(--line, #d6cdbb);
+  }
+
+  /* 2. 自傳狀態 */
+  table.teacher-roster-table td.cell-auto-status {
+    order: 3 !important;
+    align-items: center !important;
+  }
+
+  table.teacher-roster-table td.cell-auto-status .tag {
+    font-size: var(--fs-xs, 0.75rem);
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    line-height: 1.2;
+  }
+
+  /* 3. 自傳字數 */
+  table.teacher-roster-table td.cell-auto-words {
+    order: 4 !important;
+    font-family: var(--font-mono, monospace);
+  }
+
+  /* 4. 證照數 */
+  table.teacher-roster-table td.cell-cert-count {
+    order: 5 !important;
+    font-family: var(--font-mono, monospace);
+  }
+
+  /* 5. 待確認送審數 */
+  table.teacher-roster-table td.cell-pending {
+    order: 6 !important;
+    align-items: center !important;
+  }
+
+  table.teacher-roster-table td.cell-pending .tag--warn {
+    font-size: var(--fs-xs, 0.75rem);
+    padding: 0.1rem 0.6rem;
+    border-radius: 4px;
+    line-height: 1.2;
+    text-decoration: none;
+    max-width: fit-content;
+    white-space: nowrap;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    box-sizing: border-box;
+  }
+
+  table.teacher-roster-table td.cell-pending .muted {
+    font-family: var(--font-mono, monospace);
+  }
+
+  /* 6. 畢業門檻狀態 */
+  table.teacher-roster-table td.cell-grad-status {
+    order: 7 !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* 最底「前往」按鈕滿版、高度 44px */
+  table.teacher-roster-table td.cell-action {
+    grid-column: 1 / -1 !important;
+    order: 8 !important;
+    display: block !important;
+    margin-top: 0.25rem !important;
+    padding-top: 0.35rem !important;
+    border-top: 1px solid var(--line, #d6cdbb) !important;
+    width: 100% !important;
+  }
+
+  table.teacher-roster-table td.cell-action::before {
+    display: none !important;
+    content: none !important;
+  }
+
+  table.teacher-roster-table td.cell-action .button {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    min-height: 44px !important;
+    height: 44px !important;
+    box-sizing: border-box !important;
+    font-size: var(--fs-sm, 0.875rem) !important;
+    font-weight: 600 !important;
+    border-radius: 4px !important;
+    margin: 0 !important;
+    text-decoration: none !important;
+    background: var(--ink, #1c2230) !important;
+    color: var(--sheet, #ffffff) !important;
+  }
+
+  /* 查無結果列在手機上的排版 */
+  #roster-empty-row {
+    display: block !important;
+    padding: 1.25rem !important;
+    border: 1px dashed var(--line, #d6cdbb) !important;
+    border-radius: 8px !important;
+    background: var(--sheet, #ffffff) !important;
+    text-align: center !important;
+  }
+
+  #roster-empty-row td {
+    display: block !important;
+    width: 100% !important;
+    text-align: center !important;
+  }
+
+  #roster-empty-row td::before {
+    display: none !important;
+    content: none !important;
+  }
+}
+
+
+/* 2026-11-20 Claude：老師與科辦要專心看資料，畫面上下不放浮動的東西——導覽邀請改成頁面最下方的一般區塊，
+   小助手按鈕縮小並靠邊，內容底部多留空白，不會蓋住表格最後幾列。（教職員頁面：data-theme="campus" 且不是學生頁） */
+body[data-theme="campus"]:not([data-page^="student"]) .tour-invite {
+  position: static !important; transform: none !important; margin: 1rem auto 4rem; width: fit-content; max-width: calc(100% - 2rem);
+}
+body[data-theme="campus"]:not([data-page^="student"]) .assistant__toggle { width: 40px; height: 40px; opacity: .85; }
+body[data-theme="campus"]:not([data-page^="student"]) main { padding-bottom: 4rem; }
+/* ==========================================================================
+   Canva-Style Autobiography Editor (小助手寫自傳 Canva 動線)
+   ========================================================================== */
+
+/* 1. 覆蓋 shell.css 寫死的 #ffffff 與 #000000，確保深色與淺色外觀皆使用專案既有 CSS 變數 */
+[data-page="student-autobiography"] .draft__paragraph {
+  background: var(--sheet) !important;
+  color: var(--ink) !important;
+  border: 1px solid var(--line) !important;
+  border-left: 4px solid var(--accent) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: var(--shadow-sheet) !important;
+}
+
+[data-page="student-autobiography"] .draft__paragraph :is(h2, h3, p, label, li, b, small, span, blockquote, summary) {
+  color: inherit;
+}
+
+[data-page="student-autobiography"] .draft__paragraph .review-label {
+  color: var(--ink-soft) !important;
+}
+
+[data-page="student-autobiography"] .draft__paragraph .muted,
+[data-page="student-autobiography"] .draft__paragraph .small.muted {
+  color: var(--muted) !important;
+}
+
+[data-page="student-autobiography"] .draft__paragraph a {
+  color: var(--accent) !important;
+}
+
+[data-page="student-autobiography"] .draft__paragraph textarea {
+  background: var(--paper) !important;
+  color: var(--ink) !important;
+  border: 1.5px solid var(--line) !important;
+  border-radius: var(--radius) !important;
+}
+
+[data-page="student-autobiography"] .draft__paragraph textarea:focus {
+  border-color: var(--accent) !important;
+  outline: none !important;
+}
+
+[data-page="student-autobiography"] .draft__paragraph :is(.paragraph-review__evidence, .paragraph-review, blockquote) {
+  background: var(--paper) !important;
+  border-color: var(--line) !important;
+  color: var(--ink) !important;
+}
+
+[data-page="student-autobiography"] .draft__paragraph .button--line,
+[data-page="student-autobiography"] .draft__paragraph .button--quiet {
+  color: var(--ink) !important;
+  border-color: var(--line) !important;
+  background: transparent !important;
+}
+
+[data-page="student-autobiography"] .draft__paragraph .bio-images__item img,
+[data-page="student-autobiography"] .draft__paragraph .bio-images__thumb {
+  border-color: var(--line) !important;
+}
+
+/* 2. 預設隱藏 Canva 專屬元件（JS 未載入或無腳本時維持原樣漸進增強） */
+[data-page="student-autobiography"] .canva-toolbar,
+[data-page="student-autobiography"] .canva-mobile-chips,
+[data-page="student-autobiography"] .canva-outline,
+[data-page="student-autobiography"] .canva-preview-column,
+[data-page="student-autobiography"] .canva-paragraph-nav,
+[data-page="student-autobiography"] .canva-paragraph-header {
+  display: none;
+}
+
+/* 3. 當 JS 載入並啟用 Canva 模式 (.has-canva-editor) */
+[data-page="student-autobiography"] .canva-container.has-canva-editor .canva-list-head-legacy,
+[data-page="student-autobiography"] .canva-container.has-canva-editor .canva-legacy-bottom-submit {
+  display: none !important;
+}
+
+[data-page="student-autobiography"] .canva-container.has-canva-editor .canva-paragraph-header,
+[data-page="student-autobiography"] .canva-container.has-canva-editor .canva-paragraph-nav {
+  display: flex;
+}
+
+/* 頂端固定工具列：儲存按鈕置頂、顯示段落切換與字數 */
+[data-page="student-autobiography"] .canva-container.has-canva-editor .canva-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: .6rem var(--space-4);
+  margin-bottom: var(--space-4);
+  box-shadow: var(--shadow-sheet);
+}
+
+[data-page="student-autobiography"] .canva-toolbar__left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+[data-page="student-autobiography"] .canva-toolbar__version {
+  font-weight: 700;
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  padding: .25rem .6rem;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+[data-page="student-autobiography"] .canva-toolbar__char {
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+
+[data-page="student-autobiography"] .canva-toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+[data-page="student-autobiography"] .canva-toolbar__nav {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+[data-page="student-autobiography"] .canva-nav-btn {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 .75rem;
+}
+
+[data-page="student-autobiography"] .canva-nav-indicator {
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+[data-page="student-autobiography"] .canva-save-btn {
+  min-height: 44px;
+  font-weight: 700;
+  padding: 0 1.25rem;
+  background: var(--accent);
+  color: var(--on, var(--sheet));
+  border: 0;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+[data-page="student-autobiography"] .canva-save-btn:hover {
+  filter: brightness(1.08);
+}
+
+[data-page="student-autobiography"] .canva-toolbar__more {
+  position: relative;
+  display: inline-block;
+}
+
+[data-page="student-autobiography"] .canva-toolbar__more summary {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+}
+
+[data-page="student-autobiography"] .canva-toolbar__more summary::-webkit-details-marker {
+  display: none;
+}
+
+[data-page="student-autobiography"] .canva-toolbar__more-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 11rem;
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-pop);
+  z-index: 40;
+  padding: .4rem;
+  display: grid;
+  gap: .25rem;
+}
+
+[data-page="student-autobiography"] .canva-toolbar__menu-item {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: .4rem .75rem;
+  border-radius: var(--radius);
+  color: var(--ink);
+  text-decoration: none;
+  font-size: var(--fs-sm);
+}
+
+[data-page="student-autobiography"] .canva-toolbar__menu-item:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* 手機版模式切換（編輯／預覽） */
+[data-page="student-autobiography"] .canva-toolbar__mobile-toggle {
+  display: none;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  padding: 2px;
+}
+
+[data-page="student-autobiography"] .canva-toggle-btn {
+  min-height: 44px;
+  min-width: 4rem;
+  border: 0;
+  border-radius: calc(var(--radius) - 2px);
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0 .85rem;
+}
+
+[data-page="student-autobiography"] .canva-toggle-btn:hover {
+  color: var(--ink);
+}
+
+[data-page="student-autobiography"] .canva-toggle-btn.is-active {
+  background: var(--sheet);
+  color: var(--ink);
+  font-weight: 700;
+  box-shadow: var(--shadow-sheet);
+}
+
+/* 4. 桌機版三欄版面（寬度 ≥ 900px） */
+@media (min-width: 900px) {
+  [data-page="student-autobiography"] .canva-container.has-canva-editor .canva-workspace {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr) 400px;
+    gap: var(--space-4);
+    align-items: start;
+  }
+
+  [data-page="student-autobiography"] .canva-container.has-canva-editor .canva-outline {
+    display: block;
+    position: sticky;
+    top: calc(56px + var(--space-4));
+    max-height: calc(100vh - 84px);
+    overflow-y: auto;
+    background: var(--sheet);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: var(--space-3);
+  }
+
+  [data-page="student-autobiography"] .canva-container.has-canva-editor .canva-preview-column {
+    display: block;
+    position: sticky;
+    top: calc(56px + var(--space-4));
+    max-height: calc(100vh - 84px);
+    overflow-y: auto;
+  }
+}
+
+/* 目錄（左欄） */
+[data-page="student-autobiography"] .canva-outline__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: .5rem;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: .6rem;
+}
+
+[data-page="student-autobiography"] .canva-outline__title {
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  letter-spacing: .06em;
+  color: var(--ink);
+}
+
+[data-page="student-autobiography"] .canva-outline__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: .35rem;
+}
+
+[data-page="student-autobiography"] .canva-outline__item {
+  margin: 0;
+}
+
+[data-page="student-autobiography"] .canva-toc-btn {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  padding: .5rem .75rem;
+  border: 1px solid transparent;
+  border-left: 4px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-align: start;
+  cursor: pointer;
+  transition: background .12s, border-color .12s;
+}
+
+[data-page="student-autobiography"] .canva-toc-btn:hover {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+[data-page="student-autobiography"] .canva-toc-btn.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-left-color: var(--accent);
+  font-weight: 700;
+}
+
+[data-page="student-autobiography"] .canva-toc-btn__main {
+  display: flex;
+  align-items: baseline;
+  gap: .35rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-page="student-autobiography"] .canva-toc-btn__idx {
+  flex-shrink: 0;
+  font-weight: 700;
+}
+
+[data-page="student-autobiography"] .canva-toc-btn__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-page="student-autobiography"] .canva-toc-btn__count {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+[data-page="student-autobiography"] .canva-toc-btn.is-active .canva-toc-btn__count {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* 編輯區（中欄）在 Canva 模式下一次只顯示目前段落 */
+[data-page="student-autobiography"] .canva-container.has-canva-editor .draft__paragraph {
+  display: none;
+}
+
+[data-page="student-autobiography"] .canva-container.has-canva-editor .draft__paragraph.is-active {
+  display: block;
+}
+
+[data-page="student-autobiography"] .canva-paragraph-header {
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: .35rem;
+  min-width: 0;
+}
+
+[data-page="student-autobiography"] .canva-paragraph-header__meta {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+[data-page="student-autobiography"] .canva-paragraph-header__step {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: .08em;
+  white-space: nowrap;
+}
+
+/* 段落標題固定一行顯示，過長 ellipsis，手機字級不超過 1.1rem */
+[data-page="student-autobiography"] .canva-paragraph-header__title {
+  margin: 0;
+  font-size: var(--fs-lg);
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+[data-page="student-autobiography"] .canva-char-counter {
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+[data-page="student-autobiography"] .canva-paragraph-nav {
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--line);
+}
+
+[data-page="student-autobiography"] .canva-pnav-btn {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* 5. 即時預覽（像一張正式公文紙張，標題與內文層級分明） */
+[data-page="student-autobiography"] .canva-preview-sheet {
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sheet);
+  padding: 1.75rem 1.6rem 2.25rem;
+  min-height: 20rem;
+  color: var(--ink);
+}
+
+[data-page="student-autobiography"] .canva-preview-header {
+  border-bottom: 2px solid var(--line-strong);
+  padding-bottom: 1rem;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+[data-page="student-autobiography"] .canva-preview-badge {
+  display: inline-block;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: .08em;
+  margin-bottom: .35rem;
+}
+
+[data-page="student-autobiography"] .canva-preview-doc-title {
+  margin: 0 0 .35rem;
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.35;
+  letter-spacing: .02em;
+}
+
+[data-page="student-autobiography"] .canva-preview-doc-meta {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+
+[data-page="student-autobiography"] .canva-preview-body {
+  display: grid;
+  gap: 1.25rem;
+}
+
+[data-page="student-autobiography"] .canva-preview-item {
+  border: 1px solid transparent;
+  border-left: 4px solid transparent;
+  border-radius: var(--radius);
+  padding: .75rem .85rem;
+  background: transparent;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+
+[data-page="student-autobiography"] .canva-preview-item:hover {
+  background: var(--paper);
+  border-color: var(--line);
+}
+
+[data-page="student-autobiography"] .canva-preview-item.is-active {
+  background: var(--accent-soft);
+  border-color: var(--line);
+  border-left-color: var(--accent);
+}
+
+[data-page="student-autobiography"] .canva-preview-item__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .5rem;
+  margin-bottom: .45rem;
+  padding-bottom: .35rem;
+  border-bottom: 1px solid var(--line);
+}
+
+[data-page="student-autobiography"] .canva-preview-item__title {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: .02em;
+  line-height: 1.4;
+}
+
+[data-page="student-autobiography"] .canva-preview-item__count {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+[data-page="student-autobiography"] .canva-preview-item__text {
+  font-family: var(--font-serif);
+  font-size: var(--fs-base);
+  line-height: 1.85;
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+  text-align: justify;
+}
+
+[data-page="student-autobiography"] .canva-preview-item__text.is-empty {
+  color: var(--muted);
+  font-style: normal;
+}
+
+/* 6. 素材庫區塊（桌機維持展開原樣；手機由媒體查詢設為預設收合） */
+@media (min-width: 900px) {
+  [data-page="student-autobiography"] .canva-materials-details {
+    display: block;
+    border: none;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+  }
+  [data-page="student-autobiography"] .canva-materials-details > .canva-materials-details__summary {
+    display: none;
+  }
+  [data-page="student-autobiography"] .canva-materials-details > .canva-materials-details__body {
+    display: block;
+    padding: 0;
+    margin: 0;
+    border: none;
+  }
+}
+
+/* 7. 手機版樣式（寬度 < 900px） */
+@media (max-width: 899.98px) {
+  /* 底部多留至少 180px 空白，避免固定功能列、小助手與導覽邀請遮擋內容 */
+  [data-page="student-autobiography"] .page,
+  [data-page="student-autobiography"] .canva-container {
+    padding-bottom: max(180px, calc(180px + env(safe-area-inset-bottom))) !important;
+  }
+
+  /* 在本頁的手機版將 .tour-invite 改為 static（不浮動） */
+  [data-page="student-autobiography"] .tour-invite {
+    position: static !important;
+    transform: none !important;
+    margin: 1.5rem auto !important;
+    max-width: 100% !important;
+    box-shadow: none !important;
+  }
+
+  /* 手機版段落標題字級不超過 1.1rem */
+  [data-page="student-autobiography"] .canva-paragraph-header__title {
+    font-size: var(--fs-md);
+  }
+
+  /* 手機橫向段落標籤列（低調樣式、橫向捲動、高度至少 44px） */
+  [data-page="student-autobiography"] .canva-container.has-canva-editor .canva-mobile-chips {
+    display: block;
+    margin-bottom: var(--space-3);
+    border-bottom: 1px solid var(--line);
+  }
+
+  [data-page="student-autobiography"] .canva-mobile-chips__track {
+    display: flex;
+    overflow-x: auto;
+    gap: var(--space-2);
+    padding: .25rem 0 .4rem;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: thin;
+  }
+
+  [data-page="student-autobiography"] .canva-chip {
+    flex-shrink: 0;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: 0 .75rem;
+    border: 1px solid var(--line);
+    border-bottom: 3px solid transparent;
+    border-radius: var(--radius);
+    background: var(--sheet);
+    color: var(--ink-soft);
+    font: inherit;
+    font-size: var(--fs-sm);
+    cursor: pointer;
+    scroll-snap-align: start;
+    white-space: nowrap;
+    transition: background .15s, border-color .15s, color .15s;
+  }
+
+  [data-page="student-autobiography"] .canva-chip:hover {
+    background: var(--paper);
+    color: var(--ink);
+  }
+
+  /* 目前段落：頁面一致低調底色與明顯底線 */
+  [data-page="student-autobiography"] .canva-chip.is-active {
+    background: var(--accent-soft);
+    color: var(--ink);
+    border-color: var(--line);
+    border-bottom: 3px solid var(--accent);
+    font-weight: 700;
+  }
+
+  [data-page="student-autobiography"] .canva-chip__idx {
+    font-weight: 700;
+    color: inherit;
+  }
+
+  [data-page="student-autobiography"] .canva-chip__title {
+    font-weight: inherit;
+    color: inherit;
+  }
+
+  [data-page="student-autobiography"] .canva-chip__count {
+    font-size: var(--fs-xs);
+    color: var(--muted);
+  }
+
+  [data-page="student-autobiography"] .canva-chip.is-active .canva-chip__count {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  /* 手機預覽模式紙張 padding 適度縮減 */
+  [data-page="student-autobiography"] .canva-preview-sheet {
+    padding: 1.25rem 1rem 2rem;
+  }
+
+  /* 手機版工具列切換模式（編輯／預覽） */
+  [data-page="student-autobiography"] .canva-container.has-canva-editor .canva-toolbar__mobile-toggle {
+    display: inline-flex;
+  }
+
+  [data-page="student-autobiography"] .canva-container.has-canva-editor .canva-toolbar__nav {
+    display: none;
+  }
+
+  /* 依檢視模式切換編輯區與預覽區 */
+  [data-page="student-autobiography"] .canva-container.has-canva-editor[data-canva-view="edit"] .canva-editor-column {
+    display: block;
+  }
+
+  [data-page="student-autobiography"] .canva-container.has-canva-editor[data-canva-view="edit"] .canva-preview-column {
+    display: none;
+  }
+
+  [data-page="student-autobiography"] .canva-container.has-canva-editor[data-canva-view="preview"] .canva-editor-column {
+    display: none;
+  }
+
+  [data-page="student-autobiography"] .canva-container.has-canva-editor[data-canva-view="preview"] .canva-preview-column {
+    display: block;
+    width: 100%;
+  }
+
+  [data-page="student-autobiography"] .canva-container.has-canva-editor .canva-outline {
+    display: none;
+  }
+
+  /* 首屏直接寫字：透過 flex 排序將「說明與工具」摺疊區排在工作區之後 */
+  [data-page="student-autobiography"] .canva-container.has-canva-editor {
+    display: flex;
+    flex-direction: column;
+  }
+  [data-page="student-autobiography"] .canva-container.has-canva-editor .canva-toolbar { order: 1; }
+  [data-page="student-autobiography"] .canva-container.has-canva-editor .canva-mobile-chips { order: 2; }
+  [data-page="student-autobiography"] .canva-container.has-canva-editor .canva-workspace { order: 3; }
+  [data-page="student-autobiography"] .canva-container.has-canva-editor .canva-aux-drawer { order: 4; }
+
+  /* 手機版素材庫收合抽屜（高度至少 44px） */
+  [data-page="student-autobiography"] .canva-materials-details {
+    margin-top: var(--space-4);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--sheet);
+    padding: .5rem .85rem;
+  }
+  [data-page="student-autobiography"] .canva-materials-details__summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    font-weight: 700;
+    font-size: var(--fs-base);
+    color: var(--ink);
+    cursor: pointer;
+    min-height: 44px;
+    list-style: none;
+  }
+  [data-page="student-autobiography"] .canva-materials-details__summary::-webkit-details-marker {
+    display: none;
+  }
+  [data-page="student-autobiography"] .canva-materials-details__summary::after {
+    content: "＋";
+    font-size: var(--fs-md);
+    color: var(--muted);
+    font-weight: 400;
+    margin-left: auto;
+  }
+  [data-page="student-autobiography"] .canva-materials-details[open] .canva-materials-details__summary::after {
+    content: "－";
+  }
+  [data-page="student-autobiography"] .canva-materials-details__title {
+    font-weight: 700;
+    color: var(--ink);
+  }
+  [data-page="student-autobiography"] .canva-materials-details__body {
+    padding-top: var(--space-3);
+    margin-top: var(--space-2);
+    border-top: 1px dashed var(--line);
+  }
+  [data-page="student-autobiography"] .canva-materials-details .bio-pieces {
+    border: 0;
+    padding: 0;
+    box-shadow: none;
+    background: transparent;
+  }
+  [data-page="student-autobiography"] .canva-materials-details .bio-pieces > h2 {
+    display: none;
+  }
+
+  /* 手機工具列壓成一列 */
+  [data-page="student-autobiography"] .canva-container.has-canva-editor .canva-toolbar {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: .4rem;
+    padding: .35rem .5rem;
+  }
+  [data-page="student-autobiography"] .canva-toolbar__left {
+    flex: 0 0 auto;
+    display: flex;
+    gap: .35rem;
+    align-items: baseline;
+  }
+  [data-page="student-autobiography"] .canva-toolbar__version,
+  [data-page="student-autobiography"] .canva-toolbar__char {
+    white-space: nowrap;
+    writing-mode: horizontal-tb;
+    font-size: var(--fs-xs);
+  }
+  [data-page="student-autobiography"] .canva-toolbar__char {
+    display: none;
+  }
+  [data-page="student-autobiography"] .canva-toolbar__actions {
+    display: flex;
+    flex: 1 1 auto;
+    gap: .35rem;
+    justify-content: flex-end;
+    align-items: center;
+    min-width: 0;
+  }
+  [data-page="student-autobiography"] .canva-toolbar__more summary,
+  [data-page="student-autobiography"] .canva-save-btn {
+    white-space: nowrap;
+    writing-mode: horizontal-tb;
+    padding-inline: .6rem;
+    min-height: 44px;
+  }
+  [data-page="student-autobiography"] .canva-toolbar__more-menu {
+    right: 0;
+    left: auto;
+  }
+}
+
+/* 8. 說明與工具摺疊區（預設收起） */
+[data-page="student-autobiography"] .canva-aux-drawer {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--sheet);
+  padding: .75rem 1rem;
+  margin-top: var(--space-4);
+}
+
+[data-page="student-autobiography"] .canva-aux-drawer__summary {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-weight: 700;
+  font-size: var(--fs-base);
+  cursor: pointer;
+  min-height: 44px;
+}
+
+[data-page="student-autobiography"] .canva-aux-drawer__summary-title {
+  font-weight: 700;
+}
+
+[data-page="student-autobiography"] .canva-aux-drawer__content {
+  padding-top: var(--space-3);
+  margin-top: var(--space-2);
+  border-top: 1px dashed var(--line);
+}
+
+/* 9. 尊重 prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  [data-page="student-autobiography"] .canva-toc-btn,
+  [data-page="student-autobiography"] .canva-chip,
+  [data-page="student-autobiography"] .canva-preview-item {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+
+/* 2026-11-20 使用者要求：導師看學生自傳的中間內容換成全白紙、黑色字體（不論淺色或深色外觀）。 */
+[data-page="teacher-autobiography-edit"] .draft__paragraph,
+[data-page="teacher-autobiography-edit"] .draft,
+[data-page="teacher-autobiography-versions"] .version-text,
+[data-page="teacher-autobiography-versions"] .sheet {
+  background: #fff; color: #000; border-color: #cfcfcf;
+}
+
+/* 10. 手機打字模式與學生編輯頁閱讀模式 */
+@media (max-width: 899px) {
+  body.is-typing .sv2-tabbar,
+  body.is-typing .assistant__toggle,
+  body.is-typing .tour-invite,
+  body.is-typing [data-typing-bottom] {
+    display: none !important;
+  }
+
+  body.is-typing[data-page="student-internship-resume"] .rz-side,
+  body.is-typing[data-page="student-internship-resume"] aside.rz-side {
+    display: none !important;
+  }
+
+  [data-page="student-internship-resume"] .rz-side {
+    max-height: 40dvh;
+  }
+
+  [data-page="student-internship-resume"] .rz-side__handle {
+    height: 43px;
+    min-height: 43px;
+  }
+
+  [data-page="student-autobiography"] .masthead,
+  [data-page="student-internship-resume"] .masthead,
+  [data-page="student-internship-resume"] .rz-bar,
+  [data-page="student-autobiography"] .masthead,
+  [data-page="student-internship-resume"] .masthead {
+    transition: transform .18s ease, opacity .18s ease, visibility .18s;
+  }
+}
+
+body.is-reading[data-page="student-autobiography"] .masthead,
+body.is-reading[data-page="student-internship-resume"] .masthead,
+body.is-reading[data-page="student-internship-resume"] .rz-bar {
+  transform: translateY(-100%);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-page="student-autobiography"] .masthead,
+  [data-page="student-internship-resume"] .masthead,
+  [data-page="student-internship-resume"] .rz-bar {
+    transition: none !important;
+  }
+  body.is-reading[data-page="student-autobiography"] .masthead,
+  body.is-reading[data-page="student-internship-resume"] .masthead,
+  body.is-reading[data-page="student-internship-resume"] .rz-bar {
+    transition: none !important;
+  }
+}
+[data-page="teacher-autobiography-edit"] .draft__paragraph h2,
+[data-page="teacher-autobiography-edit"] .draft__paragraph h3,
+[data-page="teacher-autobiography-edit"] .draft__paragraph p,
+[data-page="teacher-autobiography-edit"] .draft__paragraph summary,
+[data-page="teacher-autobiography-edit"] .draft__paragraph blockquote { color: #000; }
+[data-page="teacher-autobiography-edit"] .draft__paragraph textarea {
+  background: #fff; color: #000; border: 1px solid #bdbdbd; line-height: 1.9; font-size: var(--fs-md);
+}
+[data-page="teacher-autobiography-edit"] .draft__paragraph .muted,
+[data-page="teacher-autobiography-edit"] .draft__paragraph .small { color: #333; }
+
+/* =========================================================
+   資管科桌寵小助手：批次生成自傳頁面樣式
+   所有選擇器均以 [data-page="student-autobiography-batch"] 開頭
+   ========================================================= */
+
+/* 1. 主容器與進度面板（無固定橫條，完全融入文檔流） */
+[data-page="student-autobiography-batch"] .batch-container {
+  padding-bottom: 3.5rem;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+[data-page="student-autobiography-batch"] .batch-noscript {
+  border-left: 4px solid var(--warn, #eab308);
+}
+
+[data-page="student-autobiography-batch"] .batch-status-board {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  background: var(--sheet, #ffffff);
+  border: 1px solid var(--line, #e2e8f0);
+}
+
+[data-page="student-autobiography-batch"] .batch-status-board__main {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+[data-page="student-autobiography-batch"] .batch-status-info {
+  flex: 1;
+  min-width: 240px;
+}
+
+[data-page="student-autobiography-batch"] .batch-status-title {
+  margin: 0 0 0.25rem;
+  font-size: var(--fs-lg, 1.25rem);
+  font-weight: 700;
+  color: var(--ink, #1f2937);
+  font-style: normal;
+}
+
+[data-page="student-autobiography-batch"] .batch-status-sub {
+  margin: 0;
+  font-size: var(--fs-sm, 0.875rem);
+  color: var(--muted, #64748b);
+  line-height: 1.5;
+}
+
+[data-page="student-autobiography-batch"] .batch-status-action-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+[data-page="student-autobiography-batch"] .batch-start-btn {
+  min-height: 44px;
+  padding: 0.6rem 1.75rem;
+  font-size: var(--fs-base, 1rem);
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+[data-page="student-autobiography-batch"] .batch-status-tools {
+  display: flex;
+  align-items: center;
+}
+
+[data-page="student-autobiography-batch"] .batch-muscle-btn {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--line, #cbd5e1);
+  border-radius: var(--radius-sm, 4px);
+  background: var(--paper, #f8fafc);
+  color: var(--ink, #1f2937);
+  font-size: var(--fs-sm, 0.875rem);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+[data-page="student-autobiography-batch"] .batch-muscle-btn:hover {
+  border-color: var(--accent, #2f6672);
+}
+
+[data-page="student-autobiography-batch"] .batch-muscle-btn.is-active {
+  background: var(--accent-soft, rgba(47, 102, 114, 0.12));
+  border-color: var(--accent, #2f6672);
+  color: var(--accent, #2f6672);
+}
+
+[data-page="student-autobiography-batch"] .batch-progress-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+[data-page="student-autobiography-batch"] .batch-progress-bar {
+  flex: 1;
+  height: 8px;
+  background: var(--paper-deep, #e2e8f0);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+[data-page="student-autobiography-batch"] .batch-progress-fill {
+  height: 100%;
+  background: var(--accent, #2f6672);
+  transition: width 0.4s ease-out;
+}
+
+[data-page="student-autobiography-batch"] .batch-progress-count {
+  font-size: var(--fs-sm, 0.875rem);
+  font-weight: 700;
+  color: var(--ink, #1f2937);
+  white-space: nowrap;
+}
+
+/* 2. 小助手舞台與桌寵漫遊層 */
+[data-page="student-autobiography-batch"] .batch-stage-section {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  max-width: 100%;
+}
+
+[data-page="student-autobiography-batch"] .batch-pet-actor-dock {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-height: 280px;
+  padding-top: 80px;
+  overflow: visible;
+}
+
+[data-page="student-autobiography-batch"] .batch-pet-actor {
+  position: absolute;
+  left: 0;
+  top: 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 170px;
+  pointer-events: none;
+  z-index: 20;
+}
+
+/* 3. 小助手 SVG 角色組件樣式 */
+[data-page="student-autobiography-batch"] .pet-widget {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+[data-page="student-autobiography-batch"] .pet-bubble {
+  display: inline-block;
+  padding: 0.5rem 0.85rem;
+  background: var(--sheet, #ffffff);
+  color: var(--ink, #1f2937);
+  border: 1.5px solid var(--line-strong, #94a3b8);
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+  font-size: var(--fs-sm, 0.875rem);
+  font-weight: 700;
+  position: relative;
+  margin-bottom: 0.4rem;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  text-align: center;
+  width: max-content;
+  max-width: min(280px, calc(100vw - 32px));
+  box-sizing: border-box;
+  pointer-events: auto;
+  line-height: 1.4;
+}
+
+[data-page="student-autobiography-batch"] .pet-bubble::after {
+  content: "";
+  position: absolute;
+  bottom: -7px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 7px 6px 0 6px;
+  border-style: solid;
+  border-color: var(--sheet, #ffffff) transparent transparent transparent;
+}
+
+[data-page="student-autobiography-batch"] .pet-bubble::before {
+  content: "";
+  position: absolute;
+  bottom: -9px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 8px 7px 0 7px;
+  border-style: solid;
+  border-color: var(--line-strong, #94a3b8) transparent transparent transparent;
+}
+
+[data-page="student-autobiography-batch"] .pet-svg {
+  display: block;
+  width: 140px;
+  height: 140px;
+  overflow: visible;
+  color: var(--ink, #1f2937);
+}
+
+[data-page="student-autobiography-batch"] .pet-shadow {
+  fill: rgba(0, 0, 0, 0.12);
+}
+
+[data-page="student-autobiography-batch"] .pet-face-base {
+  fill: #fffdfa;
+  stroke: var(--ink, #1f2937);
+}
+
+[data-page="student-autobiography-batch"] .pet-antenna {
+  stroke: var(--ink, #1f2937);
+}
+
+[data-page="student-autobiography-batch"] .pet-antenna-bulb {
+  fill: var(--accent, #2f6672);
+  stroke: var(--ink, #1f2937);
+  stroke-width: 2;
+}
+
+[data-page="student-autobiography-batch"] .pet-foot {
+  fill: var(--accent, #2f6672);
+  stroke: var(--ink, #1f2937);
+  stroke-width: 2.5;
+}
+
+[data-page="student-autobiography-batch"] .pet-eye {
+  fill: var(--ink, #1f2937);
+}
+
+[data-page="student-autobiography-batch"] .pet-eye-glint {
+  fill: #ffffff;
+}
+
+/* 小助手表情切換控制 */
+[data-page="student-autobiography-batch"] .pet-face {
+  display: none;
+}
+
+[data-page="student-autobiography-batch"] [data-pet-state="idle"] .pet-face--idle {
+  display: block;
+}
+
+[data-page="student-autobiography-batch"] [data-pet-state="walking"] .pet-face--walking {
+  display: block;
+}
+
+[data-page="student-autobiography-batch"] [data-pet-state="casting"] .pet-face--casting {
+  display: block;
+}
+
+[data-page="student-autobiography-batch"] [data-pet-state="happy"] .pet-face--happy {
+  display: block;
+}
+
+[data-page="student-autobiography-batch"] [data-pet-state="sorry"] .pet-face--sorry {
+  display: block;
+}
+
+/* 施法星芒眼發亮效果 */
+[data-page="student-autobiography-batch"] .pet-star-eye {
+  fill: #f59e0b;
+  stroke: var(--ink, #1f2937);
+}
+
+/* 抱歉冷汗滴 */
+[data-page="student-autobiography-batch"] .pet-sweat {
+  fill: #38bdf8;
+  stroke: var(--ink, #1f2937);
+}
+
+/* 手臂與手部切換 */
+[data-page="student-autobiography-batch"] .pet-limbs-normal {
+  display: block;
+}
+
+[data-page="student-autobiography-batch"] .pet-limbs-muscle {
+  display: none;
+}
+
+[data-page="student-autobiography-batch"] .pet-hand {
+  fill: #fffdfa;
+  stroke: var(--ink, #1f2937);
+}
+
+/* 筋肉彩蛋模式（手臂暴漲粗壯二頭肌） */
+[data-page="student-autobiography-batch"] [data-muscle="true"] .pet-limbs-normal {
+  display: none;
+}
+
+[data-page="student-autobiography-batch"] [data-muscle="true"] .pet-limbs-muscle {
+  display: block;
+}
+
+[data-page="student-autobiography-batch"] .pet-muscle-arm {
+  fill: #fffdfa;
+  stroke: var(--ink, #1f2937);
+}
+
+[data-page="student-autobiography-batch"] .pet-muscle-cut {
+  stroke: var(--ink, #1f2937);
+}
+
+/* 魔法棒顯隱與揮舞 */
+[data-page="student-autobiography-batch"] .pet-wand-group {
+  display: none;
+  transform-origin: 126px 102px;
+}
+
+[data-page="student-autobiography-batch"] [data-pet-state="casting"] .pet-wand-group {
+  display: block;
+  animation: pet-wand-swing 0.75s ease-in-out infinite alternate;
+}
+
+[data-page="student-autobiography-batch"] .pet-wand-stick {
+  stroke: var(--accent, #2f6672);
+}
+
+[data-page="student-autobiography-batch"] .pet-wand-star {
+  fill: #fbbf24;
+  stroke: #d97706;
+}
+
+[data-page="student-autobiography-batch"] .pet-wand-glow {
+  stroke: #fbbf24;
+}
+
+/* 小助手動畫關鍵影格 */
+@keyframes pet-blink {
+  0%, 90%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.1); }
+}
+
+[data-page="student-autobiography-batch"] [data-pet-state="idle"] .pet-eyes-idle {
+  transform-origin: 80px 82px;
+  animation: pet-blink 3.5s infinite;
+}
+
+@keyframes pet-walk-bob {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-7px) rotate(4deg); }
+}
+
+[data-page="student-autobiography-batch"] [data-pet-state="walking"] .pet-character {
+  animation: pet-walk-bob 0.35s ease-in-out infinite;
+}
+
+@keyframes pet-wand-swing {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(-24deg); }
+}
+
+@keyframes pet-happy-jump {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-14px) scale(1.05); }
+}
+
+[data-page="student-autobiography-batch"] [data-pet-state="happy"] .pet-character,
+[data-page="student-autobiography-batch"] .pet-widget.is-celebrating .pet-character {
+  animation: pet-happy-jump 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) infinite;
+}
+
+/* 4. A4 紙張陳列軌道（支援橫向/縱向順暢滑動，手機 375px 一次顯示一張） */
+[data-page="student-autobiography-batch"] .batch-papers-deck {
+  display: flex;
+  gap: 1.5rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 1rem 0.5rem 2rem;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+[data-page="student-autobiography-batch"] .batch-papers-deck:focus-visible {
+  outline: 2px solid var(--accent, #2f6672);
+  outline-offset: 4px;
+}
+
+/* A4 紙張本體（直向，白底黑字，無論淺色/深色主題均維持白底黑字紙本質感） */
+[data-page="student-autobiography-batch"] .batch-paper {
+  position: relative;
+  flex-shrink: 0;
+  width: min(320px, calc(100vw - 48px));
+  aspect-ratio: 1 / 1.414;
+  min-height: 450px;
+  background: #ffffff !important;
+  color: #111111 !important;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: var(--radius-sm, 4px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
+  padding: 1.5rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  scroll-snap-align: center;
+  overflow: hidden;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+[data-page="student-autobiography-batch"] .batch-paper:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+[data-page="student-autobiography-batch"] .batch-paper[data-status="running"] {
+  border-color: var(--accent, #2f6672);
+  box-shadow: 0 0 0 2px var(--accent, #2f6672), 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+/* 紙張頂部抬頭 */
+[data-page="student-autobiography-batch"] .batch-paper__header {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  padding-bottom: 0.75rem;
+}
+
+[data-page="student-autobiography-batch"] .batch-paper__badge {
+  display: inline-block;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: #4b5563;
+  background: #f3f4f6;
+  padding: 0.15rem 0.45rem;
+  border-radius: 2px;
+  margin-bottom: 0.4rem;
+  letter-spacing: 0.5px;
+}
+
+[data-page="student-autobiography-batch"] .batch-paper__school {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: #111827 !important;
+  line-height: 1.3;
+}
+
+[data-page="student-autobiography-batch"] .batch-paper__dept {
+  margin: 0.2rem 0 0;
+  font-size: var(--fs-sm);
+  color: #4b5563 !important;
+}
+
+/* 5. 假文字骨架逐行浮現效果（佔位假線條） */
+[data-page="student-autobiography-batch"] .batch-paper__content {
+  flex: 1;
+  padding: 1rem 0;
+  display: flex;
+  flex-direction: column;
+}
+
+[data-page="student-autobiography-batch"] .batch-paper__line {
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 3px;
+  margin-bottom: 0.75rem;
+  opacity: 0.4;
+  transition: opacity 0.4s ease, background-color 0.4s ease;
+}
+
+[data-page="student-autobiography-batch"] .batch-paper__line--h1 {
+  width: 45%;
+  height: 12px;
+  margin-bottom: 1rem;
+}
+
+[data-page="student-autobiography-batch"] .batch-paper__line--h2 {
+  width: 38%;
+  height: 11px;
+  margin-top: 0.5rem;
+  margin-bottom: 0.9rem;
+}
+
+[data-page="student-autobiography-batch"] .batch-paper__line--p1 { width: 92%; }
+[data-page="student-autobiography-batch"] .batch-paper__line--p2 { width: 98%; }
+[data-page="student-autobiography-batch"] .batch-paper__line--p3 { width: 85%; }
+[data-page="student-autobiography-batch"] .batch-paper__line--p4 { width: 65%; }
+[data-page="student-autobiography-batch"] .batch-paper__line--p5 { width: 94%; }
+[data-page="student-autobiography-batch"] .batch-paper__line--p6 { width: 88%; }
+[data-page="student-autobiography-batch"] .batch-paper__line--p7 { width: 70%; }
+
+/* 施法時假文字逐行浮現光影動畫 */
+@keyframes batch-line-appear {
+  0% { opacity: 0.25; background-color: #e5e7eb; }
+  50% { opacity: 0.95; background-color: var(--accent, #2f6672); }
+  100% { opacity: 0.6; background-color: #9ca3af; }
+}
+
+[data-page="student-autobiography-batch"] .batch-paper[data-status="running"] .batch-paper__line {
+  animation: batch-line-appear 1.7s ease-in-out infinite;
+}
+
+[data-page="student-autobiography-batch"] .batch-paper[data-status="running"] .batch-paper__line--p1 { animation-delay: 0.1s; }
+[data-page="student-autobiography-batch"] .batch-paper[data-status="running"] .batch-paper__line--p2 { animation-delay: 0.25s; }
+[data-page="student-autobiography-batch"] .batch-paper[data-status="running"] .batch-paper__line--p3 { animation-delay: 0.4s; }
+[data-page="student-autobiography-batch"] .batch-paper[data-status="running"] .batch-paper__line--p4 { animation-delay: 0.55s; }
+[data-page="student-autobiography-batch"] .batch-paper[data-status="running"] .batch-paper__line--h2 { animation-delay: 0.7s; }
+[data-page="student-autobiography-batch"] .batch-paper[data-status="running"] .batch-paper__line--p5 { animation-delay: 0.85s; }
+[data-page="student-autobiography-batch"] .batch-paper[data-status="running"] .batch-paper__line--p6 { animation-delay: 1.0s; }
+[data-page="student-autobiography-batch"] .batch-paper[data-status="running"] .batch-paper__line--p7 { animation-delay: 1.15s; }
+
+/* 6. CSS 魔法星星粒子灑落 */
+[data-page="student-autobiography-batch"] .batch-paper__stars {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  display: none;
+}
+
+[data-page="student-autobiography-batch"] .batch-paper[data-status="running"] .batch-paper__stars {
+  display: block;
+}
+
+[data-page="student-autobiography-batch"] .batch-star {
+  position: absolute;
+  color: #f59e0b;
+  font-size: var(--fs-md);
+  opacity: 0;
+}
+
+[data-page="student-autobiography-batch"] .batch-star--1 { left: 22%; top: 18%; animation: batch-star-float 1.6s ease-in-out infinite 0.1s; }
+[data-page="student-autobiography-batch"] .batch-star--2 { left: 74%; top: 28%; animation: batch-star-float 1.8s ease-in-out infinite 0.45s; }
+[data-page="student-autobiography-batch"] .batch-star--3 { left: 45%; top: 52%; animation: batch-star-float 1.5s ease-in-out infinite 0.8s; }
+[data-page="student-autobiography-batch"] .batch-star--4 { left: 16%; top: 68%; animation: batch-star-float 1.9s ease-in-out infinite 0.25s; }
+[data-page="student-autobiography-batch"] .batch-star--5 { left: 82%; top: 74%; animation: batch-star-float 1.7s ease-in-out infinite 0.95s; }
+
+@keyframes batch-star-float {
+  0% { transform: translateY(-8px) scale(0.6) rotate(0deg); opacity: 0; }
+  35% { opacity: 1; transform: translateY(4px) scale(1.2) rotate(45deg); }
+  100% { transform: translateY(22px) scale(0.5) rotate(90deg); opacity: 0; }
+}
+
+/* 7. 完成時的蓋印動畫（印章） */
+[data-page="student-autobiography-batch"] .batch-paper__stamp {
+  position: absolute;
+  right: 1.25rem;
+  bottom: 3.5rem;
+  display: none;
+  pointer-events: none;
+}
+
+/* 僅有完成狀態才顯示印章，其他狀態嚴格隱藏，徹底避免失敗紙張出現印章殘影 */
+[data-page="student-autobiography-batch"] .batch-paper[data-status="done"] .batch-paper__stamp {
+  display: block;
+  animation: batch-stamp-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+[data-page="student-autobiography-batch"] .batch-paper:not([data-status="done"]) .batch-paper__stamp {
+  display: none !important;
+}
+
+[data-page="student-autobiography-batch"] .batch-paper__stamp-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 90px;
+  height: 90px;
+  border: 3.5px double #b91c1c; /* 經典印泥硃砂紅 */
+  border-radius: 50%;
+  color: #b91c1c;
+  background: rgba(254, 242, 242, 0.85);
+  padding: 0.25rem;
+  text-align: center;
+  box-shadow: 0 0 0 2px rgba(185, 28, 28, 0.2);
+}
+
+[data-page="student-autobiography-batch"] .batch-paper__stamp-word {
+  font-size: var(--fs-lg);
+  font-weight: 900;
+  letter-spacing: 2px;
+  line-height: 1.1;
+}
+
+[data-page="student-autobiography-batch"] .batch-paper__stamp-dept {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  max-width: 74px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.85;
+}
+
+[data-page="student-autobiography-batch"] .batch-paper__stamp-check {
+  font-size: var(--fs-sm);
+  line-height: 1;
+  margin-top: 1px;
+}
+
+@keyframes batch-stamp-in {
+  0% { transform: scale(2.2) rotate(15deg); opacity: 0; }
+  100% { transform: scale(1) rotate(-8deg); opacity: 0.95; }
+}
+
+/* 8. 失敗狀態與重試／引導面板（高度 ≥ 44px） */
+[data-page="student-autobiography-batch"] .batch-paper__pending-box {
+  position: absolute;
+  inset: 1rem;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem 1rem;
+  text-align: center;
+  background: #ffffff;
+  color: #111111;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-sm, 4px);
+  z-index: 9;
+}
+
+[data-page="student-autobiography-batch"] .batch-paper[data-status="pending"] .batch-paper__pending-box {
+  display: flex;
+}
+
+[data-page="student-autobiography-batch"] .batch-paper__pending-title {
+  margin: 0 0 0.35rem;
+  font-size: var(--fs-base);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+[data-page="student-autobiography-batch"] .batch-paper__pending-note {
+  margin: 0;
+  max-width: 18rem;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+[data-page="student-autobiography-batch"] .batch-paper__fail-box {
+  position: absolute;
+  inset: 1rem;
+  background: rgba(255, 255, 255, 0.97);
+  border: 2px dashed var(--danger, #dc2626);
+  border-radius: var(--radius-sm, 4px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem 1rem;
+  text-align: center;
+  z-index: 10;
+}
+
+[data-page="student-autobiography-batch"] .batch-paper__fail-box[hidden] {
+  display: none !important;
+}
+
+[data-page="student-autobiography-batch"] .batch-paper__fail-title {
+  margin: 0 0 0.4rem;
+  font-size: var(--fs-base, 1rem);
+  font-weight: 700;
+  color: var(--danger, #dc2626);
+}
+
+[data-page="student-autobiography-batch"] .batch-paper__fail-note {
+  margin: 0 0 0.85rem;
+  color: #1f2937 !important;
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+  font-weight: 500;
+}
+
+[data-page="student-autobiography-batch"] .batch-paper__fail-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+[data-page="student-autobiography-batch"] .batch-retry-btn,
+[data-page="student-autobiography-batch"] .batch-guide-link {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.6rem 1.5rem;
+  font-size: var(--fs-base, 1rem);
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+/* 紙張底部頁碼標記與狀態文字（高對比度確保深淺色清晰） */
+[data-page="student-autobiography-batch"] .batch-paper__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1.5px solid rgba(0, 0, 0, 0.16);
+  padding-top: 0.65rem;
+  font-size: var(--fs-xs);
+  color: #1f2937 !important;
+}
+
+[data-page="student-autobiography-batch"] .batch-paper__status-text {
+  font-weight: 700;
+  color: #374151 !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* 成功狀態：高對比深翠綠色 */
+[data-page="student-autobiography-batch"] .batch-paper[data-status="done"] .batch-paper__status-text {
+  color: #14532d !important;
+  font-weight: 800;
+}
+
+/* 施法中狀態：高對比深藍色 */
+[data-page="student-autobiography-batch"] .batch-paper[data-status="running"] .batch-paper__status-text {
+  color: #1d4ed8 !important;
+  font-weight: 800;
+}
+
+/* 失敗狀態：高對比深硃砂紅 */
+[data-page="student-autobiography-batch"] .batch-paper[data-status="failed"] .batch-paper__status-text {
+  color: #991b1b !important;
+  font-weight: 800;
+}
+
+[data-page="student-autobiography-batch"] .batch-paper__page-num {
+  font-weight: 700;
+  color: #1f2937 !important;
+}
+
+/* 9. 全部完成後的成果指引區塊（非 fixed 浮動，完全處於文檔流） */
+[data-page="student-autobiography-batch"] .batch-completion-box {
+  padding: 1.75rem 1.5rem;
+  background: var(--sheet, #ffffff);
+  border: 1px solid var(--line, #cbd5e1);
+  border-left: 5px solid var(--ok, #16a34a);
+}
+
+[data-page="student-autobiography-batch"] .batch-completion-content {
+  display: flex;
+  gap: 1.25rem;
+  align-items: flex-start;
+}
+
+[data-page="student-autobiography-batch"] .batch-completion-icon {
+  font-size: var(--fs-xl);
+  line-height: 1;
+}
+
+[data-page="student-autobiography-batch"] .batch-completion-title {
+  margin: 0 0 0.35rem;
+  font-size: var(--fs-xl, 1.35rem);
+  font-weight: 700;
+  color: var(--ink, #1f2937);
+  font-style: normal;
+}
+
+[data-page="student-autobiography-batch"] .batch-completion-desc {
+  margin: 0;
+  font-size: var(--fs-base, 1rem);
+  line-height: 1.6;
+}
+
+[data-page="student-autobiography-batch"] .batch-completion-actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+[data-page="student-autobiography-batch"] .batch-done-btn {
+  min-height: 44px;
+  padding: 0.65rem 1.75rem;
+  font-size: var(--fs-base, 1rem);
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* 10. 尊重減少動態效果 (prefers-reduced-motion) */
+@media (prefers-reduced-motion: reduce) {
+  [data-page="student-autobiography-batch"] .pet-character,
+  [data-page="student-autobiography-batch"] .pet-eyes-idle,
+  [data-page="student-autobiography-batch"] .pet-wand-group,
+  [data-page="student-autobiography-batch"] .batch-pet-actor,
+  [data-page="student-autobiography-batch"] .batch-paper__line,
+  [data-page="student-autobiography-batch"] .batch-star,
+  [data-page="student-autobiography-batch"] .batch-paper__stamp,
+  [data-page="student-autobiography-batch"] .pet-bubble {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  [data-page="student-autobiography-batch"] .batch-paper[data-status="done"] .batch-paper__stamp {
+    transform: rotate(-8deg) !important;
+    opacity: 0.95 !important;
+    display: block !important;
+  }
+}
+
+/* 手機版角色區與 A4 紙張 */
+@media (max-width: 720px) {
+  [data-page="student-autobiography-batch"] .batch-pet-actor-dock {
+    min-height: 260px;
+    padding-top: 80px;
+  }
+
+  [data-page="student-autobiography-batch"] .batch-pet-actor {
+    top: 80px;
+  }
+
+  [data-page="student-autobiography-batch"] .batch-paper {
+    width: min(320px, calc(100vw - 32px));
+  }
+
+  [data-page="student-autobiography-batch"] .batch-status-board {
+    padding: 1rem;
+  }
+}
+
+/* 2026-11-20 使用者：自傳內容（編輯、預覽、導師審閱）一律標楷體，並固定白底黑字，淺色深色外觀都看得清楚。
+   色彩對應：外層工作區依 --sheet/--ink/--line；強調依 --accent；紙面固定白底黑字；超標依 --bio-warn（淺色深紅、深色粉紅）。
+   正文文字對應白紙黑字或外層主要文字，皆採既有主色與文字 token，符合 WCAG AA 4.5:1。 */
+[data-page="student-autobiography"] .canva-editor-column textarea,
+[data-page="student-autobiography"] .canva-preview-sheet,
+[data-page="student-autobiography"] .canva-preview-sheet *,
+[data-page="teacher-autobiography-edit"] .draft__paragraph,
+[data-page="teacher-autobiography-edit"] .draft__paragraph textarea,
+[data-page="teacher-autobiography-edit"] .draft__paragraph h2,
+[data-page="teacher-autobiography-edit"] .draft__paragraph p,
+[data-page="autobiography-versions"] .version-text,
+[data-page="teacher-autobiography-versions"] .version-text {
+  font-family: "DFKai-SB", "BiauKai", "標楷體", "Kaiti TC", "KaiTi", "STKaiti", "Noto Serif TC", serif;
+}
+[data-page="student-autobiography"] .canva-editor-column textarea,
+[data-page="student-autobiography"] .canva-preview-sheet,
+[data-page="student-autobiography"] .canva-preview-sheet {
+  background-color: #ffffff; color: #000000;
+}
+[data-page="student-autobiography"] .canva-editor-column textarea {
+  border: 1px solid #cfcfcf;
+  line-height: 1.9;
+  font-size: var(--fs-base);
+  background: #ffffff !important;
+  color: #000000 !important;
+  caret-color: #000000;
+}
+[data-page="student-autobiography"] .draft__paragraph {
+  background: #ffffff !important;
+  color: #000000 !important;
+  border: 1px solid #cfcfcf !important;
+  border-left: 3px solid var(--accent) !important;
+  box-shadow: var(--shadow-sheet) !important;
+}
+[data-page="student-autobiography"] .draft__paragraph :is(h2, h3, p, label, li, b, span, blockquote, summary) {
+  color: #000000;
+}
+[data-page="student-autobiography"] .draft__paragraph :is(.paragraph-review__evidence, .paragraph-review, blockquote) {
+  background: var(--sheet) !important;
+  color: var(--ink) !important;
+  border-color: var(--line) !important;
+}
+[data-page="student-autobiography"] .canva-preview-sheet * {
+  color: #000000;
+}
+[data-page="student-autobiography"] .canva-preview-sheet .canva-preview-badge,
+[data-page="student-autobiography"] .canva-preview-sheet .canva-preview-doc-meta,
+[data-page="student-autobiography"] .canva-preview-sheet .canva-preview-item__count {
+  color: #3f3f3f;
+}
+[data-page="student-autobiography"] .canva-preview-item.is-active {
+  background: transparent;
+  border-color: var(--line);
+  border-left-color: var(--accent);
+}
+[data-page="student-autobiography"] .canva-preview-item__title,
+[data-page="student-autobiography"] .canva-preview-item__text,
+[data-page="student-autobiography"] .canva-paragraph-header__title {
+  color: #000000;
+  font-weight: 700;
+}
+[data-page="student-autobiography"] .canva-paragraph-header__title {
+  padding-left: var(--space-2);
+  border-left: 3px solid var(--accent);
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+[data-page="autobiography-versions"] .version-text,
+[data-page="teacher-autobiography-versions"] .version-text { background: #ffffff; color: #000000; }
+
+/* 自傳字數預算與資料更新提示（只限定編輯畫面） */
+[data-page="student-autobiography"] .budget-data-update {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 44px;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--warn);
+  border-left: 4px solid var(--warn);
+  border-radius: var(--radius);
+  background: var(--warn-soft);
+  color: var(--ink);
+  font-size: var(--fs-sm);
+}
+[data-page="student-autobiography"] .budget-data-update[hidden] { display: none; }
+[data-page="student-autobiography"] .budget-data-update__text {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+[data-page="student-autobiography"] .budget-data-update__redo {
+  min-height: 44px;
+  white-space: nowrap;
+  background: var(--sheet);
+  color: var(--ink);
+  border-color: var(--ink);
+}
+[data-page="student-autobiography"] .budget-data-update__close {
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--ink);
+  border-radius: var(--radius);
+  background: var(--sheet);
+  color: var(--ink);
+  font-size: var(--fs-lg);
+  line-height: 1;
+  cursor: pointer;
+}
+
+[data-page="student-autobiography"] .is-over-budget {
+  color: var(--bio-warn, var(--danger, #9b3d36)) !important;
+  font-weight: 700;
+}
+[data-page="student-autobiography"] .canva-toc-btn.is-over-budget,
+[data-page="student-autobiography"] .canva-chip.is-over-budget {
+  color: var(--ink) !important;
+  border-left: 3px solid var(--bio-warn, var(--danger, #9b3d36));
+  background: var(--sheet);
+}
+[data-page="student-autobiography"] .canva-toc-btn.is-over-budget .canva-toc-btn__count,
+[data-page="student-autobiography"] .canva-chip.is-over-budget .canva-chip__count,
+[data-page="student-autobiography"] .canva-char-counter.is-over-budget {
+  color: var(--bio-warn, var(--danger, #9b3d36)) !important;
+}
+[data-page="student-autobiography"] .canva-char-counter.is-over-budget::before,
+[data-page="student-autobiography"] .canva-toc-btn.is-over-budget .canva-toc-btn__count::before,
+[data-page="student-autobiography"] .canva-chip.is-over-budget .canva-chip__count::before,
+[data-page="student-autobiography"] [data-char-total].is-over-budget::before {
+  content: "⚠ ";
+}
+[data-page="student-autobiography"] .draft__budget-warning {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--bio-warn, var(--danger, #9b3d36));
+  background: transparent;
+  color: var(--bio-warn, var(--danger, #9b3d36));
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+[data-page="student-autobiography"] [data-char-total].is-over-budget {
+  color: var(--bio-warn, var(--danger, #9b3d36));
+}
+
+@media (max-width: 899.98px) {
+  [data-page="student-autobiography"] .budget-data-update {
+    grid-template-columns: minmax(0, 1fr) 44px;
+  }
+  [data-page="student-autobiography"] .budget-data-update__redo {
+    grid-column: 1 / 2;
+    justify-self: start;
+  }
+  [data-page="student-autobiography"] .budget-data-update__close {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  [data-page="student-autobiography"] .canva-toolbar__left {
+    min-width: 0;
+  }
+  [data-page="student-autobiography"] .canva-toolbar__char {
+    display: inline;
+    min-width: 0;
+  }
+  [data-page="student-autobiography"] .canva-toolbar__version {
+    display: none;
+  }
+  [data-page="student-autobiography"] .canva-toolbar__mobile-toggle {
+    flex: 0 1 auto;
+  }
+  [data-page="student-autobiography"] .canva-toggle-btn {
+    min-width: 44px;
+    padding-inline: var(--space-2);
+  }
+  [data-page="student-autobiography"] .canva-toolbar__more {
+    display: none;
+  }
+  [data-page="student-autobiography"] .canva-save-btn {
+    padding-inline: var(--space-3);
+  }
+}
+
+  /* 深色外觀統一 */
+  html[data-theme="dark"] [data-page="student-autobiography"] .paragraph-review,
+  html[data-theme="dark"] [data-page="student-autobiography"] .paragraph-review > section,
+  html[data-theme="dark"] [data-page="student-autobiography"] .evidence-item,
+  html[data-theme="dark"] [data-page="student-autobiography"] .unsupported-list,
+  html[data-theme="dark"] [data-page="student-autobiography"] .teacher-comment,
+  html[data-theme="dark"] [data-page="student-autobiography"] .para-comments,
+  html[data-theme="dark"] [data-page="student-autobiography"] .para-comment,
+  html[data-theme="dark"] [data-page="student-autobiography"] .bio-pieces,
+  html[data-theme="dark"] [data-page="student-autobiography"] .bio-piece,
+  html[data-theme="dark"] [data-page="student-autobiography"] .canva-aux-drawer,
+  html[data-theme="dark"] [data-page="student-autobiography"] .budget-data-update,
+  html[data-theme="dark"] [data-page="student-autobiography"] .bio-images {
+    background: var(--sheet) !important;
+    color: var(--ink) !important;
+    border-color: var(--line) !important;
+  }
+
+  html[data-theme="dark"] [data-page="student-autobiography"] .paragraph-review :is(h3, p, li, summary, b, small, span, q),
+  html[data-theme="dark"] [data-page="student-autobiography"] .unsupported-list :is(li, q),
+  html[data-theme="dark"] [data-page="student-autobiography"] .teacher-comment,
+  html[data-theme="dark"] [data-page="student-autobiography"] .para-comments,
+  html[data-theme="dark"] [data-page="student-autobiography"] .para-comment,
+  html[data-theme="dark"] [data-page="student-autobiography"] .bio-pieces,
+  html[data-theme="dark"] [data-page="student-autobiography"] .bio-piece,
+  html[data-theme="dark"] [data-page="student-autobiography"] .canva-aux-drawer,
+  html[data-theme="dark"] [data-page="student-autobiography"] .budget-data-update,
+  html[data-theme="dark"] [data-page="student-autobiography"] .bio-images {
+    color: var(--ink) !important;
+  }
+
+  html[data-theme="dark"] [data-page="student-autobiography"] .unsupported-list li,
+  html[data-theme="dark"] [data-page="student-autobiography"] .para-comment__original,
+  html[data-theme="dark"] [data-page="student-autobiography"] .para-comment__reply {
+    background: transparent !important;
+    border-left: 3px solid var(--warn) !important;
+  }
+
+  html[data-theme="dark"] [data-page="student-autobiography"] .unsupported-list li,
+  html[data-theme="dark"] [data-page="student-autobiography"] .draft__budget-warning {
+    color: var(--ink) !important;
+  }
+
+  [data-page="student-autobiography"] .paragraph-review,
+  [data-page="student-autobiography"] .paragraph-review > section,
+  [data-page="student-autobiography"] .evidence-item,
+  [data-page="student-autobiography"] .unsupported-list,
+  [data-page="student-autobiography"] .teacher-comment,
+  [data-page="student-autobiography"] .para-comments,
+  [data-page="student-autobiography"] .para-comment,
+  [data-page="student-autobiography"] .bio-pieces,
+  [data-page="student-autobiography"] .bio-piece,
+  [data-page="student-autobiography"] .canva-aux-drawer,
+  [data-page="student-autobiography"] .budget-data-update,
+  [data-page="student-autobiography"] .bio-images {
+    background: var(--sheet);
+    color: var(--ink);
+    border-color: var(--line);
+  }
+
+  [data-page="student-autobiography"] .paragraph-review > section,
+  [data-page="student-autobiography"] .evidence-item,
+  [data-page="student-autobiography"] .bio-piece,
+  [data-page="student-autobiography"] .para-comment {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  [data-page="student-autobiography"] .unsupported-list li,
+  [data-page="student-autobiography"] .para-comment__original,
+  [data-page="student-autobiography"] .para-comment__reply {
+    background: transparent;
+    border-left: 3px solid var(--warn);
+  }
+
+  [data-page="student-autobiography"] :is(.alert, .alert--soft, .notice, .notice--warn),
+  [data-page="student-autobiography"] .draft__budget-warning,
+  [data-page="student-autobiography"] .canva-data-update,
+  [data-page="student-autobiography"] .budget-data-update {
+    background: transparent;
+    color: var(--ink);
+    border-right: 0;
+    border-top: 0;
+    border-bottom: 0;
+  }
+
+  [data-page="student-autobiography"] .alert,
+  [data-page="student-autobiography"] .alert--soft {
+    border-left: 3px solid var(--danger);
+  }
+
+  [data-page="student-autobiography"] .notice {
+    border-left: 3px solid var(--ok);
+  }
+
+  [data-page="student-autobiography"] .notice--warn,
+  [data-page="student-autobiography"] .draft__budget-warning {
+    border-left: 3px solid var(--warn);
+  }
+
+  [data-page="student-autobiography"] .canva-paragraph-nav,
+  [data-page="student-autobiography"] .canva-pnav-btn,
+  [data-page="student-autobiography"] .canva-nav-btn,
+  [data-page="student-autobiography"] .canva-toggle-btn {
+    background: var(--sheet);
+    color: var(--ink);
+    border-color: var(--line);
+  }
+
+  [data-page="student-autobiography"] .canva-paragraph-nav .button--line,
+  [data-page="student-autobiography"] .bio-piece__put,
+  [data-page="student-autobiography"] .bio-images .button--line,
+  [data-page="student-autobiography"] .budget-data-update__redo,
+  [data-page="student-autobiography"] .budget-data-update__close {
+    background: transparent;
+    color: var(--ink);
+    border-color: var(--line);
+  }
+
+  /* 導師編輯頁仍維持白紙、黑字；註解區也不混入深色卡片。 */
+  [data-page="teacher-autobiography-edit"] .draft__paragraph,
+  [data-page="teacher-autobiography-edit"] .draft__paragraph :is(textarea, blockquote, .teacher-comment, .para-comments, .para-comment, .para-comment__original),
+  [data-page="teacher-autobiography-edit"] .draft__paragraph :is(h2, h3, p, summary, span, b, small, label) {
+    background: #fff !important;
+    color: #000 !important;
+    border-color: #cfcfcf !important;
+  }
+/* 2026-11-20 批次自傳：主角改為真正的 assistant__toggle 圓形圖標 */
+[data-page="student-autobiography-batch"] {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+[data-page="student-autobiography-batch"] .batch-stage-section,
+[data-page="student-autobiography-batch"] .batch-papers-deck,
+[data-page="student-autobiography-batch"] .batch-paper {
+  box-sizing: border-box;
+  max-width: 100%;
+}
+[data-page="student-autobiography-batch"] .batch-pet-actor-dock,
+[data-page="student-autobiography-batch"] .batch-pet-actor,
+[data-page="student-autobiography-batch"] .pet-widget,
+[data-page="student-autobiography-batch"] .pet-bubble,
+[data-page="student-autobiography-batch"] .pet-svg,
+[data-page="student-autobiography-batch"] .batch-muscle-btn {
+  display: none !important;
+}
+[data-page="student-autobiography-batch"] .batch-stage-section {
+  position: relative;
+  min-width: 0;
+  padding: var(--space-3);
+  overflow: visible;
+}
+[data-page="student-autobiography-batch"] .batch-papers-deck {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 297px));
+  justify-content: center;
+  gap: var(--space-5);
+  overflow: visible;
+  padding: var(--space-3);
+}
+[data-page="student-autobiography-batch"] .batch-paper {
+  width: 297px;
+  height: 420px;
+  overflow: hidden;
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #1f2937;
+  box-shadow: var(--shadow-sheet);
+  font-family: "DFKai-SB", "BiauKai", "標楷體", "Kaiti TC", "KaiTi", serif;
+}
+[data-page="student-autobiography-batch"] .batch-paper__header,
+[data-page="student-autobiography-batch"] .batch-paper__content,
+[data-page="student-autobiography-batch"] .batch-paper__footer {
+  background: #ffffff;
+  color: #000000;
+  font-family: "DFKai-SB", "BiauKai", "標楷體", "Kaiti TC", "KaiTi", serif;
+}
+[data-page="student-autobiography-batch"] .batch-paper__pending-title,
+[data-page="student-autobiography-batch"] .batch-paper__pending-note {
+  color: #000000;
+  font-family: "DFKai-SB", "BiauKai", "標楷體", "Kaiti TC", "KaiTi", serif;
+}
+[data-page="student-autobiography-batch"] .batch-paper[data-status="running"] .batch-paper__line {
+  opacity: 0;
+  animation: batch-assistant-line-in 0.55s ease-out forwards;
+  background: var(--line);
+}
+[data-page="student-autobiography-batch"] .batch-paper[data-status="running"] .batch-paper__stars {
+  display: block;
+}
+[data-page="student-autobiography-batch"] .batch-paper[data-status="done"] .batch-paper__stamp {
+  display: block;
+}
+[data-page="student-autobiography-batch"] .batch-paper__stars {
+  position: absolute;
+  inset: 0;
+  display: none;
+  pointer-events: none;
+}
+[data-page="student-autobiography-batch"] .batch-star {
+  position: absolute;
+  color: var(--warn);
+  animation: batch-assistant-star-fall 1.8s ease-in infinite;
+}
+[data-page="student-autobiography-batch"] .batch-star--1 { left: 20%; top: 8%; }
+[data-page="student-autobiography-batch"] .batch-star--2 { left: 70%; top: 18%; animation-delay: 0.35s; }
+[data-page="student-autobiography-batch"] .batch-star--3 { left: 45%; top: 38%; animation-delay: 0.7s; }
+[data-page="student-autobiography-batch"] .batch-star--4 { left: 15%; top: 58%; animation-delay: 1.05s; }
+[data-page="student-autobiography-batch"] .batch-star--5 { left: 82%; top: 68%; animation-delay: 1.35s; }
+
+body[data-page="student-autobiography-batch"] .assistant__toggle {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  min-width: 52px;
+  min-height: 52px;
+  padding: 0;
+  border-radius: 50%;
+  justify-content: center;
+  transition: left 0.75s cubic-bezier(.25,1,.5,1), top 0.75s cubic-bezier(.25,1,.5,1), transform 0.75s cubic-bezier(.25,1,.5,1), background 0.25s;
+  overflow: visible;
+}
+body[data-page="student-autobiography-batch"] .assistant__toggle.is-batch-casting {
+  background: var(--accent-soft);
+  box-shadow: 0 8px 24px var(--accent-soft);
+  animation: batch-assistant-cast-glow 1.1s ease-in-out infinite;
+}
+body[data-page="student-autobiography-batch"] .batch-assistant-face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-family: "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", "Segoe UI Symbol", sans-serif;
+  font-size: var(--fs-xs);
+  letter-spacing: -0.08em;
+  line-height: 1;
+  white-space: nowrap;
+  transform: scaleX(.9);
+  z-index: 3;
+  pointer-events: none;
+}
+body[data-page="student-autobiography-batch"] .batch-assistant-face.is-casting-face {
+  transform: scaleX(.75);
+}
+body[data-page="student-autobiography-batch"] .batch-assistant-face.is-all-completed {
+  transform: scaleX(.55);
+}
+body[data-page="student-autobiography-batch"] .batch-assistant-bubble {
+  position: fixed;
+  width: max-content;
+  max-width: min(280px, calc(100vw - 24px));
+  transform: translateY(4px);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--sheet);
+  color: var(--ink);
+  box-shadow: var(--shadow-pop);
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  z-index: 1001;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.25s, transform 0.25s;
+}
+body[data-page="student-autobiography-batch"] .batch-assistant-bubble.is-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+body[data-page="student-autobiography-batch"] .batch-assistant-bubble.is-right-aligned {
+  text-align: right;
+}
+body[data-page="student-autobiography-batch"] .batch-assistant-bubble.is-left-aligned {
+  text-align: left;
+}
+body[data-page="student-autobiography-batch"] .assistant__toggle.is-batch-casting::after {
+  position: absolute;
+  top: 4px;
+  left: 56px;
+  z-index: 2;
+  content: "🪄";
+  font-size: var(--fs-md);
+  pointer-events: none;
+  transform-origin: right bottom;
+  animation: batch-assistant-wand 1.2s ease-in-out infinite;
+}
+body[data-page="student-autobiography-batch"] .batch-assistant-muscle {
+  position: absolute;
+  top: 50%;
+  display: none;
+  z-index: 4;
+  font-family: "Segoe UI Symbol", "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", sans-serif;
+  font-size: var(--fs-md);
+  line-height: 1;
+  pointer-events: none;
+  animation: batch-assistant-muscle 1.2s ease-in-out infinite;
+}
+body[data-page="student-autobiography-batch"] .assistant__toggle.is-batch-casting .batch-assistant-muscle {
+  display: block;
+}
+body[data-page="student-autobiography-batch"] .batch-assistant-muscle--left {
+  left: -14px;
+}
+body[data-page="student-autobiography-batch"] .batch-assistant-muscle--right {
+  right: -14px;
+}
+
+@keyframes batch-assistant-line-in {
+  0% { opacity: 0; transform: translateY(4px); }
+  100% { opacity: 0.38; transform: none; }
+}
+@keyframes batch-assistant-star-fall {
+  0% { opacity: 0; transform: translateY(-8px) rotate(0deg); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(220px) rotate(180deg); }
+}
+@keyframes batch-assistant-cast-glow {
+  50% { box-shadow: 0 8px 30px var(--accent-soft); transform: scale(1.04); }
+}
+@keyframes batch-assistant-muscle {
+  0%, 100% { opacity: 0; transform: translateY(-50%) scale(.85); }
+  25%, 75% { opacity: 1; transform: translateY(-50%) scale(1.4); }
+}
+@keyframes batch-assistant-wand {
+  50% { transform: rotate(-28deg) translateY(-4px); }
+}
+
+@media (max-width: 720px) {
+  [data-page="student-autobiography-batch"] .batch-papers-deck {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: var(--space-4);
+    padding-inline: var(--space-2);
+  }
+  [data-page="student-autobiography-batch"] .batch-paper {
+    width: min(297px, calc(100vw - 32px));
+    height: 420px;
+  }
+  [data-page="student-autobiography-batch"] .batch-status-board__main {
+    display: block;
+  }
+  [data-page="student-autobiography-batch"] .batch-status-tools {
+    display: none;
+  }
+  body[data-page="student-autobiography-batch"] .batch-assistant-bubble {
+    max-width: min(280px, calc(100vw - 24px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-page="student-autobiography-batch"] *,
+  [data-page="student-autobiography-batch"] *::before,
+  [data-page="student-autobiography-batch"] *::after,
+  body[data-page="student-autobiography-batch"] .assistant__toggle,
+  body[data-page="student-autobiography-batch"] .assistant__toggle::before,
+  body[data-page="student-autobiography-batch"] .assistant__toggle::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  [data-page="student-autobiography-batch"] .batch-star,
+  [data-page="student-autobiography-batch"] .batch-paper__stars {
+    display: none !important;
+  }
+  body[data-page="student-autobiography-batch"] .assistant__toggle.is-batch-casting::after,
+  [data-page="student-autobiography-batch"] .batch-assistant-muscle {
+    display: none !important;
+  }
+}
+body.reduced-motion [data-page="student-autobiography-batch"] *,
+body.reduced-motion [data-page="student-autobiography-batch"] *::before,
+body.reduced-motion [data-page="student-autobiography-batch"] *::after,
+body.reduced-motion [data-page="student-autobiography-batch"] .assistant__toggle,
+body.reduced-motion [data-page="student-autobiography-batch"] .assistant__toggle::before,
+body.reduced-motion [data-page="student-autobiography-batch"] .assistant__toggle::after {
+  animation: none !important;
+  transition: none !important;
+}
+body.reduced-motion[data-page="student-autobiography-batch"] .assistant__toggle.is-batch-casting::after,
+body.reduced-motion [data-page="student-autobiography-batch"] .batch-assistant-muscle {
+  display: none !important;
+}
+
+/* ===== 2026-11-20 過關修正 ===== */
+
+/* A2：寫自傳工具列改為文件流；段落內另放可隨時存檔列 */
+[data-page="student-autobiography"] .canva-container.has-canva-editor .canva-toolbar {
+  position: relative;
+  top: auto;
+  z-index: auto;
+  box-shadow: none;
+}
+[data-page="student-autobiography"] .draft-paragraph-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  min-height: 44px;
+}
+[data-page="student-autobiography"] .canva-paragraph-header__title {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+}
+
+/* A1／A2：批次泡泡只在可視範圍內定位，並裁掉頁面橫向溢出 */
+body[data-page="student-autobiography-batch"] .batch-assistant-bubble {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  max-width: min(280px, calc(100vw - 24px));
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+}
+body[data-page="student-autobiography-batch"],
+body[data-page="student-autobiography-batch"] main,
+body[data-page="student-autobiography-batch"] .page {
+  overflow-x: clip;
+  max-width: 100%;
+}
+
+/* A3：手機與平板可點區域至少 44px */
+@media (max-width: 1099.98px) {
+  summary {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  .mainnav a,
+  .brand,
+  .account-menu__button,
+  .snav-bell,
+  .class-filter select,
+  .teacher-roster-filters input,
+  .teacher-roster-filters select,
+  .select--sort,
+  .button--sort-order {
+    min-height: 44px;
+  }
+  [data-ui="student-v2"] :is(.masthead--student, .masthead--app) .brand,
+  [data-ui="student-v2"] :is(.masthead--student, .masthead--app) .mainnav a,
+  [data-ui="student-v2"] :is(.masthead--student, .masthead--app) .snav-bell,
+  [data-ui="student-v2"] :is(.masthead--student, .masthead--app) .account-menu__button,
+  [data-ui="student-v2"] summary,
+  [data-ui="student-v2"] .folder-tab,
+  [data-ui="student-v2"] .target-program__summary,
+  [data-ui="student-v2"] .gd-block > summary,
+  [data-ui="student-v2"] .match-tabs a,
+  [data-ui="student-v2"] .tour-invite__go,
+  [data-ui="student-v2"] .tour-invite__no,
+  [data-ui="student-v2"] .g2-term,
+  [data-ui="student-v2"] .button,
+  [data-ui="student-v2"] .table-sort-btn,
+  [data-ui="student-v2"] .button--sort-order,
+  [data-ui="student-v2"] .class-filter select,
+  [data-ui="student-v2"] .roster-sort-label,
+  [data-ui="student-v2"] #roster-sort-select {
+    min-height: 44px;
+  }
+  [data-ui="student-v2"] :is(.brand, .mainnav a, .snav-bell, .account-menu__button) {
+    display: inline-flex;
+    align-items: center;
+  }
+  [data-ui="student-v2"] summary {
+    display: flex;
+    align-items: center;
+  }
+  [data-ui="student-v2"] .target-program__summary {
+    min-height: 44px;
+  }
+  [data-ui="student-v2"] .rz-mobile-save {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+  }
+  [data-ui="student-v2"] .rz-input,
+  [data-ui="student-v2"] .rz-page select,
+  [data-ui="student-v2"] .rz-side select,
+  [data-ui="student-v2"] .rz-bio-assist__button,
+  [data-ui="student-v2"] .teacher-roster-filters input,
+  [data-ui="student-v2"] .teacher-roster-filters select {
+    min-height: 44px;
+  }
+  [data-ui="student-v2"] .rz-page input.rz-input,
+  [data-ui="student-v2"] html .rz-page input.rz-input {
+    min-height: 44px !important;
+  }
+}
+
+/* 深淺色外觀共用的文字對比修正 */
+[data-ui="student-v2"] [data-page="student-graduation-check"] .tag--warn,
+[data-ui="student-v2"] [data-page="student-graduation-check"] .tag--danger,
+.g2grad .tag--warn,
+.g2grad .tag--danger {
+  color: var(--bio-warn);
+}
+[data-page="student-autobiography"] .draft__paragraph :is(.canva-char-counter, .review-label) {
+  color: var(--ink) !important;
+}
+[data-ui="student-v2"] [data-page="student-home"] .route-list__here {
+  color: var(--on);
+  background: var(--accent);
+}
+[data-ui="student-v2"] [data-page="student-home"] .folder-tab__count,
+[data-ui="student-v2"] [data-page="student-home"] .folder-tab__now {
+  color: var(--ink);
+  background: var(--accent-soft);
+}
+[data-page="student-internship-resume"] .rz-bio-assist__button {
+  color: var(--on);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* A5：標題與進度文字允許換行，必要時完整顯示 */
+[data-page="student-graduation-check"] .gd-sr,
+.gd-block__title,
+.gd-block__fig {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+}
+
+/* ===== 2026-11-20 過關修正第二輪 ===== */
+
+/* 校系排行：整列可點範圍至少 44px，不只靠文字高度 */
+@media (max-width: 1099.98px) {
+  [data-ui="student-v2"] .target-ranking__row,
+  [data-ui="student-v2"] .target-program__summary {
+    min-height: 44px;
+  }
+  [data-ui="student-v2"] summary.target-program__summary {
+    align-content: center;
+  }
+
+  /* 寫自傳與學生首頁的按鈕（含字級控制） */
+  body:is([data-page="student-dashboard"], [data-page="student-autobiography"]) button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  body:is([data-page="student-dashboard"], [data-page="student-autobiography"]) .font-switch button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  body[data-page="student-autobiography"] .draft-paragraph-toolbar button {
+    min-height: 44px;
+  }
+}
+
+/* 長標題可換行；打字時段落工具列仍留在 textarea 前、文件流中且可見 */
+[data-page="student-autobiography"] .canva-paragraph-header__meta,
+[data-page="student-autobiography"] .canva-paragraph-header__title {
+  min-width: 0;
+  max-width: 100%;
+}
+[data-page="student-autobiography"] .canva-paragraph-header__title {
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+}
+body.is-typing[data-page="student-autobiography"] .draft-paragraph-toolbar {
+  position: static;
+  display: flex !important;
+  visibility: visible;
+}
+
+/* 深色外觀：編輯紙、標籤、字數與段落工具列同用主題前景／底色 */
+html[data-theme="dark"] [data-page="student-autobiography"] .draft__paragraph {
+  background: var(--card);
+  color: var(--ink);
+  border-color: var(--line);
+}
+html[data-theme="dark"] [data-page="student-autobiography"] .draft__paragraph :is(
+  h2, h3, p, label, li, b, small, span, blockquote, summary, .canva-char-counter,
+  .canva-paragraph-header__step, .review-label, .draft-paragraph-toolbar
+) {
+  color: var(--ink) !important;
+}
+html[data-theme="dark"] [data-page="student-autobiography"] .draft__paragraph :is(
+  .paragraph-review__evidence, .paragraph-review > section, blockquote
+) {
+  background: var(--surface);
+  border-color: var(--line);
+}
+html[data-theme="dark"] [data-page="student-autobiography"] .draft__paragraph textarea {
+  background: var(--surface) !important;
+  color: var(--ink) !important;
+  border-color: var(--line);
+}
+html[data-theme="dark"] [data-page="student-autobiography"] .draft__paragraph :is(
+  .button--line, .button--quiet
+) {
+  background: var(--card);
+  border-color: var(--line);
+  color: var(--ink) !important;
+}
+html[data-theme="dark"] [data-page="student-autobiography"] :is(
+  .canva-toolbar, .canva-toolbar__nav, .canva-nav-indicator, .draft-paragraph-toolbar
+) {
+  color: var(--ink);
+}
+html[data-theme="dark"] [data-page="student-autobiography"] :is(
+  .canva-nav-indicator, .canva-toolbar__version, .canva-toolbar__char
+) {
+  color: var(--ink) !important;
+}
+html[data-theme="dark"] [data-page="student-autobiography"] .canva-nav-btn {
+  color: var(--ink);
+}
+
+/* 批次生成：限制視窗與頁面容器的橫向溢出，包含定位中的桌寵泡泡 */
+html:has(body[data-page="student-autobiography-batch"]) {
+  overflow-x: clip;
+}
+body[data-page="student-autobiography-batch"] {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
+}
+body[data-page="student-autobiography-batch"] main,
+body[data-page="student-autobiography-batch"] .page,
+body[data-page="student-autobiography-batch"] .batch-container,
+body[data-page="student-autobiography-batch"] .batch-stage-section,
+body[data-page="student-autobiography-batch"] .batch-papers-deck {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+/* 平板與手機：頂端工具列、學生首頁卡片按鈕、路線來源連結至少 44px 可點 */
+@media (max-width: 1099.98px) {
+  .masthead__tools > a,
+  .masthead__tools > .account-menu > .account-menu__button,
+  .masthead__tools .student-search-link,
+  .masthead__tools .snav-bell {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .maker-row a.button,
+  .desk-actions .button,
+  .desk-action-locked .button,
+  .guide-card__actions .button--small {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .route-map__source a,
+  .year-guide__source {
+    display: inline-block;
+    min-height: 44px;
+    line-height: 44px;
+  }
+}
+
+/* 平板與手機：學生端所有按鈕、連結式按鈕、下拉選單與摘要列至少 44px 高 */
+@media (max-width: 1099.98px) {
+  [data-ui="student-v2"] button,
+  [data-ui="student-v2"] .button,
+  [data-ui="student-v2"] select,
+  [data-ui="student-v2"] summary,
+  [data-ui="student-v2"] nav a {
+    min-height: 44px;
+  }
+  [data-ui="student-v2"] .font-switch button,
+  [data-ui="student-v2"] .button--small {
+    min-width: 44px;
+  }
+}
+
+/* ===== 2026-11-20 過關修正第三輪 ===== */
+/* 第三輪覆寫：原規則在第 133 行；可點元件若沿用固定高度，取消固定值並以 44px 作最低高度 */
+@media (max-width: 1099.98px) {
+  [data-ui="student-v2"] :is(
+    .button, button, select, summary,
+    .masthead__tools > a, .masthead__tools .account-menu__button,
+    .target-ranking__row, .target-program__summary,
+    .font-switch button, .class-filter select,
+    .teacher-roster-filters input, .teacher-roster-filters select,
+    .desk-actions .button, .desk-action-locked .button,
+    .maker-row a.button, .guide-card__actions .button,
+    .rz-mobile-save, .rz-bio-assist__button
+  ) {
+    min-height: 44px;
+  }
+  [data-ui="student-v2"] :is(.button--small, .font-switch button) {
+    height: auto;
+  }
+  [data-ui="student-v2"] :is(.map-school > summary, .map-program > summary,
+    .target-ranking__row, .target-program__summary) {
+    min-height: 44px;
+    height: auto;
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
+  }
+  [data-ui="student-v2"] .font-switch button {
+    width: 44px;
+    min-width: 44px;
+  }
+  [data-page="student-autobiography"] .draft__paragraph,
+  [data-page="student-autobiography"] .canva-paragraph-header__title {
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+  }
+}
+
+/* 第三輪覆寫：深色外觀下由主題變數處理段落外文字；.draft__paragraph 仍保留白底黑字紙張例外 */
+html[data-theme="dark"] [data-page="student-autobiography"] :is(
+  .draft-paragraph-toolbar, .canva-char-counter, .canva-paragraph-header__step,
+  .canva-paragraph-header__meta, .canva-paragraph-header__title,
+  .review-label, .draft__paragraph
+) {
+  color: var(--ink);
+}
+html[data-theme="dark"] [data-page="student-autobiography"] .draft__paragraph {
+  background: #fff;
+  color: #000;
+  border-color: var(--line);
+}
+html[data-theme="dark"] [data-page="student-autobiography"] .draft__paragraph :is(
+  h2, h3, p, label, li, b, small, span, blockquote, summary,
+  .canva-char-counter, .review-label
+) {
+  color: #000;
+}
+
+/* 第三輪覆寫：原規則在第 562 行；實際 44px 說明按鈕，不再只靠偽元素放大點擊區 */
+[data-ui="student-v2"] .info-tip__btn {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* 第四輪：排行與畢業門檻摘要列取消固定高度，讓整列成為可點範圍 */
+@media (max-width: 1099.98px) {
+  [data-ui="student-v2"] .target-ranking__row,
+  [data-ui="student-v2"] :is(.map-school > summary, .map-program > summary, .target-program__summary) {
+    display: grid;
+    box-sizing: border-box;
+    width: 100%;
+    height: auto !important;
+    min-height: 44px !important;
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
+  }
+  [data-ui="student-v2"] .gd-block > summary {
+    box-sizing: border-box;
+    height: auto !important;
+    min-height: 44px !important;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  /* 「我的資料」欄位高度以邊框盒計算，排除隱藏與選取類控制項 */
+  [data-ui="student-v2"] body form :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="range"]),
+    select, textarea
+  ) {
+    box-sizing: border-box;
+    height: auto !important;
+    min-height: 44px !important;
+  }
+
+  /* 字級按鈕取消小尺寸覆寫，確保觸控區為 44×44px */
+  [data-ui="student-v2"] body[data-page="student-autobiography"] .font-switch button {
+    display: inline-flex;
+    box-sizing: border-box;
+    width: 44px !important;
+    min-width: 44px !important;
+    height: auto !important;
+    min-height: 44px !important;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* 導師工作清單列及列內標籤允許換行，維持至少 44px 點擊高度 */
+  .work-list > li {
+    box-sizing: border-box;
+    height: auto;
+    min-height: 44px;
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
+  }
+  .work-list > li :is(strong, span, a, .queue-badge, button) {
+    height: auto;
+    min-height: 44px;
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* 第四輪：自傳預覽與段落標題不以省略號或裁切隱藏長文字 */
+[data-ui="student-v2"] [data-page="student-autobiography"] :is(
+  .canva-paragraph-header__title, .canva-preview-item__title, .canva-preview-item__text,
+  .draft__paragraph p, .draft__paragraph li, .draft__paragraph blockquote
+) {
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+}
+
+/* 第四輪：深色工具列文字配卡片底色；不套用於白底黑字的自傳紙面 */
+html[data-theme="dark"] [data-ui="student-v2"] [data-page="student-autobiography"] :is(
+  .canva-paragraph-header, .canva-paragraph-nav
+) {
+  background: var(--card);
+  color: var(--ink);
+}
+html[data-theme="dark"] [data-ui="student-v2"] [data-page="student-autobiography"] .canva-paragraph-header :is(
+  .canva-paragraph-header__step, .canva-paragraph-header__title, .canva-char-counter
+) {
+  background: var(--card);
+  color: var(--ink) !important;
+}
+html[data-theme="dark"] [data-ui="student-v2"] [data-page="student-autobiography"] .canva-paragraph-nav :is(
+  .canva-char-counter, .canva-nav-indicator, .canva-nav-btn
+) {
+  background: var(--card);
+  color: var(--ink) !important;
+}
+
+/* 第四輪：平板上的自傳輔助按鈕使用高對比卡片底色 */
+[data-ui="student-v2"] [data-page="student-internship-resume"] .rz-bio-assist__button {
+  background: var(--card);
+  border-color: var(--line);
+  color: var(--ink) !important;
+}
+
+/* ===== 2026-11-20 過關修正第四輪收斂 ===== */
+/* 目標校系：取消早於本規則的固定高度；整列與 summary 都要有 44px 可點區 */
+@media (max-width: 1099.98px) {
+  [data-ui="student-v2"] :is(.target-ranking__row, .target-program__summary,
+    .map-school > summary, .map-program > summary) {
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+    width: 100%;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 44px !important;
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
+  }
+  [data-ui="student-v2"] :is(.gd-block, .gd-block > summary) {
+    height: auto !important;
+    max-height: none !important;
+  }
+  [data-ui="student-v2"] .gd-block > summary {
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 44px !important;
+  }
+  [data-ui="student-v2"] body :is(
+    .field input, .field select, .field textarea, .input,
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]),
+    select, textarea
+  ) {
+    box-sizing: border-box;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 44px !important;
+  }
+  [data-ui="student-v2"] body[data-page="student-autobiography"] .font-switch button,
+  [data-ui="student-v2"] body[data-page="student-autobiography"] .draft-paragraph-toolbar button {
+    box-sizing: border-box;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+  }
+}
+
+/* 導師工作台：手機與平板整列及送審標籤至少 44px，不裁切文字 */
+[data-ui="student-v2"] .work-list > li,
+[data-ui="student-v2"] .work-list > li :is(strong, span, a, .queue-badge, button) {
+  height: auto;
+  max-height: none;
+  min-height: 44px;
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 1099.98px) {
+  [data-ui="student-v2"] .work-list > li {
+    display: grid;
+    align-items: center;
+  }
+  [data-ui="student-v2"] .work-list > li :is(strong, span, a, .queue-badge, button) {
+    display: flex;
+    align-items: center;
+  }
+}
+
+/* 實習履歷小助手：平板淺色區塊使用墨色文字與卡片底色，達 4.5:1 以上 */
+@media (min-width: 768px) and (max-width: 1099.98px) {
+  [data-ui="student-v2"] [data-page="student-internship-resume"] .rz-bio-assist {
+    background: var(--card);
+  }
+  [data-ui="student-v2"] [data-page="student-internship-resume"] .rz-bio-assist__button {
+    background: var(--card);
+    border: 1px solid var(--line);
+    color: var(--ink) !important;
+  }
+  [data-ui="student-v2"] [data-page="student-internship-resume"] .rz-bio-assist :is(
+    .rz-bio-assist__status, .rz-bio-assist__note, .rz-bio-assist__success
+  ) {
+    color: var(--ink);
+  }
+}
+
+/* ===== 2026-11-20 自傳功能新版（A2 設計稿標準） ===== */
+.bio-steps-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.bio-step-card {
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 44px;
+  box-sizing: border-box;
+  text-decoration: none;
+  color: var(--ink);
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.bio-step-card.is-active {
+  border-color: var(--accent);
+  box-shadow: inset 0 3px 0 var(--accent);
+}
+.bio-step-card .bio-step-num {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--muted);
+}
+.bio-step-card.is-active .bio-step-num {
+  color: var(--accent);
+}
+.bio-step-card.is-done .bio-step-num {
+  color: var(--ok);
+}
+.bio-step-card .bio-step-title {
+  font-size: var(--fs-base);
+  font-weight: 700;
+}
+.bio-step-card .bio-step-sub {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+
+.bio-main-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 16px;
+  align-items: start;
+}
+
+.bio-editor-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.bio-editor-toolbar {
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+@media (min-width: 768px) {
+  body.is-reading .bio-editor-toolbar {
+    position: sticky;
+    inset-block-start: 12px;
+    z-index: 10;
+    align-self: flex-end;
+    max-inline-size: min(100%, 28rem, 58vw);
+  }
+}
+
+.bio-char-summary {
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+
+.bio-autosave-indicator {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--ok);
+  transition: color .2s ease;
+}
+.bio-autosave-indicator.is-saving {
+  color: var(--warn);
+}
+.bio-autosave-indicator.is-error {
+  color: var(--danger);
+}
+
+/* 自傳紙張：一律白底黑字標楷體，深色模式亦同 */
+.bio-paper,
+html[data-theme="dark"] .bio-paper {
+  background: #ffffff !important;
+  color: #000000 !important;
+  font-family: 'DFKai-SB', 'BiauKai', 'Kaiti TC', 'TW-Kai', serif !important;
+  font-size: var(--fs-md) !important;
+  line-height: 1.9 !important;
+  border-radius: 12px !important;
+  border: 1px solid var(--line) !important;
+  box-sizing: border-box !important;
+  padding: 36px 48px !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+html[data-theme="dark"] .bio-paper :is(h2, h3, p, label, li, b, small, span, blockquote, summary, .bio-para-title, .bio-para-meta, .review-label) {
+  color: #000000 !important;
+}
+
+.bio-paper .bio-images,
+html[data-theme="dark"] .bio-paper .bio-images {
+  color: #222222 !important;
+}
+.bio-paper :is(.small, .muted),
+html[data-theme="dark"] .bio-paper :is(.small, .muted),
+.bio-paper .bio-images :is(span, p, small, label),
+html[data-theme="dark"] .bio-paper .bio-images :is(span, p, small, label) {
+  color: #333333 !important;
+}
+.bio-paper .bio-images .button,
+html[data-theme="dark"] .bio-paper .bio-images .button {
+  background: var(--paper) !important;
+  color: var(--ink) !important;
+  border-color: var(--line) !important;
+}
+
+.bio-paper .info-tip__btn,
+html[data-theme="dark"] .bio-paper .info-tip__btn {
+  color: #1f3a5f !important;
+  border-color: #1f3a5f !important;
+}
+
+html[data-theme="dark"] .bio-editor-toolbar {
+  background: var(--card) !important;
+  border-color: var(--line) !important;
+}
+html[data-theme="dark"] .bio-editor-toolbar .button {
+  color: var(--ink) !important;
+  background: var(--surface) !important;
+}
+html[data-theme="dark"] .bio-editor-toolbar .button--line {
+  color: var(--ink) !important;
+  background: transparent !important;
+  border-color: var(--line) !important;
+}
+html[data-theme="dark"] .bio-editor-toolbar .button--accent {
+  color: var(--on) !important;
+  background: var(--accent) !important;
+}
+
+.bio-paper-para {
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px dashed #d6cdbb;
+}
+.bio-paper-para:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.bio-para-title {
+  margin: 0 0 4px !important;
+  font-size: var(--fs-md) !important;
+  font-weight: 700 !important;
+  color: #000000 !important;
+}
+
+.bio-para-meta {
+  margin: 0 0 14px !important;
+  font-family: 'Noto Sans TC', system-ui, sans-serif !important;
+  font-size: var(--fs-xs) !important;
+  color: #555555 !important;
+}
+
+.bio-para-textarea {
+  width: 100% !important;
+  box-sizing: border-box !important;
+  background: transparent !important;
+  color: #000000 !important;
+  font-family: 'DFKai-SB', 'BiauKai', 'Kaiti TC', 'TW-Kai', serif !important;
+  font-size: var(--fs-md) !important;
+  line-height: 1.9 !important;
+  border: 1px dashed transparent !important;
+  border-radius: 6px !important;
+  padding: 8px !important;
+  resize: vertical !important;
+  min-height: 90px !important;
+  transition: border-color .15s ease, background-color .15s ease;
+}
+.bio-para-textarea:focus {
+  border-color: var(--accent) !important;
+  background: #faf8f5 !important;
+  outline: none !important;
+}
+
+.bio-aside-col {
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-sizing: border-box;
+}
+
+.bio-aside-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  background: var(--paper);
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  margin-bottom: 8px;
+}
+
+.bio-aside-tab-btn {
+  min-height: 40px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  font-weight: 500;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color .15s ease, color .15s ease;
+}
+.bio-aside-tab-btn.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.bio-panel-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bio-material-card {
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bio-mobile-bottom-bar {
+  display: none;
+}
+
+/* 平板版響應（768px ~ 1099px） */
+@media (min-width: 768px) and (max-width: 1099.98px) {
+  .bio-steps-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .bio-main-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .bio-paper {
+    padding: 28px 32px !important;
+  }
+  .bio-horizontal-materials {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 6px;
+  }
+  .bio-horizontal-materials .bio-material-card {
+    min-width: 220px;
+    flex-shrink: 0;
+  }
+}
+
+/* 手機版響應（< 768px） */
+@media (max-width: 767.98px) {
+  .bio-steps-grid {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .bio-step-card {
+    min-width: 120px;
+    flex-shrink: 0;
+    padding: 8px 10px;
+  }
+  .bio-main-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-bottom: 72px; /* 預留底部工具列空間 */
+  }
+  .bio-paper {
+    padding: 20px 18px !important;
+    font-size: var(--fs-base) !important;
+  }
+  .bio-para-textarea {
+    font-size: var(--fs-base) !important;
+  }
+  .bio-mobile-bottom-bar {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: var(--sheet);
+    border-top: 1px solid var(--line);
+    padding: 6px 8px;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.06);
+    box-sizing: border-box;
+  }
+  .bio-mobile-bottom-bar button {
+    min-height: 52px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    font-size: var(--fs-xs);
+    border: none;
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+    border-radius: 8px;
+  }
+  .bio-mobile-bottom-bar button.is-active {
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  /* 打字時收起底部工具列，避免遮擋鍵盤與儲存鈕 */
+  body.is-typing .bio-mobile-bottom-bar {
+    display: none !important;
+  }
+  body.is-typing .bio-main-layout {
+    padding-bottom: 12px !important;
+  }
+}
+
+
+/* ==========================================================================
+   導師自傳審閱（A3 依 2026-11-20 設計稿重做：三欄式／白紙黑字／選取建議／審核）
+   ========================================================================== */
+.teacher-bio-layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr) 340px;
+  gap: 14px;
+  align-items: start;
+}
+.teacher-queue-col {
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.teacher-queue-item {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-decoration: none;
+  color: var(--ink);
+  transition: border-color .15s ease, background .15s ease;
+}
+.teacher-queue-item:hover {
+  border-color: var(--accent);
+}
+.teacher-queue-item.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.teacher-mode-pill {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--sheet);
+}
+.teacher-mode-pill button,
+.teacher-mode-pill a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  font-size: var(--fs-xs);
+  text-decoration: none;
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+.teacher-mode-pill button.is-active,
+.teacher-mode-pill a.is-active {
+  background: var(--accent);
+  color: #ffffff !important;
+  font-weight: 700;
+}
+.teacher-paper-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.teacher-aside-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.teacher-suggestion-del {
+  background: var(--danger-soft);
+  color: var(--danger);
+  text-decoration: line-through;
+  padding: 0 2px;
+}
+.teacher-suggestion-ins {
+  background: var(--ok-soft);
+  color: var(--ok);
+  text-decoration: none;
+  border-bottom: 2px solid var(--ok);
+  font-weight: 700;
+  padding: 0 2px;
+}
+.teacher-selection-popover {
+  position: absolute;
+  z-index: 1000;
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.teacher-mobile-bottom-actions {
+  display: none;
+}
+
+@media (min-width: 768px) and (max-width: 1099.98px) {
+  .teacher-bio-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .teacher-queue-col {
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 8px;
+    padding: 10px;
+  }
+  .teacher-queue-item {
+    min-width: 200px;
+    flex-shrink: 0;
+  }
+  .teacher-body-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 260px;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .teacher-bio-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-bottom: 72px;
+  }
+  .teacher-queue-col {
+    display: none;
+  }
+  .teacher-mobile-bottom-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: var(--sheet);
+    border-top: 1px solid var(--line);
+    padding: 8px 12px;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.06);
+    box-sizing: border-box;
+  }
+}
+
+
+/* 導師審閱模式膠囊：深色模式文字對比度高於 4.5:1 */
+html[data-theme="dark"] .teacher-mode-pill button.is-active,
+html[data-theme="dark"] .teacher-mode-pill a.is-active {
+  background: var(--accent) !important;
+  color: var(--on, #171411) !important;
+  font-weight: 700 !important;
+}
+
+html[data-theme="dark"] .teacher-mode-pill button:not(.is-active),
+html[data-theme="dark"] .teacher-mode-pill a:not(.is-active) {
+  color: var(--ink) !important;
+}
+
+/* 段落註解與卡片操作按鈕維持觸控目標 ≥ 44px */
+.para-comments .button--small,
+.record-card__actions .button--small {
+  min-height: 44px;
+}

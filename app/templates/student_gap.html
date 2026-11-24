@@ -11,11 +11,14 @@
 
 {% block content %}
 {{ page_band("備審資料", [("目標校系", url_for('student.target_list', track=target_track))]) }}
+{% from "partials/workbench_shell.html" import workbench_shell, workbench_next %}
+{% if workbench %}<div class="page wb-page">{{ workbench_shell(workbench) }}</div>{% endif %}
 {# 學生端 v2 外觀（2026-11-11）：樣式在 css/student-v2/gap.css，只在這頁載入；資料、表單、連結不變 #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/student-v2/gap.css') }}">
 <div class="page page--banded g2gap">
-  <nav class="target-switch" aria-label="切換目標校系">
-    {% for target in targets %}
+  {# 有工作台外框時，校系切換由外框負責，這裡只留「＋ 其他校系」 #}
+  <nav class="target-switch{% if workbench %} target-switch--add-only{% endif %}" aria-label="切換目標校系">
+    {% for target in targets if not workbench %}
     <a href="{{ url_for('student.target_gap', program_id=target.id) }}"{% if target.id == program.id %} aria-current="page"{% endif %}>{{ target.school_name|replace("國立", "") }} {{ target.department_name }}</a>
     {% endfor %}
     <a class="add" href="{{ url_for('student.target_list', track=target_track) }}">＋ 其他校系</a>
@@ -76,6 +79,8 @@
     {% endfor %}
   </section>
 
+  {% include "partials/portfolio_tips.html" %}
+
   <div class="split mt-1">
     <section class="sheet" aria-labelledby="toc-title">
       <div class="sheet__head"><h2 id="toc-title">這個校系的備審目錄</h2></div>
@@ -105,17 +110,19 @@
           <li>
             <span>第 {{ item.version }} 版</span>
             <span class="review-timeline__status review-timeline__status--{{ item.status }}">{{ item.status_text }}</span>
-            <time datetime="{{ item.requested_at.strftime('%Y-%m-%d') }}">{{ item.requested_at.strftime('%Y-%m-%d') }}</time>
+            <time datetime="{{ item.requested_at|taipei_time('%Y-%m-%d') }}">{{ item.requested_at|taipei_time('%Y-%m-%d') }}</time>
             {% if item.is_latest %}<span class="tag">最新</span>{% endif %}
           </li>
           {% endfor %}
         </ol>
         {% endif %}
         {% if review and review.status == "needs_revision" %}<blockquote><b>{{ review.teacher.display_name if review.teacher else "導師" }}：</b>{{ review.comment }}</blockquote>{% endif %}
-        {% if review and review.status == "confirmed" %}<p class="small">{{ review.teacher.display_name if review.teacher else "導師" }} 已確認內容合理，可以產出備審資料。</p>{% endif %}
+        {% if review and review.status == "confirmed" %}<p class="small">{{ review.teacher.display_name if review.teacher else "導師" }} 已確認內容合理，可以產出備審資料。{% if review.autobiography_viewed is not none %}<span data-review-confirmed-label>{{ "導師已確認（已檢視自傳）" if review.autobiography_viewed else "導師已確認（未檢視自傳）" }}</span>{% endif %}</p>{% endif %}
         {% if request.args.get("sent") %}<p class="notice mb-1" role="status">已送出。導師看到的是現在這一份內容，之後再改要重新送出。</p>{% endif %}
         {% if request.args.get("no_teacher") %}<p class="alert mb-1" role="alert">目前沒有找到你班級的導師，尚未送出導師通知。請聯絡系統管理員確認班級與導師設定。</p>{% endif %}
         {% if review and review.snapshot_json and review.snapshot_json.autobiography %}<p class="small muted mb-1">送出的自傳是第 {{ review.snapshot_json.autobiography.version }} 版。</p>{% endif %}
+        {% set sent_auto = (review.snapshot_json or {}).get("autobiography") if review else none %}
+        {% if review and review.status == "pending" and autobiography and (not sent_auto or sent_auto.output_id != autobiography.id) %}<p class="notice notice--warn mb-1" role="status" data-resend-hint>你送審後自傳又存了新版，導師不能確認舊的那份。改好後請按下面「資料有改，更新送出的內容」重新送審。</p>{% endif %}
         {% if not review or review.status != "pending" %}
         <form method="post" action="{{ url_for('student.target_request_review', program_id=program.id) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -139,12 +146,13 @@
           <li class="download-checklist__item {{ 'is-complete' if item.complete else 'is-open' }}">
             <span class="download-checklist__state">{% if item.complete %}✓ 已完成{% else %}! 還沒{% endif %}</span>
             <span>{{ item.label }}</span>
-            {% if not item.complete %}<a href="{{ url_for(item.endpoint, **item.params) if item.endpoint else item.href }}">去補 →</a>{% endif %}
+            {% if not item.complete %}<a href="{{ url_for(item.endpoint, **item.params) if item.endpoint else item.href }}" style="min-height: 44px; display: inline-flex; align-items: center;">去補 →</a>{% endif %}
           </li>
           {% endfor %}
         </ul>
         <p class="small mb-1">有不想放的成績、證照或經歷？<a href="{{ url_for('student.package_exclusions', program_id=program.id) }}">選擇放進備審的資料 →</a></p>
         <a class="button button--accent" href="{{ url_for('student.target_package', program_id=program.id) }}">下載 Word ↓</a>
+        <a class="button button--line" href="{{ url_for('student.portfolio_view', program_id=program.id) }}">預覽備審 A4 頁面</a>
         <div class="mt-1" data-package-bundle>
           <p class="small mb-1">要連同自傳、已確認的成績單證照原始檔和佐證一起帶走：</p>
           <a class="button button--line" href="{{ url_for('student.target_package_zip', program_id=program.id) }}">一鍵打包下載（ZIP）↓</a>
@@ -160,6 +168,9 @@
               <select name="to">{% for r in mail_recipients %}<option value="{{ r.key }}">{{ r.label }}（{{ r.address }}）</option>{% endfor %}</select>
             </label>
             <button class="button button--line button--small" type="submit">打包寄給我</button>
+            {% if not mail_ready %}<p class="small mt-1">目前還沒有設定寄信帳號，按了也不會真的寄出；請先用「一鍵打包下載」。</p>{% endif %}
+            {% elif user.backup_email and not user.backup_email_verified_at %}
+            <p class="small">備用信箱 {{ user.backup_email }} 還在等待確認：到信箱點確認連結，或請管理員代為確認後就能寄。</p>
             {% else %}
             <p class="small">帳號還沒有學校信箱，也還沒綁定備用信箱，所以不能寄。</p>
             {% endif %}
@@ -171,6 +182,7 @@
   </div>
 </div>
 <script src="{{ url_for('static', filename='js/student-v2/gap.js') }}" defer></script>
+{% if workbench %}<div class="page wb-next-page">{{ workbench_next(workbench) }}</div>{% endif %}
 {% endblock %}
 
 {% block footer %}{{ footer() }}{% endblock %}

@@ -167,6 +167,11 @@ def credit_status(student, curriculum=None):
             key = normalize_course_name(course.course_name)
             if not any(key in other for other_year, other in curriculum.items() if other_year != year and other):
                 unknown.append(course.course_name)
+            # 課名對不到科目表時，用成績單「選課別」的必／選先算進學分，數字才不會卡住；仍列在待科辦確認
+            if course.course_mark == "必":
+                required += credits
+            elif course.course_mark == "選":
+                elective += credits
         elif entry["category"] in REQUIRED_CATEGORIES:
             required += credits
         elif entry["category"] in ELECTIVE_CATEGORIES:

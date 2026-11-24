@@ -299,7 +299,14 @@ def _records_body(document, student, codes, required=None):
                 paragraph.paragraph_format.left_indent = Cm(0.8)
                 _font(paragraph.add_run(f"{label}："), bold=True)
                 _font(paragraph.add_run(value))
-        images += [(_image_path(e.file_path, e.display_name), record.title) for e in record.evidence_items]
+        for link in record.evidence_items:
+            if link.external_url and link.is_available:
+                paragraph = document.add_paragraph()
+                paragraph.paragraph_format.left_indent = Cm(0.8)
+                _font(paragraph.add_run("作品連結："), bold=True)
+                _font(paragraph.add_run(f"{link.display_name}　{link.external_url}"
+                                        if link.display_name != link.external_url else link.external_url))
+        images +=[(_image_path(e.file_path, e.display_name), record.title) for e in record.evidence_items]
     if not records:
         document.add_paragraph("（尚未提供已確認的資料）")
     _image_grid(document, images)
@@ -334,6 +341,36 @@ def _credential_body(document, student, required=None):
         _note(document, f"另有 {pending} 張證照尚未確認，未放入本文件。")
 
 
+PLAN_WORDS = ("未來", "規劃", "讀書計畫", "入學後")
+
+
+def _draft_parts(student, program):
+    """自傳草稿的段落分成（自傳, 讀書計畫）：標題含「未來、規劃」的算讀書計畫（老師版型 04 自傳、05 讀書計畫分開）。"""
+    draft = latest_draft(student, program)
+    paragraphs = (draft.content_json.get("paragraphs", []) if draft else [])
+    heading = lambda p: (p.get("title") or p.get("heading") or "").strip()  # noqa: E731
+    plan = [p for p in paragraphs if p.get("text") and any(w in heading(p) for w in PLAN_WORDS)]
+    bio = [p for p in paragraphs if p.get("text") and p not in plan]
+    return bio, plan, heading
+
+
+def chapter_evidence(student, chapter, program):
+    """這一章要列在目錄底下的具體佐證名稱（老師：每章列具體佐證，例如「證照：電腦軟體應用丙級」）。"""
+    required = package_exclusion.required_keys(program)
+    codes, code = chapter["keys"], chapter["code"]
+    if code == "04":
+        bio, _plan, heading = _draft_parts(student, program)
+        return [heading(p) for p in bio if heading(p)]
+    if code == "05":
+        _bio, plan, heading = _draft_parts(student, program)
+        return [heading(p) for p in plan if heading(p)]
+    if "credential" in codes:
+        return [c.credential_name + (f"（{c.level}）" if c.level else "") for c in _confirmed_credentials(student, required)]
+    if code in ("06", "07", "08", "09", "10"):
+        return [r.title for r in _confirmed_records(student, codes, required)]
+    return []
+
+
 def _chapter_body(document, student, chapter, program):
     codes = chapter["keys"]
     required = package_exclusion.required_keys(program)  # 學生選擇不放的資料不印；簡章必備的類別除外
@@ -359,18 +396,24 @@ def _chapter_body(document, student, chapter, program):
         _credential_body(document, student, required)
         return
     if chapter["code"] == "04":
-        # 自傳：有學生儲存過的「自傳小幫手」版本就放進來，沒有就留撰寫提示
-        draft = latest_draft(student, program)
-        if draft:
-            for paragraph in draft.content_json.get("paragraphs", []):
-                if paragraph.get("heading"):
-                    document.add_heading(paragraph["heading"], level=2)
-                if paragraph.get("text"):
-                    document.add_paragraph(paragraph["text"]).paragraph_format.first_line_indent = Pt(24)
+        # 自傳：有學生儲存過的「自傳小幫手」版本就放進來（標題用段落標題），沒有就留撰寫提示
+        bio, _plan, heading = _draft_parts(student, program)
+        if bio:
+            for paragraph in bio:
+                if heading(paragraph):
+                    document.add_heading(heading(paragraph), level=2)
+                document.add_paragraph(paragraph["text"]).paragraph_format.first_line_indent = Pt(24)
             return
-        document.add_paragraph("請在此撰寫。可用系統的「小助手寫自傳」產生草稿，或參考「我的五年」中的活動、競賽與幹部經歷。")
+        document.add_paragraph("請在此撰寫。可用系統的「小助手寫自傳」產生草稿，或參考「我的五年」中的活動、證照與競賽整理自己的經歷。")
         return
     if "autobiography" in codes:
+        _bio, plan, heading = _draft_parts(student, program)
+        if plan:
+            for paragraph in plan:
+                if heading(paragraph):
+                    document.add_heading(heading(paragraph), level=2)
+                document.add_paragraph(paragraph["text"]).paragraph_format.first_line_indent = Pt(24)
+            return
         document.add_paragraph("請在此撰寫讀書計畫：進二技後的學習目標、想修的課程與畢業後規劃。")
         return
     if "project" in codes and not _confirmed_records(student, codes, required):
@@ -414,15 +457,24 @@ def _cover(document, student, program, review, confirmed):
         _centered(document, UNCONFIRMED_NOTE, 11, bold=True, color=RED)
 
 
-def _toc(document, chapters):
+def _toc(document, chapters, evidence=None, optional=()):
+    """目錄：章節依校系加權排序；每章底下列具體佐證（沒有佐證的章不列）；簡章沒有要求的章標「（選放）」。"""
+    evidence = evidence or {}
     _centered(document, "目　錄", 20, bold=True, space_after=18)
     for position, chapter in enumerate(chapters, start=1):
         line = document.add_paragraph()
         line.paragraph_format.tab_stops.add_tab_stop(Cm(16.4), WD_TAB_ALIGNMENT.RIGHT, WD_TAB_LEADER.DOTS)
-        line.paragraph_format.space_after = Pt(8)
-        _font(line.add_run(f"{position:02d}　{chapter['title']}"), size=14)
-        line.add_run("\t")
+        line.paragraph_format.space_after = Pt(4)
+        suffix = "（選放）" if chapter["code"] in optional else ""
+        _font(line.add_run(f"{position:02d}　{chapter['title']}{suffix}"), size=14)
+        line.add_run(chr(9))
         _add_field(line, f"PAGEREF _Toc_ch{position:02d} \\h", "#", size=14)
+        for index, name in enumerate(evidence.get(chapter["code"], [])[:12], start=1):
+            sub = document.add_paragraph()
+            sub.paragraph_format.left_indent = Cm(1.2)
+            sub.paragraph_format.space_after = Pt(1)
+            _font(sub.add_run(f"{position}.{index}　{name}"), size=11)
+        document.paragraphs[-1].paragraph_format.space_after = Pt(8)
     weights = "、".join(f"{c['title']} {c['weight']}%" for c in chapters if c["weight"])
     if weights:
         document.add_paragraph()
@@ -458,7 +510,10 @@ def build_package_docx(student, program):
 
     _cover(document, student, program, review, confirmed)
     _page_break(document)
-    _toc(document, chapters)
+    evidence = {chapter["code"]: chapter_evidence(student, chapter, program) for chapter in chapters}
+    optional = {chapter["code"] for chapter in chapters
+                if program.items and not chapter["weight"] and chapter["code"] not in ("02", "03", "10")}  # 10 其他有利資料老師說不可空白，不標選放
+    _toc(document, chapters, evidence, optional)
 
     requirements = [item for item in program.items if item.requirement]
     if requirements or program.highlights:
@@ -478,7 +533,8 @@ def build_package_docx(student, program):
     for position, chapter in enumerate(chapters, start=1):
         _page_break(document)
         # 印出來的章節編號依實際順序 01、02、03…，不保留原始編號
-        heading = document.add_heading(f"{position:02d}　{chapter['title']}", level=1)
+        suffix = "（選放）" if chapter["code"] in optional else ""  # 和目錄上的標示一致
+        heading = document.add_heading(f"{position:02d}　{chapter['title']}{suffix}", level=1)
         _bookmark(heading, f"_Toc_ch{position:02d}", position)
         if not confirmed:
             _note(document, "（本章內容尚未經導師確認）")

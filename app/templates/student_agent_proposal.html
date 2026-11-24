@@ -22,14 +22,14 @@
   {% if proposal.reason %}<p class="hub-pr__reason">{{ proposal.reason }}</p>{% endif %}
 
   <div class="hub-pr__grid">
-    <section aria-labelledby="reads-title">
+    <section aria-labelledby="reads-title" data-tour="查看小助手會讀取的資料。" data-tour-order="1">
       <h3 id="reads-title" class="hub-pr__h">① 小助手會讀的資料</h3>
       <ol class="hub-steps">
         {% for step in proposal.steps %}<li>{{ step }}</li>{% endfor %}
       </ol>
     </section>
 
-    <section aria-labelledby="todo-title">
+    <section aria-labelledby="todo-title" data-tour="確認將建立的待辦或已建立的項目。" data-tour-order="2">
       {% if proposal.status == "succeeded" %}
       <h3 id="todo-title" class="hub-pr__h">② 已建立的待辦</h3>
       <ul class="hub-mini">
@@ -66,7 +66,7 @@
     </form>
     <form method="post" action="{{ url_for('agent_plan.proposal_action', plan_id=proposal.id, decision='approve') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button class="button hub-merge__go" type="submit">✓ 同意執行</button>
+      <button class="button hub-merge__go" type="submit" data-tour="確認提案後按同意，才會建立待辦。" data-tour-order="3">✓ 同意執行</button>
     </form>
   </div>
 </section>

@@ -1,0 +1,54 @@
+%%{init: {"theme":"neutral","fontFamily":"Microsoft JhengHei","er":{"layoutDirection":"LR","minEntityWidth":140,"fontSize":14}}}%%
+erDiagram
+ direction LR
+ users["帳號"] {
+  int id PK
+ }
+ student_profiles["學生資料"] {
+  int id PK
+  int user_id FK
+ }
+ class_advisors["導師班級"] {
+  int id PK
+  int teacher_id FK
+ }
+ source_documents["原始檔"] {
+  int id PK
+  int owner_id FK
+ }
+ document_extractions["辨識草稿"] {
+  int id PK
+  int source_document_id FK
+  int confirmed_by_id FK
+ }
+ learning_course_records["成績"] {
+  int id PK
+  int student_id FK
+  int source_document_id FK
+ }
+ credential_records["證照"] {
+  int id PK
+  int student_id FK
+  int source_document_id FK
+ }
+ portfolios["經歷與作品"] {
+  int id PK
+  int student_id FK
+  int source_document_id FK
+ }
+ portfolio_evidence["經歷佐證"] {
+  int id PK
+  int portfolio_id FK
+ }
+ users ||--o| student_profiles : "user_id（一位學生一筆）"
+ users ||--o{ class_advisors : "teacher_id"
+ users ||--o{ source_documents : "owner_id"
+ source_documents ||--o| document_extractions : "source_document_id（一份文件一筆）"
+ users |o--o{ document_extractions : "confirmed_by_id"
+ users ||--o{ learning_course_records : "student_id"
+ source_documents |o--o{ learning_course_records : "source_document_id"
+ users ||--o{ credential_records : "student_id"
+ source_documents |o--o{ credential_records : "source_document_id"
+ users ||--o{ portfolios : "student_id"
+ source_documents |o--o{ portfolios : "source_document_id"
+ portfolios ||--o{ portfolio_evidence : "portfolio_id"

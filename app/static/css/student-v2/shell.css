@@ -344,3 +344,485 @@
 }
 @keyframes school-card-in { from { opacity: 0; transform: translateY(6px); } }
 .school-map .tw-county, .school-map__pin { -webkit-tap-highlight-color: transparent; }
+/* 2026-11-16 目標校系地圖：放大縮小、完整檢視、縣市深淺、點縣市跳出的視窗（手機改成從下往上的面板） */
+.school-map__bar { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin: 0 0 .4rem; }
+.school-map__bar .school-map__reset { position: static; box-shadow: none; }
+.school-map__reset[hidden] { display: none; }  /* 按鈕樣式的 display 會蓋過 hidden，原本沒選地區時也看得到 */
+.school-map__tools { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+.school-map__tools[hidden] { display: none; }
+.school-map__tool { min-width: 36px; height: 36px; padding: 0 .5rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-weight: 700; font-size: 1rem; line-height: 1; cursor: pointer; }
+.school-map__tool:hover { border-color: var(--ink); }
+.school-map__tool:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.school-map__tool--wide { font-size: .9rem; }
+.school-map__tool[aria-pressed="true"] { background: var(--ink); color: var(--on); border-color: var(--ink); }
+.school-map__level { min-width: 3.4rem; text-align: center; font-size: .82rem; color: var(--soft); font-variant-numeric: tabular-nums; }
+.school-map__svg { cursor: grab; }
+.school-map__figure.is-dragging .school-map__svg { cursor: grabbing; }
+.school-map__figure.is-dragging .tw-county, .school-map__figure.is-dragging .school-map__pin { pointer-events: none; }
+.school-map__svg:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+.school-map__hint { position: absolute; left: 50%; bottom: 3rem; transform: translateX(-50%); z-index: 3; margin: 0; padding: .45rem .8rem; border-radius: 8px; background: var(--ink); color: var(--on); font-size: .88rem; white-space: nowrap; pointer-events: none; }
+.school-map__legend { display: flex; align-items: center; gap: .5rem; margin: .4rem 0 .2rem; }
+.school-map__legend-bar { flex: 0 0 64px; height: 8px; border-radius: 2px; background: linear-gradient(90deg, var(--stripe), var(--accent)); border: 1px solid var(--line); }
+/* 縣市深淺：--heat 由腳本依符合篩選的校系數算出（0 到 1） */
+.school-map .school-map__counties.is-heat .tw-county[data-region] { fill: color-mix(in srgb, var(--accent) calc(var(--heat, 0) * 78%), var(--stripe)); }
+.school-map .school-map__counties.is-heat .tw-county.is-empty { fill: var(--stripe); }
+.school-map .school-map__counties.is-heat .tw-county:hover { stroke: var(--ink); stroke-width: 2; }
+.school-map .tw-county:focus { outline: none; }
+.school-map .tw-county:focus-visible { stroke: var(--ink); stroke-width: 3; }
+/* 完整檢視：地圖鋪滿整個視窗 */
+.school-map__figure.is-full { position: fixed; inset: 0; z-index: 1000; display: flex; flex-direction: column; gap: .5rem; padding: 12px 16px 16px; background: var(--card); overflow: hidden; }
+.school-map__figure.is-full .school-map__bar { margin: 0; }
+.school-map__figure.is-full .school-map__fullhead p { margin: 0; }
+.school-map__fulltitle { font-weight: 800; font-size: 1.15rem; color: var(--ink); }
+.school-map__figure.is-full .school-map__svg { flex: 1 1 auto; min-height: 0; width: 100%; height: 100%; max-height: none; touch-action: none; }
+.school-map__figure.is-full > p.small.muted:last-child { display: none; }
+html.map-locked, html.map-sheet-open { overflow: hidden; }
+@media (max-width: 640px) {
+  .school-map__figure.is-full .school-map__fullhead .small { display: none; }
+  .school-map__tools { margin-left: 0; width: 100%; }
+  .school-map__tools .school-map__tool--wide { margin-left: auto; }
+  .school-map__hint { white-space: normal; width: 80%; text-align: center; }
+}
+/* 點縣市跳出的視窗 */
+.map-sheet { width: min(680px, calc(100vw - 32px)); max-width: none; max-height: min(82vh, 780px); margin: auto; padding: 0; border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--ink); box-shadow: 0 24px 60px rgba(8, 20, 30, .28); overflow: hidden; }
+.map-sheet[open] { display: flex; flex-direction: column; }
+.map-sheet::backdrop { background: rgba(8, 18, 28, .5); }
+.map-sheet__grip { display: none; }
+.map-sheet__head { display: flex; gap: .75rem; align-items: flex-start; justify-content: space-between; padding: 1rem 1.1rem .8rem; border-bottom: 1px solid var(--line); background: var(--card); }
+.map-sheet__heading { min-width: 0; }
+.map-sheet__where { margin: 0 0 .15rem; color: var(--soft); font-weight: 700; letter-spacing: .02em; }
+.map-sheet__head h2 { margin: 0; font-size: 1.35rem; }
+.map-sheet__summary { margin: .3rem 0 0; color: var(--soft); }
+.map-sheet__top { display: block; margin-top: .35rem; padding-left: .6rem; border-left: 3px solid var(--warn); color: var(--ink); }
+.map-sheet__close { flex: 0 0 auto; width: 40px; height: 40px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 1.05rem; cursor: pointer; }
+.map-sheet__close:hover { border-color: var(--ink); }
+.map-sheet__close:focus-visible, .map-sheet summary:focus-visible, .map-sheet__link:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.map-sheet__link { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+.map-sheet__body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; padding: .5rem 1.1rem 1.2rem; overflow-wrap: anywhere; -webkit-overflow-scrolling: touch; }
+.map-sheet__group { margin: 1rem 0 .5rem; font-size: 1rem; }
+.map-sheet__list { display: grid; gap: .5rem; }
+.map-sheet__empty { margin: 1rem 0; }
+.map-school { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); min-width: 0; }
+.map-school[open] { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.map-school > summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .15rem .75rem; align-items: center; padding: .7rem .85rem; cursor: pointer; list-style: none; }
+.map-school > summary::-webkit-details-marker, .map-program > summary::-webkit-details-marker { display: none; }
+.map-school > summary::after { content: "▾"; grid-column: 2; grid-row: 1; justify-self: end; color: var(--soft); transition: transform .2s ease; }
+.map-school[open] > summary::after { transform: rotate(180deg); }
+.map-school__name { font-weight: 800; font-size: 1.05rem; }
+.map-school__meta { grid-column: 1; }
+.map-school__best { grid-column: 1 / -1; display: flex; align-items: center; gap: .5rem; }
+.map-school__body { padding: 0 .85rem .8rem; }
+.map-school__links { display: flex; flex-wrap: wrap; gap: .3rem 1rem; margin: 0 0 .6rem; padding: 0; list-style: none; font-weight: 700; }
+.map-school__programs { display: grid; gap: .4rem; margin: 0; padding: 0; list-style: none; }
+.map-meter { position: relative; display: block; flex: 1 1 auto; max-width: 220px; height: 6px; border-radius: 2px; background: var(--stripe); overflow: hidden; }
+.map-meter > span { position: absolute; inset: 0 auto 0 0; width: var(--w); background: var(--accent); border-radius: 2px; }
+.map-program { border-top: 1px dashed var(--line); }
+.map-program > summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .2rem .6rem; align-items: center; padding: .55rem 0; cursor: pointer; list-style: none; }
+.map-program > summary .map-meter { grid-column: 1 / -1; max-width: none; }
+.map-program__name { font-weight: 700; }
+.map-program__value { font-variant-numeric: tabular-nums; }
+.map-program[open] > summary .map-program__name { color: var(--accent); }
+.map-program__body { padding: .1rem 0 .7rem; }
+.map-program__gap { margin: .2rem 0; font-weight: 700; }
+.map-program__next { margin: .2rem 0; padding: .4rem .6rem; border-left: 3px solid var(--warn); background: color-mix(in srgb, var(--warn) 10%, transparent); }
+.map-program__detail .target-program__detail { display: grid; grid-template-columns: minmax(0, 1fr); gap: .6rem; padding: .5rem 0 0; border: 0; background: transparent; }
+.map-program__detail h4 { margin: .4rem 0 .2rem; font-size: .95rem; }
+@media (prefers-reduced-motion: no-preference) {
+  .map-sheet[open] { animation: map-sheet-in .24s cubic-bezier(.2, .8, .2, 1) both; }
+  .map-sheet.is-closing { animation: map-sheet-out .18s ease-in both; }
+  .map-sheet[open]::backdrop { animation: map-backdrop-in .24s ease both; }
+  .map-school { animation: map-row-in .32s ease-out both; animation-delay: calc(var(--i, 0) * 35ms + 60ms); }
+  .map-meter > span { animation: map-meter-grow .7s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i, 0) * 35ms + 160ms); }
+  .school-map .tw-county { transition: fill .45s ease, opacity .25s ease; }
+}
+@keyframes map-sheet-in { from { opacity: 0; transform: translateY(14px) scale(.98); } }
+@keyframes map-sheet-out { to { opacity: 0; transform: translateY(10px) scale(.98); } }
+@keyframes map-backdrop-in { from { opacity: 0; } }
+@keyframes map-row-in { from { opacity: 0; transform: translateY(8px); } }
+@keyframes map-meter-grow { from { width: 0; } }
+/* 手機：從下往上滑出的面板，不能左右滑 */
+@media (max-width: 640px) {
+  /* 先開到 60% 高，上方留給放大後的地圖；把手往上拉或點一下展開到 88% */
+  .map-sheet { width: 100%; max-width: 100%; height: 60vh; max-height: 60vh; margin: auto 0 0; transition: height .25s ease, max-height .25s ease; border-width: 1px 0 0; border-radius: 16px 16px 0 0; }
+  .map-sheet__grip { display: flex; justify-content: center; padding: 10px 0 4px; touch-action: none; cursor: grab; }
+  .map-sheet.is-tall { height: 88vh; max-height: 88vh; }
+  .map-sheet::backdrop { background: rgba(8, 18, 28, .28); }  /* 上方要看得到放大後的地圖，遮罩比電腦版淡 */
+  .map-sheet__grip span { width: 44px; height: 5px; border-radius: 3px; background: var(--line); }
+  .map-sheet__head { padding: .2rem 1rem .7rem; }
+  .map-sheet__body { padding: .4rem 1rem calc(1.2rem + env(safe-area-inset-bottom)); }
+  .map-sheet__head h2 { font-size: 1.2rem; }
+  @media (prefers-reduced-motion: no-preference) {
+    .map-sheet[open] { animation: map-sheet-up .3s cubic-bezier(.2, .8, .2, 1) both; }
+    .map-sheet.is-closing { animation: map-sheet-down .18s ease-in both; }
+  }
+}
+@keyframes map-sheet-up { from { transform: translateY(100%); } }
+@keyframes map-sheet-down { to { transform: translateY(100%); } }
+
+/* 通知鈴鐺簡化（2026-11-17 使用者說太大）：只剩一個圓形圖示，未讀數字縮成右上角小圓點；
+   在通知頁也不再變成深色大膠囊，只把鈴鐺換成主色。 */
+[data-ui="student-v2"] :is(.masthead--student, .masthead--app) .snav-bell {
+  position: relative; justify-content: center; width: var(--ctl-h); min-width: 0; padding: 0; gap: 0; border-radius: 50%;
+}
+[data-ui="student-v2"] :is(.masthead--student, .masthead--app) .snav-bell[aria-current] { background: transparent; color: var(--accent); }
+[data-ui="student-v2"] :is(.masthead--student, .masthead--app) .snav-bell[aria-current]:hover { background: var(--accent-soft); }
+[data-ui="student-v2"] :is(.masthead--student, .masthead--app) .snav-bell .mainnav__count {
+  position: absolute; top: 3px; right: 1px; min-width: 16px; height: 16px; margin: 0; padding: 0 4px; font-size: 11px; line-height: 16px;
+  box-shadow: 0 0 0 2px var(--glass-solid, var(--card));
+}
+@media (max-width: 720px) {
+  [data-ui="student-v2"] :is(.masthead--student, .masthead--app) .snav-bell { padding: 0; }
+}
+
+/* 頂端保留搜尋圖示，輸入欄置於搜尋頁。 */
+[data-ui="student-v2"] .student-search-link {
+  display: grid; place-items: center; flex: 0 0 auto;
+  width: var(--ctl-h); height: var(--ctl-h); border-radius: 50%;
+  color: var(--ink);
+}
+[data-ui="student-v2"] .student-search-link:hover,
+[data-ui="student-v2"] .student-search-link[aria-current] { background: var(--accent-soft); }
+
+@media (min-width: 721px) {
+  [data-ui="student-v2"] .masthead--student .masthead__inner { flex-wrap: wrap; }
+  [data-ui="student-v2"] .masthead--student .mainnav {
+    flex: 0 0 auto;
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+  [data-ui="student-v2"] .masthead--student .masthead__tools {
+    flex: 0 0 auto;
+    max-width: 100%;
+  }
+}
+@media (max-width:720px) {
+  [data-ui="student-v2"] .masthead--student .masthead__inner { border-radius:16px; }
+  [data-ui="student-v2"]:not(.sv2-js) .masthead--student .masthead__inner { flex-wrap: wrap; }
+}
+
+[data-ui="student-v2"] .student-search-dialog {
+  position: fixed; inset: clamp(4rem, 12vh, 7rem) 0 auto; margin: 0 auto;
+  width: min(31rem, calc(100% - 1.5rem)); max-height: 74dvh; overflow: auto;
+  padding: .85rem; color: var(--ink); background: var(--card);
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+  backdrop-filter: blur(14px); border: 1px solid var(--line); border-radius: 18px;
+  box-shadow: 0 16px 45px rgb(0 0 0 / .25);
+}
+[data-ui="student-v2"] .student-search-dialog.is-positioned { right: auto; bottom: auto; margin: 0; }
+.student-search-dialog__controls { display: flex; margin-inline-start: auto; }
+.student-search-dialog__controls [data-search-move] { cursor: move; touch-action: none; }
+.student-search-dialog__guide { margin-top: .6rem; color: var(--soft); font-size: var(--fs-sm); }
+.student-search-dialog__guide summary { cursor: pointer; color: var(--accent); }
+.student-search-dialog__guide ol { padding-inline-start: 1.5rem; }
+.student-search-dialog::backdrop { background: rgb(0 0 0 / .14); }
+.student-search-dialog__head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.student-search-dialog__head h2 { margin: 0; font-size: 1rem; }
+.student-search-dialog__head button { min-width: 2.5rem; min-height: 2.5rem; border: 0; background: transparent; color: var(--ink); font-size: 1.3rem; cursor: pointer; }
+.student-search-dialog form { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: .4rem; }
+.student-search-dialog :is(input, select) { min-width: 0; width: 100%; }
+.student-search-dialog [data-search-status] { margin: .7rem 0 0; }
+.student-search-dialog ul { list-style: none; padding: 0; margin: .35rem 0 0; }
+.student-search-dialog li { display: flex; align-items: baseline; gap: .6rem; padding: .4rem 0; border-top: 1px solid var(--line); }
+.student-search-dialog li small { color: var(--soft); flex: 0 0 auto; }
+@media (max-width: 420px) {
+  .student-search-dialog form { grid-template-columns: minmax(0, 1fr) auto; }
+  .student-search-dialog input { grid-column: 1 / -1; }
+}
+
+/* 自傳段落附圖（2026-11-18） */
+.bio-images { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin: .5rem 0 1rem; }
+.bio-images__item { margin: 0; display: grid; gap: .3rem; justify-items: start; }
+.bio-images__item img { max-width: 9rem; max-height: 7rem; border-radius: 6px; border: 1px solid var(--line); object-fit: cover; }
+.bio-images__thumb { display: block; max-width: 14rem; max-height: 10rem; margin: .4rem 0; border-radius: 6px; border: 1px solid var(--line); }
+
+/* 自傳草稿的每一段也是白底黑字的紙（和實習履歷一致，深色主題下也一樣；2026-11-18 使用者要求） */
+html .draft__paragraph { background: #ffffff; color: #000000; border: 1px solid #cccccc; border-radius: 4px; padding: 1rem 1.2rem; box-shadow: 0 2px 10px rgb(0 0 0 / .12); }
+html .draft__paragraph :is(h2, h3, p, label, li, b, small, span, blockquote, summary) { color: #000000; }
+html .draft__paragraph .muted, html .draft__paragraph .small.muted { color: #4a4a4a; }
+html .draft__paragraph a { color: #1d5a68; }
+html .draft__paragraph textarea { background: #ffffff !important; color: #000000 !important; border: 1px solid #999999; border-radius: 4px; }
+html .draft__paragraph :is(.paragraph-review__evidence, .paragraph-review, blockquote) { background: #f6f6f6; border-color: #cccccc; }
+html .draft__paragraph .button--line, html .draft__paragraph .button--quiet { color: #000000; border-color: #666666; background: transparent; }
+html .draft__paragraph .bio-images__item img, html .draft__paragraph .bio-images__thumb { border-color: #cccccc; }
+/* 「AI 不能做的事」是淺底的提示框，深色主題下文字也要用深色（原本是淺字落在淺粉底上看不清楚） */
+html [data-page="student-autobiography"] .ai-boundary, html [data-page="student-autobiography"] .ai-boundary :is(h2, p) { color: #2b2622; }
+html [data-page="student-autobiography"] .ai-boundary h2 { color: #7a2a24; }
+
+/* 自傳草稿的紙也用標楷體（學校格式） */
+html .draft__paragraph, html .draft__paragraph * { font-family: "DFKai-SB", "BiauKai", "標楷體", "Kaiti TC", "KaiTi", "STKaiti", "Noto Serif TC", serif !important; }
+
+.g2-evidence__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: .75rem; margin-top: .75rem; }
+.g2-evidence__grid > section { padding: .85rem; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.g2-evidence__grid ul { margin: .5rem 0 0; padding-inline-start: 1.15rem; }
+.g2-evidence__totals { margin: .5rem 0; font-size: var(--fs-sm); }
+.g2-evidence__totals > div { display: flex; justify-content: space-between; gap: .75rem; border-top: 1px solid var(--line); padding-block: .22rem; }
+.g2-evidence__totals dd { margin: 0; font-weight: 700; }
+
+/* 長說明收成「?」（components.js 的 info-tip）：頁首長說明整段收進一個圖示，點「?」才展開完整說明（說明本身就是原本的段落） */
+.info-tip__btn { display: inline-grid; place-items: center; width: 44px; height: 44px; position: relative; margin: 0 0 0 .3rem; padding: 0; border: 1.5px solid currentColor; border-radius: 50%; background: transparent; color: var(--accent, #2f6672); font: 700 var(--fs-sm)/1 inherit; cursor: pointer; vertical-align: middle; }
+.info-tip__btn:hover, .info-tip__btn[aria-expanded="true"] { background: var(--accent-soft, rgb(47 102 114 / .12)); }
+.info-tip__btn:focus-visible { outline: 3px solid var(--accent, #2f6672); outline-offset: 2px; }
+.info-tip__row { margin: .35rem 0 0; }
+.info-tip__row .info-tip__btn { margin-left: 0; }
+p.info-tip__body { display: block; margin: .5rem 0 0; padding: .6rem .85rem; border: 1px solid var(--line, #d6ccbe); border-radius: 8px; background: var(--card, #fff); color: var(--ink, #2b2622); font-size: .9rem; line-height: 1.75; max-width: 46rem; }
+p.info-tip__body[hidden] { display: none; }
+p.info-tip__body strong { color: inherit; }
+
+/* 手機效能（2026-11-19 使用者回報卡頓）：手機上頂端列、底部分頁列、小助手按鈕、導覽邀請原本用 blur(22px)＋SVG 折射濾鏡，
+   背景方塊一直在動，每一格都要重算模糊，捲動就卡。觸控裝置改成不透明底色、不做背景模糊，外觀一樣是浮起來的卡片。 */
+@media (pointer: coarse), (max-width: 760px) {
+  [data-ui="student-v2"] .sv2-glass,
+  [data-ui="student-v2"] :is(.masthead--student, .masthead--app) .masthead__inner,
+  [data-ui="student-v2"].lens :is(.sv2-glass, :is(.masthead--student, .masthead--app) .masthead__inner),
+  .assistant__toggle, .tour-invite, .student-search-dialog {
+    -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+    background: var(--card) !important;
+  }
+  [data-ui="student-v2"] body, body { background-attachment: scroll !important; }
+}
+
+/* 2026-11-19：最外層也給底色；手機捲到底或回彈時不再露出黑色（原本只有 body 有底色） */
+html[data-ui="student-v2"] { background-color: var(--surface); }
+
+@media (max-width: 767px) {
+  [data-ui="student-v2"] .button,
+  [data-ui="student-v2"] :is(.masthead--student, .masthead--app) :is(.account-menu__button, .snav-bell),
+  [data-ui="student-v2"] .student-search-link,
+  [data-ui="student-v2"] .student-search-dialog__head button { min-width: 44px; min-height: 44px; }
+}
+
+/* mobile-sweep special controls */
+@media (max-width: 767px) {
+  .school-map__tool { min-width: 44px; min-height: 44px; }
+}
+
+/* 「?」看起來維持 1.5rem 小圓，點按範圍用看不見的外框放大到 44px（2026-11-19 合併 mobile-sweep 時調整） */
+.info-tip__btn::after { content: ""; position: absolute; inset: calc((1.5rem - 44px) / 2); }
+
+/* 搜尋頁（2026-11-20 手機檢查發現）：表單原本沒有版面，欄位排成一行超出畫面、「資料類型」被切掉、標題超出；改成標籤在上、欄位整寬，寬螢幕才並排 */
+body[data-page="student-search"] .sheet h1 { font-size: clamp(1.4rem, 6vw, 2rem); overflow-wrap: anywhere; }
+body[data-page="student-search"] form[role="search"] { display: grid; grid-template-columns: 1fr; gap: .35rem .75rem; align-items: end; max-width: 100%; }
+body[data-page="student-search"] form[role="search"] :is(input, select) { width: 100%; min-width: 0; box-sizing: border-box; }
+body[data-page="student-search"] form[role="search"] .button { justify-self: start; margin-top: .4rem; }
+@media (min-width: 761px) {
+  body[data-page="student-search"] form[role="search"] { grid-template-columns: max-content minmax(0, 1fr) max-content minmax(8rem, 12rem) max-content; }
+  body[data-page="student-search"] form[role="search"] .button { margin-top: 0; }
+}
+
+/* ===== 2026-11-20 過關修正第二輪 ===== */
+/* 平板與手機的主導覽、我的資料分頁皆須有至少 44px 高的點擊範圍 */
+@media (max-width: 1099.98px) {
+  [data-ui="student-v2"] :is(.masthead--student, .masthead--app) .mainnav a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  [data-ui="student-v2"] .subnav a {
+    min-height: 44px;
+  }
+}
+
+/* 平板與手機：頂端工具列與返回連結的點擊範圍至少 44px（提高特異性，蓋過較早的 40px 高度） */
+@media (max-width: 1099.98px) {
+  [data-ui="student-v2"] .masthead__tools > a,
+  [data-ui="student-v2"] .masthead__tools .account-menu__button,
+  [data-ui="student-v2"] .masthead a,
+  [data-ui="student-v2"] .masthead button {
+    min-height: 44px !important;
+  }
+  [data-ui="student-v2"] .masthead__tools > a,
+  [data-ui="student-v2"] .masthead__tools .account-menu__button {
+    min-width: 44px !important;
+  }
+}
+
+/* ===== 2026-11-20 過關修正第三輪 ===== */
+/* 第三輪覆寫：原規則在第 562 行；說明按鈕原本只有 24px，改成實際 44×44 可點範圍 */
+@media (max-width: 1099.98px) {
+  [data-ui="student-v2"] .info-tip__btn {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  [data-ui="student-v2"] .map-school > summary,
+  [data-ui="student-v2"] .map-program > summary,
+  [data-ui="student-v2"] .class-filter select,
+  [data-ui="student-v2"] .teacher-roster-filters select,
+  [data-ui="student-v2"] .target-ranking__row,
+  [data-ui="student-v2"] .target-program__summary {
+    min-height: 44px;
+    height: auto;
+  }
+  [data-ui="student-v2"] .map-school,
+  [data-ui="student-v2"] .map-school__name,
+  [data-ui="student-v2"] .map-program__name,
+  [data-ui="student-v2"] .map-program__value {
+    min-width: 0;
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
+  }
+  [data-ui="student-v2"] :is(.map-school__name, .map-program__name, .map-program__value) {
+    text-overflow: clip;
+  }
+  [data-ui="student-v2"] label[for],
+  [data-ui="student-v2"] .rz-gender label,
+  [data-ui="student-v2"] .rz-conduct label,
+  [data-ui="student-v2"] .rz-langs label,
+  [data-ui="student-v2"] .rz-lang label {
+    min-height: 44px;
+  }
+}
+
+/* 第三輪覆寫：原規則在第 194 行；避免檔案輸入框以可見的 1px 控制項出現在畫面 */
+body[data-page="student-internship-resume"] input[type="file"],
+[data-ui="student-v2"] input[type="file"]:not([class*="rz-visually-hidden"]) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-width: 1px;
+  min-height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 第三輪覆寫：原規則在第 539 行；深色模式保留 .draft__paragraph 白紙黑字例外 */
+@media (max-width: 899px) {
+  body:is([data-page="student-autobiography"], [data-page="student-internship-resume"]).is-typing .sv2-tabbar,
+  body:is([data-page="student-autobiography"], [data-page="student-internship-resume"]).is-typing .assistant__toggle,
+  body:is([data-page="student-autobiography"], [data-page="student-internship-resume"]).is-typing .tour-invite,
+  body:is([data-page="student-autobiography"], [data-page="student-internship-resume"]).is-typing [data-typing-bottom] {
+    display: none !important;
+  }
+  body[data-page="student-autobiography"].is-typing .draft__paragraph {
+    position: static;
+  }
+  body[data-page="student-autobiography"].is-typing textarea,
+  body[data-page="student-internship-resume"].is-typing textarea {
+    position: static;
+  }
+}
+
+/* 第四輪：鍵盤開啟時取消 sticky 頁首與底部留白，編輯內容改由頁面捲動 */
+@media (max-width: 899px) {
+  html[data-ui="student-v2"] body[data-page="student-autobiography"].is-typing {
+    padding-bottom: env(safe-area-inset-bottom) !important;
+  }
+  html[data-ui="student-v2"] body[data-page="student-autobiography"].is-typing :is(
+    .masthead--student, .masthead--app
+  ) {
+    position: static !important;
+  }
+  html[data-ui="student-v2"] body[data-page="student-autobiography"].is-typing .draft__paragraph textarea {
+    box-sizing: border-box;
+    max-height: min(8rem, 28dvh);
+    overflow-y: auto;
+  }
+  html[data-ui="student-v2"] body[data-page="student-internship-resume"].is-typing textarea {
+    box-sizing: border-box;
+    max-height: min(8rem, 28dvh) !important;
+    overflow-y: auto;
+  }
+
+  /* 檔案輸入框維持可聚焦但不佔版面；避免較早的 position: static 規則將它顯示 */
+  html[data-ui="student-v2"] body[data-page="student-internship-resume"] .rz-page input[type="file"] {
+    display: none !important;
+    position: absolute !important;
+    width: 0 !important;
+    height: 0 !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    clip: rect(0 0 0 0) !important;
+    clip-path: inset(50%) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+  }
+}
+
+/* ===== 2026-11-20 過關修正第四輪收斂 ===== */
+/* 實習履歷：所有檔案輸入框維持 visually-hidden，手機與平板不改成可見的 1px 控制項 */
+[data-ui="student-v2"] body[data-page="student-internship-resume"] input[type="file"] {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  min-width: 1px !important;
+  min-height: 1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 寫自傳：鍵盤開啟時頁首不固定，段落與儲存鈕留在文件流可捲動區域 */
+@media (max-width: 899px) {
+  html[data-ui="student-v2"] body[data-page="student-autobiography"].is-typing :is(
+    .masthead--student, .masthead--app, .sv2-tabbar
+  ) {
+    position: static !important;
+  }
+  html[data-ui="student-v2"] body[data-page="student-autobiography"].is-typing
+    :is(.draft__paragraph, .draft-paragraph-toolbar, .rz-mobile-save) {
+    position: static !important;
+  }
+  html[data-ui="student-v2"] body[data-page="student-autobiography"].is-typing
+    .draft__paragraph textarea {
+    box-sizing: border-box;
+    min-height: 44px;
+    max-height: 28dvh;
+    overflow-y: auto;
+  }
+}
+
+/* 寫自傳深色：工具列、段落標題、字數與上一段文字使用墨色與卡片底色；紙面例外仍為白底黑字 */
+html[data-theme="dark"] [data-ui="student-v2"] [data-page="student-autobiography"] :is(
+  .canva-paragraph-header, .canva-paragraph-nav, .draft-paragraph-toolbar
+) {
+  background: var(--card);
+  color: var(--ink);
+}
+html[data-theme="dark"] [data-ui="student-v2"] [data-page="student-autobiography"] :is(
+  .canva-paragraph-header__step, .canva-paragraph-header__title,
+  .canva-char-counter, .canva-nav-indicator, .canva-nav-btn,
+  .draft-paragraph-toolbar, .draft-paragraph-toolbar button
+) {
+  background: var(--card);
+  color: var(--ink) !important;
+}
+
+/* 未來規劃預覽：在桌機長文字也允許完整換行，不裁切、不省略 */
+[data-ui="student-v2"] [data-page="student-autobiography"] :is(
+  .canva-preview-item__title, .canva-preview-item__text,
+  .canva-paragraph-header__title, .draft__paragraph p
+) {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+}
+
+/* 目標校系：學校名稱與外開/查看連結維持可點觸控目標 >= 44px */
+.school-list__name,
+.school-list__links a,
+.school-card__links a {
+  display: inline-flex !important;
+  align-items: center !important;
+  min-height: 44px !important;
+}
+
+
+/* 目標校系：清除篩選按鈕維持 44px */
+[data-filter-clear],
+.map-sheet__link {
+  display: inline-flex !important;
+  align-items: center !important;
+  min-height: 44px !important;
+}

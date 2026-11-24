@@ -97,7 +97,7 @@ def test_admin_navigation_groups_all_management_links_without_losing_access():
     page = client.get('/admin/dashboard').get_data(as_text=True)
     assert 'aria-label="管理功能分類"' in page
     for label in ('帳號與角色', '課程與招生', '系統設定'):
-        assert f'<summary>{label}</summary>' in page
+        assert f'<h2 class="admin-nav-group__title">{label}</h2>' in page  # 2026-11-18 側邊欄：分類常駐展開
     for label in ('帳號管理', '導師班級', '課程規則', '排行篩選選項', '校系資料', '招生資料 Agent', 'OCR 辨識設定', '檔案存放設定', '操作紀錄'):
         assert label in page
     # 規格：專題類型與需求模板先隱藏，只拿掉選單（路由與資料保留）

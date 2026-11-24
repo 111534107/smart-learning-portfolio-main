@@ -39,3 +39,18 @@ def test_demo_students_have_no_unmatched_courses():
             result = credit_status(User.query.filter_by(username=username).one())
             assert result["unmatched"] == [], username
             assert result["duplicates"] == [], username
+
+
+def test_demo_site_starts_with_sample_notifications():
+    """展示站一啟動，學生、導師、科辦點「通知」就有內容（2026-11-17 使用者回報通知都是空的）。"""
+    seed = runpy.run_path(str(ROOT / "scripts" / "run_demo.py"), run_name="demo_notifications")["seed"]
+    app = create_app({"SQLALCHEMY_DATABASE_URI": "sqlite://", "TESTING": True})
+    with app.app_context():
+        db.create_all()
+        seed()
+        from app.models import Notification, User
+        for username in ("113534901", "113534902", "113534903", "teacher01", "staff01", "chief01"):
+            user = User.query.filter_by(username=username).one()
+            rows = Notification.query.filter_by(recipient_id=user.id).all()
+            assert rows, username
+            assert all(row.link.startswith("/") and row.read_at is None for row in rows), username

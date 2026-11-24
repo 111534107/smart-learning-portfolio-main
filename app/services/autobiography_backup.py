@@ -78,6 +78,19 @@ def filename_for(student, program, version, content=None, editor=None):
             f"_第{version}版{tail}.docx")
 
 
+def _add_images(document, student, paragraph):
+    """段落附的圖片（學生貼上的）一張一張放在該段文字下面；讀不到的圖略過，不讓整份備份失敗。"""
+    from docx.shared import Cm
+    from app.services import autobiography_images
+    for image_id in paragraph.get("images") or []:
+        try:
+            path = autobiography_images.image_path(student.id, image_id)
+            if path:
+                document.add_picture(str(path), width=Cm(8))
+        except Exception:  # noqa: BLE001
+            continue
+
+
 def build_docx(student, program, content, editor=None):
     """標題含學生姓名、目標校系；副標含第幾版、修改者與時間；每段一個段落（段落標題另起小標）。"""
     document = Document()
@@ -88,6 +101,7 @@ def build_docx(student, program, content, editor=None):
         if paragraph.get("title"):
             document.add_heading(paragraph["title"], level=2)
         document.add_paragraph(paragraph.get("text", ""))
+        _add_images(document, student, paragraph)
     buffer = io.BytesIO()
     document.save(buffer)
     return buffer.getvalue()

@@ -5,14 +5,14 @@
 {% block navigation %}{{ masthead(user, "二技公告") }}{% endblock %}
 {% block content %}
 <section class="work-shell">
-  <header class="work-heading">
+  <header class="work-heading" data-tour="查看管理員發布的招生日程與提醒。" data-tour-order="1">
     <div>
       <p class="small">管理員核對官方簡章後發布</p>
       <h1>二技公告</h1>
       <p>招生日程與重要提醒。點標題看內容，看過後「未讀」標記會消失。</p>
     </div>
   </header>
-  <section class="work-panel">
+  <section class="work-panel" data-tour="點公告標題看內容，開啟後標為已讀。" data-tour-order="2">
     {% if rows %}
     <ul class="work-list">
       {% for row in rows %}

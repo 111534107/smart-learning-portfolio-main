@@ -11,28 +11,21 @@ flowchart TD
 
     Admin[系統管理者]:::admin --> P6[6.0 維護校系備審要求]:::system
     P6 --> D1[(D1 校系備審要求)]:::store
-    D1 --> P1[1.0 校系排行與選擇目標校系<br/>準備度建議值、篩選、已符合與缺少]:::system
+    D1 --> P1[1.0 選擇目標校系]:::system
     Student[學生]:::student --> P1
     P1 --> D2[(D2 學生目標校系)]:::store
     Student --> P2[2.0 上傳與確認學習資料]:::system
-    P2 --> OCR[本機 OCR 辨識<br/>原始檔不送外部服務]:::system
-    P2 --> D3[(D3 原始附件索引<br/>檔案 ID、類別、狀態)]:::store
-    P2 -.-> Drive[(Google Drive 原始附件倉庫<br/>先用個人雲端硬碟測試（尚未實機驗收）)]:::pending
-    OCR --> D3b[(D3b 候選辨識結果<br/>學生確認前不生效、不送 AI)]:::store
-    D3b --> P2
-    P2 --> D4[(D4 學生確認後的學習證據)]:::store
-    D4 --> P2a[2.1 去識別化<br/>只處理學生確認後的資料<br/>移除身分證字號、學號、姓名、證號]:::system
-    P2a -. 只傳送必要欄位 .-> AI[Gemini API（選用）<br/>升學 Agent、自傳建議<br/>不讀取雲端檔案]:::ai
-    Admin --> P13[13.0 維護排行篩選選項<br/>科系、學制、是否可報]:::system
-    P13 --> D14[(D14 排行篩選選項)]:::store
-    D14 --> P1
+    P2 <-. 辨識、證照初判與修改建議註記 .-> AI[AI 輔助服務]:::ai
+    P1 <-. 推薦校系 .-> AI
+    P2 --> D3[(D3 原始檔與辨識結果)]:::store
+    P2 --> D4[(D4 成績、證照、活動等學習紀錄)]:::store
     D2 --> P3[3.0 缺件比對]:::system
     D4 --> P3
     D1 -.-> P3
     P3 --> Gap[缺件清單回饋給學生]:::alert
-    D4 --> P4[4.0 送審與導師確認]:::system
-    Teacher[班導師（V1 僅班導）]:::teacher --> P4
-    P4 --> D5[(D5 送審快照與段落註解<br/>送審後不因草稿修改而改變)]:::store
+    D4 --> P4[4.0 老師確認與段落註解]:::system
+    Teacher[老師]:::teacher --> P4
+    P4 --> D5[(D5 確認紀錄與段落註解)]:::store
     D5 --> P5[5.0 產出備審資料]:::system
     D4 --> P5
     P5 --> D6[(D6 備審資料檔)]:::store
@@ -45,14 +38,12 @@ flowchart TD
     P8 <-. 擷取招生資料 .-> AI
     P8 --> D1
     P8 --> D8[(D8 公告與已讀紀錄)]:::store
+    D8 --> Notice[學生、老師、科辦看到公告]:::system
     Student --> P9[9.0 貼上匯入成績、獎懲、缺曠]:::system
     P9 --> D4
     P9 --> D9[(D9 缺曠合計<br/>只有學生與班導可讀)]:::store
-    D9 -. 學生勾選並確認後才放入 .-> P5
+    D9 -. 學生勾選並確認後才放 .-> P5
     D9 -.- NoAI[缺曠資料不送給 AI]:::pending
-    Student --> Del[9.1 刪除申請<br/>標記為軟刪除，不立即清除]:::pending
-    Del -.- DelPolicy[保存期限與永久清理<br/>待學校政策決議（與現行「不提供實體刪除」規則衝突）]:::pending
-    Del -.-> D3
     D4 --> P10[10.0 畢業學分檢查]:::system
     D10[(D10 課程規則與修業科目表)]:::store --> P10
     P10 --> Credit[已取得與還差的學分<br/>（僅供參考）]:::alert

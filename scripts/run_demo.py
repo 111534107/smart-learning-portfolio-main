@@ -38,6 +38,7 @@ from app.models import (  # noqa: E402
     CredentialRecord,
     StudentTarget,
     LearningCourseRecord,
+    Notification,
     Portfolio,
     StudentProfile,
     User,
@@ -61,6 +62,46 @@ DEMO_ACCOUNTS = [
      "name": "林科助", "note": "科助：審核、建立電子獎狀"},
     {"role": "admin", "label": "管理者", "username": "admin", "password": DEMO_PASSWORD, "name": "系統管理者"},
 ]
+
+
+SAMPLE_DIR = Path(os.environ.get("DEMO_SAMPLE_DIR") or "D:/democase/ai/docs/OCR測試資料")
+
+
+def seed_sample_files(student):
+    """專五示範學生：把 docs/OCR測試資料 裡的假證照照片、假成績單當成已確認的原始檔帶進來（資料夾不存在就略過）。
+    履歷頁可以一鍵把它們加到圖片收納匣、放進證照圖片與成績單。國際證照沒有範例檔，要學生自己在履歷上填。"""
+    if not SAMPLE_DIR.is_dir():
+        return
+    from hashlib import sha256
+    from app.models import SourceDocument
+    from app.services import storage_service
+
+    def add_document(filename, kind):
+        path = SAMPLE_DIR / filename
+        if not path.is_file():
+            return None
+        data = path.read_bytes()
+        location = storage_service.save(data, student.id, "learning-profile", filename)
+        document = SourceDocument(owner_id=student.id, document_type=kind, display_name=filename, file_path=location,
+                                  sha256=sha256(data).hexdigest(), status="confirmed")
+        db.session.add(document)
+        db.session.flush()
+        return document
+
+    certs = [("電腦軟體應用丙級", "丙級", "電腦軟體應用丙級.png", date(2023, 5, 20)),
+             ("電腦硬體裝修丙級", "丙級", "電腦硬體裝修丙級.png", date(2023, 11, 13)),
+             ("會計事務丙級-資訊項", "丙級", "會計事務-資訊項丙級.png", date(2024, 4, 12)),
+             ("電腦軟體應用乙級", "乙級", "電腦軟體應用乙級.png", date(2025, 8, 21))]
+    for name, level, filename, day in certs:
+        document = add_document(filename, "credential")
+        record = CredentialRecord.query.filter_by(student_id=student.id, credential_name=name).first()
+        if record is None:
+            record = CredentialRecord(student_id=student.id, credential_name=name, level=level, issuing_organization="勞動部",
+                                      issue_date=day, confirmation_status="confirmed")
+            db.session.add(record)
+        if document is not None:
+            record.source_document_id = document.id
+    add_document("7-1~3年級成績單.png", "transcript")
 
 
 def seed():
@@ -146,6 +187,30 @@ def seed():
     # 示範學生用假學號（113 學年入學＝專三），不綁學校信箱：真的學生用學校 Google 登入時會建立自己的帳號
     db.session.commit()
     review_snapshot_service.request_review(classmate, program)  # 送審時存快照
+    _seed_notifications(student, classmate, teacher, (staff, chief))
+
+
+def _seed_notifications(student, classmate, teacher, staff_users):
+    """示範通知（2026-11-17 使用者要求）：展示站一啟動，學生、導師、科辦點「通知」就有內容可看。
+
+    內容都對應上面已經建好的示範資料；用 notify_key 標成 demo:，和系統自己產生的通知分開。僅為測試資料。
+    """
+    senior = User.query.filter_by(username="113534903").one()
+    rows = [
+        (student, "welcome", "歡迎使用學習歷程系統：先看看想去的學校，備審要準備什麼。", "/student/targets"),
+        (student, "graduation", "畢業門檻工作台已整理好你的學分與證照進度，請查看。", "/student/graduation-check"),
+        (classmate, "certificate", "你申請的電子獎狀已送出，等科辦核准。", "/student/dashboard"),
+        (classmate, "review", "你的目標校系資料已送導師確認。", "/student/targets"),
+        (senior, "graduation", "畢業門檻工作台已整理好你的學分與證照進度，請查看。", "/student/graduation-check"),
+        (senior, "autobiography", "五年資料已經齊全，可以開始準備自傳與備審資料。", "/student/targets"),
+        (teacher, "review", f"{classmate.display_name} 已送出目標校系資料，請確認。", f"/teacher/students/{classmate.id}"),
+        (teacher, "senior", f"{senior.display_name} 專五，請留意畢業門檻進度。", f"/teacher/students/{senior.id}"),
+    ]
+    for staff in staff_users:
+        rows.append((staff, "certificate", "有 1 張電子獎狀申請等待處理。", "/staff/certificates"))
+    for user, key, message, link in rows:
+        db.session.add(Notification(recipient_id=user.id, notify_key=f"demo:{key}", message=message, link=link))
+    db.session.commit()
 
 
 def _seed_senior(teacher, program):
@@ -168,6 +233,7 @@ def _seed_senior(teacher, program):
                              ("資料庫應用乙級", "乙級", date(2025, 6, 15))):
         db.session.add(CredentialRecord(student_id=senior.id, credential_name=name, level=level, issuing_organization="勞動部",
                                         issue_date=day, confirmation_status="confirmed"))
+    seed_sample_files(senior)
     records = [
         ("competition", 3, 2, "全國技藝競賽 網頁設計職類 第三名", "獨立完成購物網站前後端。"),
         ("competition", 4, 1, "校園黑客松 最佳技術獎", "三人一組，負責後端 API 與資料庫設計。"),
@@ -179,6 +245,45 @@ def _seed_senior(teacher, program):
         db.session.add(Portfolio(student_id=senior.id, category=category, school_year=year, semester=semester,
                                  title=title, description=description, status="confirmed"))
     db.session.add(StudentTarget(student_id=senior.id, rule_version_id=program.id))
+    db.session.flush()
+    _seed_senior_autobiography(senior, program)
+
+
+# 示範自傳（僅為測試資料）：寫法參考學長姐的備審作品——有主張的小標題、先講具體的事、再講做了什麼、最後寫體會。
+SENIOR_AUTOBIOGRAPHY = [
+    ("從拆遊戲設定，走進資訊管理",
+     "我從小就喜歡研究電腦遊戲的設定檔，國中時第一次用試算表幫班上整理段考成績，發現資料排整齊之後，"
+     "老師和同學做決定都快了很多。進入資管科後，我在專一的資訊科技課第一次寫出會自己計算的表單，"
+     "那時我才知道，資訊管理不只是會用電腦，而是把零散的資料變成能幫人做決定的工具。這也是我想繼續就讀資訊管理系的原因。"),
+    ("在競賽裡，學會把需求做成系統",
+     "專三參加全國技藝競賽網頁設計職類，我一個人負責購物網站的前端與後端。比賽前兩個月，我每天放學留下來練一題，"
+     "從畫面切版、資料表設計到結帳流程都反覆測試，最後拿到第三名。這段經驗讓我學會先把需求拆成小步驟，"
+     "再一步一步驗證，而不是一開始就急著寫程式。"),
+    ("用證照，打穩資料與網頁的基礎",
+     "我陸續考取電腦軟體應用丙級、網頁設計乙級與資料庫應用乙級。準備資料庫乙級時，我把歷屆術科整理成自己的筆記，"
+     "遇到不懂的 SQL 語法就實際建資料表測試。這些證照不只是成績，更讓我在專題裡能獨立負責資料庫設計。"),
+    ("在學會與志工服務中，練習溝通",
+     "專三擔任資管科學會活動長，規劃迎新與資訊週，需要和老師、廠商與同學協調時間與預算。"
+     "專四到社區教長者用手機，我發現寫程式之外，能用對方聽得懂的話說明，才是真正解決問題。"),
+    ("未來規劃：補強資料分析，成為懂需求的開發者",
+     "進入二技後，我想補強資料分析與系統分析，修習資料探勘與專案管理相關課程，並參與實務專題。"
+     "畢業後希望成為能和使用者溝通需求、再把需求做成好用系統的開發人員。"),
+]
+
+
+def _seed_senior_autobiography(senior, program):
+    from app.models import LearningProfileOutput
+    from app.services import autobiography_service
+    facts = autobiography_service.build_facts(senior, program)
+    content = {
+        "program_id": program.id, "answers": {}, "kept_paragraphs": [],
+        "paragraphs": [{"title": title, "text": text, "sources": []} for title, text in SENIOR_AUTOBIOGRAPHY],
+        "facts": facts["items"], "provider": "manual", "edited": True, "version": 1,
+        "editor_id": senior.id, "editor_role": "student", "based_on": None,
+    }
+    db.session.add(LearningProfileOutput(student_id=senior.id, output_type=autobiography_service.OUTPUT_TYPE,
+                                         content_json=content,
+                                         source_snapshot_json={"program_id": program.id, "fact_count": len(facts["items"])}))
 
 
 def main():
@@ -189,16 +294,20 @@ def main():
     try:
         demo_db.unlink(missing_ok=True)
     except PermissionError:
-        print(f"展示網站好像已經在執行了（{demo_db.name} 正在使用中）。")
-        print(f"請直接打開 http://127.0.0.1:{port} ，或先關掉另一個視窗的展示網站（按 Ctrl+C）再重新啟動。")
-        print("想同時開兩個，可以換埠號：$env:DEMO_PORT=5001 再執行一次。")
-        sys.exit(1)
+        demo_db = PROJECT_ROOT / "instance" / f"demo-{port}-{os.getpid()}.db"
+        try:
+            demo_db.unlink(missing_ok=True)
+        except PermissionError:
+            pass
     app = create_app({
         "SQLALCHEMY_DATABASE_URI": f"sqlite:///{demo_db.as_posix()}",
         "UPLOAD_FOLDER": str(PROJECT_ROOT / "instance" / "demo-uploads"),
         "DEMO_ACCOUNTS": DEMO_ACCOUNTS,  # 登入頁顯示展示帳號；正式環境不要設定
         # 瀏覽器的 cookie 只分主機、不分埠：同時開 5020、5021 會互相蓋掉登入（10-27 實測問題 6）
         "SESSION_COOKIE_NAME": f"demo_session_{port}",
+        # 示範帳號（密碼公開）一律不要雙重驗證，包含管理員（2026-11-18 使用者要求；正式站仍一定要）
+        "TWO_FACTOR_REQUIRED": False,
+        "ADMIN_TWO_FACTOR_REQUIRED": False,
     })
     app.config["DOCUMENT_ANALYSIS_PROVIDER"] = real_ocr_provider(app.config["DOCUMENT_ANALYSIS_PROVIDER"])
     print(f"OCR 模式：{app.config['DOCUMENT_ANALYSIS_PROVIDER']}")

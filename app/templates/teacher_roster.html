@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% from "partials/nav.html" import masthead with context %}
+{% set page_name = "teacher-roster" %}
+{% set nav_active = "學生名單" %}
+
+{% block title %}{{ title }}｜資管科智慧學習歷程系統{% endblock %}
+
+{% block navigation %}{{ masthead(user, nav_active) }}{% endblock %}
+
+{% block content %}
+<section class="work-shell work-shell--wide" data-work-role="teacher">
+  <header class="work-heading" data-tour="這一頁是本班學生名單，可以搜尋、排序，或只看待確認的學生。" data-tour-order="1">
+    <div><h1>學生名單</h1><p>{% if classes %}負責班級：{{ classes|join("、") }}。{% endif %}點任一列就能打開學生資料。</p></div>
+  </header>
+  {% include "partials/teacher_class_filter.html" %}
+  <section class="work-panel" id="class-roster" data-class-roster data-tour="只會列出分派給你的班級學生；點任一列查看。" data-tour-order="4">
+    <div class="work-panel__head"><div><h2>本班學生</h2><p>各類資料筆數包含草稿與學生已確認資料；空格代表還沒有資料。標「待確認」的學生有備審資料等你確認。目標校系的準備度依已確認資料和簡章配分估算，不是錄取機率；待補是還沒備齊的資料類別。</p></div></div>
+    {% if class_rows %}
+    <div class="teacher-roster-toolbar">
+      <div class="teacher-roster-filters">
+        <input type="search" id="roster-search" class="input input--search" placeholder="搜尋學號或姓名…" aria-label="搜尋學號或姓名">
+        <label class="checkbox-label" for="roster-filter-pending" data-tour="只看有待確認的學生，先處理這些。" data-tour-order="6"><input type="checkbox" id="roster-filter-pending"{% if only_pending %} checked{% endif %}> 只看有待確認</label>
+      </div>
+      <div class="teacher-roster-sort" id="roster-mobile-sort">
+        <label for="roster-sort-select" class="roster-sort-label">排序</label>
+        <select id="roster-sort-select" class="select select--sort" aria-label="選擇排序欄位">
+          <option value="studentNo" data-type="string">學號</option>
+          <option value="studentName" data-type="string">姓名</option>
+          <option value="pending" data-type="number">待確認</option>
+          <option value="autoWords" data-type="number">自傳字數</option>
+        </select>
+        <button type="button" id="roster-sort-order-btn" class="button button--line button--sort-order" aria-label="切換升冪或降冪" data-order="asc">
+          <span class="sort-order-label">升冪</span> <span class="sort-order-icon" aria-hidden="true">▲</span>
+        </button>
+      </div>
+      <div class="teacher-roster-actions">
+        <a class="button button--line button--export-excel" data-tour="一鍵匯出全班 Excel，含統計公式。" data-tour-order="5" href="{{ url_for('teacher.class_overview_export', class_name=selected_class) if selected_class else url_for('teacher.class_overview_export') }}" download>匯出 Excel</a>
+      </div>
+    </div>
+    <div class="table-wrap teacher-roster-wrap">
+      <table class="data-table data-table--rowlink teacher-roster-table" id="teacher-roster-table">
+        <thead>
+          <tr>
+            <th class="sticky-col sticky-col-1 sortable cell-student-no" data-sort-key="studentNo" data-sort-type="string" scope="col"><button type="button" class="table-sort-btn">學號 <span class="sort-indicator" aria-hidden="true">↕</span></button></th>
+            <th class="sticky-col sticky-col-2 sortable cell-student-name" data-sort-key="studentName" data-sort-type="string" scope="col"><button type="button" class="table-sort-btn">姓名 <span class="sort-indicator" aria-hidden="true">↕</span></button></th>
+            <th class="sortable cell-class-name" data-sort-key="className" data-sort-type="string" scope="col"><button type="button" class="table-sort-btn">班級 <span class="sort-indicator" aria-hidden="true">↕</span></button></th>
+            <th class="sortable cell-targets" data-sort-key="targets" data-sort-type="string" scope="col"><button type="button" class="table-sort-btn">送審校系 <span class="sort-indicator" aria-hidden="true">↕</span></button></th>
+            <th class="sortable cell-auto-status" data-sort-key="autoStatus" data-sort-type="string" scope="col"><button type="button" class="table-sort-btn">自傳狀態 <span class="sort-indicator" aria-hidden="true">↕</span></button></th>
+            <th class="sortable cell-auto-words" data-sort-key="autoWords" data-sort-type="number" scope="col"><button type="button" class="table-sort-btn">自傳字數 <span class="sort-indicator" aria-hidden="true">↕</span></button></th>
+            <th class="sortable cell-grad-status" data-sort-key="gradStatus" data-sort-type="string" scope="col"><button type="button" class="table-sort-btn">學分缺口或畢業門檻狀態 <span class="sort-indicator" aria-hidden="true">↕</span></button></th>
+            <th class="sortable cell-cert-count" data-sort-key="certCount" data-sort-type="number" scope="col"><button type="button" class="table-sort-btn">證照數 <span class="sort-indicator" aria-hidden="true">↕</span></button></th>
+            <th class="sortable cell-pending" data-sort-key="pending" data-sort-type="number" scope="col"><button type="button" class="table-sort-btn">待確認送審數 <span class="sort-indicator" aria-hidden="true">↕</span></button></th>
+            <th class="cell-action" scope="col"><span class="visually-hidden">操作</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in class_rows %}
+          <tr class="row-link{% if row.pending %} row-link--pending{% endif %}">
+            <td class="mono sticky-col sticky-col-1 cell-student-no" data-label="學號">{{ row.student_no }}</td>
+            <td class="sticky-col sticky-col-2 cell-student-name" data-label="姓名" data-name="{{ row.display_name }}">
+              <b class="cell-student-name__text">{{ row.display_name }}</b>
+              <span class="roster-mobile-inline cell-student-no-inline mono">{{ row.student_no }}</span>
+              <span class="roster-mobile-inline cell-class-name-inline">{{ row.class_name }}</span>
+            </td>
+            <td class="cell-class-name" data-label="班級">{{ row.class_name }}</td>
+            <td class="small cell-targets" data-label="送審校系" data-target-progress>
+              {% if row.targets %}
+                {% for t in row.target_progress %}
+                  <a href="{{ url_for('teacher.student_detail', student_id=row.student.id, _anchor='teacher-target-' ~ t.program.id) }}" title="{{ t.program.school_name }} {{ t.program.department_name }}" style="min-height: 44px; display: inline-flex; align-items: center; white-space: normal; overflow: visible;">{{ t.program.school_name }} {{ t.program.department_name }}</a>
+                  {% if t.needs %}<span class="visually-hidden">待補：{{ t.needs|join("、") }}</span>{% endif %}
+                  {% if not loop.last %}、{% endif %}
+                {% endfor %}
+              {% else %}
+                <span class="muted">—</span>
+              {% endif %}
+            </td>
+            <td class="cell-auto-status" data-label="自傳狀態">
+              {% if row.autobiography_status == "已送審" %}
+                <span class="tag tag--warn">{{ row.autobiography_status }}</span>
+              {% elif row.autobiography_status == "導師已確認" %}
+                <span class="tag tag--ok">{{ row.autobiography_status }}</span>
+              {% elif row.autobiography_status == "導師請修改" %}
+                <span class="tag tag--danger">{{ row.autobiography_status }}</span>
+              {% elif row.autobiography_status == "草稿" %}
+                <span class="tag">{{ row.autobiography_status }}</span>
+              {% elif row.autobiography_status == "未起稿" %}
+                <span class="muted">{{ row.autobiography_status }}</span>
+              {% else %}
+                <span class="muted">—</span>
+              {% endif %}
+            </td>
+            <td class="mono cell-auto-words" data-label="自傳字數" data-num="{{ row.autobiography_words }}">{{ row.autobiography_words }}</td>
+            <td class="small cell-grad-status" data-label="畢業門檻">{{ row.graduation_status }}</td>
+            <td class="mono cell-cert-count" data-label="證照數" data-num="{{ row.certificate_count }}">{{ row.certificate_count }}</td>
+            <td class="cell-pending" data-label="待確認" data-num="{{ row.pending }}">
+              {% if row.pending %}
+                <a class="tag tag--warn" href="{{ url_for('teacher.student_detail', student_id=row.student.id, _anchor='teacher-targets') }}" style="min-height: 44px; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;">{{ row.pending }} 份送審</a>
+              {% else %}
+                <span class="muted">0</span>
+              {% endif %}
+            </td>
+            <td class="row-link__action cell-action" data-label="操作">
+              <a class="button button--small row-link__target" href="{{ url_for('teacher.student_detail', student_id=row.student.id) }}" aria-label="前往 {{ row.display_name }} 的資料">前往</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <script src="{{ url_for('static', filename='js/teacher-roster.js') }}" defer></script>
+    {% else %}
+    <p class="work-empty"><strong>還沒有負責的班級。</strong><span>請系統管理者在「導師班級」設定。</span></p>
+    {% endif %}
+  </section>
+</section>
+{% endblock %}

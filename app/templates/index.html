@@ -53,7 +53,7 @@
 </section>
 
 {# 六幕故事 03：五年整理 #}
-<section class="chapter story-scene story-scene--years" id="route" data-story-step="3" aria-labelledby="story-3-title">
+<section class="chapter story-scene story-scene--years" id="route" data-story-step="3" aria-labelledby="story-3-title" data-tour="往下看五年資料如何整理成升學準備。" data-tour-order="1">
   <div class="story-scene__inner">
     <div data-motion="reveal">
       <p class="story-eyebrow">03 · 排成五年</p>
@@ -118,7 +118,7 @@
       <p class="story-eyebrow">06 · 組成資料包</p>
       <h2 id="story-6-title">五年，組成一份能出發的資料包</h2>
       <p class="story-scene__lead">整理完成後，帶著自己的故事往前走。</p>
-      <a class="button story-cta" href="{{ url_for('main.login') }}">開始我的路徑</a>
+      <a class="button story-cta" href="{{ url_for('main.login') }}" data-tour="準備開始時，按此進入學生登入。" data-tour-order="2">開始我的路徑</a>
     </div>
     <div class="bundle-stack" data-motion="bundle" aria-hidden="true">
       {% for i in range(5) %}<span style="--i: {{ i }};"></span>{% endfor %}

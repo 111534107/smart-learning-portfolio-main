@@ -1,0 +1,45 @@
+%%{init: {"theme":"neutral","fontFamily":"Microsoft JhengHei","er":{"layoutDirection":"LR","minEntityWidth":140,"fontSize":14}}}%%
+erDiagram
+ direction LR
+ users["帳號"] {
+  int id PK
+ }
+ public_sources["官方來源"] {
+  int id PK
+ }
+ public_source_snapshots["來源歷史"] {
+  int id PK
+  int source_id FK
+ }
+ form_categories["表單分類"] {
+  int id PK
+ }
+ form_items["表單項目"] {
+  int id PK
+  int category_id FK
+  int created_by_id FK
+  int approved_by_id FK
+ }
+ form_item_versions["表單版本"] {
+  int id PK
+  int item_id FK
+  int uploaded_by_id FK
+ }
+ audit_logs["操作紀錄"] {
+  int id PK
+  int user_id FK
+ }
+ award_certificates["電子獎狀"] {
+  int id PK
+  int reviewed_by_id FK
+  int portfolio_id FK
+ }
+ public_sources ||--o{ public_source_snapshots : "source_id"
+ form_categories ||--o{ form_items : "category_id"
+ users ||--o{ form_items : "created_by_id"
+ users |o--o{ form_items : "approved_by_id"
+ form_items ||--o{ form_item_versions : "item_id"
+ users ||--o{ form_item_versions : "uploaded_by_id"
+ users |o--o{ audit_logs : "user_id"
+ users |o--o{ award_certificates : "reviewed_by_id"
+ portfolios ||--o| award_certificates : "portfolio_id（一筆經歷最多一張）"

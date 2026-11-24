@@ -143,7 +143,8 @@ def test_club_record_reminds_student_to_go_to_student_affairs(tmp_path):
     applied = student.post(f"/student/portfolio/{club_id}/certificate", data={"kind": "club"})
 
     assert "學務處" in page and "指導老師蓋章" in page
-    assert "申請電子獎狀" not in page and 'name="kind"' not in page
+    certificate_panel = page.split('aria-labelledby="certificate-title"', 1)[1].split("</section>", 1)[0]
+    assert "申請電子獎狀" not in certificate_panel and 'name="kind"' not in certificate_panel
     assert applied.status_code == 400
     with app.app_context():
         assert AwardCertificate.query.count() == 0

@@ -10,7 +10,7 @@
 {{ hub_header(tab, counts) }}
 
 {% if events %}
-<ol class="hub-timeline" aria-label="行動紀錄，新的在上面">
+<ol class="hub-timeline" aria-label="行動紀錄，新的在上面" data-tour="查看歷次動作，點提案編號可看內容。" data-tour-order="3">
   {% for event in events %}
   <li class="hub-timeline__item hub-timeline__item--{{ event.kind }}" style="--i: {{ loop.index0 }};">
     <span class="hub-timeline__dot" aria-hidden="true">{{ event.icon }}</span>

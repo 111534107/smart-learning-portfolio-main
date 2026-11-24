@@ -1,4 +1,4 @@
-"""系統手冊（❓ 怎麼操作）與每頁網頁導覽。規格：引導卡片規格 1.5、Canva 第 21 頁、會議室 20261010-224756 #11 清單第 1 項。"""
+﻿"""系統手冊（❓ 怎麼操作）與每頁網頁導覽。規格：引導卡片規格 1.5、Canva 第 21 頁、會議室 20261010-224756 #11 清單第 1 項。"""
 import json
 import re
 import shutil
@@ -69,7 +69,7 @@ const hiddenWalker = {
 
 global.document = {
   body: { dataset: { page: scenario.startsWith("tour-") ? "student-dashboard" : "other" } },
-  documentElement: { dataset: {} },
+  documentElement: { dataset: {}, hasAttribute: () => false },
   activeElement: null,
   querySelectorAll(selector) {
     if (selector === "[data-return]") return scenario.startsWith("return-") ? [returnRoot] : [];
@@ -264,3 +264,45 @@ def test_pages_have_short_tour_steps(client, url, minimum):
     assert len(steps) >= minimum, url
     for text in steps:
         assert len(text) <= 30, text
+
+def test_upload_page_guides_file_selection_and_submission(client):
+    page = client.get('/student/learning-profile/upload').get_data(as_text=True)
+    assert 'data-tour="選擇要上傳的成績單或證照檔案。"' in page
+    assert 'data-tour="選好檔案後按上傳，再核對辨識結果。"' in page
+
+def test_help_page_guides_search_and_questions(client):
+    page = client.get('/help').get_data(as_text=True)
+    assert 'data-tour="輸入關鍵字，搜尋想了解的操作。"' in page
+    assert 'data-tour="點問題展開答案，再前往操作頁面。"' in page
+
+def test_help_shows_transcript_animation_with_accessible_description(client):
+    page = client.get('/help').get_data(as_text=True)
+    assert '/static/img/howto/student-upload-transcript-labelled.gif' in page
+    assert 'alt="上傳成績單、核對辨識結果並確認儲存的操作動畫"' in page
+
+def test_help_animation_files_exist_and_fit_size_limit():
+    from app.content.help import HELP
+    static_dir = Path(__file__).resolve().parents[1] / 'app' / 'static' / 'img' / 'howto'
+    gifs = [item['gif'] for sections in HELP.values() for section in sections
+            for item in section['items'] if item.get('gif')]
+    assert gifs
+    for name in gifs:
+        path = static_dir / name
+        assert path.is_file(), name
+        assert path.stat().st_size < 3 * 1024 * 1024, name
+
+def test_student_files_and_activity_form_have_specific_tours(client):
+    files = client.get('/student/files').get_data(as_text=True)
+    assert 'data-tour="在這裡開啟上傳過的成績單與證照。"' in files
+    assert 'data-tour="在這裡查看活動與經歷的佐證。"' in files
+    form = client.get('/student/portfolio/new').get_data(as_text=True)
+    assert 'data-tour="填寫這筆活動的類型、時間與內容。"' in form
+    assert 'data-tour="資料核對無誤後，確認並儲存。"' in form
+    assert 'data-tour="還沒寫完時，先存成草稿。"' in form
+
+
+def test_attendance_page_guides_import_and_saved_totals(client):
+    page = client.get('/student/attendance-records').get_data(as_text=True)
+    assert 'data-tour="貼上單學期缺曠表格，再預覽核對。"' in page
+    assert 'data-tour="或選擇校方列印的 PDF 讀取。"' in page
+    assert 'data-tour="在這裡查看已確認儲存的學期合計。"' in page

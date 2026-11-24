@@ -10,9 +10,9 @@
 {{ page_band("還不能使用這個功能") }}
 <div class="page narrow page--banded">
   <section class="sheet">
-    <p class="notice notice--warn" role="alert">{{ reason }}</p>
+    <p class="notice notice--warn" role="alert" data-tour="先查看目前無法使用的原因。" data-tour-order="1">{{ reason }}</p>
     <div class="record-card__actions mt-1">
-      <a class="button" href="{{ back }}">{{ "回到目標校系" if back == url_for('student.target_list') else "回到上一頁" }}</a>
+      <a class="button" href="{{ back }}" data-tour="看完原因後，按此返回。" data-tour-order="2">{{ "回到目標校系" if back == url_for('student.target_list') else "回到上一頁" }}</a>
     </div>
   </section>
 </div>

@@ -1,5 +1,5 @@
 """不及格課程自動配對之後的重補修：標示何時、哪一學期、幾分重修及格（合成資料）。"""
-from app.services.course_review_presentation import prepare_course_review_rows
+from app.services.course_review_presentation import prepare_course_review_rows, build_course_review_groups
 
 
 def course(name, grade, semester, score, makeup=None, credits=3):
@@ -56,6 +56,74 @@ def test_failed_retake_does_not_count_and_the_next_pass_is_used():
     ])
 
     assert rows[0]["retake"]["label"] == "2年級第一學期 70 分"
+
+
+def test_passing_retake_moves_original_failure_to_resolved_without_changing_scores():
+    original = [course("模擬程式語言", "3年級", "第二學期", 58),
+                course("模擬程式語言", "3年級", "第二學期", 85, makeup="summer")]
+    rows = prepare_course_review_rows(original)
+    group = build_course_review_groups(rows)[2]
+    assert group["failed"] == []
+    assert [e["index"] for e in group["resolved"]] == [0]
+    assert [e["index"] for e in group["passed"]] == [1]
+    assert [r["score"] for r in rows] == [58, 85]
+    assert "retake" not in original[0]
+
+
+def test_uncertain_passing_score_does_not_resolve_failure():
+    makeup = course("模擬程式語言", "3年級", "第二學期", 85, makeup="summer")
+    makeup["field_confidence"] = {"score": 0.6}
+    rows = prepare_course_review_rows([course("模擬程式語言", "3年級", "第二學期", 58), makeup])
+    assert rows[0].get("retake") is None
+    assert len(build_course_review_groups(rows)[2]["failed"]) == 1
+
+
+def test_different_or_missing_credits_do_not_resolve_failure():
+    for credits in (2, None):
+        rows = prepare_course_review_rows([
+            course("模擬程式語言", "3年級", "第二學期", 58),
+            course("模擬程式語言", "3年級", "第二學期", 85, makeup="summer", credits=credits),
+        ])
+        assert rows[0].get("retake") is None
+
+
+def test_recalculating_after_score_edit_discards_stale_retake_links():
+    rows = prepare_course_review_rows([
+        course("模擬程式語言", "3年級", "第二學期", 58),
+        course("模擬程式語言", "3年級", "第二學期", 85, makeup="summer"),
+    ])
+    rows[1]["score"] = 55
+    updated = prepare_course_review_rows(rows)
+    assert updated[0].get("retake") is None
+    assert updated[1].get("retake_of") is None
+
+
+def test_one_makeup_cannot_resolve_two_different_regular_semester_failures():
+    rows = prepare_course_review_rows([
+        course("模擬數學", "3年級", "第一學期", 50),
+        course("模擬數學", "3年級", "第二學期", 58),
+        course("模擬數學", "3年級", "第二學期", 85, makeup="summer"),
+    ])
+    group = build_course_review_groups(rows)[2]
+    assert len(group["failed"]) == 2
+    assert group["resolved"] == []
+    assert all(row.get("retake") is None for row in rows)
+    assert all(row.get("retake_ambiguous") and row["needs_review"] for row in rows)
+
+
+def test_review_filter_counts_only_unresolved_failures_and_labels_retake_pair(tmp_path):
+    from tests.test_learning_profile_review_enhancements import _review_app
+    import re
+    app, client, document_id = _review_app(tmp_path, [
+        course("模擬程式語言", "3年級", "第二學期", 58),
+        course("模擬程式語言", "3年級", "第二學期", 85, makeup="summer"),
+        course("模擬統計學", "3年級", "第二學期", 50),
+    ])
+    page = client.get(f"/student/learning-profile/documents/{document_id}/review").get_data(as_text=True)
+    assert re.search(r'data-review-view="failed"[^>]*>尚未補過.*?<strong>1</strong>', page, re.S)
+    assert re.search(r'data-review-view="retake"[^>]*>重補修.*?<strong>2</strong>', page, re.S)
+    assert 'data-review-kind="resolved"' in page
+    assert "已有及格重補修（原始分數保留）" in page
 
 
 def test_review_page_shows_retake_note_on_failed_course(tmp_path):

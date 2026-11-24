@@ -57,6 +57,10 @@ def prepare_course_review_rows(courses):
     prepared = []
     for course in courses:
         row = dict(course)
+        # Display links are derived afresh, never trusted from an older draft.
+        row.pop("retake", None)
+        row.pop("retake_of", None)
+        row.pop("retake_ambiguous", None)
         missing_value = any(
             row.get(field) is None
             or not str(row.get(field)).strip()
@@ -119,34 +123,64 @@ def _link_retakes(rows):
         score = row.get("score")
         return score if type(score) is int and 0 <= score <= 100 else None
 
-    for failed_index, failed in enumerate(rows):
+    ambiguous = set()
+    # Resolve earlier attempts first, so an already completed course does not
+    # compete with a later, distinct failure of the same name.
+    indices = sorted(range(len(rows)), key=lambda i: (_course_position(rows[i]) or float("inf"), i))
+    for failed_index in indices:
+        failed = rows[failed_index]
         failed_score, failed_position = score_of(failed), _course_position(failed)
         if failed_score is None or failed_score >= 60 or failed_position is None:
+            continue
+        if failed.get("needs_review") or type(failed.get("credits")) is not int or failed["credits"] <= 0:
             continue
         later_passes = [
             (position, index) for index, row in enumerate(rows)
             if index != failed_index and same_course(row.get("course_name")) == same_course(failed.get("course_name"))
             and (score_of(row) or 0) >= 60
+            and not row.get("needs_review")
+            and type(row.get("credits")) is int and row["credits"] == failed["credits"]
             and (position := _course_position(row)) is not None and position > failed_position
         ]
         if not later_passes:
             continue
-        _position, retake_index = min(later_passes)
+        matched = None
+        for position, retake_index in sorted(later_passes):
+            origins = [
+                index for index, row in enumerate(rows)
+                if score_of(row) is not None and score_of(row) < 60
+                and not row.get("makeup_season") and not row.get("retake")
+                and not row.get("needs_review")
+                and same_course(row.get("course_name")) == same_course(failed.get("course_name"))
+                and type(row.get("credits")) is int and row["credits"] == failed["credits"]
+                and (origin_position := _course_position(row)) is not None and origin_position < position
+            ]
+            if len(origins) > 1:
+                ambiguous.update([*origins, failed_index, retake_index])
+                continue
+            matched = retake_index
+            break
+        if matched is None:
+            continue
+        retake_index = matched
         retake = rows[retake_index]
         failed["retake"] = {"index": retake_index, "score": retake["score"],
                             "label": f"{_period_label(retake)} {retake['score']} 分"}
         retake.setdefault("retake_of", {"index": failed_index, "score": failed_score,
                                         "label": f"{_period_label(failed)} {failed_score} 分"})
+    for index in ambiguous:
+        rows[index]["retake_ambiguous"] = True
+        rows[index]["needs_review"] = True
 
 
 def build_course_review_groups(courses):
     """Return five grade groups plus unknown, preserving source-list indices."""
     groups = [
-        {"key": str(number), "label": label, "passed": [], "failed": [],
+        {"key": str(number), "label": label, "passed": [], "failed": [], "resolved": [],
          "pending": [], "highest": None}
         for number, label in enumerate(GRADE_NAMES, 1)
     ]
-    groups.append({"key": "unknown", "label": "年級待確認", "passed": [],
+    groups.append({"key": "unknown", "label": "年級待確認", "passed": [], "resolved": [],
                    "failed": [], "pending": [], "highest": None})
     by_key = {group["key"]: group for group in groups}
     for index, course in enumerate(courses):
@@ -159,15 +193,15 @@ def build_course_review_groups(courses):
         if type(score) is not int or not 0 <= score <= 100:
             group["pending"].append(entry)
         elif score < 60:
-            group["failed"].append(entry)
+            group["resolved" if course.get("retake") else "failed"].append(entry)
         else:
             group["passed"].append(entry)
     for group in groups:
-        for kind in ("passed", "failed"):
+        for kind in ("passed", "failed", "resolved"):
             group[kind].sort(key=lambda entry: (-entry["course"]["score"], entry["index"]))
         semester_labels = ["第一學期", "第二學期"]
         for entry in sorted(
-            group["passed"] + group["failed"] + group["pending"],
+            group["passed"] + group["failed"] + group["resolved"] + group["pending"],
             key=lambda item: item["index"],
         ):
             if entry["semester_label"] not in semester_labels:
@@ -177,17 +211,17 @@ def build_course_review_groups(courses):
                 "label": label,
                 **{
                     kind: [entry for entry in group[kind] if entry["semester_label"] == label]
-                    for kind in ("passed", "failed", "pending")
+                    for kind in ("passed", "failed", "resolved", "pending")
                 },
             }
             for label in semester_labels
             if any(entry["semester_label"] == label
-                   for kind in ("passed", "failed", "pending") for entry in group[kind])
+                   for kind in ("passed", "failed", "resolved", "pending") for entry in group[kind])
         ]
-        scored = group["passed"] + group["failed"]
+        scored = group["passed"] + group["failed"] + group["resolved"]
         group["top_three"] = sorted(
             scored, key=lambda entry: (-entry["course"]["score"], entry["index"])
         )[:3]
         group["highest"] = min(scored, key=lambda entry: (-entry["course"]["score"], entry["index"])) if scored else None
-        group["empty"] = not (group["passed"] or group["failed"] or group["pending"])
+        group["empty"] = not (group["passed"] or group["failed"] or group["resolved"] or group["pending"])
     return groups

@@ -26,7 +26,7 @@
         <li><b>{{ counts.proposals }}</b>規劃提案</li>
       </ul>
     </div>
-    <div class="hub-hero__action">
+    <div class="hub-hero__action"{% if tab != 'issues' %} data-tour="按這裡請小助手規劃，或查看待確認提案。" data-tour-order="1"{% endif %}>
       {% if counts.pending_id %}
       <a class="button hub-pulse" href="{{ url_for('agent_plan.proposal_page', plan_id=counts.pending_id) }}">提案 #{{ counts.pending_id }} 等你同意 →</a>
       {% else %}
@@ -39,7 +39,7 @@
     </div>
   </section>
 
-  <nav class="hub-tabs" aria-label="小助手規劃">
+  <nav class="hub-tabs" aria-label="小助手規劃"{% if tab != 'issues' %} data-tour="切換待辦、規劃提案與行動紀錄。" data-tour-order="2"{% endif %}>
     <a href="{{ url_for('agent_plan.issues') }}"{% if tab == "issues" %} aria-current="page"{% endif %}>待辦 <span class="hub-count">{{ counts.issues }}</span></a>
     <a href="{{ url_for('agent_plan.proposals') }}"{% if tab == "proposals" %} aria-current="page"{% endif %}>規劃提案 <span class="hub-count">{{ counts.proposals }}</span></a>
     <a href="{{ url_for('agent_plan.activity') }}"{% if tab == "activity" %} aria-current="page"{% endif %}>行動紀錄</a>

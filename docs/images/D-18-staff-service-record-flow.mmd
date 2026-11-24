@@ -9,8 +9,7 @@ flowchart TD
 
     Start([學生從學校系統下載獎懲記錄並上傳]):::student --> Read[AI 逐列讀出並分類<br/>例如「協助資管科麗山國中社團活動」→服務學習]:::ai
     Read --> Pick[學生勾選科上派的服務<br/>申請電子獎狀]:::student
-    Other([學生申請 TA 證明<br/>系統從獎懲原文帶出課程與學期]):::student --> Draft
-    Club([經歷寫到科學會或社團]):::student --> Remind[系統提醒：科學會（社團）證明由學務處辦理<br/>填學務處表格，社團指導老師與學務處蓋章；科辦不開]:::note
+    Other([學生申請 TA 證明或社團證明<br/>填寫擔任的課程或社團與學期]):::student --> Draft
     Pick --> Draft[系統依範本自動帶入內文<br/>姓名、學號、學年度學期、服務內容、次數或時數]:::system
     Draft --> Review[科辦查看申請<br/>對照獎懲記錄或科辦自己的名單]:::staff
     Review --> Valid{確有這筆服務？}
@@ -18,7 +17,7 @@ flowchart TD
     Return --> Pick
     Valid -- 是 --> Edit[科辦視需要修改內文]:::staff
     Edit --> Approve[科辦按「核准」]:::staff
-    Approve --> Cert[系統產出電子獎狀 PDF<br/>證明類別：科上派的服務、TA（寫課程與學期，不寫時數）<br/>固定外框＋內文＋驗證碼與 QR code]:::system
+    Approve --> Cert[系統產出電子獎狀 PDF<br/>證明類別：科上派的服務、TA、社團<br/>固定外框＋內文＋驗證碼與 QR code]:::system
     Cert --> Student[學生下載；列入學習資料<br/>來源標示「科辦電子獎狀」]:::student
     Cert --> Verify[任何人輸入驗證碼<br/>可在本系統驗證頁查到]:::system
     Student --> Package([產出備審資料、AI 寫自傳時可引用])

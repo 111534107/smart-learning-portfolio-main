@@ -1,0 +1,27 @@
+%%{init: {'flowchart':{'wrappingWidth':220}}}%%
+flowchart LR
+  classDef admin fill:#FCE7F3,stroke:#9CA3AF,color:#111827;
+  classDef assist fill:#DCFCE7,stroke:#9CA3AF,color:#111827;
+  classDef chief fill:#FFEDD5,stroke:#9CA3AF,color:#111827;
+  classDef system fill:#E0F2FE,stroke:#9CA3AF,color:#111827;
+  subgraph L["① 管理員建案"]
+    direction TB
+    A([收到校方核定的轉科資料]) --> B[輸入 9 碼學號查詢]:::admin
+    B --> D{已有帳號？}
+    D -->|是| E[沿用原帳號<br/>填轉入班級與學年度]:::admin
+    D -->|否| F[建立新帳號<br/>填姓名、起始密碼、班級]:::admin
+    E --> S[送核，通知科助與主任<br/>不含學號與密碼]:::system
+    F --> S
+    R[看退回原因，更正後重送]:::admin --> S
+  end
+  subgraph Rt["② 兩關核對"]
+    direction TB
+    J[科助核對]:::assist --> K{相符？}
+    K -->|是| M[科主任確認]:::chief
+    M --> N{相符？}
+    N -->|是| U[更新班級與學年度<br/>結案，全程留紀錄]:::system
+    U --> Z([學生登入])
+  end
+  S --> J
+  K -->|否，附原因| R
+  N -->|否，附原因| R

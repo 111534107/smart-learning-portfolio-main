@@ -5,7 +5,7 @@
 {% block navigation %}{{ masthead(user, "通知") }}{% endblock %}
 {% block content %}
 <section class="work-shell">
-  <header class="work-heading">
+  <header class="work-heading" data-tour="查看送審、獎狀與案件的提醒。" data-tour-order="1">
     <div>
       <p class="small">畢業缺口案件、備審送審、電子獎狀與二技公告</p>
       <h1>通知</h1>
@@ -22,7 +22,7 @@
     </form>
   </section>
   {% endif %}
-  <section class="work-panel mt-1">
+  <section class="work-panel mt-1" data-tour="點通知開啟相關資料，開啟後標為已讀。" data-tour-order="2">
     {% if rows %}
     <ul>
       {% for row in rows %}
